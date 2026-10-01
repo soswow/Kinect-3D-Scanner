@@ -52,3 +52,25 @@ Lens rectification keeps K unchanged and uses nearest-neighbour depth sampling
 so missing depth stays missing. Recordings replay their pairing metadata.
 
 Calibration follows [OpenCV's calibrated camera model](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html).
+
+## Compute profiling milestone
+
+Implemented isolated, sequential replays with per-stage total/p50/p95, stage
+placement, acceptance/error, source hash and peak process RSS. It detects source
+changes during a run. CUDA requests fail explicitly rather than falling back.
+
+```bash
+OMP_NUM_THREADS=4 python scripts/profile_backends.py --dataset redwood --repeats 3
+# On an NVIDIA server, use the same recorded input and settings:
+python scripts/profile_backends.py --dataset recording --path recordings/session \
+  --repeats 3 --runs cpu-legacy cuda-tensor
+```
+
+Two sequential five-frame Redwood repeats on this Mac accepted 5/5 in both CPU
+modes: median processing/final-extraction 3.37 s legacy, 4.06 s tensor. These short
+runs are a profiling smoke check, not a general throughput result. CUDA was
+unavailable. Peak RSS includes CPU allocations and imports, not GPU VRAM.
+[Aggregate evidence](benchmarks/backend-profile.json) contains no captured images.
+NVIDIA throughput validation remains pending target hardware. The current hybrid
+stage placement is explicit; no new GPU optimization is justified by a CPU-only
+profile.

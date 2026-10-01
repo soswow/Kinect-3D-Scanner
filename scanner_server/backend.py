@@ -29,6 +29,17 @@ def select_backend(requested=None, tracking=None):
         "cuda_available": available,
         "tracking": mode,
         "tracking_device": str(device) if mode == "tensor" else "CPU:0",
+        "stage_devices": {
+            "depth_filter": "CPU:0",
+            "registration_cloud": "CPU:0",
+            "tracking": str(device) if mode == "tensor" else "CPU:0",
+            "fusion": str(device),
+            "model_refresh": "hybrid"
+            if available and str(device).startswith("CUDA")
+            else "CPU:0",
+            "final_refinement": "CPU:0",
+            "texturing": "CPU:0",
+        },
         "open3d_version": o3d.__version__,
         "fallback_reason": "CUDA unavailable; using CPU"
         if requested == "auto" and not available

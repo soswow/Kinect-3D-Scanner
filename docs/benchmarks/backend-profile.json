@@ -1,0 +1,283 @@
+{
+  "source_sha256": "63f8d05e1545592b898413f81e9fffa582e1a10977806be63d4a2e089bdde5cc",
+  "source_changed_during_profile": false,
+  "dataset": "redwood",
+  "stride": 1,
+  "limit": null,
+  "repeats": 2,
+  "omp_threads": "4",
+  "initial_blocks": "5000",
+  "method": "sequential isolated processes; includes processing/final extraction; excludes startup",
+  "memory": "peak process RSS; includes CPU allocations, not GPU VRAM",
+  "runs": {
+    "cpu-legacy": {
+      "available": true,
+      "runs": [
+        {
+          "frames": 5,
+          "accepted": 5,
+          "elapsed_s": 3.3475329177454114,
+          "mesh_built": true,
+          "backend": {
+            "requested": "cpu",
+            "device": "CPU:0",
+            "cuda_available": false,
+            "tracking": "legacy",
+            "tracking_device": "CPU:0",
+            "stage_devices": {
+              "depth_filter": "CPU:0",
+              "registration_cloud": "CPU:0",
+              "tracking": "CPU:0",
+              "fusion": "CPU:0",
+              "model_refresh": "CPU:0",
+              "final_refinement": "CPU:0",
+              "texturing": "CPU:0"
+            },
+            "open3d_version": "0.20.0",
+            "fallback_reason": null
+          },
+          "anchored_translation_rmse_m": 0.0013617364357928978,
+          "rotation_rmse_deg": 0.06357721865272001,
+          "peak_process_rss_bytes": 919814144,
+          "stages": {
+            "depth_filter": {
+              "total_ms": 21.565625444054604,
+              "share": 0.00980411842280275,
+              "p50_ms": 3.6481674760580063,
+              "p95_ms": 6.780974939465522
+            },
+            "registration_cloud": {
+              "total_ms": 496.7406680807471,
+              "share": 0.22582717797449417,
+              "p50_ms": 96.33429162204266,
+              "p95_ms": 112.16248348355293
+            },
+            "fusion": {
+              "total_ms": 108.1972923129797,
+              "share": 0.04918842115731465,
+              "p50_ms": 22.55216706544161,
+              "p95_ms": 24.663016758859158
+            },
+            "model_refresh": {
+              "total_ms": 879.9235839396715,
+              "share": 0.4000289739957385,
+              "p50_ms": 439.96179196983576,
+              "p95_ms": 469.40817972645164
+            },
+            "tracking": {
+              "total_ms": 693.222458474338,
+              "share": 0.31515130844964995,
+              "p50_ms": 171.5130629017949,
+              "p95_ms": 198.57991407625377
+            }
+          },
+          "frames_per_processing_second": 1.4936372913600915,
+          "rejected": 0
+        },
+        {
+          "frames": 5,
+          "accepted": 5,
+          "elapsed_s": 3.400988291017711,
+          "mesh_built": true,
+          "backend": {
+            "requested": "cpu",
+            "device": "CPU:0",
+            "cuda_available": false,
+            "tracking": "legacy",
+            "tracking_device": "CPU:0",
+            "stage_devices": {
+              "depth_filter": "CPU:0",
+              "registration_cloud": "CPU:0",
+              "tracking": "CPU:0",
+              "fusion": "CPU:0",
+              "model_refresh": "CPU:0",
+              "final_refinement": "CPU:0",
+              "texturing": "CPU:0"
+            },
+            "open3d_version": "0.20.0",
+            "fallback_reason": null
+          },
+          "anchored_translation_rmse_m": 0.0013619154012061545,
+          "rotation_rmse_deg": 0.06353982549923665,
+          "peak_process_rss_bytes": 1019559936,
+          "stages": {
+            "depth_filter": {
+              "total_ms": 18.842042423784733,
+              "share": 0.008278358839834911,
+              "p50_ms": 3.4578749909996986,
+              "p95_ms": 4.905724711716175
+            },
+            "registration_cloud": {
+              "total_ms": 505.1769567653537,
+              "share": 0.22195237817956964,
+              "p50_ms": 96.2252076715231,
+              "p95_ms": 116.10466726124287
+            },
+            "fusion": {
+              "total_ms": 97.60229010134935,
+              "share": 0.042882123013835115,
+              "p50_ms": 18.37649941444397,
+              "p95_ms": 22.5231746211648
+            },
+            "model_refresh": {
+              "total_ms": 871.5666672214866,
+              "share": 0.38292778785969667,
+              "p50_ms": 435.7833336107433,
+              "p95_ms": 465.2935466263443
+            },
+            "tracking": {
+              "total_ms": 782.8721646219492,
+              "share": 0.3439593521070637,
+              "p50_ms": 199.15610365569592,
+              "p95_ms": 226.38833080418408
+            }
+          },
+          "frames_per_processing_second": 1.470160897997035,
+          "rejected": 0
+        }
+      ],
+      "median_elapsed_s": 3.3742606043815613,
+      "accepted_range": [
+        5,
+        5
+      ]
+    },
+    "cpu-tensor": {
+      "available": true,
+      "runs": [
+        {
+          "frames": 5,
+          "accepted": 5,
+          "elapsed_s": 4.127365708351135,
+          "mesh_built": true,
+          "backend": {
+            "requested": "cpu",
+            "device": "CPU:0",
+            "cuda_available": false,
+            "tracking": "tensor",
+            "tracking_device": "CPU:0",
+            "stage_devices": {
+              "depth_filter": "CPU:0",
+              "registration_cloud": "CPU:0",
+              "tracking": "CPU:0",
+              "fusion": "CPU:0",
+              "model_refresh": "CPU:0",
+              "final_refinement": "CPU:0",
+              "texturing": "CPU:0"
+            },
+            "open3d_version": "0.20.0",
+            "fallback_reason": null
+          },
+          "anchored_translation_rmse_m": 0.001361403495257197,
+          "rotation_rmse_deg": 0.06356312628184344,
+          "peak_process_rss_bytes": 1018462208,
+          "stages": {
+            "depth_filter": {
+              "total_ms": 19.02375090867281,
+              "share": 0.006581778571124243,
+              "p50_ms": 3.7593329325318336,
+              "p95_ms": 4.422109201550484
+            },
+            "registration_cloud": {
+              "total_ms": 497.1468737348914,
+              "share": 0.17200133958640001,
+              "p50_ms": 96.48295864462852,
+              "p95_ms": 110.40820777416229
+            },
+            "fusion": {
+              "total_ms": 93.28316524624825,
+              "share": 0.03227382134111595,
+              "p50_ms": 18.21708306670189,
+              "p95_ms": 21.157699637115
+            },
+            "model_refresh": {
+              "total_ms": 887.1800005435944,
+              "share": 0.3069437959075546,
+              "p50_ms": 443.5900002717972,
+              "p95_ms": 458.41300040483475
+            },
+            "tracking": {
+              "total_ms": 1393.7324993312359,
+              "share": 0.4821992645938052,
+              "p50_ms": 338.9221038669348,
+              "p95_ms": 435.95322323963046
+            }
+          },
+          "frames_per_processing_second": 1.211426452926915,
+          "rejected": 0
+        },
+        {
+          "frames": 5,
+          "accepted": 5,
+          "elapsed_s": 3.998182666487992,
+          "mesh_built": true,
+          "backend": {
+            "requested": "cpu",
+            "device": "CPU:0",
+            "cuda_available": false,
+            "tracking": "tensor",
+            "tracking_device": "CPU:0",
+            "stage_devices": {
+              "depth_filter": "CPU:0",
+              "registration_cloud": "CPU:0",
+              "tracking": "CPU:0",
+              "fusion": "CPU:0",
+              "model_refresh": "CPU:0",
+              "final_refinement": "CPU:0",
+              "texturing": "CPU:0"
+            },
+            "open3d_version": "0.20.0",
+            "fallback_reason": null
+          },
+          "anchored_translation_rmse_m": 0.0013622796159603082,
+          "rotation_rmse_deg": 0.06354997346178118,
+          "peak_process_rss_bytes": 1022033920,
+          "stages": {
+            "depth_filter": {
+              "total_ms": 18.858292140066624,
+              "share": 0.006633141014274472,
+              "p50_ms": 3.4107910469174385,
+              "p95_ms": 4.675308056175709
+            },
+            "registration_cloud": {
+              "total_ms": 506.3418336212635,
+              "share": 0.1780986718675511,
+              "p50_ms": 97.248749807477,
+              "p95_ms": 114.52849991619587
+            },
+            "fusion": {
+              "total_ms": 94.86404154449701,
+              "share": 0.03336710239055706,
+              "p50_ms": 19.133790396153927,
+              "p95_ms": 20.217125117778778
+            },
+            "model_refresh": {
+              "total_ms": 883.8481660932302,
+              "share": 0.31088125464173494,
+              "p50_ms": 441.9240830466151,
+              "p95_ms": 467.1822081319988
+            },
+            "tracking": {
+              "total_ms": 1339.1287084668875,
+              "share": 0.47101983008588244,
+              "p50_ms": 332.5849580578506,
+              "p95_ms": 401.33440042845905
+            }
+          },
+          "frames_per_processing_second": 1.2505681748633075,
+          "rejected": 0
+        }
+      ],
+      "median_elapsed_s": 4.0627741874195635,
+      "accepted_range": [
+        5,
+        5
+      ]
+    },
+    "cuda-tensor": {
+      "available": false,
+      "reason": "CUDA unavailable on this host"
+    }
+  },
+  "note": "Compare pose error and acceptance before attributing a throughput gain"
+}

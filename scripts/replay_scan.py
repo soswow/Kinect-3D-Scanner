@@ -9,6 +9,7 @@ import argparse
 import importlib.util
 import json
 import os
+import resource
 import sys
 import time
 from dataclasses import replace
@@ -359,6 +360,8 @@ def main():
         "backend": getattr(engine, "backend", None),
         "refinement": getattr(engine, "refinement", None),
         "stage_totals_ms": getattr(engine, "stage_totals_ms", None),
+        "peak_process_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        * (1 if sys.platform == "darwin" else 1024),
         "diagnostics": diagnostics,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
