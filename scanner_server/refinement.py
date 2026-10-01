@@ -12,6 +12,8 @@ import open3d as o3d
 
 from shared.calibration import prepare_rgbd
 
+from .appearance import extract_features, propose_transform, retrieve_pairs
+
 REG = o3d.pipelines.registration
 
 
@@ -95,11 +97,19 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
         np.linspace(0, len(poses) - 1, min(max_keyframes, len(poses)), dtype=int)
     )
     originals = [poses[i][1] for i in chosen]
-    training, validation = [], []
+    training, validation, features = [], [], []
     for i in chosen:
         index, _ = poses[i]
         rgb, raw = engine.raw_frames[index]
         rgb, depth = prepare_rgbd(rgb, raw, engine.settings)
+        lag = engine.frame_metadata[index].get("rgb_depth_delta_ms")
+        features.append(
+            extract_features(
+                rgb,
+                depth if lag is None or abs(lag) <= 20 else np.zeros_like(depth),
+                engine.settings.camera,
+            )
+        )
         rgbd = engine._make_rgbd(rgb, depth)
         cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
             rgbd, engine.intrinsic
@@ -119,10 +129,24 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
         graph.nodes.append(REG.PoseGraphNode(pose.copy()))
     constraints = []
 
-    def add_edge(i, j, uncertain):
+    def add_edge(i, j, uncertain, proposal=None):
         initial = np.linalg.inv(originals[j]) @ originals[i]
-        result = _match(training[i], training[j], initial)
+        result = _match(
+            training[i], training[j], initial if proposal is None else proposal
+        )
         reliable = _trustworthy(result, training[j])
+        transform = result.transformation if reliable else initial
+        if not uncertain and not reliable and proposal is not None:
+            # A verified RGB-D seed can connect poorly conditioned ICP pairs
+            # only with non-planar measured feature support and independent
+            # training geometry agreement. Held-out points remain unused here.
+            eigenvalues = np.linalg.eigvalsh(np.cov(features[i].points.T))
+            if (
+                eigenvalues[0] / max(eigenvalues.sum(), 1e-9) > 0.002
+                and _distance(training[i], training[j], proposal) < 0.015**2
+            ):
+                transform = proposal
+                reliable = True
         if reliable and uncertain:
             reverse = _match(
                 training[j], training[i], np.linalg.inv(result.transformation)
@@ -135,25 +159,37 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
                 _trustworthy(reverse, training[i])
                 and trans < 0.01
                 and angle < 2
-                and correction < 0.2
-                and correction_angle < 15
+                and correction < (0.75 if proposal is not None else 0.2)
+                and correction_angle < (30 if proposal is not None else 15)
             )
         if uncertain and not reliable:
             return False
-        transform = result.transformation if reliable else initial
+        if uncertain:
+            transform = result.transformation if reliable else initial
         information = REG.get_information_matrix_from_point_clouds(
             training[i], training[j], 0.03, transform
         )
         if not np.all(np.isfinite(information)):
             return False
+        if not reliable:
+            information *= 0.01  # Unverified odometry is a weak prior.
         graph.edges.append(REG.PoseGraphEdge(i, j, transform, information, uncertain))
         constraints.append((i, j))
         return True
 
     for i in range(len(chosen) - 1):
-        if not add_edge(i, i + 1, False):
+        adjacent = propose_transform(
+            features[i], features[i + 1], engine.settings.camera
+        )
+        if not add_edge(i, i + 1, False, adjacent):
             report["reason"] = "Could not construct a connected trajectory graph"
             return None, report
+        # Start the robust graph from its measured sequential constraints.
+        # Large accumulated drift can otherwise cause valid loops to be pruned
+        # before the optimizer has a chance to correct the trajectory.
+        graph.nodes[i + 1].pose = graph.nodes[i].pose @ np.linalg.inv(
+            graph.edges[-1].transformation
+        )
     candidates = []
     travel = np.r_[
         0,
@@ -169,7 +205,25 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
             separation, angle = motion(np.linalg.inv(originals[j]) @ originals[i])
             if travel[j] - travel[i] >= 0.15 and separation < 0.35 and angle < 45:
                 candidates.append((separation, i, j))
-    for _, i, j in sorted(candidates)[:max_loops]:
+    retrieved = retrieve_pairs(features, budget=max_loops // 2)
+    report["appearance_candidates"] = len(retrieved)
+    report["appearance_loops"] = 0
+    seen = set()
+    for _, i, j, matches in retrieved:
+        seen.add((i, j))
+        proposal = propose_transform(
+            features[i], features[j], engine.settings.camera, matches
+        )
+        if proposal is not None:
+            accepted = bool(add_edge(i, j, True, proposal))
+            report["loops"] += accepted
+            report["appearance_loops"] += accepted
+    for _, i, j in sorted(candidates):
+        if len(seen) >= max_loops:
+            break
+        if (i, j) in seen:
+            continue
+        seen.add((i, j))
         report["loops"] += bool(add_edge(i, j, True))
     if not report["loops"]:
         return None, report
@@ -186,7 +240,7 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
     refined = [node.pose.copy() for node in graph.nodes]
     for old, new in zip(originals, refined):
         translation, angle = motion(new @ np.linalg.inv(old))
-        if not np.all(np.isfinite(new)) or translation > 0.2 or angle > 15:
+        if not np.all(np.isfinite(new)) or translation > 0.75 or angle > 30:
             report["reason"] = "Optimization exceeded correction bounds"
             return None, report
     before, after = [], []

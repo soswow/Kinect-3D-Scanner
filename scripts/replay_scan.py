@@ -287,6 +287,11 @@ def main():
     )
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument(
+        "--relocalize",
+        action="store_true",
+        help="Experimental verified appearance recovery",
+    )
+    parser.add_argument(
         "--tracking", choices=["auto", "legacy", "tensor"], default="auto"
     )
     args = parser.parse_args()
@@ -302,6 +307,8 @@ def main():
         settings = replace(settings, color_recovery=True)
     if args.refine_poses:
         settings = replace(settings, refine_poses=True)
+    if args.relocalize:
+        settings = replace(settings, relocalize=True)
     if args.server:
         if args.baseline_source:
             parser.error("Baseline comparison uses the direct engine")

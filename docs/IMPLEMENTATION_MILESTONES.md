@@ -74,3 +74,26 @@ unavailable. Peak RSS includes CPU allocations and imports, not GPU VRAM.
 NVIDIA throughput validation remains pending target hardware. The current hybrid
 stage placement is explicit; no new GPU optimization is justified by a CPU-only
 profile.
+
+## Global tracking milestone
+
+Implemented bounded mutual ORB retrieval and calibrated measured-depth PnP
+proposals, independent of estimated camera separation. Final refinement spends
+at most half its loop budget on appearance candidates, verifies reciprocal ICP,
+and retains the independent geometry checks and transactional fresh fusion.
+Unverified sequential odometry is a weak prior. Verified non-planar RGB-D seeds
+can initialize poorly conditioned sequential edges; flat targets cannot use that
+fallback. Graph optimization starts from these sequential constraints.
+
+Tests recover a revisit with 0.45 m injected position drift outside the previous
+0.35 m radius, and recover a lost pose 0.6 m from its correct location. These are
+controlled fixtures, not calibrated Kinect accuracy. Wrong depth, blank/blurred
+RGB, and known pairing lag >20 ms cannot authorize appearance recovery. Existing
+flat-loop rejection and failed-reintegration preservation checks still pass.
+
+Online recovery remains **off by default**, activated by reset `relocalize: true`
+or replay `--relocalize`; it runs only after two rejected frames and tests up to
+three candidates from at most 32 accepted keyframes. Final refinement remains
+opt-in through the existing GUI checkbox/`--refine-poses`. The desk sequence and
+repeated-scene failure cases remain important limitations; this is not a full
+SLAM replacement or an RTAB-Map integration.

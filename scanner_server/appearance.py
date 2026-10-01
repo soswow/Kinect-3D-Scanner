@@ -1,0 +1,110 @@
+"""Bounded measured RGB-D appearance proposals, never final pose authority."""
+
+from dataclasses import dataclass
+
+import cv2
+import numpy as np
+
+from shared.calibration import camera_matrix
+
+
+@dataclass
+class Features:
+    pixels: np.ndarray
+    points: np.ndarray
+    descriptors: np.ndarray | None
+
+
+def extract_features(rgb, depth, camera):
+    gray = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2GRAY)
+    keypoints, descriptors = cv2.ORB_create(
+        nfeatures=1200, fastThreshold=12
+    ).detectAndCompute(gray, None)
+    if descriptors is None:
+        return Features(np.empty((0, 2)), np.empty((0, 3)), None)
+    pixels = np.array([k.pt for k in keypoints], np.float32)
+    x, y = np.rint(pixels).astype(int).T
+    z = np.asarray(depth)[y, x].astype(float) / 1000
+    valid = z > 0
+    points = np.column_stack(
+        (
+            (pixels[:, 0] - camera.cx) * z / camera.fx,
+            (pixels[:, 1] - camera.cy) * z / camera.fy,
+            z,
+        )
+    )
+    return Features(pixels[valid], points[valid], descriptors[valid])
+
+
+def correspondences(source, target):
+    if (
+        source.descriptors is None
+        or target.descriptors is None
+        or min(len(source.points), len(target.points)) < 40
+    ):
+        return np.empty((0, 2), int)
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+    forward = matcher.knnMatch(source.descriptors, target.descriptors, k=2)
+    backward = matcher.knnMatch(target.descriptors, source.descriptors, k=2)
+    reverse = {
+        p[0].queryIdx: p[0].trainIdx
+        for p in backward
+        if len(p) == 2 and p[0].distance < 0.75 * p[1].distance
+    }
+    return np.array(
+        [
+            (p[0].queryIdx, p[0].trainIdx)
+            for p in forward
+            if len(p) == 2
+            and p[0].distance < 0.75 * p[1].distance
+            and reverse.get(p[0].trainIdx) == p[0].queryIdx
+        ],
+        int,
+    ).reshape(-1, 2)
+
+
+def propose_transform(source, target, camera, matches=None):
+    matches = correspondences(source, target) if matches is None else matches
+    if len(matches) < 40:
+        return None
+    a, b = matches.T
+    ok, rotation, translation, inliers = cv2.solvePnPRansac(
+        source.points[a],
+        target.pixels[b],
+        camera_matrix(camera),
+        None,
+        iterationsCount=200,
+        reprojectionError=2.0,
+        confidence=0.999,
+        flags=cv2.SOLVEPNP_EPNP,
+    )
+    if (
+        not ok
+        or inliers is None
+        or len(inliers) < 35
+        or len(inliers) / len(matches) < 0.65
+    ):
+        return None
+    transform = np.eye(4)
+    transform[:3, :3] = cv2.Rodrigues(rotation)[0]
+    transform[:3, 3] = translation.reshape(3)
+    if not np.all(np.isfinite(transform)):
+        return None
+    ids = inliers.reshape(-1)
+    moved = source.points[a[ids]] @ transform[:3, :3].T + transform[:3, 3]
+    distance = np.linalg.norm(moved - target.points[b[ids]], axis=1)
+    # RGB matches cannot authorize a loop on an occluder or wrong measured depth.
+    if np.mean(distance < 0.03) < 0.8 or np.median(distance) > 0.015:
+        return None
+    return transform
+
+
+def retrieve_pairs(features, minimum_separation=4, budget=20):
+    """Rank non-adjacent views by mutual descriptors, independent of drifted poses."""
+    candidates = []
+    for i in range(len(features)):
+        for j in range(i + minimum_separation, len(features)):
+            matches = correspondences(features[i], features[j])
+            if len(matches) >= 40:
+                candidates.append((len(matches), i, j, matches))
+    return sorted(candidates, key=lambda row: (-row[0], row[1], row[2]))[:budget]

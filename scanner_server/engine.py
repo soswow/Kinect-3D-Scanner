@@ -26,8 +26,8 @@ import open3d as o3d
 import open3d.core as o3c
 import trimesh
 
-from shared.config import PRESET_DEFAULT, ScanPreset
 from shared.calibration import prepare_rgbd
+from shared.config import PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
 
 from .backend import select_backend
@@ -118,6 +118,8 @@ class ScanEngine:
         self.diagnostics = []
         self.frame_metadata = []
         self._frame_ids = set()
+        self._appearance_cache = {}
+        self._tracking_lost_frames = 0
 
     # ── helpers ────────────────────────────────────────────────────────
 
@@ -333,7 +335,7 @@ class ScanEngine:
             pose = result.transformation
         return result
 
-    def _alignment_error(self, result, target):
+    def _alignment_error(self, result, target, check_motion=True):
         s = self.settings
         if not np.all(np.isfinite(result.transformation)):
             return "Non-finite tracking pose"
@@ -347,7 +349,9 @@ class ScanEngine:
         angle = np.degrees(
             np.arccos(np.clip((np.trace(relative[:3, :3]) - 1) / 2, -1, 1))
         )
-        if translation > s.max_translation_m or angle > s.max_rotation_deg:
+        if check_motion and (
+            translation > s.max_translation_m or angle > s.max_rotation_deg
+        ):
             return f"Pose jump: {translation:.2f} m / {angle:.1f} degrees; move slower"
         # Normal diversity detects translation ambiguity on a single plane.
         matched_target = self._model_pyramid[1] if target is self.model_pcd else target
@@ -360,6 +364,74 @@ class ScanEngine:
             and np.linalg.eigvalsh(normals.T @ normals / len(normals))[0] < 0.002
         ):
             return "Tracking is ambiguous on a flat surface; include corners or curved geometry"
+        return None
+
+    def _relocalize(self, source, rgbd):
+        """Appearance is only a seed; require reciprocal geometry and model checks."""
+        if (
+            not self.settings.relocalize
+            or self._tracking_lost_frames < 2
+            or rgbd is None
+        ):
+            return None
+        from .appearance import correspondences, extract_features, propose_transform
+        from .refinement import _match, _trustworthy, motion
+
+        lag = self.frame_metadata[self._processed_count].get("rgb_depth_delta_ms")
+        if lag is not None and abs(lag) > 20:
+            return None
+        features = extract_features(
+            np.asarray(rgbd.color),
+            np.rint(np.asarray(rgbd.depth) * 1000).astype(np.uint16),
+            self.settings.camera,
+        )
+        selected = np.unique(
+            np.linspace(0, len(self.poses) - 1, min(32, len(self.poses)), dtype=int)
+        )
+        candidates = []
+        keep = {self.poses[j][0] for j in selected}
+        self._appearance_cache = {
+            i: f for i, f in self._appearance_cache.items() if i in keep
+        }
+        for j in selected:
+            index, pose = self.poses[j]
+            lag = self.frame_metadata[index].get("rgb_depth_delta_ms")
+            if lag is not None and abs(lag) > 20:
+                continue
+            if index not in self._appearance_cache:
+                rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                self._appearance_cache[index] = extract_features(
+                    rgb, depth, self.settings.camera
+                )
+            matched = correspondences(features, self._appearance_cache[index])
+            if len(matched) >= 40:
+                candidates.append((len(matched), index, pose, matched))
+        for _, index, pose, matches in sorted(candidates, key=lambda r: -r[0])[:3]:
+            initial = propose_transform(
+                features, self._appearance_cache[index], self.settings.camera, matches
+            )
+            if initial is None:
+                continue
+            rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+            target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+            forward = _match(source, target, initial)
+            reverse = _match(target, source, np.linalg.inv(forward.transformation))
+            translation, angle = motion(reverse.transformation @ forward.transformation)
+            if not (
+                _trustworthy(forward, target)
+                and _trustworthy(reverse, source)
+                and translation < 0.01
+                and angle < 2
+            ):
+                continue
+            result = self._icp(
+                source, self.model_pcd, init=pose @ forward.transformation
+            )
+            if (
+                result.fitness >= 0.6
+                and self._alignment_error(result, self.model_pcd, False) is None
+            ):
+                return result
         return None
 
     def _fpfh_fallback(self, source, target):
@@ -542,6 +614,12 @@ class ScanEngine:
                 return recovered, "global"
         except Exception:
             logger.debug("Global recovery failed", exc_info=True)
+        try:
+            recovered = self._relocalize(source_pcd, rgbd)
+            if recovered is not None:
+                return recovered, "appearance+icp"
+        except (RuntimeError, ValueError):
+            logger.debug("Appearance relocalization failed", exc_info=True)
         return None, error
 
     # ── public API: capture (fast) ─────────────────────────────────────
@@ -638,6 +716,9 @@ class ScanEngine:
             result["timings_ms"] = dict(self._frame_timings)
             result["elapsed_ms"] = (time.monotonic() - frame_started) * 1000
             self.diagnostics.append(result)
+            self._tracking_lost_frames = (
+                0 if result["success"] else self._tracking_lost_frames + 1
+            )
             processed += 1
             if not result["success"]:
                 errors += 1
@@ -725,7 +806,7 @@ class ScanEngine:
 
         # Refresh model periodically
         should_extract = (
-            method == "global"
+            method in ("global", "appearance+icp")
             or self._integrations_since_model >= self.MODEL_REFRESH_INTERVAL
         )
         if should_extract:
@@ -793,9 +874,7 @@ class ScanEngine:
                 for index, pose in proposals:
                     rgb, depth = self.raw_frames[index]
                     rgb, depth = prepare_rgbd(rgb, depth, self.settings)
-                    candidate._integrate_vbg(
-                        rgb, depth, np.linalg.inv(pose)
-                    )
+                    candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
                 candidate._extract_model_pcd()
                 if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
                     raise ValueError("Refined volume has insufficient geometry")
