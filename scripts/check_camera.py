@@ -1,0 +1,110 @@
+"""Check connected Kinect frames and bounded shutdown without saving images.
+
+Run with the scanner closed. Use --window --offscreen to exercise Qt preview
+and window closure as well as acquisition.
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--seconds", type=float, default=5)
+    parser.add_argument("--window", action="store_true")
+    parser.add_argument("--offscreen", action="store_true")
+    args = parser.parse_args()
+    if args.offscreen:
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    from PyQt6.QtCore import QCoreApplication, QTimer
+
+    from kinect_scanner.worker import KinectWorker
+
+    window = None
+    if args.window:
+        from PyQt6.QtWidgets import QApplication
+
+        from kinect_scanner.gui.main_window import MainWindow
+
+        app = QApplication([])
+        window = MainWindow()
+        window.show()
+        worker = window.worker
+    else:
+        app = QCoreApplication([])
+        worker = KinectWorker()
+    frames, deltas, errors = [], [], []
+    started = time.monotonic()
+    close_started = None
+    capture_timer = QTimer()
+    capture_timer.setSingleShot(True)
+
+    def received(rgb, depth, metadata):
+        if not frames:
+            capture_timer.start(int(args.seconds * 1000))
+        frames.append((int((depth > 0).sum()), rgb.shape, depth.shape))
+        deltas.append(metadata["rgb_depth_delta_ms"])
+
+    worker.frame_pair_ready.connect(received)
+    worker.error_occurred.connect(errors.append)
+
+    def close():
+        nonlocal close_started
+        close_started = time.monotonic()
+        if window is not None:
+            window.close()
+        else:
+            worker.stop()
+            if not worker.wait(2500):
+                errors.append("Camera worker failed to stop within 2.5 seconds")
+            app.quit()
+
+    def fail_close():
+        errors.append("Window failed to close within four seconds")
+        worker.stop()
+        worker.wait(2500)
+        app.quit()
+
+    if window is None:
+        worker.start()
+    capture_timer.timeout.connect(close)
+    # Allow a startup timeout and a retry before judging missing hardware.
+    QTimer.singleShot(int((args.seconds + 20) * 1000), close)
+    QTimer.singleShot(int((args.seconds + 24) * 1000), fail_close)
+    app.exec()
+    elapsed = time.monotonic() - started
+    shutdown = time.monotonic() - close_started if close_started is not None else None
+    report = {
+        "frames": len(frames),
+        "capture_seconds": round(elapsed - (shutdown or 0), 2),
+        "minimum_valid_depth_pixels": min((f[0] for f in frames), default=0),
+        "max_rgb_depth_delta_ms": round(max(map(abs, deltas), default=0), 3),
+        "shutdown_seconds": round(shutdown, 3) if shutdown is not None else None,
+        "camera_label": window.kinect_label.text() if window else None,
+        "preview_rendered": (
+            window.view_label.pixmap() is not None
+            and not window.view_label.pixmap().isNull()
+        )
+        if window
+        else None,
+        "errors": errors,
+    }
+    print(json.dumps(report, indent=2))
+    success = (
+        frames
+        and not errors
+        and shutdown is not None
+        and shutdown < 4
+        and (window is None or report["preview_rendered"])
+    )
+    return 0 if success else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

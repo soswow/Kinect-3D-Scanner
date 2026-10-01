@@ -2,8 +2,11 @@
 
 These additions build on the tracking and recording changes in
 [SCAN_QUALITY.md](SCAN_QUALITY.md). They add working CPU paths and an explicitly
-selected CUDA path. NVIDIA hardware and physical Kinect capture were not used
-to validate this change.
+selected CUDA path. NVIDIA hardware was not available for validation. The
+subsequent capture/shutdown repair was checked with a connected Kinect v1:
+258 RGB/registered-depth pairs in 9.3 seconds, at most 23.6 ms pairing offset,
+and Qt window shutdown in 0.32 seconds. This validates acquisition and closure,
+not the reconstruction accuracy of that physical scene.
 
 ## Compute selection
 

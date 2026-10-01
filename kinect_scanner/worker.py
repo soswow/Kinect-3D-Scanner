@@ -1,101 +1,121 @@
-"""KinectWorker — background thread for continuous frame grabbing."""
+"""Camera supervisor with bounded waits and recoverable native-driver stalls."""
 
+import logging
+import multiprocessing
+import threading
 import time
 
-import freenect
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from shared.capture import timestamp_delta_ms
+from .capture_process import DEPTH_SHAPE, RGB_SHAPE, capture_frames
+
+logger = logging.getLogger(__name__)
 
 
 class KinectWorker(QThread):
-    """Grabs RGB + registered-depth frames via freenect sync interface."""
+    """Keep libfreenect in a child process so USB failures cannot hang Qt."""
 
-    frame_ready = pyqtSignal(np.ndarray, np.ndarray)  # (rgb, depth_mm)
+    frame_ready = pyqtSignal(np.ndarray, np.ndarray)
     frame_pair_ready = pyqtSignal(np.ndarray, np.ndarray, dict)
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        capture_target=capture_frames,
+        startup_timeout=8.0,
+        frame_timeout=3.0,
+        retry_delay=2.0,
+    ):
         super().__init__(parent)
-        self._running = False
+        self._stop_event = threading.Event()
+        self._capture_target = capture_target
+        self._startup_timeout = startup_timeout
+        self._frame_timeout = frame_timeout
+        self._retry_delay = retry_delay
 
     def stop(self):
-        self._running = False
+        self._stop_event.set()
 
-    def _wait_before_retry(self):
-        # Back off on missing hardware, while allowing a prompt window close.
-        for _ in range(20):
-            if not self._running:
-                break
-            self.msleep(100)
+    @staticmethod
+    def _stop_capture(process, stop_event):
+        stop_event.set()
+        process.join(timeout=0.3)
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=0.5)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=0.5)
+        if not process.is_alive():
+            process.close()
 
     def run(self):
-        self._running = True
-        camera_ready = False
+        # Never fork the already running Qt/Open3D runtime.
+        context = multiprocessing.get_context("spawn")
         sequence = 0
-        dropped = 0
-        while self._running:
+        while not self._stop_event.is_set():
+            parent, child = context.Pipe()
+            stop_event = context.Event()
+            rgb_buffer = context.RawArray("B", int(np.prod(RGB_SHAPE)))
+            depth_buffer = context.RawArray("H", int(np.prod(DEPTH_SHAPE)))
+            process = context.Process(
+                target=self._capture_target,
+                args=(child, stop_event, rgb_buffer, depth_buffer),
+                daemon=True,
+                name="Kinect capture",
+            )
+            started = False
             try:
-                if not camera_ready:
-                    ctx = freenect.init()
-                    if ctx is None:
-                        raise RuntimeError("Cannot initialise libfreenect")
-                    try:
-                        camera_ready = freenect.num_devices(ctx) > 0
-                    finally:
-                        freenect.shutdown(ctx)
-                    if not camera_ready:
-                        self.error_occurred.emit(
-                            "No Kinect camera detected. Connect USB and external power."
+                process.start()
+                started = True
+                child.close()
+                deadline = time.monotonic() + self._startup_timeout
+                streaming = False
+                while not self._stop_event.is_set():
+                    if parent.poll(0.1):
+                        kind, payload = parent.recv()
+                        if kind == "error":
+                            raise RuntimeError(payload)
+                        if kind != "frame":
+                            raise RuntimeError("Invalid camera process message")
+                        rgb = (
+                            np.frombuffer(rgb_buffer, np.uint8)
+                            .reshape(RGB_SHAPE)
+                            .copy()
                         )
-                        self._wait_before_retry()
-                        continue
-
-                depth_result = freenect.sync_get_depth(format=freenect.DEPTH_REGISTERED)
-                if depth_result is None:
-                    self.error_occurred.emit("Failed to get depth frame")
-                    freenect.sync_stop()
-                    camera_ready = False
-                    self._wait_before_retry()
-                    continue
-                depth, depth_stamp = depth_result
-                depth = depth.copy()  # libfreenect owns and reuses this buffer
-
-                vid_result = freenect.sync_get_video(format=freenect.VIDEO_RGB)
-                if vid_result is None:
-                    self.error_occurred.emit("Failed to get video frame")
-                    freenect.sync_stop()
-                    camera_ready = False
-                    self._wait_before_retry()
-                    continue
-                video, rgb_stamp = vid_result
-                video = video.copy()
-                delta = timestamp_delta_ms(rgb_stamp, depth_stamp)
-                if abs(delta) > 50:
-                    dropped += 1
-                    if dropped % 30 == 1:
-                        self.error_occurred.emit(
-                            "Dropped unsynchronised RGB/depth pair; check USB bandwidth"
+                        depth = (
+                            np.frombuffer(depth_buffer, np.uint16)
+                            .reshape(DEPTH_SHAPE)
+                            .copy()
                         )
-                    continue
-                sequence += 1
-                metadata = {
-                    "frame_id": sequence,
-                    "captured_monotonic_s": time.monotonic(),
-                    "timestamp_s": time.time(),
-                    "depth_timestamp_ms": int(depth_stamp),
-                    "rgb_timestamp_ms": int(rgb_stamp),
-                    "rgb_depth_delta_ms": delta,
-                }
-                self.frame_pair_ready.emit(video, depth, metadata)
-                self.frame_ready.emit(video, depth)
-            except Exception as e:
-                self.error_occurred.emit(str(e))
-                camera_ready = False
-                self._wait_before_retry()
-
-        try:
-            freenect.sync_stop()
-        except Exception:
-            pass
+                        parent.send("copied")
+                        sequence += 1
+                        metadata = dict(payload, frame_id=sequence)
+                        if not streaming:
+                            logger.info("Kinect RGB/registered-depth stream ready")
+                            streaming = True
+                        self.frame_pair_ready.emit(rgb, depth, metadata)
+                        self.frame_ready.emit(rgb, depth)
+                        deadline = time.monotonic() + self._frame_timeout
+                    elif not process.is_alive():
+                        raise RuntimeError("Kinect camera process stopped unexpectedly")
+                    elif time.monotonic() > deadline:
+                        raise RuntimeError(
+                            "Kinect stopped delivering RGB/depth frames. "
+                            "Retrying camera; "
+                            "check USB connection and external power."
+                        )
+            except Exception as exc:  # noqa: BLE001 -- acquisition boundary must recover
+                if not self._stop_event.is_set():
+                    message = str(exc) or "Kinect camera process disconnected"
+                    logger.warning("Camera acquisition failed: %s", message)
+                    self.error_occurred.emit(message)
+            finally:
+                if started:
+                    self._stop_capture(process, stop_event)
+                parent.close()
+                child.close()
+            self._stop_event.wait(self._retry_delay)

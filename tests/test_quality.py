@@ -116,7 +116,9 @@ class QualityTests(unittest.TestCase):
             unpack_frames(batch + b"x")
         with self.assertRaises(ValueError):
             pack_frame(rgb, depth.astype(float))
-        self.assertEqual(6, timestamp_delta_ms(3, (1 << 32) - 3))
+        self.assertAlmostEqual(0.0001, timestamp_delta_ms(3, (1 << 32) - 3))
+        self.assertEqual(33.0, timestamp_delta_ms(1_980_000, 0))
+        self.assertEqual(-33.0, timestamp_delta_ms(0, 1_980_000))
 
     def test_duplicate_and_unsynchronised_frames(self):
         e = ScanEngine()

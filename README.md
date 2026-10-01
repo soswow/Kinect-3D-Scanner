@@ -65,8 +65,19 @@ KINECT_SERVER_PORT=8001 KINECT_BLOCK_COUNT=10000 python scripts/start_scanner.py
 
 Client and server output is saved in `logs/`, which is excluded from Git along
 with exports, meshes, virtual environments, and local environment files.
-The client reports missing hardware and retries automatically when no camera
-is detected.
+The client reports missing hardware and retries automatically. Camera acquisition
+runs in an isolated process: a stalled USB driver times out and restarts, and
+cannot prevent the window from closing. RGB/depth pairing uses the Kinect v1's
+60 MHz device clock, with wraparound handled before conversion to milliseconds.
+
+With the scanner closed, check your connected camera and window shutdown:
+
+```bash
+python scripts/check_camera.py --window --offscreen
+```
+
+The check prints frame counts, preview status, pairing offset, and shutdown time;
+it does not save camera images.
 
 The **RGB**, **Depth**, and **Scanner** tabs display live camera views. The
 Scanner tab shows RGB and depth side by side. To reconstruct a model, click

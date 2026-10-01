@@ -447,6 +447,8 @@ class MainWindow(QMainWindow):
 
     # ── frame display ─────────────────────────────────────────────────
     def _on_frame(self, video: np.ndarray, depth: np.ndarray, metadata=None):
+        if self._closing:
+            return
         self._fps_counter += 1
         self.kinect_label.setText("Kinect: connected")
         self._last_rgb = video
@@ -898,6 +900,8 @@ class MainWindow(QMainWindow):
         self.fps_label.setText(f"FPS: {self._fps_value:.1f}")
 
     def _on_error(self, msg: str):
+        if self._closing:
+            return
         self.kinect_label.setText("Kinect: error")
         if self._last_rgb is None:
             self.view_label.setText(msg)
@@ -907,6 +911,7 @@ class MainWindow(QMainWindow):
         if not self._closing:
             self._closing = True
             self._auto_timer.stop()
+            self._fps_timer.stop()
             self.worker.stop()
             self.task_worker.stop()
             self.server_client.disconnect()
@@ -914,7 +919,9 @@ class MainWindow(QMainWindow):
         self.task_worker.wait(100)
         if self.worker.isRunning() or self.task_worker.isRunning():
             # QThreads must finish before their QObject owners are destroyed.
-            self.statusBar().showMessage("Finishing current request before closing...")
+            message = ("Stopping Kinect camera..." if self.worker.isRunning()
+                       else "Finishing current server request before closing...")
+            self.statusBar().showMessage(message)
             event.ignore()
             QTimer.singleShot(200, self.close)
             return
