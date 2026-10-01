@@ -1,0 +1,138 @@
+{
+  "source_base_commit": "42279f14e8de8a529165da894ceafd0e3f8cb415",
+  "platform": "Apple Silicon CPU; Python 3.13; Open3D 0.20; OMP_NUM_THREADS=4; initial blocks=5000",
+  "scoring": "first-camera anchored; no scale fit; reference poses used only for evaluation",
+  "tum_stride": 10,
+  "cuda_test": "skipped: NVIDIA CUDA unavailable",
+  "tests": {
+    "total": 34,
+    "passed": 33,
+    "skipped": 1
+  },
+  "timing_note": "Some runs overlapped; timings do not establish speedups",
+  "desk_seed_note": "Paired/control runs reset Open3D RNG to 7 + frame index for each engine; identical source instances still diverged",
+  "synthetic_note": "Controlled 19-frame loop with injected 4 mm/frame x drift; detail surface score excludes back wall and compares against exact box surfaces",
+  "runs": {
+    "xyz-tensor": {
+      "frames": 80,
+      "accepted": 80,
+      "elapsed_s": 100.7111769169569,
+      "mesh_built": true,
+      "vertices": 660911,
+      "triangles": 1267947,
+      "scored_poses": 80,
+      "anchored_translation_rmse_m": 0.04381519845781744,
+      "rotation_rmse_deg": 1.9538524936407262,
+      "backend": {
+        "requested": "auto",
+        "device": "CPU:0",
+        "cuda_available": false,
+        "tracking": "tensor",
+        "tracking_device": "CPU:0",
+        "open3d_version": "0.20.0",
+        "fallback_reason": "CUDA unavailable; using CPU"
+      },
+      "tracking_score": {
+        "scored_poses": 80,
+        "anchored_translation_rmse_m": 0.04381519845781744,
+        "rotation_rmse_deg": 1.9538524936407262
+      },
+      "refinement": {
+        "applied": false,
+        "reason": "Not requested"
+      },
+      "stage_totals_ms": {
+        "depth_filter": 518.8702074810863,
+        "registration_cloud": 4360.410044901073,
+        "fusion": 1703.8645781576633,
+        "model_refresh": 50231.68083280325,
+        "tracking": 40846.19474876672
+      }
+    },
+    "desk-refinement": {
+      "frames": 58,
+      "accepted": 51,
+      "elapsed_s": 213.15416162461042,
+      "mesh_built": true,
+      "vertices": 888367,
+      "triangles": 1654202,
+      "scored_poses": 51,
+      "anchored_translation_rmse_m": 0.785312709703635,
+      "rotation_rmse_deg": 38.06314198308654,
+      "backend": {
+        "requested": "auto",
+        "device": "CPU:0",
+        "cuda_available": false,
+        "tracking": "legacy",
+        "tracking_device": "CPU:0",
+        "open3d_version": "0.20.0",
+        "fallback_reason": "CUDA unavailable; using CPU"
+      },
+      "tracking_score": {
+        "scored_poses": 51,
+        "anchored_translation_rmse_m": 0.785312709703635,
+        "rotation_rmse_deg": 38.06314198308654
+      },
+      "refinement": {
+        "applied": false,
+        "reason": "No trustworthy loop constraints",
+        "loops": 0,
+        "keyframes": 32,
+        "validation": "independent point samples; saturated squared distance",
+        "elapsed_ms": 1273.243791423738
+      },
+      "stage_totals_ms": {
+        "depth_filter": 323.82591161876917,
+        "registration_cloud": 2915.2962462976575,
+        "fusion": 2349.1947036236525,
+        "model_refresh": 536.1533761024475,
+        "tracking": 202445.91883476824,
+        "final_refinement": 1273.243791423738
+      }
+    },
+    "synthetic-refinement": {
+      "before_surface_rmse_m": 0.014947754330933094,
+      "after_surface_rmse_m": 0.0032626192551106215,
+      "refinement": {
+        "applied": true,
+        "reason": "Validated poses committed after fresh TSDF fusion",
+        "loops": 5,
+        "keyframes": 19,
+        "validation": "independent point samples; saturated squared distance",
+        "validation_before_m2": 0.0005531861185948644,
+        "validation_after_m2": 0.0004133555096611959,
+        "elapsed_ms": 3542.736915871501
+      }
+    },
+    "desk-paired-seeded": {
+      "before": {
+        "accepted": 57,
+        "scored_poses": 57,
+        "anchored_translation_rmse_m": 0.11580864761710145,
+        "rotation_rmse_deg": 15.48309981860279
+      },
+      "after": {
+        "accepted": 53,
+        "scored_poses": 53,
+        "anchored_translation_rmse_m": 0.5444803117366293,
+        "rotation_rmse_deg": 22.354582012833546
+      },
+      "elapsed_s": 401.06913812458515
+    },
+    "desk-identical-source-controls": {
+      "control_a": {
+        "accepted": 55,
+        "scored_poses": 55,
+        "anchored_translation_rmse_m": 0.9668059081616717,
+        "rotation_rmse_deg": 47.360528203443195
+      },
+      "control_b": {
+        "accepted": 51,
+        "scored_poses": 51,
+        "anchored_translation_rmse_m": 1.0669409387490831,
+        "rotation_rmse_deg": 54.50894208528618
+      },
+      "elapsed_s": 497.16317733284086
+    }
+  }
+}

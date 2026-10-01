@@ -256,6 +256,15 @@ def main():
         action="store_true",
         help="Enable experimental RGB-D recovery",
     )
+    parser.add_argument(
+        "--refine-poses",
+        action="store_true",
+        help="Enable experimental final pose graph and reintegration",
+    )
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    parser.add_argument(
+        "--tracking", choices=["auto", "legacy", "tensor"], default="auto"
+    )
     args = parser.parse_args()
     if args.stride < 1 or (args.limit is not None and args.limit < 1):
         parser.error("Stride and limit must be positive")
@@ -267,6 +276,8 @@ def main():
     )
     if args.color_recovery:
         settings = replace(settings, color_recovery=True)
+    if args.refine_poses:
+        settings = replace(settings, refine_poses=True)
     if args.server:
         if args.baseline_source:
             parser.error("Baseline comparison uses the direct engine")
@@ -276,7 +287,7 @@ def main():
     engine = (
         baseline_engine(args.baseline_source, camera, args.legacy_intrinsics)
         if args.baseline_source
-        else ScanEngine()
+        else ScanEngine(device=args.device, tracking=args.tracking)
     )
     if not args.baseline_source:
         engine.reset(
@@ -320,7 +331,11 @@ def main():
         "vertices": len(engine.mesh.vertices) if engine.mesh else 0,
         "triangles": len(engine.mesh.triangles) if engine.mesh else 0,
         "camera": camera.__dict__,
-        **score(estimated, frames),
+        **score(engine.poses if hasattr(engine, "poses") else estimated, frames),
+        "tracking_score": score(estimated, frames),
+        "backend": getattr(engine, "backend", None),
+        "refinement": getattr(engine, "refinement", None),
+        "stage_totals_ms": getattr(engine, "stage_totals_ms", None),
         "diagnostics": diagnostics,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

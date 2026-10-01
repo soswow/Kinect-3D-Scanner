@@ -31,6 +31,7 @@ class ServerClient(QObject):
     export_done = pyqtSignal(bool, str)
     save_mesh_done = pyqtSignal(bool, str)
     status_updated = pyqtSignal(dict)
+    live_updated = pyqtSignal(dict)
     task_started = pyqtSignal(str)
     task_error = pyqtSignal(str)
 
@@ -73,6 +74,7 @@ class ServerClient(QObject):
         )
         self._ws_thread.start()
         self.connected.emit()
+        self.status_updated.emit(data)
         return True
 
     def disconnect(self):
@@ -133,6 +135,8 @@ class ServerClient(QObject):
                 msg.get("total", 0),
                 msg.get("result", {"message": msg.get("message", "")}),
             )
+        elif msg_type == "live":
+            self.live_updated.emit(msg)
         elif msg_type == "done":
             # Both preview and final build broadcast "done". Their HTTP
             # responses are handled by ServerTaskWorker with the correct signal.
@@ -166,10 +170,12 @@ class ServerClient(QObject):
         if resp.status_code == 404:
             # Server doesn't support batch — fall back to individual sends
             logger.warning("Server lacks batch endpoint, sending individually")
-            result = None
-            for frame in frames:
-                result = self.send_frame(*frame)
-            return result
+            results = [self.send_frame(*frame) for frame in frames]
+            return {
+                **results[-1],
+                "results": results,
+                "success": any(r.get("success") for r in results),
+            }
         resp.raise_for_status()
         return resp.json()
 
@@ -204,7 +210,7 @@ class ServerClient(QObject):
 
     def request_export(self, fmt: str, save_path: str) -> bool:
         """Download exported mesh and save to local path."""
-        resp = self._http.get(f"/api/scan/export/{fmt}", timeout=120.0)
+        resp = self._http.get(f"/api/scan/export/{fmt}", timeout=600.0)
         resp.raise_for_status()
 
         content_type = resp.headers.get("content-type", "")
@@ -217,5 +223,10 @@ class ServerClient(QObject):
 
     def get_status(self) -> dict:
         resp = self._http.get("/api/scan/status")
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_reconstruction(self) -> dict:
+        resp = self._http.get("/api/scan/diagnostics", timeout=600.0)
         resp.raise_for_status()
         return resp.json()

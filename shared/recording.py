@@ -26,6 +26,13 @@ class RecordingWriter:
         temporary.write_text(json.dumps(self.manifest, indent=2, allow_nan=False))
         temporary.replace(self.path / "manifest.json")
 
+    def save_reconstruction(self, report):
+        temporary = self.path / "reconstruction.json.tmp"
+        temporary.write_text(json.dumps(report, indent=2, allow_nan=False))
+        temporary.replace(self.path / "reconstruction.json")
+        self.manifest["reconstruction"] = "reconstruction.json"
+        self._save_manifest()
+
     def append(self, rgb, depth, metadata=None):
         index = len(self.manifest["frames"])
         color_path = f"rgb/{index:06d}.png"

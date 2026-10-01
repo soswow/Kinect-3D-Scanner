@@ -71,8 +71,11 @@ is detected.
 The **RGB**, **Depth**, and **Scanner** tabs display live camera views. The
 Scanner tab shows RGB and depth side by side. To reconstruct a model, click
 **Start Scan**, capture overlapping frames manually or with **Auto every**,
-then click **Preview Scan** for a separate 3D viewer or **Stop & Build Mesh**
-to prepare a final PLY/OBJ export.
+The **Live fused surface feedback** setting adds a persistent 3D view while
+frames are processed during capture. Drag to orbit, scroll to zoom, and
+double-click to switch color/shape. Pending frames and processing time show when
+the server falls behind. Click **Preview Scan** for a full snapshot in a separate
+viewer, or **Stop & Build Mesh** for final export.
 
 To check the pipeline without connecting or using a Kinect:
 
@@ -109,6 +112,40 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
 
 ---
 
+## Live Feedback, NVIDIA Compute, and Textures
+
+New scans enable live feedback in the GUI; API clients opt in with
+`live_reconstruction: true` in reset settings. CPU remains supported on Apple
+Silicon. An NVIDIA server can select CUDA fusion, extraction, and tensor ICP:
+
+```bash
+KINECT_DEVICE=cuda KINECT_TRACKING=tensor KINECT_BLOCK_COUNT=5000 python -m scanner_server
+```
+
+CUDA requires a compatible NVIDIA driver and CUDA-enabled Open3D build.
+An explicit unavailable CUDA request fails at startup. `KINECT_DEVICE=auto`
+selects CUDA when available and reports its CPU fallback through health/status.
+Actual CUDA performance needs hardware validation; it has not been measured here.
+
+Final exports now include **textured GLB** (one file) and **textured OBJ bundle**
+(ZIP containing OBJ, MTL, PNG, and a texture report). The existing plain OBJ uses
+a vertex-color extension whose support varies between readers; it has no UV
+texture. PLY preserves vertex colors. Textured exports use a separately simplified
+mesh, defaulting to 50,000 triangles, a 1024-pixel atlas, and up to 24 RGB views.
+They preserve the full final mesh for PLY/plain OBJ export.
+
+**Save full RGB-D session** downloads lossless images, calibration, settings,
+estimated poses, diagnostics, and timings. Unzip it for recording replay.
+**Final pose refinement** is experimental and off by default: it validates loop
+constraints, optimizes a bounded keyframe graph, and reintegrates into a fresh
+volume only after separate geometry samples improve. It can retain the original
+trajectory when no reliable loop exists, and needs memory for two volumes.
+
+See [operation, validation, limits, and remaining implementation work](docs/LIVE_RECONSTRUCTION.md)
+and [papers and open-source integration roadmap](docs/RESEARCH_ROADMAP.md).
+
+---
+
 ## Architecture
 
 ```
@@ -116,8 +153,8 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
  ┌──────────────────────┐              ┌──────────────────────────┐
  │  Kinect v1 sensor     │              │  FastAPI + ScanEngine    │
  │  ─────────────────    │   HTTP/WS    │  ──────────────────────  │
- │  KinectWorker         │◄────────────►│  ICP registration (CPU)  │
- │  PyQt6 GUI            │  port 8000   │  TSDF integration (CPU)  │
+ │  KinectWorker         │◄────────────►│  ICP (CPU/CUDA)          │
+ │  PyQt6 GUI            │  port 8000   │  TSDF (CPU/CUDA)         │
  │  Live RGB + depth     │              │  Mesh extraction         │
  │  Frame capture        │              │  PLY/OBJ export          │
  └──────────────────────┘              └──────────────────────────┘
@@ -125,7 +162,7 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
      (config, protocol)                    (config, protocol)
 ```
 
-The **client** captures Kinect frames and displays live video. Frames are compressed (zlib) and sent to the **server** over HTTP in batches. The server runs ICP registration + TSDF volumetric integration using Open3D (VoxelBlockGrid on CPU), then serves the reconstructed mesh back to the client for preview and export.
+The **client** captures Kinect frames and displays live video. Frames are compressed (zlib) and sent to the **server** over HTTP in batches. The server runs ICP registration + TSDF volumetric integration using Open3D (VoxelBlockGrid on the selected CPU/CUDA device), then serves the reconstructed mesh back to the client for preview and export.
 
 | Component | Runs on | Key dependencies |
 |-----------|---------|-----------------|
@@ -190,8 +227,11 @@ it. The combined launcher always binds to `127.0.0.1`.
 | `POST` | `/api/scan/build` | Process all frames + build mesh |
 | `POST` | `/api/scan/preview` | Process + extract preview, return PLY |
 | `GET` | `/api/scan/export/ply` | Download mesh as PLY |
-| `GET` | `/api/scan/export/obj` | Download mesh as OBJ |
-| `WebSocket` | `/ws/progress` | Real-time progress during build/preview |
+| `GET` | `/api/scan/export/obj` | Download mesh as vertex-colored OBJ |
+| `GET` | `/api/scan/export/glb` | Download UV-textured GLB |
+| `GET` | `/api/scan/export/obj.zip` | Download OBJ/MTL/PNG texture bundle |
+| `GET` | `/api/scan/export/session` | Download lossless RGB-D session ZIP |
+| `WebSocket` | `/ws/progress` | Build/preview progress and bounded live geometry |
 
 ---
 
@@ -259,7 +299,7 @@ Typical compressed frame size: ~150-300 KB (vs ~1.5 MB uncompressed).
 | `lengths` | 4*N bytes | Per-frame packed byte lengths |
 | `frames` | variable | Concatenated single-frame payloads |
 
-The client batches consecutive captures up to 100 frames per request. It preserves
+The client batches consecutive captures up to 100 frames per request (8 in live mode). It preserves
 reset/preview/build command barriers. New frames prepend `RGB2`, a 4-byte JSON
 metadata length, and metadata before the original single-frame payload. Depth
 bytes are little-endian millimetres. The server still accepts legacy packets;
@@ -283,7 +323,10 @@ new clients and servers should be upgraded together for metadata support.
 | Format | Contents | Use case |
 |--------|----------|----------|
 | **PLY** | Point cloud or triangle mesh with vertex colors | MeshLab, CloudCompare, Blender |
-| **OBJ** | Triangle mesh with vertex colors | Blender, 3D printing pipelines |
+| **OBJ** | Triangle mesh with a vertex-color extension | Geometry export; color support varies |
+| **GLB** | UV mesh, embedded texture and material | Portable colored 3D asset |
+| **Textured OBJ ZIP** | OBJ, MTL, PNG, texture report | Applications supporting OBJ materials |
+| **Session ZIP** | Lossless RGB/depth, settings, estimated poses, diagnostics | Offline reconstruction and comparison |
 
 ---
 

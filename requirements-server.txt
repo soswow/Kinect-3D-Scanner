@@ -1,5 +1,6 @@
 numpy
 open3d
 trimesh
+pillow
 fastapi
 uvicorn[standard]
