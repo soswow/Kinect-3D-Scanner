@@ -438,8 +438,11 @@ kinect_thread.start()
 
 ### 6.1 Default Intrinsic Parameters (Kinect v1)
 
-These are well-known approximate intrinsic parameters for the Kinect v1. Each individual
-Kinect may vary slightly, but these work reasonably well as defaults.
+The numbers below are Nicolas Burrus's calibration of an example Kinect, not
+factory calibration for every device. Use IR intrinsics only with unregistered
+IR depth; `DEPTH_REGISTERED` needs RGB intrinsics. The active application uses
+an approximate RGB model and accepts per-session calibration. See
+[the current quality guide](SCAN_QUALITY.md) for the tested pipeline.
 
 #### Depth Camera Intrinsics (640x480)
 ```python
@@ -503,7 +506,7 @@ import open3d as o3d
 intrinsic_default = o3d.camera.PinholeCameraIntrinsic(
     o3d.camera.PinholeCameraIntrinsicParameters.PrimeSenseDefault)
 
-# Or create custom intrinsics with the calibrated values:
+# Example IR-camera calibration: only for unregistered IR depth:
 intrinsic_calibrated = o3d.camera.PinholeCameraIntrinsic(
     width=640, height=480,
     fx=594.21434211923247,
@@ -606,7 +609,7 @@ Where (fx, fy) are focal lengths and (cx, cy) is the principal point.
 import numpy as np
 import freenect
 
-# Kinect v1 depth camera intrinsics
+# Example IR calibration for unregistered depth (not DEPTH_REGISTERED)
 FX_D = 594.21434211923247
 FY_D = 591.04053696870778
 CX_D = 339.30780975300314
@@ -649,7 +652,7 @@ def depth_to_point_cloud(depth_mm, fx=FX_D, fy=FY_D, cx=CX_D, cy=CY_D):
     return points[valid], valid
 
 
-def depth_to_colored_point_cloud(depth_mm, rgb, fx=FX_D, fy=FY_D, cx=CX_D, cy=CY_D):
+def depth_to_colored_point_cloud(depth_mm, rgb, fx=525.0, fy=525.0, cx=319.5, cy=239.5):
     """
     Convert registered depth + RGB to a colored point cloud.
 
@@ -706,13 +709,13 @@ def capture_open3d_point_cloud():
         convert_rgb_to_intensity=False
     )
 
-    # Camera intrinsics
+    # Approximate registered-RGB intrinsics; replace with measured RGB values
     intrinsic = o3d.camera.PinholeCameraIntrinsic(
         width=640, height=480,
-        fx=594.21434211923247,
-        fy=591.04053696870778,
-        cx=339.30780975300314,
-        cy=242.73913761751615
+        fx=525.0,
+        fy=525.0,
+        cx=319.5,
+        cy=239.5
     )
 
     # Generate point cloud

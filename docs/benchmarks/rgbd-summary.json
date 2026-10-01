@@ -1,0 +1,187 @@
+{
+  "baseline_commit": "609e64c",
+  "intrinsics_matched": true,
+  "scoring": "first-camera anchored; no scale fit; reference poses used for evaluation only",
+  "tum_stride": 10,
+  "default_min_fitness": 0.35,
+  "color_assistance_default": false,
+  "timing_note": "Some experiments ran concurrently; timings are indicative",
+  "runs": {
+    "redwood-baseline": {
+      "dataset": "redwood",
+      "frames": 5,
+      "accepted": 5,
+      "elapsed_s": 1.1554254572838545,
+      "mesh_built": true,
+      "vertices": 417768,
+      "triangles": 807674,
+      "camera": {
+        "name": "Redwood PrimeSense",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 5,
+      "anchored_translation_rmse_m": 0.0019712268444865145,
+      "rotation_rmse_deg": 0.0535433819484895
+    },
+    "redwood-improved": {
+      "dataset": "redwood",
+      "frames": 5,
+      "accepted": 5,
+      "elapsed_s": 5.228700624778867,
+      "mesh_built": true,
+      "vertices": 370294,
+      "triangles": 719547,
+      "camera": {
+        "name": "Redwood PrimeSense",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 5,
+      "anchored_translation_rmse_m": 0.0013614958097946214,
+      "rotation_rmse_deg": 0.06355958750750354
+    },
+    "tum-baseline": {
+      "dataset": "tum",
+      "frames": 80,
+      "accepted": 80,
+      "elapsed_s": 46.535900415852666,
+      "mesh_built": true,
+      "vertices": 2142654,
+      "triangles": 4059663,
+      "camera": {
+        "name": "TUM registered RGB / recommended ROS approximation",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 80,
+      "anchored_translation_rmse_m": 0.21983894087568778,
+      "rotation_rmse_deg": 5.394144010141705
+    },
+    "tum-final": {
+      "dataset": "tum",
+      "frames": 80,
+      "accepted": 80,
+      "elapsed_s": 146.65779200010002,
+      "mesh_built": true,
+      "vertices": 661490,
+      "triangles": 1269533,
+      "camera": {
+        "name": "TUM registered RGB / recommended ROS approximation",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 80,
+      "anchored_translation_rmse_m": 0.04364330714895244,
+      "rotation_rmse_deg": 1.9408724019344563
+    },
+    "desk-baseline": {
+      "dataset": "tum",
+      "frames": 58,
+      "accepted": 58,
+      "elapsed_s": 51.667243332602084,
+      "mesh_built": true,
+      "vertices": 5184284,
+      "triangles": 9812104,
+      "camera": {
+        "name": "TUM registered RGB / recommended ROS approximation",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 58,
+      "anchored_translation_rmse_m": 1.5420659376158141,
+      "rotation_rmse_deg": 40.13053455458003
+    },
+    "desk-final": {
+      "dataset": "tum",
+      "frames": 58,
+      "accepted": 52,
+      "elapsed_s": 102.24892154242843,
+      "mesh_built": true,
+      "vertices": 883928,
+      "triangles": 1647991,
+      "camera": {
+        "name": "TUM registered RGB / recommended ROS approximation",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 52,
+      "anchored_translation_rmse_m": 0.6311987782825546,
+      "rotation_rmse_deg": 35.62371655159824
+    },
+    "desk-color-final": {
+      "dataset": "tum",
+      "frames": 58,
+      "accepted": 57,
+      "elapsed_s": 212.02329441625625,
+      "mesh_built": true,
+      "vertices": 1021570,
+      "triangles": 1898314,
+      "camera": {
+        "name": "TUM registered RGB / recommended ROS approximation",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 57,
+      "anchored_translation_rmse_m": 0.3246224049488935,
+      "rotation_rmse_deg": 21.946434413225116
+    },
+    "tum-color-final": {
+      "dataset": "tum",
+      "frames": 80,
+      "accepted": 80,
+      "elapsed_s": 177.5942175006494,
+      "mesh_built": true,
+      "vertices": 723364,
+      "triangles": 1380380,
+      "camera": {
+        "name": "TUM registered RGB / recommended ROS approximation",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb"
+      },
+      "scored_poses": 80,
+      "anchored_translation_rmse_m": 0.048091895118868425,
+      "rotation_rmse_deg": 2.2464310316065816
+    }
+  }
+}

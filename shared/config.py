@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 
-# ── Kinect v1 camera intrinsics (factory defaults) ───────────────────────
-FX, FY = 594.21, 591.04
-CX, CY = 339.31, 242.74
+# Approximate RGB intrinsics for DEPTH_REGISTERED, not device calibration.
+# Override per session with a measured registered-RGB CameraCalibration.
+FX, FY = 525.0, 525.0
+CX, CY = 319.5, 239.5
 DEPTH_W, DEPTH_H = 640, 480
 
 # ── View modes ────────────────────────────────────────────────────────────
