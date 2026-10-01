@@ -26,6 +26,23 @@ from scanner_server.engine import ScanEngine
 from shared.settings import CameraCalibration, ScanSettings
 
 
+class ReplayFrame(tuple):
+    """Keep the historical four-field replay interface and capture metadata."""
+
+    def __new__(cls, rgb, depth, stamp, reference, metadata=None):
+        value = super().__new__(cls, (rgb, depth, stamp, reference))
+        value.metadata = dict(metadata or {})
+        return value
+
+
+def capture_metadata(frame, index):
+    # Evaluation reference poses are deliberately not tracking inputs.
+    metadata = dict(getattr(frame, "metadata", {}))
+    metadata.pop("reference_pose", None)
+    metadata.update(frame_id=index, timestamp_s=frame[2])
+    return metadata
+
+
 def nearest_pairs(rgb, depth, max_delta=0.02):
     """Greedy timestamp association, with each depth image used at most once."""
     candidates = []
@@ -62,6 +79,7 @@ def tum_pose(values):
 
 
 def load_dataset(kind, path=None, stride=1, limit=None):
+    metadata_by_path = {}
     if kind == "redwood":
         sample = o3d.data.SampleRedwoodRGBDImages(
             data_root=str(ROOT / "datasets/redwood")
@@ -100,6 +118,9 @@ def load_dataset(kind, path=None, stride=1, limit=None):
     else:
         path = Path(path)
         manifest = json.loads((path / "manifest.json").read_text())
+        metadata_by_path = {
+            str(path / f["rgb"]): f.get("metadata", {}) for f in manifest["frames"]
+        }
         settings = ScanSettings.from_dict(manifest["settings"])
         entries = [
             (
@@ -124,7 +145,9 @@ def load_dataset(kind, path=None, stride=1, limit=None):
         if raw.dtype != np.uint16 or raw.shape != (480, 640):
             raise ValueError("Dataset depth must be uint16 640x480")
         depth = np.rint(raw.astype(np.float64) * 1000 / scale).astype(np.uint16)
-        frames.append((rgb, depth, stamp, pose))
+        frames.append(
+            ReplayFrame(rgb, depth, stamp, pose, metadata_by_path.get(str(c)))
+        )
     return (settings if kind == "recording" else ScanSettings(camera=camera)), frames
 
 
@@ -184,7 +207,7 @@ def replay_server(url, settings, frames, output):
             raise RuntimeError(response.text)
         for first in range(0, len(frames), 25):
             payload = [
-                (rgb, depth, {"frame_id": i, "timestamp_s": stamp})
+                (rgb, depth, capture_metadata(frames[i], i))
                 for i, (rgb, depth, stamp, _) in enumerate(
                     frames[first : first + 25], first
                 )
@@ -303,7 +326,7 @@ def main():
         stored = (
             engine.store_frame(rgb, depth)
             if args.baseline_source
-            else engine.store_frame(rgb, depth, {"frame_id": i, "timestamp_s": stamp})
+            else engine.store_frame(rgb, depth, capture_metadata(frames[i], i))
         )
         if not stored["success"]:
             diagnostics.append(

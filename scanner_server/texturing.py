@@ -13,7 +13,7 @@ import open3d as o3d
 import trimesh
 from PIL import Image
 
-from shared.depth import prepare_depth
+from shared.calibration import prepare_rgbd
 
 
 def _views(engine, max_views):
@@ -92,7 +92,8 @@ def make_textured_mesh(
     valid_indices = np.flatnonzero(valid)
     for index, pose in views:
         rgb, raw_depth = engine.raw_frames[index]
-        depth = prepare_depth(raw_depth, engine.settings).astype(np.float32) / 1000
+        rgb, depth = prepare_rgbd(rgb, raw_depth, engine.settings)
+        depth = depth.astype(np.float32) / 1000
         extrinsic = np.linalg.inv(pose)
         for start in range(0, len(valid_indices), 65536):
             ids = valid_indices[start : start + 65536]

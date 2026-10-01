@@ -10,7 +10,7 @@ import copy
 import numpy as np
 import open3d as o3d
 
-from shared.depth import prepare_depth
+from shared.calibration import prepare_rgbd
 
 REG = o3d.pipelines.registration
 
@@ -99,7 +99,8 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
     for i in chosen:
         index, _ = poses[i]
         rgb, raw = engine.raw_frames[index]
-        rgbd = engine._make_rgbd(rgb, prepare_depth(raw, engine.settings))
+        rgb, depth = prepare_rgbd(rgb, raw, engine.settings)
+        rgbd = engine._make_rgbd(rgb, depth)
         cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
             rgbd, engine.intrinsic
         ).voxel_down_sample(0.02)

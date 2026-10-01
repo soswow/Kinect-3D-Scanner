@@ -18,8 +18,17 @@ class CameraCalibration:
     cx: float = 319.5
     cy: float = 239.5
     image_space: str = "registered_rgb"
+    distortion: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    depth_scale: float = 1.0
 
     def __post_init__(self):
+        object.__setattr__(self, "distortion", tuple(self.distortion))
+        if len(self.distortion) != 5 or not all(
+            math.isfinite(v) and abs(v) <= 2 for v in self.distortion
+        ):
+            raise ValueError("Use five finite OpenCV distortion coefficients")
+        if not math.isfinite(self.depth_scale) or not 0.8 <= self.depth_scale <= 1.2:
+            raise ValueError("Measured depth-scale correction must be 0.8–1.2")
         if type(self.width) is not int or type(self.height) is not int:
             raise ValueError("Image dimensions must be integers")
         if (self.width, self.height) != (640, 480):
@@ -32,6 +41,17 @@ class CameraCalibration:
             raise ValueError("Invalid focal length")
         if not (0 <= self.cx < self.width and 0 <= self.cy < self.height):
             raise ValueError("Principal point must lie in the image")
+        radius = math.hypot(
+            max(self.cx, self.width - self.cx) / self.fx,
+            max(self.cy, self.height - self.cy) / self.fy,
+        )
+        k1, k2, _, _, k3 = self.distortion
+        if any(
+            1 + 3 * k1 * (r := radius * i / 64) ** 2 + 5 * k2 * r**4 + 7 * k3 * r**6
+            <= 0
+            for i in range(65)
+        ):
+            raise ValueError("Lens calibration folds within the image; recalibrate")
 
 
 @dataclass(frozen=True)

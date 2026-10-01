@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from replay_scan import load_dataset, nearest_pairs, score
+from replay_scan import capture_metadata, load_dataset, nearest_pairs, score
 
 from shared.recording import RecordingWriter
 from shared.settings import ScanSettings
@@ -35,7 +35,9 @@ class ReplayTests(unittest.TestCase):
             settings = ScanSettings(near_m=0.7, far_m=2, roi=(100, 100, 540, 400))
             writer = RecordingWriter(Path(folder) / "scan", settings.to_dict())
             writer.append(
-                np.zeros((480, 640, 3), np.uint8), np.full((480, 640), 1234, np.uint16)
+                np.zeros((480, 640, 3), np.uint8),
+                np.full((480, 640), 1234, np.uint16),
+                {"rgb_depth_delta_ms": 24, "frame_id": 9},
             )
             writer.manifest["frames"][0]["reference_pose"] = np.eye(4).tolist()
             writer._save_manifest()
@@ -43,6 +45,8 @@ class ReplayTests(unittest.TestCase):
             self.assertEqual(settings, loaded)
             self.assertEqual(1234, frames[0][1][0, 0])
             np.testing.assert_array_equal(np.eye(4), frames[0][3])
+            self.assertEqual(24, capture_metadata(frames[0], 0)["rgb_depth_delta_ms"])
+            self.assertNotIn("reference_pose", capture_metadata(frames[0], 0))
 
     def test_association_is_one_to_one_and_bounded(self):
         pairs = nearest_pairs(

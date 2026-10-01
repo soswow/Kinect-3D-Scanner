@@ -27,7 +27,7 @@ import open3d.core as o3c
 import trimesh
 
 from shared.config import PRESET_DEFAULT, ScanPreset
-from shared.depth import prepare_depth
+from shared.calibration import prepare_rgbd
 from shared.settings import ScanSettings
 
 from .backend import select_backend
@@ -657,7 +657,7 @@ class ScanEngine:
         t0 = time.monotonic()
 
         with self._stage("depth_filter"):
-            depth = prepare_depth(depth, self.settings)
+            rgb, depth = prepare_rgbd(rgb, depth, self.settings)
         valid_fraction = np.count_nonzero(depth) / depth.size
         if np.count_nonzero(depth) < 1000:
             return {
@@ -792,8 +792,9 @@ class ScanEngine:
                 candidate.vbg = self._create_vbg()
                 for index, pose in proposals:
                     rgb, depth = self.raw_frames[index]
+                    rgb, depth = prepare_rgbd(rgb, depth, self.settings)
                     candidate._integrate_vbg(
-                        rgb, prepare_depth(depth, self.settings), np.linalg.inv(pose)
+                        rgb, depth, np.linalg.inv(pose)
                     )
                 candidate._extract_model_pcd()
                 if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:

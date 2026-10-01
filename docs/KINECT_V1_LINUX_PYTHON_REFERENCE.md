@@ -1,5 +1,11 @@
 # Xbox 360 Kinect (Kinect v1) on Linux with Python - Complete Technical Reference
 
+The standalone examples below explain the underlying APIs. The production
+scanner uses isolated asynchronous acquisition with bounded shutdown; Kinect v1
+timestamps are wrapping 60 MHz ticks, not milliseconds. For the current measured
+calibration workflow and shared RGB/depth rectification, see
+[implementation milestones](IMPLEMENTATION_MILESTONES.md).
+
 ## Table of Contents
 1. [Hardware Specifications](#1-hardware-specifications)
 2. [Drivers and Libraries](#2-drivers-and-libraries)
