@@ -13,6 +13,7 @@ Registration (ICP / FGR) also runs on CPU (legacy API).
 """
 
 import logging
+import os
 import time
 import traceback
 
@@ -30,7 +31,7 @@ logger = logging.getLogger("scanner_server")
 class ScanEngine:
 
     MODEL_REFRESH_INTERVAL = 5  # re-extract model_pcd every N integrations
-    BLOCK_COUNT = 50000         # VBG block budget (CPU, RAM is plentiful)
+    BLOCK_COUNT = int(os.environ.get("KINECT_BLOCK_COUNT", "50000"))
 
     def __init__(self):
         self.preset = PRESET_DEFAULT

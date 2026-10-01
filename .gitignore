@@ -22,3 +22,9 @@ mesh/
 *.ply
 *.obj
 *.stl
+.DS_Store
+logs/
+*.log
+.env
+.env.*
+!.env.example

@@ -7,12 +7,83 @@
 </p>
 
 <p align="center">
-  <a href="#installation"><img src="https://img.shields.io/badge/platform-Linux-blue?logo=linux&logoColor=white" alt="Platform"></a>
+  <a href="#run-client-and-server-on-one-machine"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue" alt="Platform"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/python-3.10+-yellow?logo=python&logoColor=white" alt="Python"></a>
   <a href="#usage"><img src="https://img.shields.io/badge/UI-PyQt6-green?logo=qt&logoColor=white" alt="PyQt6"></a>
   <a href="#architecture"><img src="https://img.shields.io/badge/server-FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="docs/KINECT_V1_LINUX_PYTHON_REFERENCE.md"><img src="https://img.shields.io/badge/docs-reference-orange?logo=readthedocs&logoColor=white" alt="Docs"></a>
 </p>
+
+---
+
+## Run Client and Server on One Machine
+
+The client and server can run on the same computer over loopback HTTP and
+WebSocket connections. Install the dependencies from `requirements.txt` into a
+Python environment with working `freenect` bindings, then run from the repository:
+
+```bash
+python scripts/start_scanner.py
+```
+
+The launcher starts a server on `127.0.0.1:8000`, waits for its health check,
+opens the GUI, and connects automatically. Closing the GUI stops the server.
+Only one application should use the Kinect at a time.
+
+On macOS, **Start Scanner.command** can be opened from Finder. It uses the
+repository's `.venv/`, an activated virtual environment, or `python3` from PATH.
+For an environment located elsewhere, run the launcher with that environment's
+Python interpreter directly. The driver and compiled Python bindings must both
+be installed; the Python dependencies alone do not provide `freenect`.
+
+The software has been checked on Apple Silicon macOS with Python 3.13 and
+Open3D 0.20. A tested dependency snapshot is in `requirements-macos-lock.txt`:
+
+```bash
+python -m pip install -r requirements-macos-lock.txt
+```
+
+This snapshot excludes `freenect`, which must be compiled separately. Synthetic
+checks cover reconstruction and the client workflow; live capture and mesh
+building have also been exercised on Kinect v1 hardware. Reconstruction quality
+depends on overlap, camera calibration, and the subject's geometry.
+
+The launcher uses four OpenMP threads and an initial 5,000-block TSDF allocation
+(roughly 400 MB of voxel attributes, plus overhead). Larger scans may need more
+blocks. These environment variables can override its defaults:
+
+| Variable | Launcher default | Purpose |
+|----------|------------------|---------|
+| `KINECT_SERVER_PORT` | `8000` | Local server and client port |
+| `KINECT_BLOCK_COUNT` | `5000` | Initial TSDF block budget |
+| `OMP_NUM_THREADS` | `4` | CPU processing threads |
+
+```bash
+KINECT_SERVER_PORT=8001 KINECT_BLOCK_COUNT=10000 python scripts/start_scanner.py
+```
+
+Client and server output is saved in `logs/`, which is excluded from Git along
+with exports, meshes, virtual environments, and local environment files.
+The client reports missing hardware and retries automatically when no camera
+is detected.
+
+The **RGB**, **Depth**, and **Scanner** tabs display live camera views. The
+Scanner tab shows RGB and depth side by side. To reconstruct a model, click
+**Start Scan**, capture overlapping frames manually or with **Auto every**,
+then click **Preview Scan** for a separate 3D viewer or **Stop & Build Mesh**
+to prepare a final PLY/OBJ export.
+
+To check the pipeline without connecting or using a Kinect:
+
+```bash
+OMP_NUM_THREADS=4 python scripts/check_scanner.py
+```
+
+This starts an isolated server on a free loopback port and uses synthetic frames
+to check single/batch upload, ICP alignment, TSDF reconstruction, WebSocket
+progress, preview, incremental mesh building, and readable PLY/OBJ exports.
+It also checks the Qt client workflow with camera acquisition replaced by
+synthetic input and an offscreen Qt platform; it does not open a 3D viewer.
 
 ---
 
@@ -77,6 +148,12 @@ python -m scanner_server
 ```
 
 The server listens on `0.0.0.0:8000` by default.
+
+For standalone processes, `KINECT_SERVER_HOST` and `KINECT_SERVER_PORT`
+configure the server's bind address and the client's connection fields.
+`KINECT_AUTOCONNECT=1` makes the client connect on startup. The standalone
+server retains a 50,000-block TSDF default; use `KINECT_BLOCK_COUNT` to change
+it. The combined launcher always binds to `127.0.0.1`.
 
 ### API Endpoints
 

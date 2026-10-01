@@ -133,9 +133,10 @@ class ServerClient(QObject):
                 {"message": msg.get("message", "")},
             )
         elif msg_type == "done":
-            success = msg.get("success", False)
-            detail = msg.get("detail", "")
-            self.build_mesh_done.emit(success, detail)
+            # Both preview and final build broadcast "done". Their HTTP
+            # responses are handled by ServerTaskWorker with the correct signal.
+            # Treating preview completion as a build enables exports too early.
+            pass
         elif msg_type == "error":
             self.task_error.emit(msg.get("message", "Unknown server error"))
 

@@ -1,0 +1,167 @@
+"""Check the local HTTP/WebSocket reconstruction pipeline without hardware."""
+
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+# Exercise Qt widgets without a display or screen-recording permissions.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import httpx
+import numpy as np
+import open3d as o3d
+import websocket
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from shared.protocol import pack_frame, pack_frames
+
+
+def check_client(port, rgb, depth):
+    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtWidgets import QApplication
+    from kinect_scanner.gui import main_window
+
+    class NoCameraWorker(QThread):
+        frame_ready = pyqtSignal(np.ndarray, np.ndarray)
+        error_occurred = pyqtSignal(str)
+
+        def run(self):
+            pass
+
+        def stop(self):
+            pass
+
+    # Use explicit synthetic input even if a Kinect becomes connected.
+    main_window.KinectWorker = NoCameraWorker
+    os.environ.update(KINECT_SERVER_HOST="127.0.0.1", KINECT_SERVER_PORT=str(port),
+                      KINECT_AUTOCONNECT="1")
+    # Preview launch is checked separately; avoid opening a window in this test.
+    main_window.launch_viewer_subprocess = lambda path: None
+    app = QApplication([])
+    window = main_window.MainWindow()
+
+    def wait_until(predicate):
+        deadline = time.monotonic() + 30
+        while not predicate():
+            app.processEvents()
+            assert time.monotonic() < deadline, window.scan_status_label.text()
+            time.sleep(0.01)
+        app.processEvents()
+
+    try:
+        wait_until(lambda: window.server_client.is_connected)
+        window._start_scan()
+        window._on_frame(rgb, depth)
+        for _ in range(3):
+            window._capture_frame()
+        wait_until(lambda: window._server_stored == 3)
+        window._preview_scan()
+        wait_until(lambda: window._last_preview_path is not None)
+        assert window._scanning and window.btn_preview_scan.isEnabled()
+        assert not window.btn_start_scan.isEnabled()
+        assert not window.btn_export_ply.isEnabled(), "Preview must not enable final mesh export"
+        print("PASS: Qt client connects, captures synthetic frames, previews and stays in scan mode", flush=True)
+        preview_path = window._last_preview_path
+        window._stop_and_build()
+        wait_until(lambda: window.btn_export_ply.isEnabled())
+        assert window.btn_export_obj.isEnabled() and window.btn_start_scan.isEnabled()
+        print("PASS: Qt client final build enables export controls", flush=True)
+        Path(preview_path).unlink(missing_ok=True)
+    finally:
+        window.close()
+        assert window.worker.wait(5000) and window.task_worker.wait(5000), "Client threads did not stop"
+        app.processEvents()
+
+
+def main():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    env = os.environ.copy()
+    env.update(KINECT_SERVER_HOST="127.0.0.1", KINECT_SERVER_PORT=str(port),
+               KINECT_BLOCK_COUNT="5000", OMP_NUM_THREADS="4", PYTHONUNBUFFERED="1")
+    (ROOT / "logs").mkdir(exist_ok=True)
+    ws = None
+    with (ROOT / "logs/scanner-check-server.log").open("w") as log:
+        server = subprocess.Popen([sys.executable, "-m", "scanner_server"],
+                                  cwd=ROOT, env=env,
+                                  stdout=log, stderr=subprocess.STDOUT)
+        try:
+            with httpx.Client(base_url=f"http://127.0.0.1:{port}", trust_env=False,
+                              timeout=120) as http:
+                deadline = time.monotonic() + 90
+                while True:
+                    if server.poll() is not None:
+                        raise RuntimeError("Server exited; see logs/scanner-check-server.log")
+                    try:
+                        if http.get("/api/health", timeout=1).json()["status"] == "ok":
+                            break
+                    except (httpx.HTTPError, ValueError):
+                        pass
+                    assert time.monotonic() < deadline, "Server startup timed out"
+                    time.sleep(0.25)
+                ws = websocket.create_connection(f"ws://127.0.0.1:{port}/ws/progress", timeout=5,
+                                                 http_no_proxy=["127.0.0.1"])
+                assert http.post("/api/scan/reset").json()["success"]
+
+                # A curved depth surface with a raised central patch constrains ICP.
+                y, x = np.mgrid[:480, :640]
+                depth = (1100 + 100 * np.sin(x / 90) * np.cos(y / 70)).astype(np.uint16)
+                depth[140:340, 220:420] -= 150
+                rgb = np.stack((x % 256, y % 256, (x + y) % 256), axis=-1).astype(np.uint8)
+                assert http.post("/api/scan/frame", content=pack_frame(rgb, depth)).json()["success"]
+                uploaded = http.post("/api/scan/frames", content=pack_frames([(rgb, depth)] * 2)).json()
+                assert uploaded["stored_count"] == 3, uploaded
+                print("PASS: health, reset, single-frame and batch upload", flush=True)
+
+                preview = http.post("/api/scan/preview")
+                preview.raise_for_status()
+                assert "octet-stream" in preview.headers["content-type"], preview.text
+                status = http.get("/api/scan/status").json()
+                assert status["frame_count"] == 3 and status["unprocessed_count"] == 0, status
+                print("PASS: three frames registered/integrated; preview generated", flush=True)
+                messages = []
+                while True:
+                    message = json.loads(ws.recv())
+                    messages.append(message)
+                    if message["type"] == "done":
+                        assert message["success"], message
+                        break
+                assert any(m["type"] == "progress" for m in messages), messages
+                print("PASS: WebSocket progress and completion", flush=True)
+
+                result = http.post("/api/scan/build").json()
+                assert result["success"] and result["processed"] == 0, result
+                print("PASS: final mesh build reuses integrated frames", flush=True)
+                with tempfile.TemporaryDirectory(prefix="kinect-scanner-check-") as folder:
+                    for fmt in ("ply", "obj"):
+                        response = http.get(f"/api/scan/export/{fmt}")
+                        response.raise_for_status()
+                        assert "octet-stream" in response.headers["content-type"]
+                        path = Path(folder) / f"scan.{fmt}"
+                        path.write_bytes(response.content)
+                        mesh = o3d.io.read_triangle_mesh(str(path))
+                        assert len(mesh.vertices) and len(mesh.triangles), fmt
+                        print(f"PASS: {fmt.upper()} export, {len(mesh.vertices):,} vertices, "
+                              f"{len(mesh.triangles):,} triangles", flush=True)
+                print("PASS: complete synthetic scan over loopback HTTP/WebSocket", flush=True)
+                check_client(port, rgb, depth)
+        finally:
+            if ws is not None:
+                ws.close()
+            server.terminate()
+            try:
+                server.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait()
+
+
+if __name__ == "__main__":
+    main()

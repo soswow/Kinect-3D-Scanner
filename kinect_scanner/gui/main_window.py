@@ -80,6 +80,8 @@ class MainWindow(QMainWindow):
 
         # Disable scan controls until server connected
         self._set_scan_controls_enabled(False)
+        if os.environ.get("KINECT_AUTOCONNECT") == "1":
+            QTimer.singleShot(0, self._toggle_connection)
 
     # ── UI construction ───────────────────────────────────────────────
     def _build_ui(self):
@@ -122,11 +124,12 @@ class MainWindow(QMainWindow):
 
         ip_row = QHBoxLayout()
         self.server_ip_edit = QLineEdit()
+        self.server_ip_edit.setText(os.environ.get("KINECT_SERVER_HOST", "127.0.0.1"))
         self.server_ip_edit.setPlaceholderText("Server IP, e.g. 10.0.0.107")
         ip_row.addWidget(self.server_ip_edit, stretch=1)
         self.server_port_spin = QSpinBox()
         self.server_port_spin.setRange(1, 65535)
-        self.server_port_spin.setValue(8000)
+        self.server_port_spin.setValue(int(os.environ.get("KINECT_SERVER_PORT", "8000")))
         self.server_port_spin.setFixedWidth(70)
         ip_row.addWidget(self.server_port_spin)
         sg_layout.addLayout(ip_row)
@@ -579,6 +582,8 @@ class MainWindow(QMainWindow):
 
     def _on_error(self, msg: str):
         self.kinect_label.setText("Kinect: error")
+        if self._last_rgb is None:
+            self.view_label.setText(msg)
         self.statusBar().showMessage(f"Error: {msg}")
 
     def closeEvent(self, event):
