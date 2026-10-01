@@ -1,0 +1,10 @@
+{
+  "name": "Registered RGB (approximate; replace with measured values)",
+  "width": 640,
+  "height": 480,
+  "fx": 525.0,
+  "fy": 525.0,
+  "cx": 319.5,
+  "cy": 239.5,
+  "image_space": "registered_rgb"
+}

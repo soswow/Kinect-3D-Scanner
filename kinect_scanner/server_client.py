@@ -23,10 +23,11 @@ class ServerClient(QObject):
     connected = pyqtSignal()
     disconnected = pyqtSignal(str)
 
+    reset_done = pyqtSignal(dict)
     frame_stored = pyqtSignal(dict)
     process_progress = pyqtSignal(int, int, dict)
     build_mesh_done = pyqtSignal(bool, str)
-    preview_done = pyqtSignal(str)         # PLY temp file path
+    preview_done = pyqtSignal(str)  # PLY temp file path
     export_done = pyqtSignal(bool, str)
     save_mesh_done = pyqtSignal(bool, str)
     status_updated = pyqtSignal(dict)
@@ -130,7 +131,7 @@ class ServerClient(QObject):
             self.process_progress.emit(
                 msg.get("current", 0),
                 msg.get("total", 0),
-                {"message": msg.get("message", "")},
+                msg.get("result", {"message": msg.get("message", "")}),
             )
         elif msg_type == "done":
             # Both preview and final build broadcast "done". Their HTTP
@@ -142,9 +143,9 @@ class ServerClient(QObject):
 
     # ── API methods (called from ServerTaskWorker thread) ──────────────
 
-    def send_frame(self, rgb, depth) -> dict:
+    def send_frame(self, rgb, depth, metadata=None) -> dict:
         """Pack and upload a frame. Returns the server response dict."""
-        data = pack_frame(rgb, depth)
+        data = pack_frame(rgb, depth, metadata)
         resp = self._http.post(
             "/api/scan/frame",
             content=data,
@@ -166,14 +167,14 @@ class ServerClient(QObject):
             # Server doesn't support batch — fall back to individual sends
             logger.warning("Server lacks batch endpoint, sending individually")
             result = None
-            for rgb, depth in frames:
-                result = self.send_frame(rgb, depth)
+            for frame in frames:
+                result = self.send_frame(*frame)
             return result
         resp.raise_for_status()
         return resp.json()
 
-    def reset_scan(self) -> dict:
-        resp = self._http.post("/api/scan/reset")
+    def reset_scan(self, settings=None) -> dict:
+        resp = self._http.post("/api/scan/reset", json=settings or {})
         resp.raise_for_status()
         return resp.json()
 
@@ -195,6 +196,7 @@ class ServerClient(QObject):
 
         fd, tmp_path = tempfile.mkstemp(suffix=".ply")
         import os
+
         os.close(fd)
         with open(tmp_path, "wb") as f:
             f.write(resp.content)

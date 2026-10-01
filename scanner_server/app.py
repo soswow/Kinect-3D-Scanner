@@ -4,11 +4,14 @@ import asyncio
 import logging
 import os
 import tempfile
+from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
-from shared.protocol import unpack_frame, unpack_frames
+from shared.protocol import unpack_frame_with_metadata, unpack_frames
+from shared.settings import ScanSettings
+
 from .engine import ScanEngine
 
 logger = logging.getLogger("scanner_server")
@@ -25,9 +28,10 @@ _ws_clients: set[WebSocket] = set()
 async def _broadcast(msg: dict):
     """Send a JSON message to all connected WebSocket clients."""
     import json
+
     data = json.dumps(msg)
     closed = set()
-    for ws in _ws_clients:
+    for ws in tuple(_ws_clients):
         try:
             await ws.send_text(data)
         except Exception:
@@ -35,7 +39,30 @@ async def _broadcast(msg: dict):
     _ws_clients.difference_update(closed)
 
 
+async def _engine_call(function, *args, **kwargs):
+    # Cancellation cannot stop a native worker thread. Keep its lock held until
+    # it finishes, so a cancelled HTTP request cannot race a subsequent reset.
+    task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await task
+        raise
+
+
+async def _wait_for_processing(task, drain_progress):
+    try:
+        while not task.done():
+            await asyncio.wait({task}, timeout=0.05)
+            await drain_progress()
+        await drain_progress()
+    finally:
+        if not task.done():
+            await asyncio.shield(task)
+
+
 # ── Health / Status ────────────────────────────────────────────────────
+
 
 @app.get("/api/health")
 async def health():
@@ -53,17 +80,41 @@ async def scan_status():
         "stored_count": engine.stored_count,
         "frame_count": engine.frame_count,
         "unprocessed_count": engine.unprocessed_count,
+        "settings": engine.settings.to_dict(),
+        "skipped_count": sum(not r["success"] for r in engine.diagnostics),
         "has_mesh": engine.mesh is not None,
     }
 
 
+@app.get("/api/scan/diagnostics")
+async def scan_diagnostics():
+    async with _build_lock:
+        return {
+            "settings": engine.settings.to_dict(),
+            "frames": list(engine.diagnostics),
+        }
+
+
 # ── Scan Control ───────────────────────────────────────────────────────
 
+
 @app.post("/api/scan/reset")
-async def scan_reset():
-    await asyncio.to_thread(engine.reset)
+async def scan_reset(request: Request):
+    body = await request.body()
+    try:
+        import json
+
+        settings = ScanSettings.from_dict(json.loads(body)) if body else ScanSettings()
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    async with _build_lock:
+        await _engine_call(engine.reset, settings=settings)
     logger.info("Scan reset")
-    return {"success": True, "message": "Scan reset"}
+    return {
+        "success": True,
+        "message": "Scan reset",
+        "settings": engine.settings.to_dict(),
+    }
 
 
 @app.post("/api/scan/frame")
@@ -73,11 +124,15 @@ async def scan_frame(request: Request):
     if not body:
         return {"success": False, "message": "Empty body"}
     try:
-        rgb, depth = unpack_frame(body)
+        rgb, depth, metadata = unpack_frame_with_metadata(body)
     except Exception as e:
         return {"success": False, "message": f"Unpack error: {e}"}
 
-    result = await asyncio.to_thread(engine.store_frame, rgb, depth)
+    try:
+        async with _build_lock:
+            result = await _engine_call(engine.store_frame, rgb, depth, metadata)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
     return result
 
 
@@ -88,22 +143,25 @@ async def scan_frames_batch(request: Request):
     if not body:
         return {"success": False, "message": "Empty body"}
 
-    def _unpack_and_store(raw_data: bytes) -> tuple[int, int]:
-        frames = unpack_frames(raw_data)
-        for rgb, depth in frames:
-            engine.store_frame(rgb, depth)
-        return len(frames), engine.stored_count
+    def _unpack_and_store(raw_data: bytes) -> tuple[int, int, int]:
+        frames = unpack_frames(raw_data, with_metadata=True)
+        count = 0
+        for rgb, depth, metadata in frames:
+            count += bool(engine.store_frame(rgb, depth, metadata)["success"])
+        return count, engine.stored_count, len(frames)
 
     try:
-        count, total = await asyncio.to_thread(_unpack_and_store, body)
+        async with _build_lock:
+            count, total, submitted = await _engine_call(_unpack_and_store, body)
     except Exception as e:
         return {"success": False, "message": f"Batch error: {e}"}
 
     return {
-        "success": True,
+        "success": count > 0,
         "stored_count": total,
         "batch_size": count,
-        "message": f"{count} frames stored (total: {total})",
+        "rejected_count": submitted - count,
+        "message": f"{count} frames stored, {submitted - count} rejected (total: {total})",
     }
 
 
@@ -120,8 +178,13 @@ async def scan_build():
         def progress_cb(current, total, result):
             loop.call_soon_threadsafe(
                 progress_queue.put_nowait,
-                {"type": "progress", "current": current, "total": total,
-                 "message": result.get("message", "")},
+                {
+                    "type": "progress",
+                    "current": current,
+                    "total": total,
+                    "message": result.get("message", ""),
+                    "result": result,
+                },
             )
 
         async def drain_progress():
@@ -136,22 +199,23 @@ async def scan_build():
             asyncio.to_thread(engine.build_mesh, progress_cb=progress_cb)
         )
 
-        while not build_task.done():
-            await asyncio.wait({build_task}, timeout=0.05)
-            await drain_progress()
-        await drain_progress()
+        await _wait_for_processing(build_task, drain_progress)
 
         success, proc_result = build_task.result()
 
         if success:
             nv = len(engine.mesh.vertices) if engine.mesh else 0
             nt = len(engine.mesh.triangles) if engine.mesh else 0
-            detail = (f"Mesh ready: {nv:,} vertices, {nt:,} triangles "
-                      f"({proc_result['frame_count']} frames integrated, "
-                      f"{proc_result['errors']} skipped)")
+            detail = (
+                f"Mesh ready: {nv:,} vertices, {nt:,} triangles "
+                f"({proc_result['frame_count']} frames integrated, "
+                f"{proc_result['skipped_count']} skipped)"
+            )
             await _broadcast({"type": "done", "success": True, "detail": detail})
         else:
-            detail = "Mesh build failed. Try capturing more frames."
+            detail = proc_result.get(
+                "message", "Mesh build failed. Try capturing more frames."
+            )
             await _broadcast({"type": "done", "success": False, "detail": detail})
 
         return {"success": success, "detail": detail, **proc_result}
@@ -170,8 +234,13 @@ async def scan_preview():
         def progress_cb(current, total, result):
             loop.call_soon_threadsafe(
                 progress_queue.put_nowait,
-                {"type": "progress", "current": current, "total": total,
-                 "message": result.get("message", "")},
+                {
+                    "type": "progress",
+                    "current": current,
+                    "total": total,
+                    "message": result.get("message", ""),
+                    "result": result,
+                },
             )
 
         async def drain_progress():
@@ -186,36 +255,43 @@ async def scan_preview():
             asyncio.to_thread(engine.extract_preview, progress_cb=progress_cb)
         )
 
-        while not preview_task.done():
-            await asyncio.wait({preview_task}, timeout=0.05)
-            await drain_progress()
-        await drain_progress()
+        await _wait_for_processing(preview_task, drain_progress)
 
-        mesh, pcd, proc_result = preview_task.result()
+        mesh, pcd, _proc_result = preview_task.result()
 
         if mesh is None and pcd is None:
-            await _broadcast({"type": "done", "success": False,
-                              "detail": "Preview extraction failed"})
+            await _broadcast(
+                {
+                    "type": "done",
+                    "success": False,
+                    "detail": "Preview extraction failed",
+                }
+            )
             return {"success": False, "message": "No geometry to preview"}
 
         # Write to temp PLY and stream back
         import open3d as o3d
+
         fd, tmp_path = tempfile.mkstemp(suffix=".ply")
         os.close(fd)
 
         try:
             if mesh is not None and len(mesh.vertices) > 0:
-                o3d.io.write_triangle_mesh(tmp_path, mesh)
+                await _engine_call(o3d.io.write_triangle_mesh, tmp_path, mesh)
             elif pcd is not None and len(pcd.points) > 0:
-                o3d.io.write_point_cloud(tmp_path, pcd)
+                await _engine_call(o3d.io.write_point_cloud, tmp_path, pcd)
 
-            with open(tmp_path, "rb") as f:
-                data = f.read()
+            data = await asyncio.to_thread(Path(tmp_path).read_bytes)
         finally:
             os.unlink(tmp_path)
 
-        await _broadcast({"type": "done", "success": True,
-                          "detail": f"Preview ready ({len(data)} bytes)"})
+        await _broadcast(
+            {
+                "type": "done",
+                "success": True,
+                "detail": f"Preview ready ({len(data)} bytes)",
+            }
+        )
         return Response(
             content=data,
             media_type="application/octet-stream",
@@ -224,6 +300,7 @@ async def scan_preview():
 
 
 # ── Export endpoints ───────────────────────────────────────────────────
+
 
 @app.get("/api/scan/export/ply")
 async def export_ply():
@@ -235,11 +312,11 @@ async def export_ply():
     os.close(fd)
 
     try:
-        success = await asyncio.to_thread(engine.export_ply, tmp_path)
+        async with _build_lock:
+            success = await _engine_call(engine.export_ply, tmp_path)
         if not success:
             return {"success": False, "message": "Export failed"}
-        with open(tmp_path, "rb") as f:
-            data = f.read()
+        data = await asyncio.to_thread(Path(tmp_path).read_bytes)
     finally:
         os.unlink(tmp_path)
 
@@ -260,11 +337,11 @@ async def export_obj():
     os.close(fd)
 
     try:
-        success = await asyncio.to_thread(engine.export_obj, tmp_path)
+        async with _build_lock:
+            success = await _engine_call(engine.export_obj, tmp_path)
         if not success:
             return {"success": False, "message": "Export failed"}
-        with open(tmp_path, "rb") as f:
-            data = f.read()
+        data = await asyncio.to_thread(Path(tmp_path).read_bytes)
     finally:
         os.unlink(tmp_path)
 
@@ -276,6 +353,7 @@ async def export_obj():
 
 
 # ── WebSocket for progress ─────────────────────────────────────────────
+
 
 @app.websocket("/ws/progress")
 async def ws_progress(websocket: WebSocket):

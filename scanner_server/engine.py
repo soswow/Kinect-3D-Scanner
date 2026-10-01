@@ -22,19 +22,22 @@ import open3d as o3d
 import open3d.core as o3c
 import trimesh
 
-from .config import O3D_INTRINSIC, O3D_INTRINSIC_TENSOR
-from shared.config import ScanPreset, PRESET_DEFAULT
+from shared.config import PRESET_DEFAULT, ScanPreset
+from shared.depth import prepare_depth
+from shared.settings import ScanSettings
 
 _REG = o3d.pipelines.registration
 logger = logging.getLogger("scanner_server")
 
-class ScanEngine:
 
-    MODEL_REFRESH_INTERVAL = 5  # re-extract model_pcd every N integrations
+class ScanEngine:
+    MODEL_REFRESH_INTERVAL = 3  # re-extract model_pcd every N integrations
+    MAX_FRAMES = int(os.environ.get("KINECT_MAX_FRAMES", "500"))
     BLOCK_COUNT = int(os.environ.get("KINECT_BLOCK_COUNT", "50000"))
 
     def __init__(self):
         self.preset = PRESET_DEFAULT
+        self.settings = ScanSettings()
         self.device = o3c.Device("CPU:0")
         logger.info("ScanEngine using device: %s", self.device)
         self.reset()
@@ -55,20 +58,41 @@ class ScanEngine:
 
     # ── reset ─────────────────────────────────────────────────────────
 
-    def reset(self, preset: ScanPreset | None = None):
+    def reset(
+        self, preset: ScanPreset | None = None, settings: ScanSettings | None = None
+    ):
         if preset is not None:
             self.preset = preset
-        p = self.preset
-        self.voxel_size = p.voxel_size
-        self.sdf_trunc = p.sdf_trunc
-        self.max_depth_m = p.max_depth_m
-        self.reg_voxel = p.voxel_size * p.reg_voxel_mult
+        if settings is not None:
+            self.settings = settings
+        elif preset is not None:
+            self.settings = ScanSettings(
+                voxel_m=preset.voxel_size,
+                truncation_m=preset.sdf_trunc,
+                near_m=preset.depth_near_mm / 1000,
+                far_m=preset.max_depth_m,
+            )
+        p = self.settings
+        self.voxel_size = p.voxel_m
+        self.sdf_trunc = p.truncation_m
+        self.max_depth_m = float(p.far_m)
+        self.reg_voxel = max(p.voxel_m * 1.5, 0.0075)
+        c = p.camera
+        self.intrinsic = o3d.camera.PinholeCameraIntrinsic(
+            c.width, c.height, c.fx, c.fy, c.cx, c.cy
+        )
+        self.intrinsic_tensor = o3c.Tensor(
+            self.intrinsic.intrinsic_matrix, dtype=o3c.float64
+        )
 
         self.vbg = self._create_vbg()
 
         self.frame_count = 0
         self.model_pcd = None
+        self._last_rgbd = None
         self._model_fpfh = None
+        self._model_feature_cloud = None
+        self._model_pyramid = {}
         self._integrations_since_model = 0
         self.cumulative_T = np.eye(4)
         self.mesh = None
@@ -77,6 +101,10 @@ class ScanEngine:
         # Raw frame storage
         self.raw_frames: list[tuple[np.ndarray, np.ndarray]] = []
         self._processed_count = 0
+        self.poses = []
+        self.diagnostics = []
+        self.frame_metadata = []
+        self._frame_ids = set()
 
     # ── helpers ────────────────────────────────────────────────────────
 
@@ -91,7 +119,8 @@ class ScanEngine:
         color_o3d = o3d.geometry.Image(np.ascontiguousarray(rgb, dtype=np.uint8))
         depth_o3d = o3d.geometry.Image(np.ascontiguousarray(depth_f, dtype=np.float32))
         return o3d.geometry.RGBDImage.create_from_color_and_depth(
-            color_o3d, depth_o3d,
+            color_o3d,
+            depth_o3d,
             depth_scale=1000.0,
             depth_trunc=self.max_depth_m,
             convert_rgb_to_intensity=False,
@@ -102,92 +131,162 @@ class ScanEngine:
 
         Creates tensor images, integrates, and frees them immediately.
         """
-        depth_img = o3d.t.geometry.Image(
-            o3c.Tensor(np.ascontiguousarray(depth))
-        ).to(self.device)
-        color_img = o3d.t.geometry.Image(
-            o3c.Tensor(np.ascontiguousarray(rgb))
-        ).to(self.device)
+        depth_img = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(depth))).to(
+            self.device
+        )
+        color_img = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(rgb))).to(
+            self.device
+        )
         extrinsic_t = o3c.Tensor(extrinsic, dtype=o3c.float64)
 
         frustum_block_coords = self.vbg.compute_unique_block_coordinates(
-            depth_img, O3D_INTRINSIC_TENSOR, extrinsic_t,
-            depth_scale=1000.0,
-            depth_max=self.max_depth_m,
-        )
-        self.vbg.integrate(
-            frustum_block_coords,
-            depth_img, color_img,
-            O3D_INTRINSIC_TENSOR, O3D_INTRINSIC_TENSOR,
+            depth_img,
+            self.intrinsic_tensor,
             extrinsic_t,
             depth_scale=1000.0,
             depth_max=self.max_depth_m,
+            trunc_voxel_multiplier=self.sdf_trunc / self.voxel_size,
+        )
+        self.vbg.integrate(
+            frustum_block_coords,
+            depth_img,
+            color_img,
+            self.intrinsic_tensor,
+            self.intrinsic_tensor,
+            extrinsic_t,
+            depth_scale=1000.0,
+            depth_max=self.max_depth_m,
+            trunc_voxel_multiplier=self.sdf_trunc / self.voxel_size,
         )
         del depth_img, color_img, frustum_block_coords, extrinsic_t
 
     def _make_reg_pcd(self, rgbd):
         """Build a coarser point cloud for registration (not integration)."""
-        pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, O3D_INTRINSIC)
+        pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, self.intrinsic)
         pcd = pcd.voxel_down_sample(self.reg_voxel)
         pcd.estimate_normals(
-            o3d.geometry.KDTreeSearchParamHybrid(
-                radius=self.reg_voxel * 4, max_nn=30
-            )
+            o3d.geometry.KDTreeSearchParamHybrid(radius=self.reg_voxel * 4, max_nn=30)
         )
         return pcd
 
     def _extract_model_pcd(self):
         """Extract and downsample a model point cloud from the TSDF volume.
 
-        Also precomputes FPFH features for the model (cached for fallback).
+        Cache registration scales; compute FPFH lazily if recovery needs it.
         """
         t_pcd = self.vbg.extract_point_cloud(weight_threshold=0.5)
         pcd = t_pcd.to_legacy()
         del t_pcd
         pcd = pcd.voxel_down_sample(self.reg_voxel)
         pcd.estimate_normals(
-            o3d.geometry.KDTreeSearchParamHybrid(
-                radius=self.reg_voxel * 4, max_nn=30
-            )
+            o3d.geometry.KDTreeSearchParamHybrid(radius=self.reg_voxel * 4, max_nn=30)
         )
         self.model_pcd = pcd
 
-        # Precompute FPFH for fallback — avoids recomputing on every fallback
-        search_param = o3d.geometry.KDTreeSearchParamHybrid(
-            radius=self.reg_voxel * 5, max_nn=100
-        )
-        self._model_fpfh = _REG.compute_fpfh_feature(pcd, search_param)
+        self._model_feature_cloud = None
+        self._model_fpfh = None  # Compute only when recovery actually needs it.
+        self._model_pyramid = {}
+        for scale in (4, 2, 1):
+            voxel = self.reg_voxel * scale
+            level = pcd.voxel_down_sample(voxel)
+            level.estimate_normals(
+                o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 3, max_nn=30)
+            )
+            self._model_pyramid[scale] = level
 
         self._integrations_since_model = 0
 
-    def _icp(self, source, target, init=np.eye(4)):
-        """Single-stage point-to-plane ICP with early-exit criteria."""
-        vs = self.voxel_size
-        p = self.preset
-        return _REG.registration_icp(
-            source, target,
-            max_correspondence_distance=vs * p.icp_coarse_mult,
-            init=init,
-            estimation_method=_REG.TransformationEstimationPointToPlane(),
-            criteria=_REG.ICPConvergenceCriteria(
-                relative_fitness=1e-6,
-                relative_rmse=1e-6,
-                max_iteration=30,
-            ),
+    def _icp(self, source, target, init=None):
+        """Coarse-to-fine robust point-to-plane tracking in camera-to-world space."""
+        pose = self.cumulative_T if init is None else init
+        for scale, iterations in ((4, 40), (2, 30), (1, 20)):
+            voxel = self.reg_voxel * scale
+            src = source.voxel_down_sample(voxel)
+            if target is self.model_pcd:
+                tgt = self._model_pyramid[scale]
+            else:
+                tgt = target.voxel_down_sample(voxel)
+                tgt.estimate_normals(
+                    o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 3, max_nn=30)
+                )
+            result = _REG.registration_icp(
+                src,
+                tgt,
+                max_correspondence_distance=voxel * 3,
+                init=pose,
+                estimation_method=_REG.TransformationEstimationPointToPlane(
+                    _REG.HuberLoss(k=max(0.005, voxel))
+                ),
+                criteria=_REG.ICPConvergenceCriteria(max_iteration=iterations),
+            )
+            pose = result.transformation
+        return result
+
+    def _alignment_error(self, result, target):
+        s = self.settings
+        if not np.all(np.isfinite(result.transformation)):
+            return "Non-finite tracking pose"
+        if result.fitness < s.min_fitness or result.inlier_rmse > s.max_rmse_m:
+            return (
+                f"Weak alignment: overlap {result.fitness:.2f}, "
+                f"RMSE {result.inlier_rmse * 1000:.1f} mm"
+            )
+        relative = np.linalg.inv(self.cumulative_T) @ result.transformation
+        translation = np.linalg.norm(relative[:3, 3])
+        angle = np.degrees(
+            np.arccos(np.clip((np.trace(relative[:3, :3]) - 1) / 2, -1, 1))
         )
+        if translation > s.max_translation_m or angle > s.max_rotation_deg:
+            return f"Pose jump: {translation:.2f} m / {angle:.1f} degrees; move slower"
+        # Normal diversity detects translation ambiguity on a single plane.
+        matched_target = self._model_pyramid[1] if target is self.model_pcd else target
+        normals = np.asarray(matched_target.normals)
+        correspondences = np.asarray(result.correspondence_set)
+        if len(correspondences):
+            normals = normals[correspondences[:, 1]]
+        if (
+            len(normals)
+            and np.linalg.eigvalsh(normals.T @ normals / len(normals))[0] < 0.002
+        ):
+            return "Tracking is ambiguous on a flat surface; include corners or curved geometry"
+        return None
 
     def _fpfh_fallback(self, source, target):
         """Fast Global Registration using cached model FPFH, refined with ICP."""
-        search_param = o3d.geometry.KDTreeSearchParamHybrid(
-            radius=self.reg_voxel * 5, max_nn=100
-        )
-        src_feat = _REG.compute_fpfh_feature(source, search_param)
-        tgt_feat = self._model_fpfh  # cached from _extract_model_pcd
+        # Global feature matching must not compare every fine model point.
+        # A bounded, coarse cloud prevents very long recovery on large scans.
+        feature_voxel = max(self.reg_voxel * 4, 0.03)
 
+        def coarse(cloud):
+            cloud = cloud.voxel_down_sample(feature_voxel)
+            if len(cloud.points) > 5000:
+                cloud = cloud.uniform_down_sample(
+                    int(np.ceil(len(cloud.points) / 5000))
+                )
+            cloud.estimate_normals(
+                o3d.geometry.KDTreeSearchParamHybrid(
+                    radius=feature_voxel * 2, max_nn=30
+                )
+            )
+            return cloud
+
+        search_param = o3d.geometry.KDTreeSearchParamHybrid(
+            radius=feature_voxel * 5, max_nn=100
+        )
+        coarse_source = coarse(source)
+        src_feat = _REG.compute_fpfh_feature(coarse_source, search_param)
+        if self._model_fpfh is None:
+            self._model_feature_cloud = coarse(target)
+            self._model_fpfh = _REG.compute_fpfh_feature(
+                self._model_feature_cloud, search_param
+            )
         fgr = _REG.registration_fgr_based_on_feature_matching(
-            source, target, src_feat, tgt_feat,
+            coarse_source,
+            self._model_feature_cloud,
+            src_feat,
+            self._model_fpfh,
             _REG.FastGlobalRegistrationOption(
-                maximum_correspondence_distance=self.reg_voxel * 3,
+                maximum_correspondence_distance=feature_voxel * 2, iteration_number=32
             ),
         )
 
@@ -195,37 +294,186 @@ class ScanEngine:
         refined = self._icp(source, target, init=fgr.transformation)
         return refined
 
-    def _register(self, source_pcd):
+    def _tracking_initial_guess(self):
+        """Predict smooth camera motion; bound extrapolation when frames are skipped."""
+        if len(self.poses) < 2:
+            return self.cumulative_T
+        previous_index, previous = self.poses[-2]
+        last_index, last = self.poses[-1]
+        current_index = self._processed_count
+
+        def timestamp(index):
+            value = self.frame_metadata[index].get("timestamp_s")
+            return float(index) if value is None else value
+
+        previous_time, last_time, current_time = map(
+            timestamp, (previous_index, last_index, current_index)
+        )
+        interval = last_time - previous_time
+        gap = current_time - last_time
+        if not (
+            np.isfinite(interval) and np.isfinite(gap) and interval > 0 and gap > 0
+        ):
+            return last
+        ratio = min(gap / interval, 2.0)
+        delta = np.linalg.inv(previous) @ last
+        extrapolation = np.eye(4)
+        rotation = delta[:3, :3]
+        angle = np.arccos(np.clip((np.trace(rotation) - 1) / 2, -1, 1))
+        if angle > 1e-8:
+            if abs(np.sin(angle)) < 1e-8:
+                return last
+            axis = np.array(
+                [
+                    rotation[2, 1] - rotation[1, 2],
+                    rotation[0, 2] - rotation[2, 0],
+                    rotation[1, 0] - rotation[0, 1],
+                ]
+            ) / (2 * np.sin(angle))
+            extrapolation[:3, :3] = o3d.geometry.get_rotation_matrix_from_axis_angle(
+                axis * angle * ratio
+            )
+        extrapolation[:3, 3] = delta[:3, 3] * ratio
+        if np.linalg.norm(extrapolation[:3, 3]) > self.settings.max_translation_m:
+            return last
+        return last @ extrapolation
+
+    def _color_recovery(self, source_pcd, rgbd):
+        """Use synchronized RGB-D motion to seed geometry; never bypass its gates."""
+        if not self.settings.color_recovery or self._last_rgbd is None or rgbd is None:
+            return None
+        lag = self.frame_metadata[self._processed_count].get("rgb_depth_delta_ms")
+        previous_lag = self.frame_metadata[self.poses[-1][0]].get("rgb_depth_delta_ms")
+        if any(value is not None and abs(value) > 20 for value in (lag, previous_lag)):
+            return None
+
+        def intensity(frame):
+            return o3d.geometry.RGBDImage.create_from_color_and_depth(
+                frame.color,
+                frame.depth,
+                depth_scale=1.0,
+                depth_trunc=self.max_depth_m,
+                convert_rgb_to_intensity=True,
+            )
+
+        current = intensity(rgbd)
+        previous = intensity(self._last_rgbd)
+        image = np.asarray(current.color)
+        gy, gx = np.gradient(image)
+        if np.mean(np.hypot(gx, gy) > 0.015) < 0.05:
+            return None  # Insufficient texture; a successful solve is not evidence.
+        option = o3d.pipelines.odometry.OdometryOption(
+            iteration_number_per_pyramid_level=o3d.utility.IntVector([40, 20, 10]),
+            depth_diff_max=0.05,
+            depth_min=float(self.settings.near_m),
+            depth_max=self.max_depth_m,
+        )
+        guess = np.linalg.inv(self.cumulative_T) @ self._tracking_initial_guess()
+        success, relative, information = o3d.pipelines.odometry.compute_rgbd_odometry(
+            current,
+            previous,
+            self.intrinsic,
+            guess,
+            o3d.pipelines.odometry.RGBDOdometryJacobianFromHybridTerm(),
+            option,
+        )
+        if not success or not np.all(np.isfinite(information)):
+            return None
+        pose = self.cumulative_T @ relative
+        refined = self._icp(source_pcd, self.model_pcd, init=pose)
+        if self._alignment_error(refined, self.model_pcd) is None:
+            return refined
+        return None
+
+    def _register(self, source_pcd, rgbd=None):
         """Register source (camera coords) against model_pcd (world coords).
 
         Uses cumulative_T as initial guess so ICP starts near the true pose.
         Returns (result, method_str) or (None, error_str).
         """
-        threshold = self.preset.fitness_threshold
-
-        # Stage 1: point-to-plane ICP seeded with last known pose
-        result = self._icp(source_pcd, self.model_pcd,
-                           init=self.cumulative_T)
-        if result.fitness >= threshold:
+        if self.settings.color_recovery:
+            try:
+                if self._integrations_since_model:
+                    self._extract_model_pcd()
+                recovered = self._color_recovery(source_pcd, rgbd)
+                if recovered is not None:
+                    return recovered, "rgbd+icp"
+            except (RuntimeError, ValueError):
+                logger.debug("Color-assisted tracking failed", exc_info=True)
+        result = self._icp(source_pcd, self.model_pcd, init=self.cumulative_T)
+        error = self._alignment_error(result, self.model_pcd)
+        if error is None:
             return result, "icp"
-
-        # Stage 2: Fast Global Registration fallback
+        # A turning camera can see surfaces from recently accepted frames that
+        # are not in the cached model yet. Refresh before attempting recovery.
+        if self._integrations_since_model:
+            self._extract_model_pcd()
+            result = self._icp(source_pcd, self.model_pcd, init=self.cumulative_T)
+            error = self._alignment_error(result, self.model_pcd)
+            if error is None:
+                return result, "icp"
+        if len(self.poses) >= 2:
+            predicted = self._icp(
+                source_pcd, self.model_pcd, init=self._tracking_initial_guess()
+            )
+            if self._alignment_error(predicted, self.model_pcd) is None:
+                return predicted, "motion+icp"
         try:
-            result = self._fpfh_fallback(source_pcd, self.model_pcd)
-        except Exception as e:
-            return None, f"FGR fallback failed: {e}"
-
-        if result.fitness >= threshold:
-            return result, "global"
-
-        return None, (f"Poor alignment (fitness={result.fitness:.2f}). "
-                      "Move slower or add more overlap.")
+            recovered = self._color_recovery(source_pcd, rgbd)
+            if recovered is not None:
+                return recovered, "rgbd+icp"
+        except (RuntimeError, ValueError):
+            logger.debug("Color recovery failed", exc_info=True)
+        # Global recovery is subject to the same confidence and motion limits.
+        try:
+            recovered = self._fpfh_fallback(source_pcd, self.model_pcd)
+            if self._alignment_error(recovered, self.model_pcd) is None:
+                return recovered, "global"
+        except Exception:
+            logger.debug("Global recovery failed", exc_info=True)
+        return None, error
 
     # ── public API: capture (fast) ─────────────────────────────────────
-    def store_frame(self, rgb: np.ndarray, depth: np.ndarray) -> dict:
+    def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None) -> dict:
         """Store a raw frame for later processing. Very fast — no ICP/TSDF."""
+        if rgb.shape != (480, 640, 3) or rgb.dtype != np.uint8:
+            raise ValueError("RGB must be uint8 480x640x3")
+        if depth.shape != (480, 640) or depth.dtype != np.uint16:
+            raise ValueError("Depth must be uint16 480x640 millimetres")
+        metadata = dict(metadata or {})
+        stamp = metadata.get("timestamp_s")
+        if stamp is not None and (
+            not isinstance(stamp, (int, float)) or not np.isfinite(stamp)
+        ):
+            raise ValueError("timestamp_s must be a finite number")
+        frame_id = metadata.get("frame_id")
+        if frame_id is not None:
+            if not isinstance(frame_id, (str, int)):
+                raise ValueError("frame_id must be a string or integer")
+            if frame_id in self._frame_ids:
+                return {
+                    "success": False,
+                    "stored_count": self.stored_count,
+                    "message": "Duplicate capture skipped",
+                }
+        lag = metadata.get("rgb_depth_delta_ms")
+        if lag is not None and (not np.isfinite(lag) or abs(lag) > 50):
+            return {
+                "success": False,
+                "stored_count": self.stored_count,
+                "message": "RGB/depth timestamps differ by more than 50 ms",
+            }
+        if self.stored_count >= self.MAX_FRAMES:
+            return {
+                "success": False,
+                "stored_count": self.stored_count,
+                "message": f"Session limit ({self.MAX_FRAMES} frames); build or start a new scan",
+            }
         idx = len(self.raw_frames)
-        self.raw_frames.append((rgb, depth))
+        self.raw_frames.append((rgb.copy(), depth.copy()))
+        self.frame_metadata.append(metadata)
+        if frame_id is not None:
+            self._frame_ids.add(frame_id)
         return {
             "success": True,
             "stored_count": idx + 1,
@@ -256,7 +504,16 @@ class ScanEngine:
 
         for i in range(start, total):
             rgb, depth = self.raw_frames[i]
-            result = self._process_single_frame(rgb, depth)
+            try:
+                result = self._process_single_frame(rgb, depth)
+            except Exception as exc:
+                logger.exception("Frame %d failed", i)
+                result = {"success": False, "message": f"Frame failed: {exc}"}
+            self._processed_count = i + 1
+            result["frame_count"] = self.frame_count
+            result["index"] = i
+            result["metadata"] = self.frame_metadata[i]
+            self.diagnostics.append(result)
             processed += 1
             if not result["success"]:
                 errors += 1
@@ -266,6 +523,7 @@ class ScanEngine:
         return {
             "processed": processed,
             "errors": errors,
+            "skipped_count": sum(not r["success"] for r in self.diagnostics),
             "total": total,
             "frame_count": self.frame_count,
         }
@@ -274,14 +532,23 @@ class ScanEngine:
         """Process a single frame through ICP registration + TSDF integration."""
         t0 = time.monotonic()
 
+        depth = prepare_depth(depth, self.settings)
+        valid_fraction = np.count_nonzero(depth) / depth.size
+        if np.count_nonzero(depth) < 1000:
+            return {
+                "success": False,
+                "message": "Too few valid depth pixels after clipping",
+            }
         # Legacy RGBD + registration point cloud (CPU)
         rgbd = self._make_rgbd(rgb, depth)
         current_pcd = self._make_reg_pcd(rgbd)
 
         if len(current_pcd.points) < 100:
-            self._processed_count += 1
-            return {"success": False, "frame_count": self.frame_count,
-                    "message": "Too few depth points. Skipped."}
+            return {
+                "success": False,
+                "frame_count": self.frame_count,
+                "message": "Too few depth points. Skipped.",
+            }
 
         # First frame — integrate directly (need model_pcd immediately)
         if self.frame_count == 0:
@@ -289,33 +556,42 @@ class ScanEngine:
             self._integrate_vbg(rgb, depth, extrinsic)
             self._extract_model_pcd()
             self.frame_count = 1
-            self._processed_count += 1
+            self._last_rgbd = rgbd
+            self.poses.append((self._processed_count, self.cumulative_T.copy()))
             elapsed_ms = (time.monotonic() - t0) * 1000
-            return {"success": True, "frame_count": 1,
-                    "message": f"Reference frame ({elapsed_ms:.0f}ms)"}
+            return {
+                "success": True,
+                "frame_count": 1,
+                "message": f"Reference frame ({elapsed_ms:.0f}ms)",
+                "pose": self.cumulative_T.tolist(),
+                "valid_depth_fraction": valid_fraction,
+            }
 
         # Register current → model
         try:
-            result, method = self._register(current_pcd)
+            result, method = self._register(current_pcd, rgbd)
         except Exception as e:
-            self._processed_count += 1
-            return {"success": False, "frame_count": self.frame_count,
-                    "message": f"Registration failed: {e}"}
+            return {
+                "success": False,
+                "frame_count": self.frame_count,
+                "message": f"Registration failed: {e}",
+            }
 
         if result is None:
-            self._processed_count += 1
-            return {"success": False, "frame_count": self.frame_count,
-                    "message": method}
+            return {
+                "success": False,
+                "frame_count": self.frame_count,
+                "message": method,
+            }
 
-        # Update pose
-        self.cumulative_T = result.transformation
+        # Commit tracking state only after integration succeeds.
+        pose = result.transformation
+        self._integrate_vbg(rgb, depth, np.linalg.inv(pose))
+        self.cumulative_T = pose
+        self._last_rgbd = rgbd
         self.frame_count += 1
         self._integrations_since_model += 1
-        self._processed_count += 1
-
-        # TSDF integration
-        extrinsic = np.linalg.inv(self.cumulative_T)
-        self._integrate_vbg(rgb, depth, extrinsic)
+        self.poses.append((self._processed_count, pose.copy()))
 
         # Refresh model periodically
         should_extract = (
@@ -328,17 +604,26 @@ class ScanEngine:
         elapsed_ms = (time.monotonic() - t0) * 1000
 
         if method == "global":
-            msg = (f"Frame {self.frame_count} via global "
-                   f"(fitness={result.fitness:.3f}, {elapsed_ms:.0f}ms)")
+            msg = (
+                f"Frame {self.frame_count} via global "
+                f"(fitness={result.fitness:.3f}, {elapsed_ms:.0f}ms)"
+            )
         else:
-            msg = (f"Frame {self.frame_count} "
-                   f"(fitness={result.fitness:.3f}, "
-                   f"RMSE={result.inlier_rmse:.4f}, {elapsed_ms:.0f}ms)")
+            msg = (
+                f"Frame {self.frame_count} "
+                f"(fitness={result.fitness:.3f}, "
+                f"RMSE={result.inlier_rmse:.4f}, {elapsed_ms:.0f}ms)"
+            )
 
         return {
             "success": True,
             "frame_count": self.frame_count,
             "message": msg,
+            "fitness": float(result.fitness),
+            "rmse_m": float(result.inlier_rmse),
+            "valid_depth_fraction": valid_fraction,
+            "pose": self.cumulative_T.tolist(),
+            "method": method,
         }
 
     def extract_preview(self, progress_cb=None):
@@ -371,11 +656,36 @@ class ScanEngine:
         if self.frame_count == 0:
             return False, process_result
         try:
-            t_mesh = self.vbg.extract_triangle_mesh(weight_threshold=0.5)
+            t_mesh = self.vbg.extract_triangle_mesh(
+                weight_threshold=self.settings.final_weight
+            )
             self.mesh = t_mesh.to_legacy()
             del t_mesh
+            self.mesh.remove_duplicated_vertices()
+            self.mesh.remove_duplicated_triangles()
+            self.mesh.remove_degenerate_triangles()
+            if len(self.mesh.triangles) and self.settings.min_component_triangles:
+                labels, sizes, _ = self.mesh.cluster_connected_triangles()
+                mask = (
+                    np.asarray(sizes)[np.asarray(labels)]
+                    < self.settings.min_component_triangles
+                )
+                self.mesh.remove_triangles_by_mask(mask)
+                self.mesh.remove_unreferenced_vertices()
+            if not len(self.mesh.triangles):
+                self.mesh = None
+                process_result["message"] = (
+                    "No confident surface: capture more overlapping views"
+                )
+                return False, process_result
+            if self.mesh.has_vertex_colors():
+                self.mesh.vertex_colors = o3d.utility.Vector3dVector(
+                    np.clip(np.asarray(self.mesh.vertex_colors), 0, 1)
+                )
             self.mesh.compute_vertex_normals()
-            t_pcd = self.vbg.extract_point_cloud(weight_threshold=0.5)
+            t_pcd = self.vbg.extract_point_cloud(
+                weight_threshold=self.settings.final_weight
+            )
             self.point_cloud = t_pcd.to_legacy()
             del t_pcd
             return True, process_result
@@ -404,9 +714,11 @@ class ScanEngine:
             faces = np.asarray(self.mesh.triangles)
             colors = np.asarray(self.mesh.vertex_colors)
             tm = trimesh.Trimesh(
-                vertices=verts, faces=faces,
+                vertices=verts,
+                faces=faces,
                 vertex_colors=(colors * 255).astype(np.uint8)
-                if len(colors) > 0 else None,
+                if len(colors) > 0
+                else None,
             )
             tm.export(filepath)
             return True
@@ -416,4 +728,3 @@ class ScanEngine:
 
     def shutdown(self):
         """Clean up resources. Call on application exit."""
-        pass

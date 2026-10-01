@@ -1,30 +1,47 @@
 """MainWindow — primary application window (client/server mode)."""
 
+import json
 import os
 import time
 from datetime import datetime
 
 import numpy as np
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QAction
+from PyQt6.QtGui import QAction, QPixmap
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QPushButton, QGroupBox, QProgressBar, QToolBar, QFileDialog,
-    QDockWidget, QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QLineEdit, QApplication,
+    QApplication,
+    QCheckBox,
+    QDockWidget,
+    QDoubleSpinBox,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
 
-from ..config import MODE_RGB, MODE_DEPTH, MODE_SCANNER, PRESET_DEFAULT
-from ..worker import KinectWorker
+from shared.settings import CameraCalibration, ScanSettings
+
+from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..server_client import ServerClient
-from ..server_task_worker import ServerTaskWorker, ServerTask, ServerTaskType
+from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
+from ..worker import KinectWorker
 from .widgets import colorize_depth, numpy_to_qimage
 
 # Default export directory (relative to where the app is launched)
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)
-)))
+_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 EXPORT_DIR = os.path.join(_PROJECT_ROOT, "export")
 MESH_DIR = os.path.join(_PROJECT_ROOT, "mesh")
 
@@ -35,6 +52,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Kinect 3D Scanner")
         self.setMinimumSize(960, 600)
 
+        self._closing = False
         self._mode = MODE_RGB
         self._scanning = False
         self._fps_counter = 0
@@ -42,6 +60,13 @@ class MainWindow(QMainWindow):
         self._last_fps_time = time.time()
         self._last_rgb = None
         self._last_depth = None
+        self._camera = CameraCalibration()
+        self._frame_sequence = 0
+        self._last_frame_metadata = {}
+        self._last_frame_time = 0
+        self._last_capture_id = None
+        self._reset_pending = False
+        self._preview_pending = False
         self._last_preview_path: str | None = None
 
         # Server counts (cached from server responses)
@@ -50,6 +75,7 @@ class MainWindow(QMainWindow):
 
         # Server client + task worker
         self.server_client = ServerClient(self)
+        self.server_client.reset_done.connect(self._on_reset_done)
         self.server_client.frame_stored.connect(self._on_frame_stored)
         self.server_client.process_progress.connect(self._on_process_progress)
         self.server_client.build_mesh_done.connect(self._on_build_mesh_done)
@@ -74,7 +100,10 @@ class MainWindow(QMainWindow):
         self._fps_timer.start(1000)
 
         self.worker = KinectWorker()
-        self.worker.frame_ready.connect(self._on_frame)
+        if hasattr(self.worker, "frame_pair_ready"):
+            self.worker.frame_pair_ready.connect(self._on_frame)
+        else:
+            self.worker.frame_ready.connect(self._on_frame)
         self.worker.error_occurred.connect(self._on_error)
         self.worker.start()
 
@@ -129,7 +158,9 @@ class MainWindow(QMainWindow):
         ip_row.addWidget(self.server_ip_edit, stretch=1)
         self.server_port_spin = QSpinBox()
         self.server_port_spin.setRange(1, 65535)
-        self.server_port_spin.setValue(int(os.environ.get("KINECT_SERVER_PORT", "8000")))
+        self.server_port_spin.setValue(
+            int(os.environ.get("KINECT_SERVER_PORT", "8000"))
+        )
         self.server_port_spin.setFixedWidth(70)
         ip_row.addWidget(self.server_port_spin)
         sg_layout.addLayout(ip_row)
@@ -146,7 +177,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(server_group)
 
         # ── Depth visualisation range ─────────────────────────────
-        viz_group = QGroupBox("Depth Visualisation")
+        viz_group = QGroupBox("Scan settings (apply to new scan)")
+        self.settings_group = viz_group
         vg = QVBoxLayout(viz_group)
 
         vg.addWidget(QLabel("Near clip (mm):"))
@@ -163,6 +195,38 @@ class MainWindow(QMainWindow):
         self.depth_far_spin.setSingleStep(100)
         vg.addWidget(self.depth_far_spin)
 
+        self.voxel_spin = QDoubleSpinBox()
+        self.voxel_spin.setRange(2, 30)
+        self.voxel_spin.setValue(5)
+        self.voxel_spin.setSuffix(" mm")
+        vg.addWidget(QLabel("Voxel size:"))
+        vg.addWidget(self.voxel_spin)
+        self.weight_spin = QDoubleSpinBox()
+        self.weight_spin.setRange(0.5, 20)
+        self.weight_spin.setValue(2)
+        self.weight_spin.setSingleStep(0.5)
+        vg.addWidget(QLabel("Final surface confidence (weight):"))
+        vg.addWidget(self.weight_spin)
+        self.crop_cb = QCheckBox("Crop to central region")
+        self.crop_spin = QSpinBox()
+        self.crop_spin.setRange(10, 100)
+        self.crop_spin.setValue(70)
+        self.crop_spin.setSuffix("% of image")
+        vg.addWidget(self.crop_cb)
+        vg.addWidget(self.crop_spin)
+        self.calibration_label = QLabel(self._camera.name)
+        self.calibration_label.setWordWrap(True)
+        vg.addWidget(self.calibration_label)
+        calibration_btn = QPushButton("Load RGB calibration JSON")
+        calibration_btn.clicked.connect(self._load_calibration)
+        vg.addWidget(calibration_btn)
+        self.color_tracking_cb = QCheckBox("Color-assisted tracking (experimental)")
+        self.color_tracking_cb.setToolTip(
+            "Uses RGB-D motion to seed ICP; requires synchronized, textured views"
+        )
+        vg.addWidget(self.color_tracking_cb)
+        self.record_cb = QCheckBox("Save local RGB-D recording")
+        vg.addWidget(self.record_cb)
         layout.addWidget(viz_group)
 
         # ── Scanner Controls ──────────────────────────────────────
@@ -252,7 +316,10 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(scan_group)
         layout.addStretch()
-        dock.setWidget(container)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(container)
+        dock.setWidget(scroll)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
         self._auto_timer = QTimer(self)
@@ -268,6 +335,22 @@ class MainWindow(QMainWindow):
     def _set_scan_controls_enabled(self, enabled: bool):
         """Enable/disable scan controls based on server connection state."""
         self.btn_start_scan.setEnabled(enabled)
+        if not enabled:
+            self._scanning = False
+            self._auto_timer.stop()
+            self.auto_capture_cb.setChecked(False)
+            for control in (
+                self.btn_capture,
+                self.btn_stop_build,
+                self.btn_preview_scan,
+                self.auto_capture_cb,
+                self.auto_capture_spin,
+                self.btn_export_ply,
+                self.btn_export_obj,
+                self.btn_save_mesh,
+            ):
+                control.setEnabled(False)
+            self.settings_group.setEnabled(True)
 
     # ── Server connection ─────────────────────────────────────────────
     def _toggle_connection(self):
@@ -321,11 +404,19 @@ class MainWindow(QMainWindow):
             action.setChecked(action.text() == mode)
 
     # ── frame display ─────────────────────────────────────────────────
-    def _on_frame(self, video: np.ndarray, depth: np.ndarray):
+    def _on_frame(self, video: np.ndarray, depth: np.ndarray, metadata=None):
         self._fps_counter += 1
         self.kinect_label.setText("Kinect: connected")
         self._last_rgb = video
         self._last_depth = depth
+        self._frame_sequence += 1
+        self._last_frame_metadata = dict(metadata or {})
+        self._last_frame_time = self._last_frame_metadata.get(
+            "captured_monotonic_s", time.monotonic()
+        )
+        # GUI sequence remains unique if the USB device reconnects mid-session.
+        self._last_frame_metadata["frame_id"] = self._frame_sequence
+        self._last_frame_metadata.setdefault("timestamp_s", time.time())
 
         if self._mode == MODE_RGB:
             self._show_rgb(video)
@@ -337,15 +428,30 @@ class MainWindow(QMainWindow):
     def _show_rgb(self, rgb):
         self._set_pixmap(numpy_to_qimage(rgb))
 
+    def _selected_roi(self):
+        if not self.crop_cb.isChecked():
+            return None
+        fraction = self.crop_spin.value() / 100
+        width, height = int(640 * fraction), int(480 * fraction)
+        x, y = (640 - width) // 2, (480 - height) // 2
+        return x, y, x + width, y + height
+
+    def _depth_display(self, depth):
+        roi = self._selected_roi()
+        if roi is not None:
+            x0, y0, x1, y1 = roi
+            masked = np.zeros_like(depth)
+            masked[y0:y1, x0:x1] = depth[y0:y1, x0:x1]
+            depth = masked
+        return colorize_depth(
+            depth, self.depth_near_spin.value(), self.depth_far_spin.value()
+        )
+
     def _show_depth(self, depth):
-        near = self.depth_near_spin.value()
-        far = self.depth_far_spin.value()
-        self._set_pixmap(numpy_to_qimage(colorize_depth(depth, near, far)))
+        self._set_pixmap(numpy_to_qimage(self._depth_display(depth)))
 
     def _show_scanner(self, rgb, depth):
-        near = self.depth_near_spin.value()
-        far = self.depth_far_spin.value()
-        combined = np.hstack([rgb, colorize_depth(depth, near, far)])
+        combined = np.hstack([rgb, self._depth_display(depth)])
         self._set_pixmap(numpy_to_qimage(combined))
 
     def _set_pixmap(self, qimg):
@@ -357,14 +463,56 @@ class MainWindow(QMainWindow):
             )
         )
 
+    def _load_calibration(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "RGB calibration", "", "JSON (*.json)"
+        )
+        if path:
+            try:
+                with open(path) as source:
+                    self._camera = CameraCalibration(**json.load(source))
+                self.calibration_label.setText(self._camera.name)
+            except (ValueError, TypeError, OSError) as exc:
+                self.scan_status_label.setText(f"Invalid calibration: {exc}")
+
     # ── scanning workflow ─────────────────────────────────────────────
     def _start_scan(self):
         if not self.server_client.is_connected:
-            QMessageBox.warning(self, "Not Connected",
-                                "Connect to the server first.")
+            QMessageBox.warning(self, "Not Connected", "Connect to the server first.")
             return
 
-        self.task_worker.submit(ServerTask(ServerTaskType.RESET))
+        try:
+            voxel = self.voxel_spin.value() / 1000
+            roi = self._selected_roi()
+            settings = ScanSettings(
+                camera=self._camera,
+                near_m=self.depth_near_spin.value() / 1000,
+                far_m=self.depth_far_spin.value() / 1000,
+                voxel_m=voxel,
+                truncation_m=min(0.2, max(0.04, voxel * 8)),
+                final_weight=self.weight_spin.value(),
+                color_recovery=self.color_tracking_cb.isChecked(),
+                roi=roi,
+            )
+        except ValueError as exc:
+            self.scan_status_label.setText(str(exc))
+            return
+        self._reset_pending = True
+        self.settings_group.setEnabled(False)
+        self.btn_start_scan.setEnabled(False)
+        self.scan_status_label.setText("Starting scan...")
+        self.task_worker.submit(
+            ServerTask(
+                ServerTaskType.RESET,
+                {"settings": settings.to_dict(), "record": self.record_cb.isChecked()},
+            )
+        )
+
+    def _on_reset_done(self, result):
+        self._reset_pending = False
+        if not self.server_client.is_connected or self._closing:
+            return
+        self._last_capture_id = None
         self._server_stored = 0
         self._server_integrated = 0
 
@@ -382,23 +530,42 @@ class MainWindow(QMainWindow):
         self.auto_capture_spin.setEnabled(True)
         self.frame_count_label.setText("Stored: 0 | Integrated: 0")
         self.scan_status_label.setText("Scanning — capture frames")
-        self.depth_near_spin.setValue(PRESET_DEFAULT.depth_near_mm)
-        self.depth_far_spin.setValue(PRESET_DEFAULT.depth_far_mm)
         self.statusBar().showMessage(
             "Scan started. Move Kinect and press Capture Frame."
         )
 
     def _capture_frame(self):
-        if not self._scanning:
+        if (
+            not self._scanning
+            or self._preview_pending
+            or not self.server_client.is_connected
+            or self._closing
+        ):
             return
         if self._last_rgb is None or self._last_depth is None:
             self.scan_status_label.setText("No frame available yet")
             return
 
-        self.task_worker.submit(ServerTask(
-            ServerTaskType.SEND_FRAME,
-            {"rgb": self._last_rgb.copy(), "depth": self._last_depth.copy()},
-        ))
+        frame_id = self._last_frame_metadata.get("frame_id")
+        if (
+            frame_id == self._last_capture_id
+            or time.monotonic() - self._last_frame_time > 0.5
+        ):
+            self.scan_status_label.setText("Waiting for a fresh camera frame")
+            return
+        self._last_capture_id = frame_id
+        queued = self.task_worker.submit(
+            ServerTask(
+                ServerTaskType.SEND_FRAME,
+                {
+                    "rgb": self._last_rgb.copy(),
+                    "depth": self._last_depth.copy(),
+                    "metadata": self._last_frame_metadata.copy(),
+                },
+            )
+        )
+        if not queued:
+            self.scan_status_label.setText("Upload queue full; skipped capture")
 
     def _toggle_auto_capture(self, checked: bool):
         if checked and self._scanning:
@@ -417,9 +584,7 @@ class MainWindow(QMainWindow):
         self.btn_preview_scan.setEnabled(False)
 
         stored = self._server_stored
-        self.scan_status_label.setText(
-            f"Processing {stored} frames on server..."
-        )
+        self.scan_status_label.setText(f"Processing {stored} frames on server...")
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
         self.progress_bar.setVisible(True)
 
@@ -431,6 +596,10 @@ class MainWindow(QMainWindow):
                 self, "Preview", "Capture at least one frame first."
             )
             return
+        self._preview_pending = True
+        self._auto_timer.stop()
+        self.btn_capture.setEnabled(False)
+        self.btn_stop_build.setEnabled(False)
         self.btn_preview_scan.setEnabled(False)
         self.scan_status_label.setText("Generating preview on server...")
         self.progress_bar.setRange(0, 0)
@@ -473,15 +642,15 @@ class MainWindow(QMainWindow):
         filename = f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.ply"
         path = os.path.join(MESH_DIR, filename)
         self.btn_save_mesh.setEnabled(False)
-        self.task_worker.submit(
-            ServerTask(ServerTaskType.SAVE_MESH, {"path": path})
-        )
+        self.task_worker.submit(ServerTask(ServerTaskType.SAVE_MESH, {"path": path}))
 
     def _load_mesh(self):
         start_dir = MESH_DIR if os.path.isdir(MESH_DIR) else ""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load Mesh", start_dir,
-            "PLY files (*.ply);;All 3D files (*.obj *.ply *.stl)"
+            self,
+            "Load Mesh",
+            start_dir,
+            "PLY files (*.ply);;All 3D files (*.obj *.ply *.stl)",
         )
         if path:
             self.statusBar().showMessage(f"Opening: {path}")
@@ -490,8 +659,10 @@ class MainWindow(QMainWindow):
     def _view_3d_file(self):
         start_dir = EXPORT_DIR if os.path.isdir(EXPORT_DIR) else ""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open 3D File", start_dir,
-            "3D files (*.obj *.ply *.stl);;OBJ files (*.obj);;PLY files (*.ply);;STL files (*.stl)"
+            self,
+            "Open 3D File",
+            start_dir,
+            "3D files (*.obj *.ply *.stl);;OBJ files (*.obj);;PLY files (*.ply);;STL files (*.stl)",
         )
         if path:
             self.statusBar().showMessage(f"Opening: {path}")
@@ -499,6 +670,8 @@ class MainWindow(QMainWindow):
 
     # ── Task/server signal handlers ──────────────────────────────────
     def _on_frame_stored(self, result: dict):
+        if not result.get("success"):
+            self.auto_capture_cb.setChecked(False)
         self._server_stored = result.get("stored_count", self._server_stored + 1)
         self.frame_count_label.setText(
             f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
@@ -509,9 +682,9 @@ class MainWindow(QMainWindow):
     def _on_process_progress(self, current: int, total: int, result: dict):
         self.progress_bar.setRange(0, total)
         self.progress_bar.setValue(current)
-        self._server_integrated = current  # approximate
+        self._server_integrated = result.get("frame_count", self._server_integrated)
         self.frame_count_label.setText(
-            f"Stored: {total} | Integrated: {current}"
+            f"Stored: {total} | Integrated: {self._server_integrated}"
         )
         self.scan_status_label.setText(
             f"Processing {current}/{total}: {result.get('message', '')}"
@@ -530,8 +703,18 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Mesh build failed.")
 
         self.btn_start_scan.setEnabled(True)
+        self.settings_group.setEnabled(True)
+
+    def _resume_capture(self):
+        self._preview_pending = False
+        if self._scanning:
+            self.btn_capture.setEnabled(True)
+            self.btn_stop_build.setEnabled(True)
+            self.btn_preview_scan.setEnabled(True)
+            self._toggle_auto_capture(self.auto_capture_cb.isChecked())
 
     def _on_preview_done(self, path: str):
+        self._resume_capture()
         self.progress_bar.setVisible(False)
         if self._scanning:
             self.btn_preview_scan.setEnabled(True)
@@ -567,6 +750,16 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(msg)
 
     def _on_task_error(self, msg: str):
+        self.progress_bar.setVisible(False)
+        if self._reset_pending:
+            self._reset_pending = False
+            self.btn_start_scan.setEnabled(True)
+            self.settings_group.setEnabled(True)
+        elif self._preview_pending:
+            self._resume_capture()
+        elif not self._scanning:
+            self.btn_start_scan.setEnabled(True)
+            self.settings_group.setEnabled(True)
         self.scan_status_label.setText(f"Error: {msg}")
         self.statusBar().showMessage(f"Error: {msg}")
 
@@ -587,9 +780,18 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Error: {msg}")
 
     def closeEvent(self, event):
-        self.task_worker.stop()
-        self.task_worker.wait(3000)
-        self.server_client.disconnect()
-        self.worker.stop()
-        self.worker.wait(3000)
+        if not self._closing:
+            self._closing = True
+            self._auto_timer.stop()
+            self.worker.stop()
+            self.task_worker.stop()
+            self.server_client.disconnect()
+        self.worker.wait(100)
+        self.task_worker.wait(100)
+        if self.worker.isRunning() or self.task_worker.isRunning():
+            # QThreads must finish before their QObject owners are destroyed.
+            self.statusBar().showMessage("Finishing current request before closing...")
+            event.ignore()
+            QTimer.singleShot(200, self.close)
+            return
         super().closeEvent(event)

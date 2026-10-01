@@ -56,6 +56,7 @@ blocks. These environment variables can override its defaults:
 |----------|------------------|---------|
 | `KINECT_SERVER_PORT` | `8000` | Local server and client port |
 | `KINECT_BLOCK_COUNT` | `5000` | Initial TSDF block budget |
+| `KINECT_MAX_FRAMES` | `500` | Stored-frame limit per session |
 | `OMP_NUM_THREADS` | `4` | CPU processing threads |
 
 ```bash
@@ -84,6 +85,27 @@ to check single/batch upload, ICP alignment, TSDF reconstruction, WebSocket
 progress, preview, incremental mesh building, and readable PLY/OBJ exports.
 It also checks the Qt client workflow with camera acquisition replaced by
 synthetic input and an offscreen Qt platform; it does not open a 3D viewer.
+
+---
+
+## Reconstruction Quality and Public Replay
+
+Configure near/far clipping, voxel size, final surface confidence, optional central
+crop, and registered-RGB calibration **before starting a scan**. These settings
+now affect reconstruction. Capture fresh overlapping views while moving the
+Kinect around a stationary subject. “Save local RGB-D recording” enables later
+replay without hardware; recordings stay outside Git.
+
+The updated tracker reduced camera-position RMSE from about 220 mm to 44 mm on
+an 80-frame public TUM Kinect replay using identical intrinsics (80/80 frames
+accepted). Processing is slower; individual-device quality still needs a live
+comparison. See [changes, benchmark details, reproduction commands, and remaining
+plan](docs/SCAN_QUALITY.md).
+
+```bash
+OMP_NUM_THREADS=4 python -m unittest discover -s tests -v
+OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
+```
 
 ---
 
@@ -161,7 +183,8 @@ it. The combined launcher always binds to `127.0.0.1`.
 |--------|----------|---------|
 | `GET` | `/api/health` | Connection check + status |
 | `GET` | `/api/scan/status` | Stored/integrated counts, has_mesh |
-| `POST` | `/api/scan/reset` | Reset engine, start new scan |
+| `POST` | `/api/scan/reset` | Validate optional settings JSON, reset engine |
+| `GET` | `/api/scan/diagnostics` | Accepted poses and per-frame quality/rejections |
 | `POST` | `/api/scan/frame` | Upload a single compressed frame (binary body) |
 | `POST` | `/api/scan/frames` | Upload a batch of compressed frames (binary body) |
 | `POST` | `/api/scan/build` | Process all frames + build mesh |
@@ -236,7 +259,11 @@ Typical compressed frame size: ~150-300 KB (vs ~1.5 MB uncompressed).
 | `lengths` | 4*N bytes | Per-frame packed byte lengths |
 | `frames` | variable | Concatenated single-frame payloads |
 
-The client automatically batches all queued frames into a single HTTP request (capped at 100 frames per request for bounded memory). Falls back to individual sends if the server lacks the batch endpoint.
+The client batches consecutive captures up to 100 frames per request. It preserves
+reset/preview/build command barriers. New frames prepend `RGB2`, a 4-byte JSON
+metadata length, and metadata before the original single-frame payload. Depth
+bytes are little-endian millimetres. The server still accepts legacy packets;
+new clients and servers should be upgraded together for metadata support.
 
 ---
 
