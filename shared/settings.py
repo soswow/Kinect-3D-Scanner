@@ -51,6 +51,8 @@ class ScanSettings:
     roi: tuple[int, int, int, int] | None = None
     filter_depth: bool = True
     color_recovery: bool = False
+    live_reconstruction: bool = False
+    refine_poses: bool = False
 
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
@@ -58,6 +60,8 @@ class ScanSettings:
         if (
             type(self.filter_depth) is not bool
             or type(self.color_recovery) is not bool
+            or type(self.live_reconstruction) is not bool
+            or type(self.refine_poses) is not bool
             or type(self.min_component_triangles) is not int
         ):
             raise ValueError("Invalid filter or component setting type")

@@ -14,7 +14,6 @@ import numpy as np
 import open3d as o3d
 import trimesh
 
-
 # Movement/rotation step sizes (tuned for smoother control)
 _MOVE_STEP = 0.08
 _ROTATE_DEG = 5.0
@@ -72,14 +71,14 @@ def _run_viewer(geometries, window_name="Kinect 3D Scanner — Preview"):
         return False
 
     # WASD movement
-    vis.register_key_callback(ord('W'), lambda v: _move(v, 0, 0, _MOVE_STEP))
-    vis.register_key_callback(ord('S'), lambda v: _move(v, 0, 0, -_MOVE_STEP))
-    vis.register_key_callback(ord('A'), lambda v: _move(v, -_MOVE_STEP, 0, 0))
-    vis.register_key_callback(ord('D'), lambda v: _move(v, _MOVE_STEP, 0, 0))
+    vis.register_key_callback(ord("W"), lambda v: _move(v, 0, 0, _MOVE_STEP))
+    vis.register_key_callback(ord("S"), lambda v: _move(v, 0, 0, -_MOVE_STEP))
+    vis.register_key_callback(ord("A"), lambda v: _move(v, -_MOVE_STEP, 0, 0))
+    vis.register_key_callback(ord("D"), lambda v: _move(v, _MOVE_STEP, 0, 0))
 
     # QE vertical rotation (pitch)
-    vis.register_key_callback(ord('Q'), lambda v: _rotate_pitch(v, _ROTATE_DEG))
-    vis.register_key_callback(ord('E'), lambda v: _rotate_pitch(v, -_ROTATE_DEG))
+    vis.register_key_callback(ord("Q"), lambda v: _rotate_pitch(v, _ROTATE_DEG))
+    vis.register_key_callback(ord("E"), lambda v: _rotate_pitch(v, -_ROTATE_DEG))
 
     vis.get_render_option().point_size = 2.0
     vis.reset_view_point(True)
@@ -105,17 +104,32 @@ def show_mesh_preview(mesh=None, point_cloud=None):
 def show_file_preview(filepath: str) -> bool:
     """Load a mesh/point cloud file from disk and show it in the Open3D viewer.
 
-    Supports OBJ, PLY, and STL files. Returns False if loading fails.
+    Supports OBJ, GLB, PLY, and STL files. Returns False if loading fails.
     """
     ext = filepath.lower().rsplit(".", 1)[-1] if "." in filepath else ""
 
-    if ext == "obj":
+    if ext in ("obj", "glb"):
         try:
-            tm = trimesh.load(filepath)
+            scene = trimesh.load(filepath, force="scene")
+            if any(
+                isinstance(g.visual, trimesh.visual.texture.TextureVisuals)
+                for g in scene.geometry.values()
+            ):
+                # The model reader preserves corner UVs, images, and materials.
+                # The legacy vertex-color conversion below would discard them.
+                model = o3d.io.read_triangle_model(filepath)
+                if not model.meshes:
+                    return False
+                o3d.visualization.draw([model], title="Textured scan")
+                return True
+            tm = scene.to_geometry()
             mesh = o3d.geometry.TriangleMesh()
             mesh.vertices = o3d.utility.Vector3dVector(tm.vertices)
             mesh.triangles = o3d.utility.Vector3iVector(tm.faces)
-            if hasattr(tm.visual, "vertex_colors") and tm.visual.vertex_colors is not None:
+            if (
+                hasattr(tm.visual, "vertex_colors")
+                and tm.visual.vertex_colors is not None
+            ):
                 colors = tm.visual.vertex_colors[:, :3].astype(float) / 255.0
                 mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
             mesh.compute_vertex_normals()
@@ -189,6 +203,7 @@ def launch_mesh_viewer(mesh, point_cloud):
 
 
 # ── Subprocess entry point ────────────────────────────────────────────
+
 
 def _main():
     """Entry point when invoked as ``python -m kinect_scanner.viewer <json>``."""

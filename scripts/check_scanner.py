@@ -1,6 +1,7 @@
 """Check the local HTTP/WebSocket reconstruction pipeline without hardware."""
 
 import argparse
+import io
 import json
 import os
 import socket
@@ -8,7 +9,10 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from pathlib import Path
+
+import trimesh
 
 # Exercise Qt widgets without a display or screen-recording permissions.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -72,6 +76,14 @@ def check_client(port, rgb, depth):
             window._on_frame(rgb, depth)
             window._capture_frame()
         wait_until(lambda: window._server_stored == 3)
+        wait_until(lambda: window.live_view.snapshot.get("frame_count") == 3)
+        assert len(window.live_view.points) > 0 and not window.live_view.isHidden()
+        image = window.live_view.grab().toImage()
+        assert not image.isNull(), "Persistent live view did not render"
+        print("PASS: live fused surface reaches Qt without preview/build", flush=True)
+        old_snapshot = window.live_view.snapshot
+        window._on_live_updated({"session_id": "previous-session", "frame_count": 900})
+        assert window.live_view.snapshot is old_snapshot
         window._on_frame(rgb, depth, {"captured_monotonic_s": time.monotonic() - 2})
         window._capture_frame()
         assert window.scan_status_label.text() == "Waiting for a fresh camera frame"
@@ -91,6 +103,10 @@ def check_client(port, rgb, depth):
         window._stop_and_build()
         wait_until(lambda: window.btn_export_ply.isEnabled())
         assert window.btn_export_obj.isEnabled() and window.btn_start_scan.isEnabled()
+        assert (
+            window.btn_export_glb.isEnabled()
+            and window.btn_export_texture_obj.isEnabled()
+        )
         print("PASS: Qt client final build enables export controls", flush=True)
         Path(preview_path).unlink(missing_ok=True)
     finally:
@@ -210,6 +226,44 @@ def main():
                             f"{len(mesh.triangles):,} triangles",
                             flush=True,
                         )
+                    for fmt in ("glb", "obj.zip"):
+                        response = http.get(
+                            f"/api/scan/export/{fmt}",
+                            params={
+                                "size": 256,
+                                "max_triangles": 10000,
+                                "max_views": 3,
+                            },
+                        )
+                        response.raise_for_status()
+                        path = Path(folder) / f"scan.{fmt}"
+                        path.write_bytes(response.content)
+                        if fmt == "obj.zip":
+                            with zipfile.ZipFile(path) as archive:
+                                assert "texture-report.json" in archive.namelist()
+                                archive.extractall(Path(folder) / "textured-obj")
+                            path = Path(folder) / "textured-obj/scan.obj"
+                        loaded = trimesh.load(path, force="scene")
+                        assert all(
+                            isinstance(g.visual, trimesh.visual.texture.TextureVisuals)
+                            for g in loaded.geometry.values()
+                        )
+                        print(
+                            f"PASS: textured {fmt.upper()} HTTP export preserves materials",
+                            flush=True,
+                        )
+                    response = http.get("/api/scan/export/session")
+                    response.raise_for_status()
+                    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                        manifest = json.loads(archive.read("manifest.json"))
+                        report = json.loads(archive.read("reconstruction.json"))
+                        assert (
+                            len(manifest["frames"]) == 3 and len(report["poses"]) == 3
+                        )
+                    print(
+                        "PASS: lossless session HTTP export includes poses/settings/diagnostics",
+                        flush=True,
+                    )
                 print(
                     "PASS: complete synthetic scan over loopback HTTP/WebSocket",
                     flush=True,

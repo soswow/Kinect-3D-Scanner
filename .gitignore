@@ -22,6 +22,8 @@ mesh/
 *.ply
 *.obj
 *.stl
+*.glb
+*.mtl
 .DS_Store
 logs/
 *.log

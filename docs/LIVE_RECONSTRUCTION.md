@@ -1,0 +1,195 @@
+# Live reconstruction, compute backends, textures, and final refinement
+
+These additions build on the tracking and recording changes in
+[SCAN_QUALITY.md](SCAN_QUALITY.md). They add working CPU paths and an explicitly
+selected CUDA path. NVIDIA hardware and physical Kinect capture were not used
+to validate this change.
+
+## Compute selection
+
+Set environment variables on the **server**, independently of the Kinect client:
+
+| Variable | Values | Behavior |
+|---|---|---|
+| `KINECT_DEVICE` | `auto` (default), `cpu`, `cuda` | Selects the VoxelBlockGrid device |
+| `KINECT_TRACKING` | `auto` (default), `legacy`, `tensor` | Auto chooses tensor ICP on CUDA, legacy ICP on CPU |
+| `KINECT_BLOCK_COUNT` | Integer | Initial voxel block allocation; start with 5000 |
+
+An explicit CUDA request fails at startup if Open3D cannot use CUDA. Auto reports
+its fallback reason. `/api/health`, `/api/scan/status`, diagnostics, and the GUI
+show the actual backend. `KINECT_TRACKING=tensor KINECT_DEVICE=cpu` exercises the
+tensor registration code on a machine without CUDA.
+
+TSDF integration and extraction run on the selected device. Tensor geometric ICP
+uses device point clouds and a robust Huber loss, then passes the same overlap,
+residual, pose-jump, and normal-diversity gates as legacy tracking. Depth filtering,
+registration-cloud construction, model downsampling/normals, feature recovery,
+RGB-D color recovery, pose-graph optimization, UV generation, and image projection
+currently run on CPU. This is a hybrid pipeline, not an entirely GPU-resident one.
+
+CUDA needs an NVIDIA driver and a compatible Open3D build. Apple Silicon runs the
+CPU path; these changes do not add Metal acceleration. Do not use the macOS lock
+file as a Linux/CUDA environment specification. Run the CUDA test on the target
+server before claiming hardware support or throughput:
+
+```bash
+KINECT_DEVICE=cuda KINECT_TRACKING=tensor KINECT_BLOCK_COUNT=5000 \
+  OMP_NUM_THREADS=4 python -m unittest tests.test_features.FeatureTests.test_cuda_tracking_and_fusion -v
+```
+
+Frame reports include wall times for filtering, cloud creation, tracking, fusion,
+and model refresh. CUDA timings synchronize at stage boundaries, which adds
+profiling overhead. Model refreshes performed during recovery are included in
+tracking time. Final refinement has a separate total. On one CPU tensor XYZ
+replay, fusion took 1.7 s, tracking 40.8 s, and scheduled model refreshes 50.2 s.
+Accelerating fusion alone would therefore leave most of that run's cost intact.
+
+## Continuous feedback
+
+The GUI enables **Live fused surface feedback** for new scans. API clients use
+`{"live_reconstruction": true}` in reset settings; omission retains the previous
+on-demand processing workflow.
+
+Uploads store raw frames. A background task processes one frame while holding the
+engine lock, then releases it before the next frame. Reset, build, preview, and
+export share that lock. Build waits for an active live frame instead of reporting
+that a build is already running. Cancellation waits for native processing to
+finish before releasing the lock. Client frame batching preserves command
+barriers and uses batches of at most eight in live mode.
+
+WebSocket `live` messages contain at most 5000 sampled fused points with colors,
+camera-to-world pose, session ID, counts, backend, and the latest tracking result.
+Messages are limited to approximately two per second plus the final update of a
+drained queue. Slow sockets time out independently. The persistent Qt view uses
+software rendering, supports orbit/zoom and color/shape display, and ignores
+snapshots from previous sessions. It needs no OpenGL context or screen capture.
+
+This is responsive reconstruction feedback, not a guaranteed camera-rate mesh.
+Geometry comes from the cached tracking model, refreshed every three accepted
+integrations. `geometry_frame_count` makes that lag visible. Processing can fall
+behind capture; the view shows pending frames, server processing time, and time
+since its last update. These values are not an end-to-end latency measurement.
+The existing Preview button still requests a full snapshot and pauses capture.
+
+## Portable texture exports
+
+Plain OBJ already contains vertex colors through a widely used extension; some
+readers ignore those colors. It does not contain UV coordinates or an MTL/texture.
+PLY is a reliable vertex-color export. The new formats are:
+
+- `/api/scan/export/glb`: a mesh with UVs and embedded texture/material.
+- `/api/scan/export/obj.zip`: OBJ, MTL, PNG, and `texture-report.json`.
+
+Both accept `size=256|512|1024|2048`, `max_triangles=100..200000`,
+`max_views=1..64`, and `use_images=true|false`. Defaults are 1024, 50000, 24, and
+true. GUI buttons use those defaults. The texture mesh is a simplified copy;
+the full final mesh remains available through PLY/plain OBJ. UV seams duplicate
+export vertices deliberately. UV generation requires an edge/vertex manifold;
+invalid geometry returns an actionable error rather than silently removing it.
+
+The portable projection algorithm works on ARM CPUs:
+
+1. Select synchronized accepted views across the trajectory, favoring sharper
+   images in each interval. Known pairing offsets above 20 ms are excluded;
+   legacy captures without offsets retain the assumption of registered RGB-D.
+2. Generate a partitioned Open3D UV atlas and bake position, normal, and fused
+   color maps. Partitioning avoids expensive single-chart solves on scan meshes.
+3. Project surface texels into original RGB views using calibrated intrinsics and
+   inverse camera-to-world poses. Require measured depth to agree with surface
+   depth within `max(15 mm, 1% of depth)` and exclude grazing views.
+4. Bilinearly sample RGB and blend with view-angle/distance weights. Missing
+   texels retain fused vertex color. No generated image fills unobserved areas.
+
+This is a first measured-image texture pipeline. It does not optimize exposure,
+seams, RGB distortion, or photometric poses. Inaccurate calibration/poses can blur
+texture, and a larger atlas cannot create detail absent from 640x480 RGB. The
+depth tolerance is an engineering default, not a device-specific noise model.
+GLB/OBJ material round trips and asymmetric image orientation are tested. The
+viewer preserves texture materials when loading GLB or a textured OBJ extracted
+from its ZIP.
+
+## Full session preservation
+
+**Save full RGB-D session**, or `/api/scan/export/session`, returns a ZIP with
+lossless RGB PNGs, uint16 millimetre depth PNGs, `manifest.json`, and
+`reconstruction.json`. The report stores settings/calibration, backend, accepted
+camera-to-world poses in metres, original poses when refinement applied,
+per-frame tracking diagnostics, timings, and refinement outcome. It deliberately
+keeps estimated poses separate from evaluation reference poses.
+
+Unzip and replay using:
+
+```bash
+python scripts/replay_scan.py --dataset recording --path recordings/unzipped-session
+```
+
+Optional client recordings also save a reconstruction sidecar after preview or
+final build. Per-frame batch acknowledgements identify accepted stored frames
+and map their server indices into recordings. Older servers without individual
+acknowledgements preserve captures but cannot establish partial-batch mappings.
+Datasets, captures, exports, and detailed replay artifacts remain ignored by Git.
+
+## Experimental final refinement
+
+Enable **Final pose refinement**, reset with `refine_poses: true`, or pass
+`--refine-poses` to replay. It remains off by default. The current implementation:
+
+- Uses at most 32 accepted keyframes and 40 nearby loop candidates, measured
+  geometry only, and a fixed first-camera anchor.
+- Requires reciprocal robust ICP, sufficient overlap, low residual, normal
+  diversity, inverse consistency, and bounded corrections for loop constraints.
+- Optimizes an Open3D pose graph and checks separate point samples with a
+  saturated distance loss. It requires at least 2% aggregate improvement and
+  rejects inconsistent individual constraints.
+- Interpolates bounded keyframe corrections into all accepted poses and fuses
+  raw frames into a **fresh** TSDF. The old volume/poses remain intact if native
+  reintegration fails. Unchanged sessions do not repeat refinement.
+
+It cannot discover loops whose estimated positions have drifted outside the
+candidate radius, recover discarded frames, or reliably disambiguate repeated
+geometry. Held-out samples reduce fitting bias but are not external ground truth.
+Two volumes coexist during reintegration; allow approximately twice the voxel
+attribute allocation plus raw frames, cached clouds, and extraction overhead.
+
+## Evidence and reproducibility
+
+Validation used Apple Silicon, Python 3.13, Open3D 0.20, four OpenMP threads, and
+5000 initial blocks. Aggregate results are in
+[feature-summary.json](benchmarks/feature-summary.json).
+
+| Check | Result | Interpretation |
+|---|---|---|
+| Public TUM XYZ, 80 strided frames, tensor ICP on CPU | 80/80 accepted; 43.8 mm camera-position RMSE | Similar to preceding legacy result of 43.6 mm; not a CUDA benchmark |
+| Public Redwood through HTTP | 5/5 accepted; about 1.36 mm camera-position RMSE | Client/server reconstruction still works |
+| Synthetic loop, injected trajectory drift | Detail-surface RMSE 14.9 mm → 3.3 mm | Fresh fusion improves this controlled geometry; not measured Kinect accuracy |
+| Harder public desk run with refinement requested | 51/58 accepted; 785 mm camera-position RMSE; no trusted loop | Poses retained; global drift remains unresolved |
+| UV orientation, occlusion, GLB and OBJ material reload | Passed | Portable measured color and materials survive export |
+| HTTP/Qt check | Live view, stale-session rejection, preview/build, textures, session ZIP passed | Acquisition is replaced with synthetic input |
+
+Public scores use a fixed first-camera anchor with no scale fit or trajectory-wide
+alignment. They are not standard aligned TUM ATE and do not measure mesh accuracy.
+The detail-surface synthetic score compares vertices below 2 m against exact
+fixture surfaces, excluding the large back wall. Tracking can vary on difficult
+sequences because voxel ordering and recovery can select different alignments;
+single-run gains must not be generalized. In a seeded paired run, the preceding
+source accepted 57/58 frames at 116 mm while the new source accepted 53/58 at
+544 mm. Two instances of the **same preceding source**, with the same seed
+schedule, also diverged: 55/58 at 967 mm versus 51/58 at 1067 mm. This establishes
+existing instability but does not establish statistical non-regression of the
+new code. Keep this change in draft pending broader tracking and hardware
+validation. Timings include concurrent experiments.
+
+```bash
+OMP_NUM_THREADS=4 python -m unittest discover -s tests -v
+OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
+OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset tum \
+  --path datasets/rgbd_dataset_freiburg1_xyz --stride 10 --tracking tensor \
+  --output benchmark-output/xyz-tensor.json
+OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset tum \
+  --path datasets/rgbd_dataset_freiburg1_desk --stride 10 --color-recovery --refine-poses \
+  --output benchmark-output/desk-refinement.json
+```
+
+The next work is device calibration and matched live capture, NVIDIA profiling,
+broader verified relocalization/loop discovery, uncertainty-aware fusion, and
+photometric texture correction. See the research roadmap for source candidates.

@@ -4,10 +4,13 @@ import asyncio
 import logging
 import os
 import tempfile
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from starlette.background import BackgroundTask
 
 from shared.protocol import unpack_frame_with_metadata, unpack_frames
 from shared.settings import ScanSettings
@@ -17,9 +20,90 @@ from .engine import ScanEngine
 logger = logging.getLogger("scanner_server")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-app = FastAPI(title="Kinect 3D Scanner Server")
+
+@asynccontextmanager
+async def lifespan(app):
+    global _shutting_down
+    _shutting_down = False
+    try:
+        yield
+    finally:
+        _shutting_down = True
+        if _live_task is not None:
+            _live_task.cancel()
+            try:
+                await _live_task
+            except asyncio.CancelledError:
+                pass
+
+
+app = FastAPI(title="Kinect 3D Scanner Server", lifespan=lifespan)
 engine = ScanEngine()
 _build_lock = asyncio.Lock()
+_live_task = None
+_latest_live = None
+_shutting_down = False
+_exclusive = False
+
+
+@asynccontextmanager
+async def _exclusive_operation():
+    global _exclusive
+    _exclusive = True
+    try:
+        async with _build_lock:
+            yield
+    finally:
+        _exclusive = False
+
+
+def _ensure_live_worker():
+    global _live_task
+    if (
+        not _shutting_down
+        and engine.settings.live_reconstruction
+        and engine.unprocessed_count
+        and (_live_task is None or _live_task.done())
+    ):
+        _live_task = asyncio.create_task(_live_worker())
+
+
+async def _live_worker():
+    global _live_task, _latest_live
+    last_sent = 0
+    failed = False
+    try:
+        while engine.settings.live_reconstruction and engine.unprocessed_count:
+            async with _build_lock:
+                if (
+                    not engine.settings.live_reconstruction
+                    or not engine.unprocessed_count
+                ):
+                    break
+                await _engine_call(engine.process_frames, max_frames=1)
+                snapshot = None
+                now = time.monotonic()
+                if now - last_sent >= 0.5 or not engine.unprocessed_count:
+                    snapshot = await _engine_call(engine.live_snapshot)
+                    _latest_live = snapshot
+                    last_sent = now
+            if snapshot is not None:
+                await _broadcast(snapshot)
+            await asyncio.sleep(0)  # give queued mutations the next lock turn
+    except asyncio.CancelledError:
+        failed = True
+        raise
+    except Exception:
+        failed = True
+        logger.exception("Live processing stopped; manual build can retry")
+        await _broadcast(
+            {"type": "error", "message": "Live processing stopped; use Build to retry"}
+        )
+    finally:
+        _live_task = None
+        if not failed:
+            _ensure_live_worker()
+
 
 # Connected WebSocket clients for progress broadcasting
 _ws_clients: set[WebSocket] = set()
@@ -30,13 +114,14 @@ async def _broadcast(msg: dict):
     import json
 
     data = json.dumps(msg)
-    closed = set()
-    for ws in tuple(_ws_clients):
+
+    async def send(ws):
         try:
-            await ws.send_text(data)
+            await asyncio.wait_for(ws.send_text(data), timeout=1.0)
         except Exception:
-            closed.add(ws)
-    _ws_clients.difference_update(closed)
+            _ws_clients.discard(ws)
+
+    await asyncio.gather(*(send(ws) for ws in tuple(_ws_clients)))
 
 
 async def _engine_call(function, *args, **kwargs):
@@ -68,6 +153,8 @@ async def _wait_for_processing(task, drain_progress):
 async def health():
     return {
         "status": "ok",
+        "backend": engine.backend,
+        "session_id": engine.session_id,
         "stored_count": engine.stored_count,
         "frame_count": engine.frame_count,
         "has_mesh": engine.mesh is not None,
@@ -80,6 +167,8 @@ async def scan_status():
         "stored_count": engine.stored_count,
         "frame_count": engine.frame_count,
         "unprocessed_count": engine.unprocessed_count,
+        "backend": engine.backend,
+        "session_id": engine.session_id,
         "settings": engine.settings.to_dict(),
         "skipped_count": sum(not r["success"] for r in engine.diagnostics),
         "has_mesh": engine.mesh is not None,
@@ -89,10 +178,7 @@ async def scan_status():
 @app.get("/api/scan/diagnostics")
 async def scan_diagnostics():
     async with _build_lock:
-        return {
-            "settings": engine.settings.to_dict(),
-            "frames": list(engine.diagnostics),
-        }
+        return await _engine_call(engine.reconstruction_report)
 
 
 # ── Scan Control ───────────────────────────────────────────────────────
@@ -113,6 +199,7 @@ async def scan_reset(request: Request):
     return {
         "success": True,
         "message": "Scan reset",
+        "session_id": getattr(engine, "session_id", None),
         "settings": engine.settings.to_dict(),
     }
 
@@ -133,6 +220,8 @@ async def scan_frame(request: Request):
             result = await _engine_call(engine.store_frame, rgb, depth, metadata)
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
+    if result.get("success"):
+        _ensure_live_worker()
     return result
 
 
@@ -143,21 +232,36 @@ async def scan_frames_batch(request: Request):
     if not body:
         return {"success": False, "message": "Empty body"}
 
-    def _unpack_and_store(raw_data: bytes) -> tuple[int, int, int]:
+    def _unpack_and_store(raw_data: bytes):
         frames = unpack_frames(raw_data, with_metadata=True)
-        count = 0
+        results = []
         for rgb, depth, metadata in frames:
-            count += bool(engine.store_frame(rgb, depth, metadata)["success"])
-        return count, engine.stored_count, len(frames)
+            try:
+                result = engine.store_frame(rgb, depth, metadata)
+            except (ValueError, TypeError) as exc:
+                result = {
+                    "success": False,
+                    "stored_count": engine.stored_count,
+                    "message": f"Invalid frame: {exc}",
+                }
+            results.append(result)
+        count = sum(bool(r["success"]) for r in results)
+        return count, engine.stored_count, len(frames), results
 
     try:
         async with _build_lock:
-            count, total, submitted = await _engine_call(_unpack_and_store, body)
+            count, total, submitted, results = await _engine_call(
+                _unpack_and_store, body
+            )
     except Exception as e:
         return {"success": False, "message": f"Batch error: {e}"}
 
+    if count:
+        _ensure_live_worker()
     return {
         "success": count > 0,
+        "results": results,
+        "session_id": engine.session_id,
         "stored_count": total,
         "batch_size": count,
         "rejected_count": submitted - count,
@@ -168,10 +272,10 @@ async def scan_frames_batch(request: Request):
 @app.post("/api/scan/build")
 async def scan_build():
     """Process all frames and build the final mesh."""
-    if _build_lock.locked():
+    if _exclusive:
         return {"success": False, "message": "Build already in progress"}
 
-    async with _build_lock:
+    async with _exclusive_operation():
         loop = asyncio.get_event_loop()
         progress_queue: asyncio.Queue = asyncio.Queue()
 
@@ -211,6 +315,9 @@ async def scan_build():
                 f"({proc_result['frame_count']} frames integrated, "
                 f"{proc_result['skipped_count']} skipped)"
             )
+            refinement = proc_result.get("refinement", {})
+            if engine.settings.refine_poses:
+                detail += "; " + refinement.get("reason", "Refinement finished")
             await _broadcast({"type": "done", "success": True, "detail": detail})
         else:
             detail = proc_result.get(
@@ -224,10 +331,10 @@ async def scan_build():
 @app.post("/api/scan/preview")
 async def scan_preview():
     """Process frames and return the preview mesh as PLY bytes."""
-    if _build_lock.locked():
+    if _exclusive:
         return Response(status_code=409, content="Build in progress")
 
-    async with _build_lock:
+    async with _exclusive_operation():
         loop = asyncio.get_event_loop()
         progress_queue: asyncio.Queue = asyncio.Queue()
 
@@ -352,6 +459,66 @@ async def export_obj():
     )
 
 
+@app.get("/api/scan/export/session")
+async def export_recording():
+    from .session import export_session
+
+    fd, path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    try:
+        async with _build_lock:
+            await _engine_call(export_session, engine, path)
+        return FileResponse(
+            path,
+            media_type="application/octet-stream",
+            filename="scan-session.zip",
+            background=BackgroundTask(os.unlink, path),
+        )
+    except BaseException:
+        os.unlink(path)
+        raise
+
+
+@app.get("/api/scan/export/{fmt}")
+async def export_textured(
+    fmt: str,
+    size: int = 1024,
+    max_triangles: int = 50000,
+    max_views: int = 24,
+    use_images: bool = True,
+):
+    """Portable UV texture export; options explicitly bound work and output size."""
+    if fmt not in ("glb", "obj.zip"):
+        raise HTTPException(404, "Unknown export format")
+    from .texturing import export_texture
+
+    fd, path = tempfile.mkstemp(suffix="." + fmt)
+    os.close(fd)
+    try:
+        async with _build_lock:
+            try:
+                await _engine_call(
+                    export_texture,
+                    engine,
+                    path,
+                    fmt,
+                    size=size,
+                    max_triangles=max_triangles,
+                    max_views=max_views,
+                    use_images=use_images,
+                )
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+        data = await asyncio.to_thread(Path(path).read_bytes)
+        return Response(
+            content=data,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename=scan.{fmt}"},
+        )
+    finally:
+        os.unlink(path)
+
+
 # ── WebSocket for progress ─────────────────────────────────────────────
 
 
@@ -361,6 +528,8 @@ async def ws_progress(websocket: WebSocket):
     _ws_clients.add(websocket)
     logger.info("WebSocket client connected (%d total)", len(_ws_clients))
     try:
+        if _latest_live is not None and _latest_live["session_id"] == engine.session_id:
+            await asyncio.wait_for(websocket.send_json(_latest_live), timeout=1.0)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:

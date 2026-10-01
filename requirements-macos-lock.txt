@@ -46,6 +46,7 @@ opentelemetry-api==1.45.0
 packaging==26.3
 parso==0.8.7
 pexpect==4.9.0
+pillow==12.3.0
 platformdirs==4.12.2
 plotly==7.1.0
 prompt_toolkit==3.0.53

@@ -1,4 +1,4 @@
-"""ScanEngine — CPU-based 3D scanning pipeline using Open3D tensor API.
+"""ScanEngine — CPU/CUDA 3D scanning pipeline using Open3D tensor API.
 
 Two-phase workflow:
   Phase 1 (capture): Store raw RGB+depth frames as fast as possible.
@@ -8,14 +8,18 @@ Two-phase workflow:
 Processing is incremental — only unprocessed frames are run through ICP/TSDF,
 so mid-scan previews don't re-process already-integrated frames.
 
-TSDF integration and mesh extraction use VoxelBlockGrid on CPU for stability.
-Registration (ICP / FGR) also runs on CPU (legacy API).
+TSDF integration and extraction use the selected CPU/CUDA VoxelBlockGrid.
+Geometric ICP can use the tensor backend; feature/color recovery remains on CPU.
 """
 
+import copy
 import logging
 import os
 import time
 import traceback
+import uuid
+from contextlib import contextmanager
+from types import SimpleNamespace
 
 import numpy as np
 import open3d as o3d
@@ -26,6 +30,8 @@ from shared.config import PRESET_DEFAULT, ScanPreset
 from shared.depth import prepare_depth
 from shared.settings import ScanSettings
 
+from .backend import select_backend
+
 _REG = o3d.pipelines.registration
 logger = logging.getLogger("scanner_server")
 
@@ -35,10 +41,10 @@ class ScanEngine:
     MAX_FRAMES = int(os.environ.get("KINECT_MAX_FRAMES", "500"))
     BLOCK_COUNT = int(os.environ.get("KINECT_BLOCK_COUNT", "50000"))
 
-    def __init__(self):
+    def __init__(self, device=None, tracking=None):
         self.preset = PRESET_DEFAULT
         self.settings = ScanSettings()
-        self.device = o3c.Device("CPU:0")
+        self.device, self.backend = select_backend(device, tracking)
         logger.info("ScanEngine using device: %s", self.device)
         self.reset()
 
@@ -88,11 +94,18 @@ class ScanEngine:
         self.vbg = self._create_vbg()
 
         self.frame_count = 0
+        self.session_id = uuid.uuid4().hex
+        self.stage_totals_ms = {}
+        self._frame_timings = {}
+        self.refinement = {"applied": False, "reason": "Not requested"}
+        self.original_poses = None
+        self._refined_count = None
         self.model_pcd = None
         self._last_rgbd = None
         self._model_fpfh = None
         self._model_feature_cloud = None
         self._model_pyramid = {}
+        self._tensor_model_pyramid = {}
         self._integrations_since_model = 0
         self.cumulative_T = np.eye(4)
         self.mesh = None
@@ -107,6 +120,64 @@ class ScanEngine:
         self._frame_ids = set()
 
     # ── helpers ────────────────────────────────────────────────────────
+
+    @contextmanager
+    def _stage(self, name):
+        # CUDA kernels are asynchronous; synchronize to report real wall time.
+        if str(self.device).startswith("CUDA"):
+            o3c.cuda.synchronize()
+        start = time.monotonic()
+        try:
+            yield
+        finally:
+            if str(self.device).startswith("CUDA"):
+                o3c.cuda.synchronize()
+            elapsed = (time.monotonic() - start) * 1000
+            self._frame_timings[name] = self._frame_timings.get(name, 0) + elapsed
+            self.stage_totals_ms[name] = self.stage_totals_ms.get(name, 0) + elapsed
+
+    def reconstruction_report(self):
+        return {
+            "version": 1,
+            "session_id": self.session_id,
+            "pose_convention": "camera_to_world",
+            "length_unit": "metres",
+            "settings": self.settings.to_dict(),
+            "backend": self.backend,
+            "frames": list(self.diagnostics),
+            "poses": [
+                {"index": i, "camera_to_world": p.tolist()} for i, p in self.poses
+            ],
+            "original_poses": None
+            if self.original_poses is None
+            else [
+                {"index": i, "camera_to_world": p.tolist()}
+                for i, p in self.original_poses
+            ],
+            "stage_totals_ms": dict(self.stage_totals_ms),
+            "refinement": self.refinement,
+        }
+
+    def live_snapshot(self, max_points=5000):
+        """Bounded immutable view of cached fused geometry; no extra extraction."""
+        cloud = self.model_pcd
+        points = np.asarray(cloud.points) if cloud is not None else np.empty((0, 3))
+        step = max(1, int(np.ceil(len(points) / max_points)))
+        colors = np.asarray(cloud.colors) if cloud is not None else np.empty((0, 3))
+        return {
+            "type": "live",
+            "session_id": self.session_id,
+            "stored_count": self.stored_count,
+            "frame_count": self.frame_count,
+            "processed_count": self._processed_count,
+            "pending_count": self.unprocessed_count,
+            "geometry_frame_count": self.frame_count - self._integrations_since_model,
+            "points": points[::step].astype(np.float32).tolist(),
+            "colors": np.clip(colors[::step], 0, 1).astype(np.float32).tolist(),
+            "camera_to_world": self.cumulative_T.tolist(),
+            "backend": self.backend,
+            "result": self.diagnostics[-1] if self.diagnostics else {},
+        }
 
     def _make_rgbd(self, rgb, depth):
         """Create legacy Open3D RGBDImage for registration point cloud.
@@ -126,11 +197,12 @@ class ScanEngine:
             convert_rgb_to_intensity=False,
         )
 
-    def _integrate_vbg(self, rgb, depth, extrinsic):
+    def _integrate_vbg(self, rgb, depth, extrinsic, volume=None):
         """Run TSDF integration via VoxelBlockGrid.
 
         Creates tensor images, integrates, and frees them immediately.
         """
+        volume = self.vbg if volume is None else volume
         depth_img = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(depth))).to(
             self.device
         )
@@ -139,7 +211,7 @@ class ScanEngine:
         )
         extrinsic_t = o3c.Tensor(extrinsic, dtype=o3c.float64)
 
-        frustum_block_coords = self.vbg.compute_unique_block_coordinates(
+        frustum_block_coords = volume.compute_unique_block_coordinates(
             depth_img,
             self.intrinsic_tensor,
             extrinsic_t,
@@ -147,7 +219,7 @@ class ScanEngine:
             depth_max=self.max_depth_m,
             trunc_voxel_multiplier=self.sdf_trunc / self.voxel_size,
         )
-        self.vbg.integrate(
+        volume.integrate(
             frustum_block_coords,
             depth_img,
             color_img,
@@ -186,6 +258,7 @@ class ScanEngine:
         self._model_feature_cloud = None
         self._model_fpfh = None  # Compute only when recovery actually needs it.
         self._model_pyramid = {}
+        self._tensor_model_pyramid = {}
         for scale in (4, 2, 1):
             voxel = self.reg_voxel * scale
             level = pcd.voxel_down_sample(voxel)
@@ -193,6 +266,12 @@ class ScanEngine:
                 o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 3, max_nn=30)
             )
             self._model_pyramid[scale] = level
+            if self.backend["tracking"] == "tensor":
+                self._tensor_model_pyramid[scale] = (
+                    o3d.t.geometry.PointCloud.from_legacy(
+                        level, dtype=o3c.float32, device=self.device
+                    )
+                )
 
         self._integrations_since_model = 0
 
@@ -209,16 +288,48 @@ class ScanEngine:
                 tgt.estimate_normals(
                     o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 3, max_nn=30)
                 )
-            result = _REG.registration_icp(
-                src,
-                tgt,
-                max_correspondence_distance=voxel * 3,
-                init=pose,
-                estimation_method=_REG.TransformationEstimationPointToPlane(
-                    _REG.HuberLoss(k=max(0.005, voxel))
-                ),
-                criteria=_REG.ICPConvergenceCriteria(max_iteration=iterations),
-            )
+            if self.backend["tracking"] == "tensor":
+                source_tensor = o3d.t.geometry.PointCloud.from_legacy(
+                    src, dtype=o3c.float32, device=self.device
+                )
+                target_tensor = (
+                    self._tensor_model_pyramid[scale]
+                    if target is self.model_pcd
+                    else o3d.t.geometry.PointCloud.from_legacy(
+                        tgt, dtype=o3c.float32, device=self.device
+                    )
+                )
+                reg = o3d.t.pipelines.registration
+                kernel = reg.robust_kernel.RobustKernel(
+                    reg.robust_kernel.RobustKernelMethod.HuberLoss, max(0.005, voxel)
+                )
+                native = reg.icp(
+                    source_tensor,
+                    target_tensor,
+                    voxel * 3,
+                    o3c.Tensor(pose, dtype=o3c.float64),
+                    reg.TransformationEstimationPointToPlane(kernel),
+                    reg.ICPConvergenceCriteria(max_iteration=iterations),
+                )
+                match = native.correspondence_set.cpu().numpy().reshape(-1)
+                valid = np.flatnonzero(match >= 0)
+                result = SimpleNamespace(
+                    transformation=native.transformation.cpu().numpy(),
+                    fitness=native.fitness,
+                    inlier_rmse=native.inlier_rmse,
+                    correspondence_set=np.column_stack((valid, match[valid])),
+                )
+            else:
+                result = _REG.registration_icp(
+                    src,
+                    tgt,
+                    max_correspondence_distance=voxel * 3,
+                    init=pose,
+                    estimation_method=_REG.TransformationEstimationPointToPlane(
+                        _REG.HuberLoss(k=max(0.005, voxel))
+                    ),
+                    criteria=_REG.ICPConvergenceCriteria(max_iteration=iterations),
+                )
             pose = result.transformation
         return result
 
@@ -471,12 +582,19 @@ class ScanEngine:
             }
         idx = len(self.raw_frames)
         self.raw_frames.append((rgb.copy(), depth.copy()))
+        self.mesh = None
+        self.point_cloud = None
+        self._refined_count = None
+        self.refinement = {"applied": False, "reason": "Awaiting final build"}
+        self.original_poses = None
         self.frame_metadata.append(metadata)
         if frame_id is not None:
             self._frame_ids.add(frame_id)
         return {
             "success": True,
             "stored_count": idx + 1,
+            "index": idx,
+            "session_id": self.session_id,
             "message": f"Frame {idx + 1} stored",
         }
 
@@ -489,7 +607,7 @@ class ScanEngine:
         return len(self.raw_frames) - self._processed_count
 
     # ── public API: process on demand ──────────────────────────────────
-    def process_frames(self, progress_cb=None) -> dict:
+    def process_frames(self, progress_cb=None, max_frames=None) -> dict:
         """Process all unprocessed stored frames through ICP + TSDF.
 
         This is incremental — only frames after _processed_count are processed.
@@ -502,8 +620,11 @@ class ScanEngine:
         processed = 0
         errors = 0
 
-        for i in range(start, total):
+        end = total if max_frames is None else min(total, start + max_frames)
+        for i in range(start, end):
             rgb, depth = self.raw_frames[i]
+            self._frame_timings = {}
+            frame_started = time.monotonic()
             try:
                 result = self._process_single_frame(rgb, depth)
             except Exception as exc:
@@ -513,6 +634,9 @@ class ScanEngine:
             result["frame_count"] = self.frame_count
             result["index"] = i
             result["metadata"] = self.frame_metadata[i]
+            result["session_id"] = self.session_id
+            result["timings_ms"] = dict(self._frame_timings)
+            result["elapsed_ms"] = (time.monotonic() - frame_started) * 1000
             self.diagnostics.append(result)
             processed += 1
             if not result["success"]:
@@ -532,7 +656,8 @@ class ScanEngine:
         """Process a single frame through ICP registration + TSDF integration."""
         t0 = time.monotonic()
 
-        depth = prepare_depth(depth, self.settings)
+        with self._stage("depth_filter"):
+            depth = prepare_depth(depth, self.settings)
         valid_fraction = np.count_nonzero(depth) / depth.size
         if np.count_nonzero(depth) < 1000:
             return {
@@ -540,8 +665,9 @@ class ScanEngine:
                 "message": "Too few valid depth pixels after clipping",
             }
         # Legacy RGBD + registration point cloud (CPU)
-        rgbd = self._make_rgbd(rgb, depth)
-        current_pcd = self._make_reg_pcd(rgbd)
+        with self._stage("registration_cloud"):
+            rgbd = self._make_rgbd(rgb, depth)
+            current_pcd = self._make_reg_pcd(rgbd)
 
         if len(current_pcd.points) < 100:
             return {
@@ -553,8 +679,10 @@ class ScanEngine:
         # First frame — integrate directly (need model_pcd immediately)
         if self.frame_count == 0:
             extrinsic = np.linalg.inv(self.cumulative_T)
-            self._integrate_vbg(rgb, depth, extrinsic)
-            self._extract_model_pcd()
+            with self._stage("fusion"):
+                self._integrate_vbg(rgb, depth, extrinsic)
+            with self._stage("model_refresh"):
+                self._extract_model_pcd()
             self.frame_count = 1
             self._last_rgbd = rgbd
             self.poses.append((self._processed_count, self.cumulative_T.copy()))
@@ -569,7 +697,8 @@ class ScanEngine:
 
         # Register current → model
         try:
-            result, method = self._register(current_pcd, rgbd)
+            with self._stage("tracking"):
+                result, method = self._register(current_pcd, rgbd)
         except Exception as e:
             return {
                 "success": False,
@@ -586,7 +715,8 @@ class ScanEngine:
 
         # Commit tracking state only after integration succeeds.
         pose = result.transformation
-        self._integrate_vbg(rgb, depth, np.linalg.inv(pose))
+        with self._stage("fusion"):
+            self._integrate_vbg(rgb, depth, np.linalg.inv(pose))
         self.cumulative_T = pose
         self._last_rgbd = rgbd
         self.frame_count += 1
@@ -599,7 +729,8 @@ class ScanEngine:
             or self._integrations_since_model >= self.MODEL_REFRESH_INTERVAL
         )
         if should_extract:
-            self._extract_model_pcd()
+            with self._stage("model_refresh"):
+                self._extract_model_pcd()
 
         elapsed_ms = (time.monotonic() - t0) * 1000
 
@@ -647,6 +778,64 @@ class ScanEngine:
             traceback.print_exc()
             return None, None, process_result
 
+    def _refine_volume(self):
+        """Transactional refinement: never rewrite poses in an existing TSDF."""
+        if self._refined_count == self.stored_count:
+            return
+        from .refinement import propose_poses
+
+        started = time.monotonic()
+        try:
+            proposals, report = propose_poses(self)
+            if proposals is not None:
+                candidate = copy.copy(self)
+                candidate.vbg = self._create_vbg()
+                for index, pose in proposals:
+                    rgb, depth = self.raw_frames[index]
+                    candidate._integrate_vbg(
+                        rgb, prepare_depth(depth, self.settings), np.linalg.inv(pose)
+                    )
+                candidate._extract_model_pcd()
+                if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
+                    raise ValueError("Refined volume has insufficient geometry")
+                diagnostics = [dict(result) for result in self.diagnostics]
+                for index, pose in proposals:
+                    diagnostics[index]["pose_before_refinement"] = diagnostics[
+                        index
+                    ].get("pose")
+                    diagnostics[index]["pose"] = pose.tolist()
+                original_poses = [(i, p.copy()) for i, p in self.poses]
+                cumulative = proposals[-1][1].copy()
+                report.update(
+                    applied=True,
+                    reason="Validated poses committed after fresh TSDF fusion",
+                )
+                # All native work and report preparation succeeded. Commit.
+                self.original_poses = original_poses
+                for name in (
+                    "vbg",
+                    "model_pcd",
+                    "_model_feature_cloud",
+                    "_model_fpfh",
+                    "_model_pyramid",
+                    "_tensor_model_pyramid",
+                    "_integrations_since_model",
+                ):
+                    setattr(self, name, getattr(candidate, name))
+                self.poses = proposals
+                self.cumulative_T = cumulative
+                self.diagnostics = diagnostics
+            self.refinement = report
+        except Exception as exc:
+            logger.exception("Pose refinement failed; original reconstruction retained")
+            self.refinement = {"applied": False, "reason": f"Refinement failed: {exc}"}
+        self.refinement["elapsed_ms"] = (time.monotonic() - started) * 1000
+        self.stage_totals_ms["final_refinement"] = (
+            self.stage_totals_ms.get("final_refinement", 0)
+            + self.refinement["elapsed_ms"]
+        )
+        self._refined_count = self.stored_count
+
     def build_mesh(self, progress_cb=None) -> tuple[bool, dict]:
         """Process unprocessed frames, then build final mesh.
 
@@ -655,6 +844,11 @@ class ScanEngine:
         process_result = self.process_frames(progress_cb=progress_cb)
         if self.frame_count == 0:
             return False, process_result
+        if self.settings.refine_poses:
+            self._refine_volume()
+        else:
+            self.refinement = {"applied": False, "reason": "Not requested"}
+        process_result["refinement"] = self.refinement
         try:
             t_mesh = self.vbg.extract_triangle_mesh(
                 weight_threshold=self.settings.final_weight

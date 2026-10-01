@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QSplitter,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -36,6 +37,7 @@ from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
+from .live_view import LiveView
 from .widgets import colorize_depth, numpy_to_qimage
 
 # Default export directory (relative to where the app is launched)
@@ -72,6 +74,8 @@ class MainWindow(QMainWindow):
         # Server counts (cached from server responses)
         self._server_stored = 0
         self._server_integrated = 0
+        self._session_id = None
+        self._has_mesh = False
 
         # Server client + task worker
         self.server_client = ServerClient(self)
@@ -84,6 +88,8 @@ class MainWindow(QMainWindow):
         self.server_client.save_mesh_done.connect(self._on_save_mesh_done)
         self.server_client.task_started.connect(self._on_task_started)
         self.server_client.task_error.connect(self._on_task_error)
+        self.server_client.live_updated.connect(self._on_live_updated)
+        self.server_client.status_updated.connect(self._on_server_status)
         self.server_client.connected.connect(self._on_server_connected)
         self.server_client.disconnected.connect(self._on_server_disconnected)
 
@@ -121,11 +127,16 @@ class MainWindow(QMainWindow):
 
         self.view_label = QLabel("Connecting to Kinect...")
         self.view_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.view_label.setMinimumSize(640, 480)
+        self.view_label.setMinimumSize(320, 240)
         self.view_label.setStyleSheet(
             "background-color: #1e1e1e; color: #aaa; font-size: 18px;"
         )
-        layout.addWidget(self.view_label, stretch=1)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(self.view_label)
+        self.live_view = LiveView()
+        self.live_view.hide()
+        splitter.addWidget(self.live_view)
+        layout.addWidget(splitter, stretch=1)
 
     def _build_toolbar(self):
         toolbar = QToolBar("Modes")
@@ -174,6 +185,9 @@ class MainWindow(QMainWindow):
         self.server_status_label.setWordWrap(True)
         sg_layout.addWidget(self.server_status_label)
 
+        self.backend_label = QLabel("Backend: unknown")
+        self.backend_label.setWordWrap(True)
+        sg_layout.addWidget(self.backend_label)
         layout.addWidget(server_group)
 
         # ── Depth visualisation range ─────────────────────────────
@@ -225,6 +239,17 @@ class MainWindow(QMainWindow):
             "Uses RGB-D motion to seed ICP; requires synchronized, textured views"
         )
         vg.addWidget(self.color_tracking_cb)
+        self.live_cb = QCheckBox("Live fused surface feedback")
+        self.live_cb.setChecked(True)
+        self.live_cb.setToolTip(
+            "Processes frames during capture; pending count shows when reconstruction falls behind"
+        )
+        vg.addWidget(self.live_cb)
+        self.refine_cb = QCheckBox("Final pose refinement (experimental)")
+        self.refine_cb.setToolTip(
+            "Validate loop matches and rebuild fusion; uses additional memory and time"
+        )
+        vg.addWidget(self.refine_cb)
         self.record_cb = QCheckBox("Save local RGB-D recording")
         vg.addWidget(self.record_cb)
         layout.addWidget(viz_group)
@@ -278,6 +303,20 @@ class MainWindow(QMainWindow):
         self.btn_export_obj.clicked.connect(self._export_obj)
         export_row.addWidget(self.btn_export_obj)
         sg.addLayout(export_row)
+        self.btn_export_glb = QPushButton("Export textured GLB")
+        self.btn_export_glb.setEnabled(False)
+        self.btn_export_glb.clicked.connect(lambda: self._export_texture("glb"))
+        sg.addWidget(self.btn_export_glb)
+        self.btn_export_texture_obj = QPushButton("Export textured OBJ bundle")
+        self.btn_export_texture_obj.setEnabled(False)
+        self.btn_export_texture_obj.clicked.connect(
+            lambda: self._export_texture("obj.zip")
+        )
+        sg.addWidget(self.btn_export_texture_obj)
+        self.btn_export_session = QPushButton("Save full RGB-D session")
+        self.btn_export_session.setEnabled(False)
+        self.btn_export_session.clicked.connect(self._export_session)
+        sg.addWidget(self.btn_export_session)
 
         # Preview 3D button (current scan)
         self.btn_preview_3d = QPushButton("Preview 3D")
@@ -347,6 +386,9 @@ class MainWindow(QMainWindow):
                 self.auto_capture_spin,
                 self.btn_export_ply,
                 self.btn_export_obj,
+                self.btn_export_glb,
+                self.btn_export_texture_obj,
+                self.btn_export_session,
                 self.btn_save_mesh,
             ):
                 control.setEnabled(False)
@@ -492,6 +534,8 @@ class MainWindow(QMainWindow):
                 truncation_m=min(0.2, max(0.04, voxel * 8)),
                 final_weight=self.weight_spin.value(),
                 color_recovery=self.color_tracking_cb.isChecked(),
+                live_reconstruction=self.live_cb.isChecked(),
+                refine_poses=self.refine_cb.isChecked(),
                 roi=roi,
             )
         except ValueError as exc:
@@ -512,6 +556,12 @@ class MainWindow(QMainWindow):
         self._reset_pending = False
         if not self.server_client.is_connected or self._closing:
             return
+        self._session_id = result.get("session_id")
+        self._has_mesh = False
+        self.live_view.reset()
+        self.live_view.setVisible(
+            result.get("settings", {}).get("live_reconstruction", False)
+        )
         self._last_capture_id = None
         self._server_stored = 0
         self._server_integrated = 0
@@ -523,6 +573,9 @@ class MainWindow(QMainWindow):
         self.btn_stop_build.setEnabled(True)
         self.btn_export_ply.setEnabled(False)
         self.btn_export_obj.setEnabled(False)
+        self.btn_export_glb.setEnabled(False)
+        self.btn_export_texture_obj.setEnabled(False)
+        self.btn_export_session.setEnabled(False)
         self.btn_preview_3d.setEnabled(False)
         self.btn_save_mesh.setEnabled(False)
         self.btn_preview_scan.setEnabled(True)
@@ -637,6 +690,32 @@ class MainWindow(QMainWindow):
                 ServerTask(ServerTaskType.EXPORT_OBJ, {"path": path})
             )
 
+    def _export_texture(self, fmt):
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export textured surface",
+            os.path.join(self._ensure_export_dir(), f"scan.{fmt}"),
+            "GLB (*.glb)" if fmt == "glb" else "ZIP (*.zip)",
+        )
+        if path:
+            self.btn_export_glb.setEnabled(False)
+            self.btn_export_texture_obj.setEnabled(False)
+            self.task_worker.submit(
+                ServerTask(ServerTaskType.EXPORT_TEXTURE, {"path": path, "format": fmt})
+            )
+
+    def _export_session(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save lossless RGB-D session",
+            os.path.join(self._ensure_export_dir(), "scan-session.zip"),
+            "ZIP (*.zip)",
+        )
+        if path:
+            self.task_worker.submit(
+                ServerTask(ServerTaskType.EXPORT_SESSION, {"path": path})
+            )
+
     def _save_mesh(self):
         os.makedirs(MESH_DIR, exist_ok=True)
         filename = f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.ply"
@@ -650,7 +729,7 @@ class MainWindow(QMainWindow):
             self,
             "Load Mesh",
             start_dir,
-            "PLY files (*.ply);;All 3D files (*.obj *.ply *.stl)",
+            "PLY files (*.ply);;All 3D files (*.obj *.ply *.stl *.glb)",
         )
         if path:
             self.statusBar().showMessage(f"Opening: {path}")
@@ -662,24 +741,57 @@ class MainWindow(QMainWindow):
             self,
             "Open 3D File",
             start_dir,
-            "3D files (*.obj *.ply *.stl);;OBJ files (*.obj);;PLY files (*.ply);;STL files (*.stl)",
+            "3D files (*.obj *.ply *.stl *.glb);;OBJ files (*.obj);;PLY files (*.ply);;STL files (*.stl)",
         )
         if path:
             self.statusBar().showMessage(f"Opening: {path}")
             launch_viewer_subprocess(path)
 
     # ── Task/server signal handlers ──────────────────────────────────
-    def _on_frame_stored(self, result: dict):
-        if not result.get("success"):
-            self.auto_capture_cb.setChecked(False)
-        self._server_stored = result.get("stored_count", self._server_stored + 1)
+    def _on_server_status(self, status):
+        backend = status.get("backend", {})
+        self.backend_label.setText(
+            f"Fusion: {backend.get('device', 'unknown')} · ICP: {backend.get('tracking', 'unknown')}"
+        )
+        self.backend_label.setToolTip(backend.get("fallback_reason") or "")
+
+    def _on_live_updated(self, snapshot):
+        if (
+            self._closing
+            or self._reset_pending
+            or snapshot.get("session_id") != self._session_id
+        ):
+            return
+        self.live_view.set_snapshot(snapshot)
+        self._on_server_status(snapshot)
+        self._server_stored = max(self._server_stored, snapshot.get("stored_count", 0))
+        self._server_integrated = snapshot.get("frame_count", 0)
         self.frame_count_label.setText(
             f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
         )
+        if self._scanning and not self._preview_pending:
+            self.scan_status_label.setText(
+                snapshot.get("result", {}).get("message", "Scanning")
+            )
+
+    def _on_frame_stored(self, result: dict):
+        if result.get("session_id") and result["session_id"] != self._session_id:
+            return
+        if not result.get("success"):
+            self.auto_capture_cb.setChecked(False)
+        self._server_stored = max(
+            self._server_stored, result.get("stored_count", self._server_stored)
+        )
+        self.frame_count_label.setText(
+            f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
+        )
+        self.btn_export_session.setEnabled(self._server_stored > 0)
         self.scan_status_label.setText(result.get("message", "Frame stored"))
         self.statusBar().showMessage(result.get("message", "Frame stored"))
 
     def _on_process_progress(self, current: int, total: int, result: dict):
+        if result.get("session_id") and result["session_id"] != self._session_id:
+            return
         self.progress_bar.setRange(0, total)
         self.progress_bar.setValue(current)
         self._server_integrated = result.get("frame_count", self._server_integrated)
@@ -691,12 +803,15 @@ class MainWindow(QMainWindow):
         )
 
     def _on_build_mesh_done(self, success: bool, detail: str):
+        self._has_mesh = success
         self.progress_bar.setVisible(False)
         self.scan_status_label.setText(detail)
 
         if success:
             self.btn_export_ply.setEnabled(True)
             self.btn_export_obj.setEnabled(True)
+            self.btn_export_glb.setEnabled(True)
+            self.btn_export_texture_obj.setEnabled(True)
             self.btn_save_mesh.setEnabled(True)
             self.statusBar().showMessage("Mesh built. Ready to export or preview.")
         else:
@@ -730,8 +845,10 @@ class MainWindow(QMainWindow):
             self.scan_status_label.setText("Preview extraction failed")
 
     def _on_export_done(self, success: bool, path: str):
-        self.btn_export_ply.setEnabled(True)
-        self.btn_export_obj.setEnabled(True)
+        self.btn_export_ply.setEnabled(self._has_mesh)
+        self.btn_export_obj.setEnabled(self._has_mesh)
+        self.btn_export_glb.setEnabled(self._has_mesh)
+        self.btn_export_texture_obj.setEnabled(self._has_mesh)
         if success:
             self.statusBar().showMessage(f"Exported: {path}")
             QMessageBox.information(self, "Export", f"Saved to:\n{path}")
@@ -750,6 +867,13 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(msg)
 
     def _on_task_error(self, msg: str):
+        for button in (
+            self.btn_export_ply,
+            self.btn_export_obj,
+            self.btn_export_glb,
+            self.btn_export_texture_obj,
+        ):
+            button.setEnabled(self._has_mesh)
         self.progress_bar.setVisible(False)
         if self._reset_pending:
             self._reset_pending = False
