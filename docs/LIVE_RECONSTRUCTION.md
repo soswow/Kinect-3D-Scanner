@@ -8,6 +8,11 @@ subsequent capture/shutdown repair was checked with a connected Kinect v1:
 and Qt window shutdown in 0.32 seconds. This validates acquisition and closure,
 not the reconstruction accuracy of that physical scene.
 
+The next six software milestones are now implemented. See
+[IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) for current commands,
+validation and remaining hardware acceptance. Earlier benchmark results below
+remain historical evidence rather than predictions for a new device.
+
 ## Compute selection
 
 Set environment variables on the **server**, independently of the Kinect client:
@@ -85,7 +90,9 @@ PLY is a reliable vertex-color export. The new formats are:
 
 Both accept `size=256|512|1024|2048`, `max_triangles=100..200000`,
 `max_views=1..64`, and `use_images=true|false`. Defaults are 1024, 50000, 24, and
-true. GUI buttons use those defaults. The texture mesh is a simplified copy;
+true. Optional `exposure_correction=true` enables bounded gain matching on
+held-out depth-visible overlap; `blend_mode=best` selects the strongest
+angle/distance view instead of blending. Both have GUI export checkboxes. The texture mesh is a simplified copy;
 the full final mesh remains available through PLY/plain OBJ. UV seams duplicate
 export vertices deliberately. UV generation requires an edge/vertex manifold;
 invalid geometry returns an actionable error rather than silently removing it.
@@ -103,8 +110,8 @@ The portable projection algorithm works on ARM CPUs:
 4. Bilinearly sample RGB and blend with view-angle/distance weights. Missing
    texels retain fused vertex color. No generated image fills unobserved areas.
 
-This is a first measured-image texture pipeline. It does not optimize exposure,
-seams, RGB distortion, or photometric poses. Inaccurate calibration/poses can blur
+The pipeline supports measured lens correction and optional relative exposure
+gains. It does not optimize patch seams or photometric poses. Inaccurate calibration/poses can blur
 texture, and a larger atlas cannot create detail absent from 640x480 RGB. The
 depth tolerance is an engineering default, not a device-specific noise model.
 GLB/OBJ material round trips and asymmetric image orientation are tested. The
@@ -137,8 +144,9 @@ Datasets, captures, exports, and detailed replay artifacts remain ignored by Git
 Enable **Final pose refinement**, reset with `refine_poses: true`, or pass
 `--refine-poses` to replay. It remains off by default. The current implementation:
 
-- Uses at most 32 accepted keyframes and 40 nearby loop candidates, measured
-  geometry only, and a fixed first-camera anchor.
+- Uses at most 32 accepted keyframes and 40 loop candidates, up to half proposed
+  by mutual ORB/measured-depth PnP outside the estimated position radius, and a
+  fixed first-camera anchor.
 - Requires reciprocal robust ICP, sufficient overlap, low residual, normal
   diversity, inverse consistency, and bounded corrections for loop constraints.
 - Optimizes an Open3D pose graph and checks separate point samples with a
@@ -148,9 +156,10 @@ Enable **Final pose refinement**, reset with `refine_poses: true`, or pass
   raw frames into a **fresh** TSDF. The old volume/poses remain intact if native
   reintegration fails. Unchanged sessions do not repeat refinement.
 
-It cannot discover loops whose estimated positions have drifted outside the
-candidate radius, recover discarded frames, or reliably disambiguate repeated
-geometry. Held-out samples reduce fitting bias but are not external ground truth.
+Appearance proposals can discover distant loops, but many scenes lack enough
+trustworthy RGB/depth correspondences. It cannot recover already discarded frames
+or reliably disambiguate repeated geometry. The optional online recovery checkbox
+can accept later views after two rejected frames through reciprocal verification. Held-out samples reduce fitting bias but are not external ground truth.
 Two volumes coexist during reintegration; allow approximately twice the voxel
 attribute allocation plus raw frames, cached clouds, and extraction overhead.
 
@@ -179,8 +188,8 @@ source accepted 57/58 frames at 116 mm while the new source accepted 53/58 at
 544 mm. Two instances of the **same preceding source**, with the same seed
 schedule, also diverged: 55/58 at 967 mm versus 51/58 at 1067 mm. This establishes
 existing instability but does not establish statistical non-regression of the
-new code. Keep this change in draft pending broader tracking and hardware
-validation. Timings include concurrent experiments.
+new code. These experiments remain opt-in pending broader tracking and hardware
+validation. The changes have been merged; these historical timings include concurrent experiments.
 
 ```bash
 OMP_NUM_THREADS=4 python -m unittest discover -s tests -v
@@ -193,6 +202,32 @@ OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset tum \
   --output benchmark-output/desk-refinement.json
 ```
 
-The next work is device calibration and matched live capture, NVIDIA profiling,
-broader verified relocalization/loop discovery, uncertainty-aware fusion, and
-photometric texture correction. See the research roadmap for source candidates.
+The corresponding software tools are implemented; physical calibration, matched
+live scans, NVIDIA profiling and broader scene comparisons remain to be run.
+Patch seam leveling and turntable capture require subsequent work. See the
+research roadmap and milestone log for current status.
+
+
+## Separate live and final budgets
+
+**Final voxel size** defaults to the live volume. Set 2 mm up to the live voxel
+size to request fresh final fusion of accepted views at their final poses. Live
+tracking, cached feedback and raw observations keep their original resolution.
+The final build has a hard **Final block budget** (default 5000); it checks newly
+required blocks before each integration and stops with a coarser-voxel/budget
+suggestion if the limit would be exceeded. It does not silently lower quality.
+
+5000 blocks allocate about 391 MiB of voxel attributes, in addition to the live
+volume, raw frames, hash maps, temporary tensors and mesh extraction. This is a
+block limit, not a process-RAM or VRAM cap. Finer voxels can exhaust it quickly.
+A failed final build preserves the live volume and any existing final asset.
+An unchanged successful session reuses its final volume; new frames invalidate
+it. Build/session reports record final voxel, block count and elapsed time.
+
+Live feedback shows integrated/skipped frames, pending count, server queue age,
+and guidance for weak depth, lost tracking or backlog. Queue age uses only the
+server's monotonic clock and is not end-to-end capture latency. **Pause auto
+capture for backlog**, enabled initially, skips automatic capture ticks at five
+pending server frames, five queued upload tasks or over two seconds server queue age and resumes when the queue catches
+up. Manual capture remains available. It does not estimate whole-object coverage
+or choose keyframes by geometric information gain.

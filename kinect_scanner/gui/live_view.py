@@ -3,7 +3,7 @@
 import time
 
 import numpy as np
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QRect, Qt, QTimer
 from PyQt6.QtGui import QColor, QImage, QPainter
 from PyQt6.QtWidgets import QWidget
 
@@ -101,10 +101,18 @@ class LiveView(QWidget):
         lines = [
             f"{s.get('frame_count', 0)} integrated · {s.get('pending_count', 0)} pending · {age}",
             f"{state} · processing {result.get('elapsed_ms', 0):.0f} ms/frame",
-            f"Geometry through frame {s.get('geometry_frame_count', 0)} · double-click color/shape",
+            f"{s.get('skipped_count', 0)} skipped · queue age {s.get('pending_age_s', 0):.1f}s · geometry {s.get('geometry_frame_count', 0)}",
         ]
         for i, line in enumerate(lines):
-            painter.drawText(12, height - 48 + 16 * i, line)
+            text = painter.fontMetrics().elidedText(
+                line, Qt.TextElideMode.ElideRight, max(1, width - 24)
+            )
+            painter.drawText(12, height - 84 + 16 * i, text)
+        painter.drawText(
+            QRect(12, height - 42, max(1, width - 24), 40),
+            Qt.TextFlag.TextWordWrap.value,
+            s.get("guidance", "Move slowly with overlap"),
+        )
 
     def mousePressEvent(self, event):
         self._drag = event.position()

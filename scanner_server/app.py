@@ -318,6 +318,11 @@ async def scan_build():
             refinement = proc_result.get("refinement", {})
             if engine.settings.refine_poses:
                 detail += "; " + refinement.get("reason", "Refinement finished")
+            if engine.settings.final_voxel_m is not None:
+                final = proc_result["final_reconstruction"]
+                detail += (
+                    f"; final {final['voxel_m'] * 1000:g} mm, {final['blocks']} blocks"
+                )
             await _broadcast({"type": "done", "success": True, "detail": detail})
         else:
             detail = proc_result.get(

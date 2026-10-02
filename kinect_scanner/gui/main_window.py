@@ -215,6 +215,24 @@ class MainWindow(QMainWindow):
         self.voxel_spin.setSuffix(" mm")
         vg.addWidget(QLabel("Voxel size:"))
         vg.addWidget(self.voxel_spin)
+        self.final_voxel_spin = QDoubleSpinBox()
+        self.final_voxel_spin.setRange(0, 30)
+        self.final_voxel_spin.setValue(0)
+        self.final_voxel_spin.setSuffix(" mm")
+        self.final_voxel_spin.setSpecialValueText("Use live voxel")
+        self.final_voxel_spin.setToolTip(
+            "Optional final rebuild: 2 mm up to the live voxel size"
+        )
+        vg.addWidget(QLabel("Final voxel size:"))
+        vg.addWidget(self.final_voxel_spin)
+        self.final_blocks_spin = QSpinBox()
+        self.final_blocks_spin.setRange(128, 50000)
+        self.final_blocks_spin.setValue(5000)
+        self.final_blocks_spin.setToolTip(
+            "5000 blocks: about 391 MiB of voxel attributes, plus live volume and scratch memory"
+        )
+        vg.addWidget(QLabel("Final block budget:"))
+        vg.addWidget(self.final_blocks_spin)
         self.weight_spin = QDoubleSpinBox()
         self.weight_spin.setRange(0.5, 20)
         self.weight_spin.setValue(2)
@@ -250,6 +268,18 @@ class MainWindow(QMainWindow):
             "Validate loop matches and rebuild fusion; uses additional memory and time"
         )
         vg.addWidget(self.refine_cb)
+        self.relocalize_cb = QCheckBox("Recover lost tracking (experimental)")
+        self.relocalize_cb.setToolTip(
+            "Verified RGB-D matching after two skipped frames; repeated scenes can remain ambiguous"
+        )
+        self.confidence_cb = QCheckBox(
+            "Weight depth by sensor confidence (experimental)"
+        )
+        self.confidence_cb.setToolTip(
+            "Range/angle/edge prior; fractional weights need more observations at the final threshold"
+        )
+        vg.addWidget(self.relocalize_cb)
+        vg.addWidget(self.confidence_cb)
         self.record_cb = QCheckBox("Save local RGB-D recording")
         vg.addWidget(self.record_cb)
         layout.addWidget(viz_group)
@@ -282,6 +312,12 @@ class MainWindow(QMainWindow):
         auto_row.addWidget(self.auto_capture_cb)
         auto_row.addWidget(self.auto_capture_spin)
         sg.addLayout(auto_row)
+        self.adaptive_capture_cb = QCheckBox("Pause auto capture for backlog")
+        self.adaptive_capture_cb.setChecked(True)
+        self.adaptive_capture_cb.setToolTip(
+            "Resumes automatically when the server queue catches up; manual capture stays available"
+        )
+        sg.addWidget(self.adaptive_capture_cb)
 
         self.btn_preview_scan = QPushButton("Preview Scan")
         self.btn_preview_scan.setEnabled(False)
@@ -372,7 +408,7 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
         self._auto_timer = QTimer(self)
-        self._auto_timer.timeout.connect(self._capture_frame)
+        self._auto_timer.timeout.connect(self._auto_capture_tick)
 
     def _build_statusbar(self):
         self.statusBar().showMessage("Ready")
@@ -548,6 +584,12 @@ class MainWindow(QMainWindow):
                 color_recovery=self.color_tracking_cb.isChecked(),
                 live_reconstruction=self.live_cb.isChecked(),
                 refine_poses=self.refine_cb.isChecked(),
+                relocalize=self.relocalize_cb.isChecked(),
+                confidence_fusion=self.confidence_cb.isChecked(),
+                final_voxel_m=self.final_voxel_spin.value() / 1000
+                if self.final_voxel_spin.value()
+                else None,
+                final_block_count=self.final_blocks_spin.value(),
                 roi=roi,
             )
         except ValueError as exc:
@@ -598,6 +640,19 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             "Scan started. Move Kinect and press Capture Frame."
         )
+
+    def _auto_capture_tick(self):
+        snapshot = self.live_view.snapshot
+        if self.adaptive_capture_cb.isChecked() and (
+            self.task_worker.queued_task_count >= 5
+            or snapshot.get("pending_count", 0) >= 5
+            or snapshot.get("pending_age_s", 0) > 2
+        ):
+            self.scan_status_label.setText(
+                "Auto capture waiting for reconstruction to catch up"
+            )
+            return
+        self._capture_frame()
 
     def _capture_frame(self):
         if (
@@ -795,7 +850,8 @@ class MainWindow(QMainWindow):
         )
         if self._scanning and not self._preview_pending:
             self.scan_status_label.setText(
-                snapshot.get("result", {}).get("message", "Scanning")
+                snapshot.get("guidance")
+                or snapshot.get("result", {}).get("message", "Scanning")
             )
 
     def _on_frame_stored(self, result: dict):
@@ -820,7 +876,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(current)
         self._server_integrated = result.get("frame_count", self._server_integrated)
         self.frame_count_label.setText(
-            f"Stored: {total} | Integrated: {self._server_integrated}"
+            f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
         )
         self.scan_status_label.setText(
             f"Processing {current}/{total}: {result.get('message', '')}"

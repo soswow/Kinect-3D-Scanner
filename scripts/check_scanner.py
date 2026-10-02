@@ -67,11 +67,17 @@ def check_client(port, rgb, depth):
         wait_until(lambda: window.server_client.is_connected)
         window.depth_near_spin.setValue(750)
         window.depth_far_spin.setValue(1500)
+        window.final_voxel_spin.setValue(4)
+        window.relocalize_cb.setChecked(True)
         window._start_scan()
         wait_until(lambda: window._scanning)
         assert not window.settings_group.isEnabled(), "Scan settings must freeze"
         settings = window.server_client.get_status()["settings"]
         assert settings["near_m"] == 0.75 and settings["far_m"] == 1.5, settings
+        assert (
+            settings["final_voxel_m"] == 0.004 and settings["final_block_count"] == 5000
+        ), settings
+        assert settings["relocalize"] and not settings["confidence_fusion"], settings
         for _ in range(3):
             window._on_frame(rgb, depth)
             window._capture_frame()
@@ -84,6 +90,14 @@ def check_client(port, rgb, depth):
         old_snapshot = window.live_view.snapshot
         window._on_live_updated({"session_id": "previous-session", "frame_count": 900})
         assert window.live_view.snapshot is old_snapshot
+        window.live_view.snapshot = {**old_snapshot, "pending_count": 6}
+        window._auto_capture_tick()
+        assert (
+            window.scan_status_label.text()
+            == "Auto capture waiting for reconstruction to catch up"
+        )
+        assert window.server_client.get_status()["stored_count"] == 3
+        window.live_view.snapshot = old_snapshot
         window._on_frame(rgb, depth, {"captured_monotonic_s": time.monotonic() - 2})
         window._capture_frame()
         assert window.scan_status_label.text() == "Waiting for a fresh camera frame"
@@ -107,7 +121,16 @@ def check_client(port, rgb, depth):
             window.btn_export_glb.isEnabled()
             and window.btn_export_texture_obj.isEnabled()
         )
-        print("PASS: Qt client final build enables export controls", flush=True)
+        final = window.server_client._http.get("/api/scan/diagnostics").json()[
+            "final_reconstruction"
+        ]
+        assert (
+            final["applied"] and final["voxel_m"] == 0.004 and final["blocks"] <= 5000
+        ), final
+        print(
+            "PASS: Qt client final rebuild preserves live resolution and enables export controls",
+            flush=True,
+        )
         Path(preview_path).unlink(missing_ok=True)
     finally:
         window.close()
@@ -233,6 +256,8 @@ def main():
                                 "size": 256,
                                 "max_triangles": 10000,
                                 "max_views": 3,
+                                "exposure_correction": "true",
+                                "blend_mode": "best",
                             },
                         )
                         response.raise_for_status()
@@ -240,7 +265,12 @@ def main():
                         path.write_bytes(response.content)
                         if fmt == "obj.zip":
                             with zipfile.ZipFile(path) as archive:
-                                assert "texture-report.json" in archive.namelist()
+                                report = json.loads(archive.read("texture-report.json"))
+                                assert report["blend_mode"] == "best", report
+                                assert (
+                                    report["exposure_correction"]["reason"]
+                                    != "Not requested"
+                                ), report
                                 archive.extractall(Path(folder) / "textured-obj")
                             path = Path(folder) / "textured-obj/scan.obj"
                         loaded = trimesh.load(path, force="scene")

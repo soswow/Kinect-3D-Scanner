@@ -19,6 +19,7 @@ import time
 import traceback
 import uuid
 from contextlib import contextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -50,7 +51,7 @@ class ScanEngine:
 
     # ── VBG creation ──────────────────────────────────────────────────
 
-    def _create_vbg(self):
+    def _create_vbg(self, block_count=None):
         """Create a fresh VoxelBlockGrid on self.device."""
         return o3d.t.geometry.VoxelBlockGrid(
             attr_names=("tsdf", "weight", "color"),
@@ -58,7 +59,7 @@ class ScanEngine:
             attr_channels=((1,), (1,), (3,)),
             voxel_size=self.voxel_size,
             block_resolution=16,
-            block_count=self.BLOCK_COUNT,
+            block_count=self.BLOCK_COUNT if block_count is None else block_count,
             device=self.device,
         )
 
@@ -113,6 +114,9 @@ class ScanEngine:
         self.cumulative_T = np.eye(4)
         self.mesh = None
         self.point_cloud = None
+        self._final_vbg = None
+        self._fusion_block_limit = None
+        self.final_reconstruction = {"applied": False, "reason": "Uses live volume"}
 
         # Raw frame storage
         self.raw_frames: list[tuple[np.ndarray, np.ndarray]] = []
@@ -121,6 +125,7 @@ class ScanEngine:
         self.diagnostics = []
         self.frame_metadata = []
         self._frame_ids = set()
+        self._stored_monotonic = []
         self._appearance_cache = {}
         self._tracking_lost_frames = 0
         self._last_fusion_stats = {}
@@ -162,6 +167,7 @@ class ScanEngine:
             ],
             "stage_totals_ms": dict(self.stage_totals_ms),
             "refinement": self.refinement,
+            "final_reconstruction": self.final_reconstruction,
         }
 
     def live_snapshot(self, max_points=5000):
@@ -170,6 +176,25 @@ class ScanEngine:
         points = np.asarray(cloud.points) if cloud is not None else np.empty((0, 3))
         step = max(1, int(np.ceil(len(points) / max_points)))
         colors = np.asarray(cloud.colors) if cloud is not None else np.empty((0, 3))
+        pending_age = (
+            time.monotonic() - self._stored_monotonic[self._processed_count]
+            if self.unprocessed_count
+            else 0.0
+        )
+        result = self.diagnostics[-1] if self.diagnostics else {}
+        if result and not result.get("success"):
+            guidance = (
+                result.get("message", "Tracking skipped")
+                + "; revisit the last tracked view"
+            )
+        elif self.unprocessed_count >= 5 or pending_age > 2:
+            guidance = (
+                "Pause movement or reduce capture rate while reconstruction catches up"
+            )
+        elif result.get("valid_depth_fraction", 1) < 0.2:
+            guidance = "Move within depth range and include more measured surface"
+        else:
+            guidance = "Move slowly with overlap; revisit textured corners"
         return {
             "type": "live",
             "session_id": self.session_id,
@@ -177,6 +202,9 @@ class ScanEngine:
             "frame_count": self.frame_count,
             "processed_count": self._processed_count,
             "pending_count": self.unprocessed_count,
+            "pending_age_s": round(max(0, pending_age), 3),
+            "skipped_count": sum(not r["success"] for r in self.diagnostics),
+            "guidance": guidance,
             "geometry_frame_count": self.frame_count - self._integrations_since_model,
             "points": points[::step].astype(np.float32).tolist(),
             "colors": np.clip(colors[::step], 0, 1).astype(np.float32).tolist(),
@@ -225,6 +253,14 @@ class ScanEngine:
             depth_max=self.max_depth_m,
             trunc_voxel_multiplier=self.sdf_trunc / self.voxel_size,
         )
+        if self._fusion_block_limit is not None:
+            _, found = volume.hashmap().find(frustum_block_coords)
+            added = int(np.count_nonzero(~found.cpu().numpy()))
+            if volume.hashmap().size() + added > self._fusion_block_limit:
+                raise ValueError(
+                    f"Final volume exceeds {self._fusion_block_limit} blocks; "
+                    "use a coarser final voxel or increase the final block budget"
+                )
         if self.settings.confidence_fusion:
             from .weighted_fusion import integrate_weighted
 
@@ -673,6 +709,9 @@ class ScanEngine:
             }
         idx = len(self.raw_frames)
         self.raw_frames.append((rgb.copy(), depth.copy()))
+        self._stored_monotonic.append(time.monotonic())
+        self._final_vbg = None
+        self.final_reconstruction = {"applied": False, "reason": "Awaiting final build"}
         self.mesh = None
         self.point_cloud = None
         self._refined_count = None
@@ -908,6 +947,7 @@ class ScanEngine:
                     reason="Validated poses committed after fresh TSDF fusion",
                 )
                 # All native work and report preparation succeeded. Commit.
+                self._final_vbg = None
                 self.original_poses = original_poses
                 for name in (
                     "vbg",
@@ -933,11 +973,51 @@ class ScanEngine:
         )
         self._refined_count = self.stored_count
 
-    def build_mesh(self, progress_cb=None) -> tuple[bool, dict]:
-        """Process unprocessed frames, then build final mesh.
+    def _final_volume(self, progress_cb=None):
+        """Fresh bounded fusion of accepted poses, leaving live tracking intact."""
+        if self.settings.final_voxel_m is None:
+            self.final_reconstruction = {
+                "applied": False,
+                "reason": "Uses live volume",
+                "voxel_m": self.voxel_size,
+            }
+            return self.vbg
+        if self._final_vbg is not None:
+            return self._final_vbg
+        started = time.monotonic()
+        candidate = copy.copy(self)
+        candidate.settings = replace(self.settings, voxel_m=self.settings.final_voxel_m)
+        candidate.voxel_size = candidate.settings.voxel_m
+        candidate._fusion_block_limit = self.settings.final_block_count
+        candidate.vbg = candidate._create_vbg(block_count=candidate._fusion_block_limit)
+        for completed, (index, pose) in enumerate(self.poses, 1):
+            rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+            candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
+            if progress_cb:
+                progress_cb(
+                    completed,
+                    len(self.poses),
+                    {
+                        "message": f"Final fusion {completed}/{len(self.poses)} accepted views"
+                    },
+                )
+        elapsed = (time.monotonic() - started) * 1000
+        self.stage_totals_ms["final_reintegration"] = (
+            self.stage_totals_ms.get("final_reintegration", 0) + elapsed
+        )
+        self.final_reconstruction = {
+            "applied": False,
+            "reason": "Awaiting final surface validation",
+            "voxel_m": candidate.voxel_size,
+            "blocks": int(candidate.vbg.hashmap().size()),
+            "block_limit": candidate._fusion_block_limit,
+            "attribute_budget_mib": candidate._fusion_block_limit * 4096 * 20 / 2**20,
+            "elapsed_ms": elapsed,
+        }
+        return candidate.vbg
 
-        Returns (success, process_result).
-        """
+    def build_mesh(self, progress_cb=None) -> tuple[bool, dict]:
+        """Build transactionally; a failed final build preserves existing geometry."""
         process_result = self.process_frames(progress_cb=progress_cb)
         if self.frame_count == 0:
             return False, process_result
@@ -947,41 +1027,45 @@ class ScanEngine:
             self.refinement = {"applied": False, "reason": "Not requested"}
         process_result["refinement"] = self.refinement
         try:
-            t_mesh = self.vbg.extract_triangle_mesh(
+            volume = self._final_volume(progress_cb)
+            mesh = volume.extract_triangle_mesh(
                 weight_threshold=self.settings.final_weight
-            )
-            self.mesh = t_mesh.to_legacy()
-            del t_mesh
-            self.mesh.remove_duplicated_vertices()
-            self.mesh.remove_duplicated_triangles()
-            self.mesh.remove_degenerate_triangles()
-            if len(self.mesh.triangles) and self.settings.min_component_triangles:
-                labels, sizes, _ = self.mesh.cluster_connected_triangles()
+            ).to_legacy()
+            mesh.remove_duplicated_vertices()
+            mesh.remove_duplicated_triangles()
+            mesh.remove_degenerate_triangles()
+            if len(mesh.triangles) and self.settings.min_component_triangles:
+                labels, sizes, _ = mesh.cluster_connected_triangles()
                 mask = (
                     np.asarray(sizes)[np.asarray(labels)]
                     < self.settings.min_component_triangles
                 )
-                self.mesh.remove_triangles_by_mask(mask)
-                self.mesh.remove_unreferenced_vertices()
-            if not len(self.mesh.triangles):
-                self.mesh = None
-                process_result["message"] = (
-                    "No confident surface: capture more overlapping views"
+                mesh.remove_triangles_by_mask(mask)
+                mesh.remove_unreferenced_vertices()
+            if not len(mesh.triangles):
+                raise ValueError("No confident surface: capture more overlapping views")
+            if mesh.has_vertex_colors():
+                mesh.vertex_colors = o3d.utility.Vector3dVector(
+                    np.clip(np.asarray(mesh.vertex_colors), 0, 1)
                 )
-                return False, process_result
-            if self.mesh.has_vertex_colors():
-                self.mesh.vertex_colors = o3d.utility.Vector3dVector(
-                    np.clip(np.asarray(self.mesh.vertex_colors), 0, 1)
-                )
-            self.mesh.compute_vertex_normals()
-            t_pcd = self.vbg.extract_point_cloud(
+            mesh.compute_vertex_normals()
+            pcd = volume.extract_point_cloud(
                 weight_threshold=self.settings.final_weight
-            )
-            self.point_cloud = t_pcd.to_legacy()
-            del t_pcd
+            ).to_legacy()
+            # Commit only after fusion and both native extractions succeed.
+            self.mesh, self.point_cloud = mesh, pcd
+            if self.settings.final_voxel_m is not None:
+                self._final_vbg = volume
+                self.final_reconstruction.update(
+                    applied=True, reason="Fresh bounded final fusion"
+                )
+            process_result["final_reconstruction"] = dict(self.final_reconstruction)
             return True, process_result
-        except Exception:
-            traceback.print_exc()
+        except Exception as exc:
+            logger.exception("Final build failed; live volume retained")
+            self.final_reconstruction = {"applied": False, "reason": str(exc)}
+            process_result["final_reconstruction"] = dict(self.final_reconstruction)
+            process_result["message"] = str(exc)
             return False, process_result
 
     def export_ply(self, filepath: str, as_mesh: bool = True) -> bool:

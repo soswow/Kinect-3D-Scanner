@@ -75,6 +75,8 @@ class ScanSettings:
     refine_poses: bool = False
     relocalize: bool = False
     confidence_fusion: bool = False
+    final_voxel_m: float | None = None
+    final_block_count: int = 5000
 
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
@@ -117,6 +119,16 @@ class ScanSettings:
             and 0 <= self.min_component_triangles <= 10000
         ):
             raise ValueError("Invalid mesh confidence settings")
+        if self.final_voxel_m is not None and not (
+            math.isfinite(self.final_voxel_m)
+            and 0.002 <= self.final_voxel_m <= self.voxel_m
+        ):
+            raise ValueError("Final voxel must be 2 mm up to the live voxel size")
+        if (
+            type(self.final_block_count) is not int
+            or not 1 <= self.final_block_count <= 50000
+        ):
+            raise ValueError("Final volume budget must be 1–50000 blocks")
         if self.roi is not None:
             if len(self.roi) != 4 or any(type(v) is not int for v in self.roi):
                 raise ValueError("ROI requires four integer pixel coordinates")

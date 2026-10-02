@@ -1,0 +1,93 @@
+{
+  "regression": {
+    "tests": 62,
+    "passed": 60,
+    "skipped": 2,
+    "skipped_reason": "NVIDIA CUDA hardware/build unavailable",
+    "elapsed_s": 47.166
+  },
+  "http_qt": {
+    "passed": true,
+    "synthetic_camera": true,
+    "checks": [
+      "live payload/rendering",
+      "stale session/capture rejection",
+      "backlog pause",
+      "final voxel settings transfer",
+      "bounded final rebuild",
+      "texture option query and material reload",
+      "lossless session export"
+    ]
+  },
+  "limits": [
+    "Physical calibration and repeated sensor surface accuracy remain unmeasured",
+    "CUDA performance and confidence-weighted kernel remain unverified",
+    "Desk tracking remains unstable; one replay is not a statistical comparison",
+    "Recorded experiment timings may overlap tests"
+  ],
+  "desk_appearance": {
+    "frames": 58,
+    "accepted": 54,
+    "mesh_built": true,
+    "anchored_translation_rmse_m": 0.43028426235644424,
+    "rotation_rmse_deg": 24.72270190916258,
+    "refinement": {
+      "applied": false,
+      "reason": "No trustworthy loop constraints",
+      "loops": 0,
+      "keyframes": 32,
+      "validation": "independent point samples; saturated squared distance",
+      "appearance_candidates": 13,
+      "appearance_loops": 0,
+      "elapsed_ms": 3269.3536253646016
+    }
+  },
+  "redwood_weighted": {
+    "frames": 5,
+    "accepted": 5,
+    "mesh_built": true,
+    "anchored_translation_rmse_m": 0.0024855138566186315,
+    "rotation_rmse_deg": 0.04829457679094527,
+    "refinement": {
+      "applied": false,
+      "reason": "Not requested"
+    },
+    "settings": {
+      "camera": {
+        "name": "Redwood PrimeSense",
+        "width": 640,
+        "height": 480,
+        "fx": 525.0,
+        "fy": 525.0,
+        "cx": 319.5,
+        "cy": 239.5,
+        "image_space": "registered_rgb",
+        "distortion": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "depth_scale": 1.0
+      },
+      "near_m": 0.5,
+      "far_m": 4.0,
+      "voxel_m": 0.005,
+      "truncation_m": 0.04,
+      "min_fitness": 0.35,
+      "max_rmse_m": 0.02,
+      "max_translation_m": 0.3,
+      "max_rotation_deg": 30.0,
+      "final_weight": 0.5,
+      "min_component_triangles": 30,
+      "roi": null,
+      "filter_depth": true,
+      "color_recovery": false,
+      "live_reconstruction": false,
+      "refine_poses": false,
+      "relocalize": false,
+      "confidence_fusion": true
+    }
+  }
+}

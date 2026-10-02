@@ -154,3 +154,60 @@ texel from the existing sharp synchronized view selection. It can reduce blend
 blur but may reveal seams: there is no seam optimization or photometric pose
 warping yet. Missing/occluded observations keep fused vertex color. The report's
 projected fraction describes atlas coverage, not whole-object completeness.
+
+## Live/final budget milestone
+
+Implemented optional `final_voxel_m` (2 mm up to live voxel size) and
+`final_block_count` (default 5000). GUI settings expose these plus the experimental
+relocalization and confidence-fusion toggles. Final reconstruction fuses accepted
+poses into a fresh volume without changing live tracking or raw frames. The block
+limit is checked before each integration; no implicit coarse fallback is used.
+A failed allocation, insufficient surface or budget overflow preserves previous
+geometry. Successful unchanged builds reuse the final volume; new captures
+invalidate it. Controlled tests cover both paths.
+
+```bash
+python scripts/replay_scan.py --dataset recording --path recordings/session \
+  --final-voxel-mm 3 --final-block-count 5000 \
+  --output benchmark-output/final-detail.json
+```
+
+5000 blocks use about 391 MiB of voxel attributes **plus** the live volume,
+frames, hash maps and scratch/extraction memory. This is not a total RAM cap.
+Finer grids are a representation option, not evidence of finer sensor accuracy.
+The live payload remains bounded, adds skipped count/server queue age and
+actionable guidance. Auto capture can wait for server or local-upload backlog and resume automatically;
+manual capture still works. Motion/coverage-based keyframe selection is future
+work and no whole-object completeness percentage is inferred from a live cloud.
+
+## Next evidence and subsequent work
+
+1. Collect checkerboard/known-plane recordings and repeated scans of a measured
+   object; use the calibration and surface tools before changing defaults.
+2. Run the profiling harness and CUDA tests on an NVIDIA server. CPU smoke tests
+   cannot establish CUDA speed, VRAM behavior or weighted-kernel correctness.
+3. Test repeated/weakly textured scenes and longer loops; compare an external
+   RTAB-Map pose provider if the bounded tracker still fails.
+4. Tune confidence only against measured sensor errors and reference completeness.
+5. Compare texture seams/sharpness on real RGB; patch seam leveling is still open.
+6. Implement an explicit turntable model with measured rotation axis/angles and
+   separate foreground masks. Do not infer object rotation from a static background.
+
+The six software milestones are reviewable checkpoints; physical/NVIDIA evidence
+is still required for claims of calibrated accuracy or a default change.
+
+
+## Final batch validation
+
+The final suite passed 60 tests; two CUDA tests were skipped (62 total).
+It covers measured-camera recovery, rejected matches,
+transactional pose/final reintegration, weighted depth, error/completeness,
+texture projection and material reloads. CUDA tests are present but skipped on
+this Mac. The actual HTTP/WebSocket and offscreen Qt workflow covers live
+feedback, settings transfer, backlog pausing, previews, finer final rebuilding,
+textured exports and lossless sessions. A fresh public five-frame Redwood HTTP
+replay accepted 5/5 with anchored position RMSE 1.36 mm; this is camera tracking
+on that short sequence, not Kinect mesh accuracy.
+
+[Aggregate validation](benchmarks/milestone-validation.json) preserves results
+without captured images. Detailed logs and session data remain ignored.

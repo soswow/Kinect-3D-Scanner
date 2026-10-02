@@ -56,6 +56,10 @@ class ServerTaskWorker(QThread):
         self._queue.put(task)
         return True
 
+    @property
+    def queued_task_count(self):
+        return self._queue.qsize()
+
     def stop(self):
         self._stop_flag = True
         self._queue.put(None)

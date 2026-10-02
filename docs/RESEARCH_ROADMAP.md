@@ -12,6 +12,17 @@ candidates, not an exhaustive survey of every 3D-scanning paper. Sources were
 checked in October 2026. Recommendations below are engineering assessments for
 this project; paper results are not measurements of this implementation.
 
+## Implementation checkpoint, October 2026
+
+The six ordered software milestones below are implemented in separate commits.
+[IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) records commands,
+acceptance checks and limitations. Hardware-dependent acceptance remains open:
+measured per-device calibration, repeated physical accuracy/completeness tests,
+and matched NVIDIA runs. Appearance loops, confidence fusion, exposure matching
+and finer final fusion are available experiments, not established quality gains
+for arbitrary Kinect subjects. The difficult desk sequence still lacks a trusted
+loop. Turntable capture and patch seam optimization remain subsequent work.
+
 ## Papers with direct application
 
 | Work | Useful idea | Application and priority |

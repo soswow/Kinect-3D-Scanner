@@ -273,6 +273,10 @@ def main():
     parser.add_argument(
         "--output", type=Path, default=ROOT / "benchmark-output/replay.json"
     )
+    parser.add_argument(
+        "--final-voxel-mm", type=float, help="Final fusion voxel; 0 uses live volume"
+    )
+    parser.add_argument("--final-block-count", type=int)
     parser.add_argument("--near", type=float)
     parser.add_argument("--far", type=float)
     parser.add_argument(
@@ -308,6 +312,12 @@ def main():
     settings, frames = load_dataset(args.dataset, args.path, args.stride, args.limit)
     settings = replace(
         settings,
+        final_voxel_m=settings.final_voxel_m
+        if args.final_voxel_mm is None
+        else (args.final_voxel_mm / 1000 if args.final_voxel_mm else None),
+        final_block_count=args.final_block_count
+        if args.final_block_count is not None
+        else settings.final_block_count,
         near_m=args.near if args.near is not None else settings.near_m,
         far_m=args.far if args.far is not None else settings.far_m,
         final_weight=args.final_weight
@@ -334,13 +344,7 @@ def main():
         else ScanEngine(device=args.device, tracking=args.tracking)
     )
     if not args.baseline_source:
-        engine.reset(
-            settings=replace(
-                settings,
-                near_m=args.near if args.near is not None else settings.near_m,
-                far_m=args.far if args.far is not None else settings.far_m,
-            )
-        )
+        engine.reset(settings=settings)
     start = time.monotonic()
     estimated, diagnostics = [], []
     for i, (rgb, depth, stamp, _) in enumerate(frames):
@@ -380,6 +384,7 @@ def main():
         "tracking_score": score(estimated, frames),
         "backend": getattr(engine, "backend", None),
         "refinement": getattr(engine, "refinement", None),
+        "final_reconstruction": getattr(engine, "final_reconstruction", None),
         "stage_totals_ms": getattr(engine, "stage_totals_ms", None),
         "peak_process_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         * (1 if sys.platform == "darwin" else 1024),

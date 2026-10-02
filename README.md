@@ -152,7 +152,14 @@ constraints, optimizes a bounded keyframe graph, and reintegrates into a fresh
 volume only after separate geometry samples improve. It can retain the original
 trajectory when no reliable loop exists, and needs memory for two volumes.
 
-See [operation, validation, limits, and remaining implementation work](docs/LIVE_RECONSTRUCTION.md)
+Optional **Lost tracking recovery**, **sensor confidence weighting**, and
+**finer final fusion** now have explicit controls. Final fusion uses a separate,
+bounded volume; live feedback reports queue age and can pause automatic capture
+for backlog. Texture exports can match exposures or select one best view per
+texel. Experimental quality options remain off until measured scans justify them.
+
+See [tested milestone checkpoints and next evidence](docs/IMPLEMENTATION_MILESTONES.md),
+[operation, validation, limits, and remaining implementation work](docs/LIVE_RECONSTRUCTION.md)
 and [papers and open-source integration roadmap](docs/RESEARCH_ROADMAP.md).
 
 ---

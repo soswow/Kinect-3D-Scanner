@@ -3,6 +3,11 @@
 The active client uses `scanner_server/engine.py`. The older local engine is
 retained as reference code and is not used by the GUI.
 
+See [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) for the newer
+ordered work: calibration tools, profiling, distant appearance matching,
+confidence fusion, texture correction and separate live/final budgets. The
+results below describe the preceding tracking baseline.
+
 ## What changed
 
 - **Consistent camera model.** Registered depth is projected into RGB pixels.
@@ -205,6 +210,6 @@ GUI check uses synthetic camera input; the network check also replays Redwood.
    a reference reconstruction, report completeness alongside error, and use motion/
    coverage to pick useful frames. Then tune noise filtering and voxel presets.
 
-Global refinement and turntable capture remain planned. The color-assisted
+Global refinement is implemented experimentally; turntable capture remains planned. The color-assisted
 prototype stays opt-in because the tested sequences show a tradeoff rather than
 a uniform improvement. No live device measurements were performed in this batch.
