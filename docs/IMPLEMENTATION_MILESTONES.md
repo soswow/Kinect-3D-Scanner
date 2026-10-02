@@ -211,3 +211,18 @@ on that short sequence, not Kinect mesh accuracy.
 
 [Aggregate validation](benchmarks/milestone-validation.json) preserves results
 without captured images. Detailed logs and session data remain ignored.
+
+## Milestone 7: withheld-view quality and repeated comparisons
+
+Added a disjoint-phase RGB-D reader, held-out mesh raycasting and isolated
+repeated quality comparisons. The scorer reports depth residuals together with
+coverage and a missing-surface penalty. Exact-plane tests verify metric depth
+under a rigid anchor; partial/empty surfaces cannot masquerade as lower-error
+improvements. Reader and existing replay tests pass (9 checks). A Redwood smoke
+run exercises successful uniform extraction and missing weighted extraction.
+
+See [QUALITY_BENCHMARKS.md](QUALITY_BENCHMARKS.md) for commands, source/input
+hashes, repeat statistics and limits. Public sensor depth is a consistency
+reference, not an independently accurate physical surface. Reconstruction never
+receives the held-out views or reference poses. Longer comparisons are being
+collected before choosing the next tracking/fusion change.

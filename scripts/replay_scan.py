@@ -79,7 +79,9 @@ def tum_pose(values):
     return pose
 
 
-def load_dataset(kind, path=None, stride=1, limit=None):
+def load_dataset(kind, path=None, stride=1, limit=None, offset=0):
+    if type(stride) is not int or stride < 1 or not 0 <= offset < stride:
+        raise ValueError("Require positive stride and 0 <= offset < stride")
     metadata_by_path = {}
     if kind == "redwood":
         sample = o3d.data.SampleRedwoodRGBDImages(
@@ -136,7 +138,7 @@ def load_dataset(kind, path=None, stride=1, limit=None):
             for f in manifest["frames"]
         ]
         camera = settings.camera
-    entries = entries[::stride][:limit]
+    entries = entries[offset::stride][:limit]
     frames = []
     for stamp, c, d, pose, scale in entries:
         rgb = cv2.cvtColor(cv2.imread(str(c)), cv2.COLOR_BGR2RGB)
