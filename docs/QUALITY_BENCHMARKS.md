@@ -113,3 +113,12 @@ and final refinement remain opt-in; ordinary tracking/fusion defaults are intact
 Controlled noisy-depth tests demonstrate the sampler's mechanism independently:
 a correct RGB-D proposal survives noise that causes single-pixel depth to fail,
 while wrong depth, unsupported centers, holes and discontinuities stay rejected.
+
+## Report provenance
+
+Current quality reports use schema/input-hash version 2. Input hashing includes
+capture metadata with sorted keys, because pairing lag changes appearance
+eligibility even for identical image bytes. Workers record accepted tracking
+method counts and stage totals; use these to check whether a recovery algorithm
+actually participated. The earlier aggregate evidence keeps its original
+version-1 hashes at the recorded source, without retroactive conversion.

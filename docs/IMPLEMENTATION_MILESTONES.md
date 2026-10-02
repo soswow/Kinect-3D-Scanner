@@ -254,3 +254,17 @@ comparison completed all four runs with unchanged source and matched inputs.
 The modest two-repeat median improvement is documented without claiming solved
 tracking or statistically established quality. Earlier unrelated working edits
 are preserved outside these commits.
+
+## Milestone 9: benchmark provenance and recovery attribution
+
+Quality report schema/hash version 2 includes capture metadata in the input hash:
+pairing lag can alter which appearance candidates are allowed even when image
+bytes are identical. Key ordering is normalized. Workers also record accepted
+tracking-method counts and stage totals, so future comparisons can identify
+actual recovery usage. Missing dataset paths fail before launching workers.
+
+Ten focused scorer/reader tests and an isolated Redwood replay pass. Recovery
+counts equal the accepted-frame count, stage attribution is present, input/source
+checks match, and absent TUM paths give an explicit CLI error. Earlier aggregate
+files preserve the exact version-1 hashes from their recorded checkpoints; they
+are not rewritten to resemble newer code.

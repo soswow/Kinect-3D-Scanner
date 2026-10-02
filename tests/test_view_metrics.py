@@ -9,8 +9,8 @@ import numpy as np
 import open3d as o3d
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from benchmark_quality import aggregate, disjoint_views
-from replay_scan import load_dataset
+from benchmark_quality import aggregate, disjoint_views, input_hash
+from replay_scan import ReplayFrame, load_dataset
 
 from shared.recording import RecordingWriter
 from shared.settings import ScanSettings
@@ -108,3 +108,21 @@ class ViewMetricTests(unittest.TestCase):
         self.assertEqual(0, summary["mesh_successes"])
         self.assertIsNone(summary["depth_rmse_over_hits_m"])
         self.assertEqual(0.1, summary["capped_rmse_including_missing_m"]["median"])
+
+    def test_input_hash_includes_pairing_metadata_and_is_order_stable(self):
+        rgb, depth, stamp, pose = frames()[0]
+        a = ReplayFrame(
+            rgb, depth, stamp, pose, {"rgb_depth_delta_ms": 5, "capture_id": 1}
+        )
+        b = ReplayFrame(
+            rgb, depth, stamp, pose, {"capture_id": 1, "rgb_depth_delta_ms": 5}
+        )
+        c = ReplayFrame(
+            rgb, depth, stamp, pose, {"rgb_depth_delta_ms": 25, "capture_id": 1}
+        )
+        self.assertEqual(
+            input_hash(ScanSettings(), [a], []), input_hash(ScanSettings(), [b], [])
+        )
+        self.assertNotEqual(
+            input_hash(ScanSettings(), [a], []), input_hash(ScanSettings(), [c], [])
+        )

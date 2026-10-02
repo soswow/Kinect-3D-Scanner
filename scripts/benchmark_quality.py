@@ -12,6 +12,7 @@ import random
 import subprocess
 import sys
 import time
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
@@ -57,7 +58,11 @@ def input_hash(settings, training, withheld):
     digest = hashlib.sha256(json.dumps(settings.to_dict(), sort_keys=True).encode())
     for label, frames in ((b"training", training), (b"withheld", withheld)):
         digest.update(label)
-        for rgb, depth, stamp, reference in frames:
+        for frame in frames:
+            rgb, depth, stamp, reference = frame
+            digest.update(
+                json.dumps(getattr(frame, "metadata", {}), sort_keys=True).encode()
+            )
             digest.update(str(stamp).encode())
             digest.update(rgb.tobytes())
             digest.update(depth.tobytes())
@@ -127,6 +132,8 @@ def run_worker(args):
     )
     view_metrics["anchor_note"] = anchor_note
     report = {
+        "schema_version": 2,
+        "input_hash_version": 2,
         "variant": args.worker,
         "feature_depth_support": args.worker != "appearance_raw",
         "seed": args.seed,
@@ -139,6 +146,12 @@ def run_worker(args):
             "opencv": cv2.__version__,
             "numpy": np.__version__,
         },
+        "stage_totals_ms": dict(engine.stage_totals_ms),
+        "tracking_methods": dict(
+            Counter(
+                d.get("method", "reference") for d in engine.diagnostics if d["success"]
+            )
+        ),
         "training_frames": len(training),
         "withheld_frames": len(withheld),
         "accepted": engine.frame_count,
@@ -224,6 +237,8 @@ def main():
         parser.error("Require stride >=2, positive repeats/limit")
     if not 0 < args.threshold_mm <= 100 or not 1 <= args.pixel_stride <= 16:
         parser.error("Require threshold 0–100 mm and pixel stride 1–16")
+    if args.dataset != "redwood" and args.path is None:
+        parser.error("TUM/recording benchmarks require --path")
     if args.worker:
         run_worker(args)
         return
@@ -271,6 +286,8 @@ def main():
             runs.append(json.loads(path.read_text()))
             # Preserve completed checkpoints even if a later run is interrupted.
             report = {
+                "schema_version": 2,
+                "input_hash_version": 2,
                 "dataset": args.dataset,
                 "stride": args.stride,
                 "limit": args.limit,
