@@ -1,0 +1,90 @@
+{
+  "dataset": "tum",
+  "stride": 10,
+  "limit": null,
+  "source_sha256": "0989ad8f58b153aeba03c8ce45b0f3d713a5b8a79a01b3a1081ed3b024293056",
+  "source_changed": false,
+  "input_sha256": "18fd5d2c87712f3cfb13f313e5fbb2b85e394e602642b522a9ad64b546525a0b",
+  "matched_inputs": true,
+  "requested_repeats": 3,
+  "completed_runs": 6,
+  "summary": {
+    "uniform": {
+      "runs": 3,
+      "mesh_successes": 3,
+      "accepted": {
+        "min": 80,
+        "median": 80.0,
+        "max": 80
+      },
+      "trajectory_rmse_m": {
+        "min": 0.04347815426626255,
+        "median": 0.04358618334675079,
+        "max": 0.04367413744593296
+      },
+      "depth_rmse_over_hits_m": {
+        "min": 0.15495620667934418,
+        "median": 0.15499772131443024,
+        "max": 0.15508057177066803
+      },
+      "hit_fraction": {
+        "min": 0.9735566196900476,
+        "median": 0.973600624516497,
+        "max": 0.9736314278950116
+      },
+      "completeness_within_threshold": {
+        "min": 0.20734018107105986,
+        "median": 0.2075329222109081,
+        "max": 0.20757252655471253
+      },
+      "capped_rmse_including_missing_m": {
+        "min": 0.045066757928740674,
+        "median": 0.04507914072385877,
+        "max": 0.0450869866502834
+      }
+    },
+    "confidence": {
+      "runs": 3,
+      "mesh_successes": 3,
+      "accepted": {
+        "min": 80,
+        "median": 80.0,
+        "max": 80
+      },
+      "trajectory_rmse_m": {
+        "min": 0.04241823728505423,
+        "median": 0.0432402727402459,
+        "max": 0.04336456070815035
+      },
+      "depth_rmse_over_hits_m": {
+        "min": 0.09052885323762894,
+        "median": 0.09095961600542068,
+        "max": 0.09145665168762207
+      },
+      "hit_fraction": {
+        "min": 0.8370334058239508,
+        "median": 0.8371821421373496,
+        "max": 0.8374180080071182
+      },
+      "completeness_within_threshold": {
+        "min": 0.22252360638914875,
+        "median": 0.22266090144767078,
+        "max": 0.22331657336176633
+      },
+      "capped_rmse_including_missing_m": {
+        "min": 0.05159691897740326,
+        "median": 0.05160617344649717,
+        "max": 0.05162322868390723
+      }
+    }
+  },
+  "notes": [
+    "Seeds do not guarantee bitwise Open3D/hash-map determinism",
+    "Withheld depth shares sensor/calibration noise; this is not independent absolute accuracy",
+    "No reference pose/image initializes or refines reconstruction",
+    "Compare coverage and error together; missing mesh receives a penalty"
+  ],
+  "source_checkpoint": "1f0853c",
+  "training_frames": 80,
+  "withheld_frames": 79
+}

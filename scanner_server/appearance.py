@@ -15,7 +15,7 @@ class Features:
     descriptors: np.ndarray | None
 
 
-def extract_features(rgb, depth, camera):
+def extract_features(rgb, depth, camera, *, depth_support=True):
     gray = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2GRAY)
     keypoints, descriptors = cv2.ORB_create(
         nfeatures=1200, fastThreshold=12
@@ -26,6 +26,29 @@ def extract_features(rgb, depth, camera):
     x, y = np.rint(pixels).astype(int).T
     z = np.asarray(depth)[y, x].astype(float) / 1000
     valid = z > 0
+    if depth_support:
+        # A measured center is mandatory; neighbours never fill unknown pixels.
+        # ORB's border margin keeps every 3x3 patch inside the image.
+        pixels, descriptors, x, y = (
+            pixels[valid],
+            descriptors[valid],
+            x[valid],
+            y[valid],
+        )
+        if not len(pixels):
+            return Features(np.empty((0, 2)), np.empty((0, 3)), None)
+        patch = (
+            np.array(
+                [depth[y + dy, x + dx] for dy in (-1, 0, 1) for dx in (-1, 0, 1)], float
+            )
+            / 1000
+        )
+        present = patch > 0
+        patch[~present] = np.nan
+        z = np.nanmedian(patch, axis=0)
+        spread = np.nanmax(patch, axis=0) - np.nanmin(patch, axis=0)
+        # Engineering discontinuity bound, not measured per-device uncertainty.
+        valid = (present.sum(axis=0) >= 7) & (spread <= np.maximum(0.03, 0.04 * z))
     points = np.column_stack(
         (
             (pixels[:, 0] - camera.cx) * z / camera.fx,

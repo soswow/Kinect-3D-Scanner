@@ -1,0 +1,147 @@
+{
+  "dataset": "tum",
+  "stride": 10,
+  "limit": null,
+  "source_sha256": "3225c3aa9667a6762716d1be97fe01e3d50ffc5b5931bfc4bce0f1b3569ac056",
+  "source_changed": false,
+  "input_sha256": "881c05fc3632a015670d66c26ad861a74fbe3c10d2920c20e26460ad4c4cd2a9",
+  "matched_inputs": true,
+  "requested_repeats": 2,
+  "completed_runs": 4,
+  "summary": {
+    "appearance_raw": {
+      "runs": 2,
+      "mesh_successes": 2,
+      "accepted": {
+        "min": 38,
+        "median": 44.5,
+        "max": 51
+      },
+      "trajectory_rmse_m": {
+        "min": 0.7042277565814739,
+        "median": 0.7514265317673152,
+        "max": 0.7986253069531566
+      },
+      "depth_rmse_over_hits_m": {
+        "min": 0.20837441086769104,
+        "median": 0.21997758746147156,
+        "max": 0.23158076405525208
+      },
+      "hit_fraction": {
+        "min": 0.7945952506870811,
+        "median": 0.809938308226024,
+        "max": 0.8252813657649668
+      },
+      "completeness_within_threshold": {
+        "min": 0.054551579698315956,
+        "median": 0.05764050329390229,
+        "max": 0.06072942688948862
+      },
+      "capped_rmse_including_missing_m": {
+        "min": 0.0749953032531992,
+        "median": 0.07508250581256651,
+        "max": 0.0751697083719338
+      }
+    },
+    "appearance_supported": {
+      "runs": 2,
+      "mesh_successes": 2,
+      "accepted": {
+        "min": 53,
+        "median": 54.0,
+        "max": 55
+      },
+      "trajectory_rmse_m": {
+        "min": 0.6517568077249374,
+        "median": 0.6737587752922267,
+        "max": 0.695760742859516
+      },
+      "depth_rmse_over_hits_m": {
+        "min": 0.19043533504009247,
+        "median": 0.2136254385113716,
+        "max": 0.23681554198265076
+      },
+      "hit_fraction": {
+        "min": 0.8225825828801302,
+        "median": 0.8607414407462959,
+        "max": 0.8989002986124615
+      },
+      "completeness_within_threshold": {
+        "min": 0.055790121637203816,
+        "median": 0.058301265418298956,
+        "max": 0.0608124091993941
+      },
+      "capped_rmse_including_missing_m": {
+        "min": 0.07035963749770027,
+        "median": 0.07280859362816795,
+        "max": 0.07525754975863563
+      }
+    }
+  },
+  "notes": [
+    "Seeds do not guarantee bitwise Open3D/hash-map determinism",
+    "Withheld depth shares sensor/calibration noise; this is not independent absolute accuracy",
+    "No reference pose/image initializes or refines reconstruction",
+    "Compare coverage and error together; missing mesh receives a penalty"
+  ],
+  "training_frames": 58,
+  "withheld_frames": 57,
+  "refinement_outcomes": [
+    {
+      "variant": "appearance_raw",
+      "seed": 0,
+      "refinement": {
+        "applied": false,
+        "reason": "No trustworthy loop constraints",
+        "loops": 0,
+        "keyframes": 32,
+        "validation": "independent point samples; saturated squared distance",
+        "appearance_candidates": 11,
+        "appearance_loops": 0,
+        "elapsed_ms": 3501.0463325306773
+      }
+    },
+    {
+      "variant": "appearance_supported",
+      "seed": 0,
+      "refinement": {
+        "applied": false,
+        "reason": "No trustworthy loop constraints",
+        "loops": 0,
+        "keyframes": 32,
+        "validation": "independent point samples; saturated squared distance",
+        "appearance_candidates": 10,
+        "appearance_loops": 0,
+        "elapsed_ms": 3036.4796249195933
+      }
+    },
+    {
+      "variant": "appearance_raw",
+      "seed": 1,
+      "refinement": {
+        "applied": false,
+        "reason": "No trustworthy loop constraints",
+        "loops": 0,
+        "keyframes": 32,
+        "validation": "independent point samples; saturated squared distance",
+        "appearance_candidates": 13,
+        "appearance_loops": 0,
+        "elapsed_ms": 3197.0682917162776
+      }
+    },
+    {
+      "variant": "appearance_supported",
+      "seed": 1,
+      "refinement": {
+        "applied": false,
+        "reason": "No trustworthy loop constraints",
+        "loops": 0,
+        "keyframes": 32,
+        "validation": "independent point samples; saturated squared distance",
+        "appearance_candidates": 10,
+        "appearance_loops": 0,
+        "elapsed_ms": 3592.1719167381525
+      }
+    }
+  ]
+}

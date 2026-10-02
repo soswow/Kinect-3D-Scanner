@@ -29,7 +29,7 @@ def plate(width):
 
 class SensorFusionTests(unittest.TestCase):
     def test_weighted_tracking_and_final_mesh_on_asymmetric_scene(self):
-        from test_quality import scene_frames
+        from tests.test_quality import scene_frames
 
         engine = ScanEngine()
         engine.reset(

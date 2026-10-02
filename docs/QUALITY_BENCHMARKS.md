@@ -66,3 +66,50 @@ The source dataset and registered-depth conventions are documented by
 Independent exact rendered geometry is available in
 [Augmented ICL-NUIM](https://www.open3d.org/docs/release/python_api/open3d.data.RedwoodIndoorLivingRoom1.html),
 which is synthetic and should be labeled separately from real Kinect recordings.
+
+## XYZ: three matched repeats
+
+[Aggregate results](benchmarks/xyz-heldout-summary.json) record six isolated
+runs at checkpoint `1f0853c`, 80 training and 80 selected withheld frames.
+Seventy-eight withheld frames had reference poses. Source hashes stayed constant
+and selected input hashes matched. Both modes accepted all 80 training frames
+in every repeat. Median results:
+
+| Mode | Anchored camera RMSE | Rendered hit fraction | Agreement within 10 mm / all valid reference pixels | Capped RMSE including missing |
+|---|---:|---:|---:|---:|
+| Uniform | 43.59 mm | 97.36% | 20.75% | 45.08 mm |
+| Confidence weighted | 43.24 mm | 83.72% | 22.27% | 51.61 mm |
+
+Overlap-only depth RMSE was 155.00 mm uniform and 90.96 mm weighted. The weighted
+mode improves residuals where it has a surface, but leaves more uncovered pixels
+and worsens the score that penalizes missing surfaces. This is a tradeoff, not
+justification to change the default. The large residuals combine tracking drift,
+view occlusions, reconstruction and the approximate camera/reference associations.
+
+## Depth support: desk comparison
+
+```bash
+python scripts/benchmark_quality.py --dataset tum \
+  --path datasets/rgbd_dataset_freiburg1_desk --repeats 2 \
+  --variants appearance_raw appearance_supported \
+  --output benchmark-output/desk-supported-heldout.json
+```
+
+Both variants enable relocalization/final refinement. The raw comparison uses
+single-pixel feature depth; supported sampling requires a measured center,
+seven valid 3x3 samples and no large depth discontinuity, then uses their median.
+[Aggregate evidence](benchmarks/desk-supported-heldout-summary.json) preserves
+all four runs, source/input hashes, repeat ranges and refinement outcomes.
+
+| Sampling | Accepted frames / 58 | Camera RMSE median | Hit fraction median | Agreement within 10 mm median | Capped RMSE including missing median |
+|---|---:|---:|---:|---:|---:|
+| Raw | 38–51 | 751.43 mm | 80.99% | 5.76% | 75.08 mm |
+| Supported | 53–55 | 673.76 mm | 86.07% | 5.83% | 72.81 mm |
+
+The median is better in these two repeats, but the scene remains poorly tracked,
+residual/coverage gains are small, and native tracking remains unstable. This is
+not statistically established non-regression or a solved reconstruction. Recovery
+and final refinement remain opt-in; ordinary tracking/fusion defaults are intact.
+Controlled noisy-depth tests demonstrate the sampler's mechanism independently:
+a correct RGB-D proposal survives noise that causes single-pixel depth to fail,
+while wrong depth, unsupported centers, holes and discontinuities stay rejected.

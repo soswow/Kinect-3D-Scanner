@@ -226,3 +226,31 @@ hashes, repeat statistics and limits. Public sensor depth is a consistency
 reference, not an independently accurate physical surface. Reconstruction never
 receives the held-out views or reference poses. Longer comparisons are being
 collected before choosing the next tracking/fusion change.
+
+## Milestone 8: depth-supported appearance proposals
+
+Appearance features now require a measured center with at least seven valid
+samples in its 3x3 patch. Discontinuous patches are rejected; supported patches
+use the median of measured neighbours for proposal depth. RGB matching, PnP,
+cross-depth checks, reciprocal ICP, normal diversity and independent refinement
+validation retain their acceptance limits. There is no filling of missing
+centers and raw depth/fusion inputs are unchanged.
+
+The patch-spread limit (30 mm or 4% of range) is an engineering edge heuristic,
+not calibrated Kinect noise. Tests cover depth edges, holes, unsupported centers
+and noisy measured planes. The noisy-plane fixture recovers the correct proposal
+where single-pixel cross-depth checks fail; a flat target still cannot authorize
+final camera motion through the geometric gates. Existing distant-loop/lost-pose
+checks pass. The options that use these proposals remain experimental.
+
+The quality harness can compare `appearance_raw` and `appearance_supported`
+with the same relocalization/final-refinement settings. The raw variant restores
+only single-pixel feature sampling inside its isolated worker. The report records
+that override. Better or more numerous proposal seeds are not evidence of better
+final geometry; use the withheld-view and repeat results together.
+
+Final regression: 68 tests passed, two CUDA tests skipped (70 total). The desk
+comparison completed all four runs with unchanged source and matched inputs.
+The modest two-repeat median improvement is documented without claiming solved
+tracking or statistically established quality. Earlier unrelated working edits
+are preserved outside these commits.

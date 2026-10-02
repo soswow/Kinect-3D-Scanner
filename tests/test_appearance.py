@@ -15,10 +15,9 @@ class AppearanceTests(unittest.TestCase):
     def test_verified_relocalization_recovers_after_lost_pose(self):
         from dataclasses import replace
 
-        from test_quality import scene_frames
-
         from scanner_server.engine import ScanEngine
         from shared.calibration import prepare_rgbd
+        from tests.test_quality import scene_frames
 
         engine = ScanEngine()
         engine.reset(settings=replace(engine.settings, relocalize=True))
@@ -41,10 +40,9 @@ class AppearanceTests(unittest.TestCase):
         self.assertIsNone(engine._relocalize(cloud, rgbd))
 
     def test_refinement_finds_loop_outside_old_pose_radius(self):
-        from test_quality import scene_frames
-
         from scanner_server.engine import ScanEngine
         from scanner_server.refinement import propose_poses
+        from tests.test_quality import scene_frames
 
         engine = ScanEngine()
         base = scene_frames(10)
@@ -93,3 +91,44 @@ class AppearanceTests(unittest.TestCase):
         ]:
             target = extract_features(image, metric, camera)
             self.assertIsNone(propose_transform(source, target, camera))
+
+
+class FeatureDepthSupportTests(unittest.TestCase):
+    def test_measured_patch_reduces_depth_noise_before_proposal(self):
+        rng = np.random.default_rng(9)
+        rgb = rng.integers(0, 255, (480, 640, 3), dtype=np.uint8)
+        depths = [
+            np.rint(3000 + rng.normal(0, 25, (480, 640))).astype(np.uint16)
+            for _ in range(2)
+        ]
+        camera = CameraCalibration()
+        raw = [extract_features(rgb, d, camera, depth_support=False) for d in depths]
+        self.assertIsNone(propose_transform(*raw, camera))
+        supported = [extract_features(rgb, d, camera) for d in depths]
+        proposal = propose_transform(*supported, camera)
+        self.assertIsNotNone(proposal)
+        np.testing.assert_allclose(proposal, np.eye(4), atol=0.005)
+        self.assertLess(
+            np.std(supported[0].points[:, 2]), np.std(raw[0].points[:, 2]) * 0.65
+        )
+
+    def test_features_near_depth_discontinuity_or_holes_are_rejected(self):
+        rng = np.random.default_rng(10)
+        rgb = rng.integers(0, 255, (480, 640, 3), dtype=np.uint8)
+        depth = np.full((480, 640), 1000, np.uint16)
+        depth[:, 320:] = 2000
+        depth[150:250, 150:250] = 0
+        features = extract_features(rgb, depth, CameraCalibration())
+        x, y = np.rint(features.pixels).astype(int).T
+        self.assertGreater(len(x), 100)
+        self.assertTrue(np.all(depth[y, x] > 0))
+        self.assertFalse(np.any((x == 319) | (x == 320)))
+        self.assertFalse(np.any((150 <= x) & (x < 250) & (150 <= y) & (y < 250)))
+
+    def test_neighbours_do_not_supply_unsupported_measured_centers(self):
+        rng = np.random.default_rng(11)
+        rgb = rng.integers(0, 255, (480, 640, 3), dtype=np.uint8)
+        depth = np.zeros((480, 640), np.uint16)
+        depth[::3, ::3] = 1200
+        features = extract_features(rgb, depth, CameraCalibration())
+        self.assertEqual(0, len(features.points))

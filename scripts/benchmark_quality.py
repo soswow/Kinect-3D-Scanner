@@ -33,6 +33,9 @@ VARIANTS = {
     "confidence": {"confidence_fusion": True},
     "relocalize": {"relocalize": True},
     "refine": {"refine_poses": True},
+    "color": {"color_recovery": True},
+    "appearance_raw": {"relocalize": True, "refine_poses": True},
+    "appearance_supported": {"relocalize": True, "refine_poses": True},
 }
 
 
@@ -82,6 +85,15 @@ def run_worker(args):
     disjoint_views(training, withheld)
     digest = input_hash(settings, training, withheld)
     settings = replace(settings, **VARIANTS[args.worker])
+    if args.worker == "appearance_raw":
+        from functools import partial
+
+        from scanner_server import appearance
+
+        appearance.extract_features = partial(
+            appearance.extract_features, depth_support=False
+        )
+
     engine = ScanEngine(device="cpu")
     engine.reset(settings=settings)
     started = time.monotonic()
@@ -116,6 +128,7 @@ def run_worker(args):
     view_metrics["anchor_note"] = anchor_note
     report = {
         "variant": args.worker,
+        "feature_depth_support": args.worker != "appearance_raw",
         "seed": args.seed,
         "input_sha256": digest,
         "source_sha256": source_hash(),
