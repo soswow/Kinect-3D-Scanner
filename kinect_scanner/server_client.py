@@ -208,9 +208,11 @@ class ServerClient(QObject):
             f.write(resp.content)
         return tmp_path
 
-    def request_export(self, fmt: str, save_path: str) -> bool:
+    def request_export(self, fmt: str, save_path: str, options=None) -> bool:
         """Download exported mesh and save to local path."""
-        resp = self._http.get(f"/api/scan/export/{fmt}", timeout=600.0)
+        resp = self._http.get(
+            f"/api/scan/export/{fmt}", params=options or {}, timeout=600.0
+        )
         resp.raise_for_status()
 
         content_type = resp.headers.get("content-type", "")

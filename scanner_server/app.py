@@ -486,6 +486,8 @@ async def export_textured(
     max_triangles: int = 50000,
     max_views: int = 24,
     use_images: bool = True,
+    exposure_correction: bool = False,
+    blend_mode: str = "blend",
 ):
     """Portable UV texture export; options explicitly bound work and output size."""
     if fmt not in ("glb", "obj.zip"):
@@ -506,6 +508,8 @@ async def export_textured(
                     max_triangles=max_triangles,
                     max_views=max_views,
                     use_images=use_images,
+                    exposure_correction=exposure_correction,
+                    blend_mode=blend_mode,
                 )
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc

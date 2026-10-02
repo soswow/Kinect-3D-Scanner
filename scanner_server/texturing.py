@@ -42,8 +42,52 @@ def _views(engine, max_views):
     return selected
 
 
+def _project(world, normals, rgb, depth, pose, camera_model, near, far):
+    extrinsic = np.linalg.inv(pose)
+    camera = world @ extrinsic[:3, :3].T + extrinsic[:3, 3]
+    z = camera[:, 2]
+    u = camera[:, 0] * camera_model.fx / np.maximum(z, 1e-6) + camera_model.cx
+    v = camera[:, 1] * camera_model.fy / np.maximum(z, 1e-6) + camera_model.cy
+    x = np.clip(np.rint(u), 0, camera_model.width - 1).astype(int)
+    y = np.clip(np.rint(v), 0, camera_model.height - 1).astype(int)
+    observed = depth[y, x]
+    direction = pose[:3, 3] - world
+    direction /= np.maximum(np.linalg.norm(direction, axis=1, keepdims=True), 1e-6)
+    cosine = np.abs(np.sum(normals * direction, axis=1))
+    mask = (
+        (z > near)
+        & (z < far)
+        & (u >= 0)
+        & (v >= 0)
+        & (u < camera_model.width - 1)
+        & (v < camera_model.height - 1)
+        & (observed > 0)
+        & (np.abs(observed - z) <= np.maximum(0.015, 0.01 * z))
+        & (cosine > 0.25)
+    )
+    ids = np.flatnonzero(mask)
+    colors = np.zeros((len(world), 3), np.float32)
+    weights = np.zeros(len(world), np.float32)
+    x0, y0 = np.floor(u[ids]).astype(int), np.floor(v[ids]).astype(int)
+    dx, dy = (u[ids] - x0)[:, None], (v[ids] - y0)[:, None]
+    colors[ids] = (
+        rgb[y0, x0] * (1 - dx) * (1 - dy)
+        + rgb[y0, x0 + 1] * dx * (1 - dy)
+        + rgb[y0 + 1, x0] * (1 - dx) * dy
+        + rgb[y0 + 1, x0 + 1] * dx * dy
+    ) / 255
+    weights[ids] = cosine[ids] ** 2 / np.maximum(z[ids] ** 2, 0.1)
+    return colors, weights
+
+
 def make_textured_mesh(
-    engine, size=1024, max_triangles=50000, max_views=24, use_images=True
+    engine,
+    size=1024,
+    max_triangles=50000,
+    max_views=24,
+    use_images=True,
+    exposure_correction=False,
+    blend_mode="blend",
 ):
     if engine.mesh is None or not len(engine.mesh.triangles):
         raise ValueError("Build a mesh before texturing")
@@ -51,6 +95,8 @@ def make_textured_mesh(
         raise ValueError("Texture size must be 256, 512, 1024, or 2048")
     if not 100 <= max_triangles <= 200000 or not 1 <= max_views <= 64:
         raise ValueError("Invalid texture triangle or view budget")
+    if blend_mode not in ("blend", "best"):
+        raise ValueError("Texture blend_mode must be blend or best")
     mesh = copy.deepcopy(engine.mesh)
     original_triangles = len(mesh.triangles)
     if original_triangles > max_triangles:
@@ -90,63 +136,59 @@ def make_textured_mesh(
     views = _views(engine, max_views) if use_images else []
     c = engine.settings.camera
     valid_indices = np.flatnonzero(valid)
+    prepared = []
     for index, pose in views:
-        rgb, raw_depth = engine.raw_frames[index]
-        rgb, depth = prepare_rgbd(rgb, raw_depth, engine.settings)
-        depth = depth.astype(np.float32) / 1000
-        extrinsic = np.linalg.inv(pose)
+        rgb, depth = prepare_rgbd(*engine.raw_frames[index], engine.settings)
+        prepared.append((pose, rgb, depth.astype(np.float32) / 1000))
+    exposure_report = {"applied": False, "reason": "Not requested"}
+    gains = np.ones((len(views), 3), np.float32)
+    if exposure_correction and len(views) > 1 and len(valid_indices):
+        from .photometric import estimate_gains
+
+        sample_ids = valid_indices[:: max(1, int(np.ceil(len(valid_indices) / 8192)))]
+        samples, visible = [], []
+        for pose, rgb, depth in prepared:
+            values, weight = _project(
+                positions[sample_ids],
+                normals[sample_ids],
+                rgb,
+                depth,
+                pose,
+                c,
+                engine.settings.near_m,
+                engine.settings.far_m,
+            )
+            samples.append(values)
+            visible.append(weight > 0)
+        gains, exposure_report = estimate_gains(
+            np.asarray(samples), np.asarray(visible)
+        )
+    best_weight = np.zeros(len(positions), np.float32)
+    for view_index, (pose, rgb, depth) in enumerate(prepared):
         for start in range(0, len(valid_indices), 65536):
             ids = valid_indices[start : start + 65536]
-            world = positions[ids]
-            camera = world @ extrinsic[:3, :3].T + extrinsic[:3, 3]
-            z = camera[:, 2]
-            safe_z = np.maximum(z, 1e-6)
-            u = camera[:, 0] * c.fx / safe_z + c.cx
-            v = camera[:, 1] * c.fy / safe_z + c.cy
-            inside = (
-                (z > engine.settings.near_m)
-                & (z < engine.settings.far_m)
-                & (u >= 0)
-                & (v >= 0)
-                & (u < c.width - 1)
-                & (v < c.height - 1)
+            values, weight = _project(
+                positions[ids],
+                normals[ids],
+                rgb,
+                depth,
+                pose,
+                c,
+                engine.settings.near_m,
+                engine.settings.far_m,
             )
-            x = np.clip(np.rint(u), 0, c.width - 1).astype(int)
-            y = np.clip(np.rint(v), 0, c.height - 1).astype(int)
-            observed = depth[y, x]
-            tolerance = np.maximum(0.015, 0.01 * z)
-            direction = pose[:3, 3] - world
-            direction /= np.maximum(
-                np.linalg.norm(direction, axis=1, keepdims=True), 1e-6
-            )
-            cosine = np.abs(np.sum(normals[ids] * direction, axis=1))
-            mask = (
-                inside
-                & (observed > 0)
-                & (np.abs(observed - z) <= tolerance)
-                & (cosine > 0.25)
-            )
-            chosen = ids[mask]
-            if not len(chosen):
-                continue
-            uf, vf = u[mask], v[mask]
-            x0 = np.floor(uf).astype(int)
-            y0 = np.floor(vf).astype(int)
-            dx, dy = (uf - x0)[:, None], (vf - y0)[:, None]
-            # Bilinear RGB sampling; depth remains nearest to avoid filling holes.
-            values = (
-                rgb[y0, x0] * (1 - dx) * (1 - dy)
-                + rgb[y0, x0 + 1] * dx * (1 - dy)
-                + rgb[y0 + 1, x0] * (1 - dx) * dy
-                + rgb[y0 + 1, x0 + 1] * dx * dy
-            ) / 255
-            weight = (cosine[mask] ** 2 / np.maximum(z[mask] ** 2, 0.1)).astype(
-                np.float32
-            )
-            sums[chosen] += values * weight[:, None]
-            totals[chosen] += weight
+            values = np.clip(values * gains[view_index], 0, 1)
+            if blend_mode == "best":
+                better = weight > best_weight[ids]
+                chosen = ids[better]
+                albedo[chosen] = values[better]
+                best_weight[chosen] = weight[better]
+            else:
+                sums[ids] += values * weight[:, None]
+            totals[ids] += weight
     projected = totals > 0
-    albedo[projected] = sums[projected] / totals[projected, None]
+    if blend_mode == "blend":
+        albedo[projected] = sums[projected] / totals[projected, None]
     image = Image.fromarray(
         np.clip(albedo.reshape(size, size, 3) * 255, 0, 255).astype(np.uint8)
     )
@@ -167,6 +209,8 @@ def make_textured_mesh(
     report = {
         "method": "depth_tested_rgb" if views else "vertex_color_bake",
         "texture_size": size,
+        "blend_mode": blend_mode,
+        "exposure_correction": exposure_report,
         "atlas_partitions": partitions,
         "original_triangles": original_triangles,
         "export_triangles": len(faces),

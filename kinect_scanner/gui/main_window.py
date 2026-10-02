@@ -313,6 +313,16 @@ class MainWindow(QMainWindow):
             lambda: self._export_texture("obj.zip")
         )
         sg.addWidget(self.btn_export_texture_obj)
+        self.texture_exposure_cb = QCheckBox("Match texture exposures")
+        self.texture_exposure_cb.setToolTip(
+            "Bounded RGB gains must improve held-out, depth-visible overlap"
+        )
+        self.texture_best_cb = QCheckBox("Use one best view per texel")
+        self.texture_best_cb.setToolTip(
+            "Selects by viewing angle and distance; can sharpen detail but expose seams"
+        )
+        sg.addWidget(self.texture_exposure_cb)
+        sg.addWidget(self.texture_best_cb)
         self.btn_export_session = QPushButton("Save full RGB-D session")
         self.btn_export_session.setEnabled(False)
         self.btn_export_session.clicked.connect(self._export_session)
@@ -703,7 +713,19 @@ class MainWindow(QMainWindow):
             self.btn_export_glb.setEnabled(False)
             self.btn_export_texture_obj.setEnabled(False)
             self.task_worker.submit(
-                ServerTask(ServerTaskType.EXPORT_TEXTURE, {"path": path, "format": fmt})
+                ServerTask(
+                    ServerTaskType.EXPORT_TEXTURE,
+                    {
+                        "path": path,
+                        "format": fmt,
+                        "options": {
+                            "exposure_correction": self.texture_exposure_cb.isChecked(),
+                            "blend_mode": "best"
+                            if self.texture_best_cb.isChecked()
+                            else "blend",
+                        },
+                    },
+                )
             )
 
     def _export_session(self):
@@ -919,8 +941,11 @@ class MainWindow(QMainWindow):
         self.task_worker.wait(100)
         if self.worker.isRunning() or self.task_worker.isRunning():
             # QThreads must finish before their QObject owners are destroyed.
-            message = ("Stopping Kinect camera..." if self.worker.isRunning()
-                       else "Finishing current server request before closing...")
+            message = (
+                "Stopping Kinect camera..."
+                if self.worker.isRunning()
+                else "Finishing current server request before closing..."
+            )
             self.statusBar().showMessage(message)
             event.ignore()
             QTimer.singleShot(200, self.close)

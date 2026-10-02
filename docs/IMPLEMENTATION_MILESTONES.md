@@ -133,3 +133,24 @@ A single 58-frame TUM desk run accepted 54 frames, proposed 13 appearance loops,
 and verified none. It retained the original poses; anchored position RMSE was
 0.430 m. This difficult scene is not solved by the new retrieval. The run
 coincided with tests, so its elapsed time is not a performance comparison.
+
+## Final appearance milestone
+
+Textured GLB/OBJ bundle exports now offer **Match texture exposures** and
+**Use one best view per texel**. Both are off by default. API query parameters
+are `exposure_correction=true` and `blend_mode=best`; `blend` retains the existing
+weighted blend. OBJ bundles contain OBJ, MTL, PNG and the texture report. A plain
+OBJ's vertex colors remain less portable than these materials.
+
+Exposure fitting uses at most 8192 shared, depth-visible atlas samples, rejects
+saturation and spatially varying ratios, bounds per-channel gains to 2/3–1.5,
+and requires held-out overlap improvement before applying them. Disconnected
+view groups have independent anchors. Tests recover imposed exposure changes
+and reject variable lighting; actual UV projection and occlusion also pass.
+This is relative RGB gain matching, not full radiometric calibration.
+
+The best-view mode chooses the strongest angle/distance observation at each
+texel from the existing sharp synchronized view selection. It can reduce blend
+blur but may reveal seams: there is no seam optimization or photometric pose
+warping yet. Missing/occluded observations keep fused vertex color. The report's
+projected fraction describes atlas coverage, not whole-object completeness.

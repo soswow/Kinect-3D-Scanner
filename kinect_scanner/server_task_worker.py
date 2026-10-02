@@ -176,7 +176,9 @@ class ServerTaskWorker(QThread):
             path = task.kwargs["path"]
             fmt = task.kwargs.get("format", "session")
             self._client.task_started.emit(f"Exporting {fmt} to {path}...")
-            success = self._client.request_export(fmt, path)
+            success = self._client.request_export(
+                fmt, path, options=task.kwargs.get("options")
+            )
             self._client.export_done.emit(success, path)
 
         elif tt == ServerTaskType.SAVE_MESH:
