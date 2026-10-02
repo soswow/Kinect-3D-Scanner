@@ -74,6 +74,7 @@ class ScanSettings:
     live_reconstruction: bool = False
     refine_poses: bool = False
     relocalize: bool = False
+    confidence_fusion: bool = False
 
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
@@ -84,6 +85,7 @@ class ScanSettings:
             or type(self.live_reconstruction) is not bool
             or type(self.refine_poses) is not bool
             or type(self.relocalize) is not bool
+            or type(self.confidence_fusion) is not bool
             or type(self.min_component_triangles) is not int
         ):
             raise ValueError("Invalid filter or component setting type")

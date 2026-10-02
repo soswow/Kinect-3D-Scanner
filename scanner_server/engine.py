@@ -79,6 +79,9 @@ class ScanEngine:
                 far_m=preset.max_depth_m,
             )
         p = self.settings
+        self.backend["fusion"] = (
+            "confidence_weighted" if p.confidence_fusion else "uniform"
+        )
         self.voxel_size = p.voxel_m
         self.sdf_trunc = p.truncation_m
         self.max_depth_m = float(p.far_m)
@@ -120,6 +123,7 @@ class ScanEngine:
         self._frame_ids = set()
         self._appearance_cache = {}
         self._tracking_lost_frames = 0
+        self._last_fusion_stats = {}
 
     # ── helpers ────────────────────────────────────────────────────────
 
@@ -221,6 +225,13 @@ class ScanEngine:
             depth_max=self.max_depth_m,
             trunc_voxel_multiplier=self.sdf_trunc / self.voxel_size,
         )
+        if self.settings.confidence_fusion:
+            from .weighted_fusion import integrate_weighted
+
+            self._last_fusion_stats = integrate_weighted(
+                self, volume, frustum_block_coords, rgb, depth, extrinsic
+            )
+            return
         volume.integrate(
             frustum_block_coords,
             depth_img,
@@ -248,7 +259,9 @@ class ScanEngine:
 
         Cache registration scales; compute FPFH lazily if recovery needs it.
         """
-        t_pcd = self.vbg.extract_point_cloud(weight_threshold=0.5)
+        t_pcd = self.vbg.extract_point_cloud(
+            weight_threshold=0.01 if self.settings.confidence_fusion else 0.5
+        )
         pcd = t_pcd.to_legacy()
         del t_pcd
         pcd = pcd.voxel_down_sample(self.reg_voxel)
@@ -714,6 +727,10 @@ class ScanEngine:
             result["metadata"] = self.frame_metadata[i]
             result["session_id"] = self.session_id
             result["timings_ms"] = dict(self._frame_timings)
+            if self.settings.confidence_fusion:
+                result["fusion_confidence"] = (
+                    dict(self._last_fusion_stats) if result["success"] else {}
+                )
             result["elapsed_ms"] = (time.monotonic() - frame_started) * 1000
             self.diagnostics.append(result)
             self._tracking_lost_frames = (

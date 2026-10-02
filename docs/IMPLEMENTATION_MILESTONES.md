@@ -97,3 +97,39 @@ three candidates from at most 32 accepted keyframes. Final refinement remains
 opt-in through the existing GUI checkbox/`--refine-poses`. The desk sequence and
 repeated-scene failure cases remain important limitations; this is not a full
 SLAM replacement or an RTAB-Map integration.
+
+## Sensor-aware fusion milestone
+
+`confidence_fusion: true` / replay `--confidence-fusion` enables fractional TSDF
+and RGB weights from range, surface angle and measured depth discontinuities.
+Missing depth contributes zero; holes are not filled. The range model is an
+engineering prior, **not fitted Kinect noise coefficients**. Native uniform
+integration remains the default. CPU integration is tested; the same tensor
+operations can run on CUDA but need target-hardware verification.
+
+Controlled tests show less displacement from a deliberately biased far-depth
+observation than uniform averaging. This demonstrates the weighting mechanism,
+not real sensor accuracy. A five-frame Redwood smoke replay accepted 5/5;
+`--final-weight 0.5` produced a mesh. The usual final weight of 2 can leave no
+surface after so few fractional observations: collect more views, or explicitly
+choose a lower confidence threshold. Do not interpret that threshold as a
+probability. The custom path also adds work; it is not a throughput optimization.
+
+Evaluate measured reference surfaces in their known shared coordinate system:
+
+```bash
+python scripts/evaluate_surface.py scan.ply reference.ply \
+  --threshold-mm 10 --output benchmark-output/surface.json
+```
+
+Area-weighted bidirectional samples report error, precision, completeness and
+F-score. There is no alignment or scale fit that could hide drift. A half-plane
+fixture has low error but only about half completeness. Real improvement still
+requires calibrated physical reference surfaces and repeated scans.
+
+## Tracking evidence still pending
+
+A single 58-frame TUM desk run accepted 54 frames, proposed 13 appearance loops,
+and verified none. It retained the original poses; anchored position RMSE was
+0.430 m. This difficult scene is not solved by the new retrieval. The run
+coincided with tests, so its elapsed time is not a performance comparison.

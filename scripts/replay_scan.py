@@ -276,6 +276,11 @@ def main():
     parser.add_argument("--near", type=float)
     parser.add_argument("--far", type=float)
     parser.add_argument(
+        "--final-weight",
+        type=float,
+        help="Effective observation weight for final extraction",
+    )
+    parser.add_argument(
         "--color-recovery",
         action="store_true",
         help="Enable experimental RGB-D recovery",
@@ -286,6 +291,9 @@ def main():
         help="Enable experimental final pose graph and reintegration",
     )
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    parser.add_argument(
+        "--confidence-fusion", action="store_true", help="Experimental weighted TSDF"
+    )
     parser.add_argument(
         "--relocalize",
         action="store_true",
@@ -302,6 +310,9 @@ def main():
         settings,
         near_m=args.near if args.near is not None else settings.near_m,
         far_m=args.far if args.far is not None else settings.far_m,
+        final_weight=args.final_weight
+        if args.final_weight is not None
+        else settings.final_weight,
     )
     if args.color_recovery:
         settings = replace(settings, color_recovery=True)
@@ -309,6 +320,8 @@ def main():
         settings = replace(settings, refine_poses=True)
     if args.relocalize:
         settings = replace(settings, relocalize=True)
+    if args.confidence_fusion:
+        settings = replace(settings, confidence_fusion=True)
     if args.server:
         if args.baseline_source:
             parser.error("Baseline comparison uses the direct engine")
@@ -362,6 +375,7 @@ def main():
         "vertices": len(engine.mesh.vertices) if engine.mesh else 0,
         "triangles": len(engine.mesh.triangles) if engine.mesh else 0,
         "camera": camera.__dict__,
+        "settings": settings.to_dict(),
         **score(engine.poses if hasattr(engine, "poses") else estimated, frames),
         "tracking_score": score(estimated, frames),
         "backend": getattr(engine, "backend", None),
