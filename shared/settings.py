@@ -4,6 +4,8 @@ import math
 from dataclasses import asdict, dataclass, field, fields
 from typing import TYPE_CHECKING
 
+from .capture import validate_rgb_exposure
+
 if TYPE_CHECKING:
     from .sensor_calibration import SensorCalibration
 
@@ -87,6 +89,9 @@ class ScanSettings:
 
     sensor_calibration: "SensorCalibration | None" = None
     rgb_mode: str = "rgb_high_res"
+    rgb_exposure_mode: str = "auto"
+    # Reciprocal seconds: 125 means a fixed 1/125 s exposure in manual mode.
+    rgb_shutter_speed: int = 125
 
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
@@ -105,6 +110,7 @@ class ScanSettings:
             )
         else:
             object.__setattr__(self, "rgb_mode", "rgb_low_res")
+        validate_rgb_exposure(self.rgb_exposure_mode, self.rgb_shutter_speed, self.rgb_mode)
         if (
             type(self.filter_depth) is not bool
             or type(self.color_recovery) is not bool

@@ -4,13 +4,16 @@ import time
 
 import numpy as np
 
-from shared.capture import RGB_MODE_FPS, timestamp_delta_ms
+from shared.capture import RGB_MODE_FPS, timestamp_delta_ms, validate_rgb_exposure
+
+from .rgb_exposure import apply_rgb_exposure
 
 RGB_SHAPE = (480, 640, 3)
 DEPTH_SHAPE = (480, 640)
 
 
-def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True):
+def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True,
+                   rgb_exposure_mode="auto", rgb_shutter_speed=125):
     """Publish one shared-memory pair at a time, awaiting a copy acknowledgement.
 
     Only small messages cross the pipe. The child never overwrites a published
@@ -21,6 +24,9 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
     depth_started = video_started = False
     try:
         import freenect
+
+        validate_rgb_exposure(rgb_exposure_mode, rgb_shutter_speed,
+                              "rgb_high_res" if high_res else "rgb_low_res")
 
         ctx = freenect.init()
         if ctx is None:
@@ -55,9 +61,10 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
         rgb_resolution = (
             freenect.RESOLUTION_HIGH if high_res else freenect.RESOLUTION_MEDIUM
         )
+        exposure_metadata = {}
 
         def switch_video(ir=False):
-            nonlocal video_started, settling
+            nonlocal video_started, settling, exposure_metadata
             if freenect.stop_video(dev) < 0:
                 raise RuntimeError("Cannot stop video for IR/RGB switch")
             video_started = False
@@ -73,6 +80,11 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             if freenect.start_video(dev) < 0:
                 raise RuntimeError("Cannot restart video after mode switch")
             video_started = True
+            if not ir:
+                # Stream startup and IR warmup can reset camera registers.
+                exposure_metadata = apply_rgb_exposure(
+                    freenect, dev, rgb_exposure_mode, rgb_shutter_speed
+                )
             settling = 2
             latest.clear()
             connection.send(("phase", "warming IR" if ir else "waiting for RGB"))
@@ -159,6 +171,7 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                             "rgb_high_res" if high_res else "rgb_low_res"
                         ],
                         "depth_encoding": "raw_11bit",
+                        **exposure_metadata,
                     },
                 )
             )

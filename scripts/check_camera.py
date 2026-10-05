@@ -19,7 +19,14 @@ def main():
     parser.add_argument("--seconds", type=float, default=5)
     parser.add_argument("--window", action="store_true")
     parser.add_argument("--offscreen", action="store_true")
+    parser.add_argument("--rgb-mode", choices=("rgb_high_res", "rgb_low_res"), default="rgb_high_res")
+    parser.add_argument("--exposure", choices=("auto", "manual"), default="auto")
+    parser.add_argument("--shutter-speed", type=int, default=125,
+                        help="Reciprocal seconds: 250 selects 1/250 s in manual mode")
     args = parser.parse_args()
+    if args.window and (args.exposure != "auto" or args.shutter_speed != 125
+                        or args.rgb_mode != "rgb_high_res"):
+        parser.error("Exposure/resolution overrides require running without --window")
     if args.offscreen:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
     from PyQt6.QtCore import QCoreApplication, QTimer
@@ -38,8 +45,9 @@ def main():
         worker = window.worker
     else:
         app = QCoreApplication([])
-        worker = KinectWorker()
-    frames, deltas, errors = [], [], []
+        worker = KinectWorker(rgb_mode=args.rgb_mode, rgb_exposure_mode=args.exposure,
+                              rgb_shutter_speed=args.shutter_speed)
+    frames, deltas, errors, exposures = [], [], [], []
     started = time.monotonic()
     close_started = None
     capture_timer = QTimer()
@@ -50,6 +58,8 @@ def main():
             capture_timer.start(int(args.seconds * 1000))
         frames.append((int((depth > 0).sum()), rgb.shape, depth.shape))
         deltas.append(metadata["rgb_depth_delta_ms"])
+        exposures.append({key: metadata.get(key) for key in
+                          ("rgb_exposure_mode", "rgb_shutter_speed", "rgb_exposure_us", "rgb_exposure_controls")})
 
     worker.frame_pair_ready.connect(received)
     worker.error_occurred.connect(errors.append)
@@ -94,6 +104,7 @@ def main():
         if window
         else None,
         "errors": errors,
+        "exposure": exposures[-1] if exposures else None,
     }
     print(json.dumps(report, indent=2))
     success = (

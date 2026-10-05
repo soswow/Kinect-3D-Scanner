@@ -151,6 +151,33 @@ A 0.5-second interval selects every five high-resolution pairs or fifteen VGA
 pairs. Capture waits for fresh input and reconstruction capacity; delays extend
 the interval without creating duplicate captures or catch-up bursts.
 
+Expand **RGB camera** in scan setup to choose **Auto exposure** (default) or
+**Manual shutter**. Manual accepts reciprocal seconds, such as **1/125 s** or
+**1/250 s**: a larger denominator gives a faster shutter and less motion blur.
+The slowest choice is 1/10 s at 10 fps or 1/30 s at 30 fps. Changing exposure
+restarts the camera preview; wait for fresh frames before starting a scan.
+Set exposure before capture, as with the other scan settings. The camera's
+reported exposure time appears in the section; hardware quantizes the request.
+
+Kinect v1's [libfreenect exposure API](https://github.com/OpenKinect/libfreenect/blob/master/include/libfreenect.h)
+supports automatic exposure or a fixed shutter time. It does **not** expose a
+minimum shutter speed within auto exposure, automatic ISO compensation, or a
+gain control. Manual shutter keeps automatic white balance and disables flicker
+compensation so it cannot change shutter time. Faster shutters may darken the
+image, so add light as needed. Exposure choices are remembered and included in
+scan settings, recordings, and frame metadata. Camera reconnects reapply them.
+Older drivers without exposure controls retain default automatic operation and
+report the limitation; a manual request fails visibly instead of silently using auto.
+
+The client uses the public C exposure functions from the same libfreenect library
+already loaded by the Python extension when its Python bindings omit them. This
+requires OpenKinect's `DevPtr` representation; no extra package or rebuild is needed
+for the tested bindings. With the scanner closed, test a manual shutter directly:
+
+```bash
+python scripts/check_camera.py --exposure manual --shutter-speed 250
+```
+
 **Scan sounds** in the toolbar plays a short confirmation when captured
 frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
@@ -162,7 +189,8 @@ another session stays silent. The same mute control applies to all scan sounds.
 
 Your choices save automatically as you edit them and restore on the next launch:
 capture mode and interval, clipping and crop, recording, reconstruction and
-experimental options, camera resolution, calibration, server host/port, sound,
+experimental options, camera resolution and exposure, shutter speed, calibration,
+server host/port, sound,
 and the last accepted export format and texture options. Calibration is saved
 as a complete snapshot, so its original JSON file can be moved afterward.
 Preferences use Qt's per-user settings store. `KINECT_SERVER_HOST` and

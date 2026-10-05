@@ -8,6 +8,8 @@ import time
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from shared.capture import validate_rgb_exposure
+
 from .capture_process import DEPTH_SHAPE, RGB_SHAPE, capture_frames
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,8 @@ class KinectWorker(QThread):
         frame_timeout=3.0,
         retry_delay=2.0,
         rgb_mode="rgb_high_res",
+        rgb_exposure_mode="auto",
+        rgb_shutter_speed=125,
     ):
         super().__init__(parent)
         self._stop_event = threading.Event()
@@ -39,6 +43,9 @@ class KinectWorker(QThread):
         if rgb_mode not in ("rgb_high_res", "rgb_low_res"):
             raise ValueError("RGB mode must be rgb_high_res or rgb_low_res")
         self._high_res = rgb_mode == "rgb_high_res"
+        validate_rgb_exposure(rgb_exposure_mode, rgb_shutter_speed, rgb_mode)
+        self._rgb_exposure_mode = rgb_exposure_mode
+        self._rgb_shutter_speed = rgb_shutter_speed
         self._rgb_shape = (1024, 1280, 3) if self._high_res else RGB_SHAPE
 
     def stop(self):
@@ -69,7 +76,8 @@ class KinectWorker(QThread):
             process = context.Process(
                 target=self._capture_target,
                 args=(child, stop_event, rgb_buffer, depth_buffer)
-                + ((self._high_res,) if self._capture_target is capture_frames else ()),
+                + ((self._high_res, self._rgb_exposure_mode, self._rgb_shutter_speed)
+                   if self._capture_target is capture_frames else ()),
                 daemon=True,
                 name="Kinect capture",
             )

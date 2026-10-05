@@ -180,6 +180,8 @@ class MainWindow(QMainWindow):
                 (self.refine_cb, "scan/refine_poses"),
                 (self.relocalize_cb, "scan/relocalize"),
                 (self.confidence_cb, "scan/confidence"),
+                (self.rgb_exposure_combo, "camera/exposure_mode"),
+                (self.rgb_shutter_spin, "camera/shutter_speed"),
             ):
                 preferences.bind(widget, key)
             preferences.bind(self.server_ip_edit, "connection/host",
@@ -187,13 +189,17 @@ class MainWindow(QMainWindow):
             preferences.bind(self.server_port_spin, "connection/port",
                              restore="KINECT_SERVER_PORT" not in os.environ)
             self.crop_spin.setEnabled(self.crop_cb.isChecked())
+            self._update_exposure_controls()
             self._capture_mode_changed()
             self._validate_setup()
 
     def _start_camera(self):
         self.worker = KinectWorker(
             rgb_mode=self.rgb_mode_combo.currentData(),
+            rgb_exposure_mode=self.rgb_exposure_combo.currentData(),
+            rgb_shutter_speed=self.rgb_shutter_spin.value(),
         )
+        self._camera_configuration = self._selected_camera_configuration()
         worker = self.worker
         # Ignore any queued observation from the old worker after a mode change.
         def received(*args):
@@ -219,11 +225,41 @@ class MainWindow(QMainWindow):
 
     def _change_rgb_mode(self):
         self.auto_capture_spin.set_fps(RGB_MODE_FPS[self.rgb_mode_combo.currentData()])
+        self._update_exposure_controls()
         self._reset_auto_capture_cadence()
         try:
             self._restart_camera()
         except RuntimeError as exc:
             self.scan_status_label.setText(str(exc))
+
+    def _selected_camera_configuration(self):
+        return (self.rgb_mode_combo.currentData(), self.rgb_exposure_combo.currentData(),
+                self.rgb_shutter_spin.value())
+
+    def _update_exposure_controls(self):
+        previous_speed = self.rgb_shutter_spin.value()
+        blocked = self.rgb_shutter_spin.blockSignals(True)
+        try:
+            self.rgb_shutter_spin.setMinimum(RGB_MODE_FPS[self.rgb_mode_combo.currentData()])
+        finally:
+            self.rgb_shutter_spin.blockSignals(blocked)
+        if self.rgb_shutter_spin.value() != previous_speed:
+            self.preferences.write("camera/shutter_speed", self.rgb_shutter_spin.value())
+        manual = self.rgb_exposure_combo.currentData() == "manual"
+        self.rgb_shutter_spin.setEnabled(manual)
+        self.rgb_shutter_label.setEnabled(manual)
+
+    def _change_rgb_exposure(self):
+        self._update_exposure_controls()
+        if not hasattr(self, "worker"):
+            return
+        if self._selected_camera_configuration() == self._camera_configuration:
+            return
+        try:
+            self.rgb_exposure_status_label.setText("Applying exposure settings…")
+            self._restart_camera()
+        except RuntimeError as exc:
+            self.rgb_exposure_status_label.setText(str(exc))
 
     # ── UI construction ───────────────────────────────────────────────
     def _build_ui(self):
@@ -447,6 +483,51 @@ class MainWindow(QMainWindow):
         self.settings_error_label.setWordWrap(True)
         vg.addWidget(self.settings_error_label)
 
+        self.rgb_camera_section = CollapsibleSection("RGB camera")
+        cv = self.rgb_camera_section.content_layout
+        self.rgb_mode_combo = QComboBox()
+        self.rgb_mode_combo.addItem("Color detail · 1280 × 1024, 10 fps", "rgb_high_res")
+        self.rgb_mode_combo.addItem("Motion detail · 640 × 480, 30 fps", "rgb_low_res")
+        self.rgb_mode_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.rgb_mode_combo.setMinimumContentsLength(18)
+        self.rgb_mode_combo.currentIndexChanged.connect(self._change_rgb_mode)
+        label = QLabel("Resolution and frame rate")
+        label.setBuddy(self.rgb_mode_combo)
+        cv.addWidget(label)
+        cv.addWidget(self.rgb_mode_combo)
+        self.rgb_exposure_combo = QComboBox()
+        self.rgb_exposure_combo.addItem("Auto exposure", "auto")
+        self.rgb_exposure_combo.addItem("Manual shutter", "manual")
+        label = QLabel("Exposure")
+        label.setBuddy(self.rgb_exposure_combo)
+        cv.addWidget(label)
+        cv.addWidget(self.rgb_exposure_combo)
+        self.rgb_shutter_spin = QSpinBox()
+        self.rgb_shutter_spin.setRange(10, 10000)
+        self.rgb_shutter_spin.setValue(125)
+        self.rgb_shutter_spin.setPrefix("1/")
+        self.rgb_shutter_spin.setSuffix(" s")
+        self.rgb_shutter_spin.setKeyboardTracking(False)
+        self.rgb_shutter_spin.setToolTip("A larger denominator means a faster shutter and less motion blur. Shorter exposures need more light.")
+        self.rgb_shutter_label = QLabel("Shutter speed")
+        self.rgb_shutter_label.setBuddy(self.rgb_shutter_spin)
+        cv.addWidget(self.rgb_shutter_label)
+        cv.addWidget(self.rgb_shutter_spin)
+        self.rgb_exposure_help_label = QLabel(
+            "Manual fixes the shutter; white balance stays automatic. Kinect v1 cannot "
+            "limit auto exposure to a minimum shutter speed or compensate with automatic ISO. "
+            "Use more light if the image is too dark."
+        )
+        self.rgb_exposure_help_label.setWordWrap(True)
+        cv.addWidget(self.rgb_exposure_help_label)
+        self.rgb_exposure_status_label = QLabel("Waiting for camera…")
+        self.rgb_exposure_status_label.setWordWrap(True)
+        cv.addWidget(self.rgb_exposure_status_label)
+        self.rgb_exposure_combo.currentIndexChanged.connect(self._change_rgb_exposure)
+        self.rgb_shutter_spin.valueChanged.connect(self._change_rgb_exposure)
+        self._update_exposure_controls()
+        vg.addWidget(self.rgb_camera_section)
+
         advanced = CollapsibleSection("Advanced reconstruction")
         av = advanced.content_layout
         self.voxel_spin = QDoubleSpinBox()
@@ -471,14 +552,6 @@ class MainWindow(QMainWindow):
             label.setBuddy(control)
             av.addWidget(label)
             av.addWidget(control)
-        self.rgb_mode_combo = QComboBox()
-        self.rgb_mode_combo.addItem("Color detail · 1280 × 1024, 10 fps", "rgb_high_res")
-        self.rgb_mode_combo.addItem("Motion detail · 640 × 480, 30 fps", "rgb_low_res")
-        self.rgb_mode_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.rgb_mode_combo.setMinimumContentsLength(18)
-        self.rgb_mode_combo.currentIndexChanged.connect(self._change_rgb_mode)
-        av.addWidget(QLabel("Camera capture"))
-        av.addWidget(self.rgb_mode_combo)
         self.live_cb = QCheckBox("Show live reconstruction")
         self.live_cb.setChecked(True)
         av.addWidget(self.live_cb)
@@ -814,6 +887,14 @@ class MainWindow(QMainWindow):
         self._last_depth = depth
         self._frame_sequence += 1
         self._last_frame_metadata = dict(metadata or {})
+        if self._last_frame_metadata.get("rgb_exposure_controls") is False:
+            self.rgb_exposure_status_label.setText("Default auto exposure · manual controls unavailable in this driver")
+        elif self._last_frame_metadata.get("rgb_exposure_mode") == "manual":
+            duration = self._last_frame_metadata.get("rgb_exposure_us")
+            if duration is not None:
+                self.rgb_exposure_status_label.setText(f"Manual shutter · {duration / 1000:.2f} ms reported by camera")
+        elif self._last_frame_metadata.get("rgb_exposure_mode") == "auto":
+            self.rgb_exposure_status_label.setText("Auto exposure active")
         self._last_frame_time = self._last_frame_metadata.get(
             "captured_monotonic_s", time.monotonic()
         )
@@ -913,6 +994,8 @@ class MainWindow(QMainWindow):
                 camera=self._camera,
                 sensor_calibration=self._sensor_calibration,
                 rgb_mode=self.rgb_mode_combo.currentData(),
+                rgb_exposure_mode=self.rgb_exposure_combo.currentData(),
+                rgb_shutter_speed=self.rgb_shutter_spin.value(),
                 near_m=self.depth_near_spin.value() / 1000,
                 far_m=self.depth_far_spin.value() / 1000,
                 voxel_m=voxel,
@@ -1357,9 +1440,12 @@ class MainWindow(QMainWindow):
         controls = (self.depth_near_spin, self.depth_far_spin, self.voxel_spin,
                     self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
+                    self.rgb_exposure_combo, self.rgb_shutter_spin,
                     self.color_tracking_cb, self.refine_cb, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
+        exposure_changed = (self.rgb_exposure_combo.currentData() != profile.rgb_exposure_mode
+                            or self.rgb_shutter_spin.value() != profile.rgb_shutter_speed)
         calibration_changed = profile.sensor_calibration is not None and profile.sensor_calibration != self._sensor_calibration
         try:
             self.depth_near_spin.setValue(round(profile.near_m * 1000))
@@ -1370,6 +1456,9 @@ class MainWindow(QMainWindow):
             self.final_blocks_spin.setValue(profile.final_block_count)
             self.weight_spin.setValue(profile.final_weight)
             self.rgb_mode_combo.setCurrentIndex(self.rgb_mode_combo.findData(profile.rgb_mode))
+            self.rgb_exposure_combo.setCurrentIndex(self.rgb_exposure_combo.findData(profile.rgb_exposure_mode))
+            self.rgb_shutter_spin.setMinimum(RGB_MODE_FPS[profile.rgb_mode])
+            self.rgb_shutter_spin.setValue(profile.rgb_shutter_speed)
             self.live_cb.setChecked(profile.live_reconstruction)
             self.color_tracking_cb.setChecked(profile.color_recovery)
             self.refine_cb.setChecked(profile.refine_poses)
@@ -1386,8 +1475,9 @@ class MainWindow(QMainWindow):
             for control, blocked in zip(controls, previous):
                 control.blockSignals(blocked)
         self.crop_spin.setEnabled(self.crop_cb.isChecked())
+        self._update_exposure_controls()
         self.auto_capture_spin.set_fps(RGB_MODE_FPS[profile.rgb_mode])
-        if rgb_changed or calibration_changed:
+        if rgb_changed or calibration_changed or exposure_changed:
             try:
                 self._restart_camera()
             except RuntimeError as exc:
@@ -1607,6 +1697,7 @@ class MainWindow(QMainWindow):
     def _on_error(self, msg: str):
         if self._closing:
             return
+        self.rgb_exposure_status_label.setText(msg)
         self._camera_ok = False
         self.kinect_label.setText("Kinect: unavailable")
         self._set_camera_stale("Camera unavailable · reconnecting")

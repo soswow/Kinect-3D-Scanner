@@ -121,6 +121,45 @@ class GuiPreferencesTests(unittest.TestCase):
         self.assertFalse(window.auto_capture_cb.isChecked())
         self.assertEqual([], window.task_worker.tasks)
 
+    def test_rgb_exposure_persists_and_restores_before_camera_start(self):
+        with patch.object(main_window, "KinectWorker", wraps=NoCamera) as camera:
+            first = self.window()
+            self.assertFalse(first.rgb_shutter_spin.isEnabled())
+            first.rgb_exposure_combo.setCurrentIndex(first.rgb_exposure_combo.findData("manual"))
+            first.rgb_shutter_spin.setValue(250)
+            self.assertTrue(first.rgb_shutter_spin.isEnabled())
+            self.assertEqual("manual", camera.call_args.kwargs["rgb_exposure_mode"])
+            self.assertEqual(250, camera.call_args.kwargs["rgb_shutter_speed"])
+            self.assertIsNone(first._last_rgb)
+            second = self.window()
+            self.assertEqual("manual", second.rgb_exposure_combo.currentData())
+            self.assertEqual(250, second.rgb_shutter_spin.value())
+            self.assertEqual(250, camera.call_args.kwargs["rgb_shutter_speed"])
+
+    def test_resolution_change_clamps_shutter_and_restarts_camera_once(self):
+        window = self.window()
+        window.rgb_exposure_combo.setCurrentIndex(window.rgb_exposure_combo.findData("manual"))
+        window.rgb_shutter_spin.setValue(10)
+        with patch.object(window, "_restart_camera", wraps=window._restart_camera) as restart:
+            window.rgb_mode_combo.setCurrentIndex(window.rgb_mode_combo.findData("rgb_low_res"))
+        restart.assert_called_once()
+        self.assertEqual(30, window.rgb_shutter_spin.value())
+        self.assertEqual(30, self.new_store().read("camera/shutter_speed", 0))
+
+    def test_session_exposure_is_restored_without_replacing_user_defaults(self):
+        self.store.write("camera/exposure_mode", "manual")
+        self.store.write("camera/shutter_speed", 250)
+        window = self.window()
+        settings = ScanSettings(sensor_calibration=load_calibration(),
+                                rgb_exposure_mode="manual", rgb_shutter_speed=500)
+        with patch.object(main_window, "KinectWorker", wraps=NoCamera) as camera:
+            window._apply_session_settings(settings.to_dict())
+        self.assertEqual(500, window.rgb_shutter_spin.value())
+        self.assertEqual(500, camera.call_args.kwargs["rgb_shutter_speed"])
+        self.assertEqual(250, self.new_store().read("camera/shutter_speed", 0))
+        reopened = self.window()
+        self.assertEqual(250, reopened.rgb_shutter_spin.value())
+
     def test_server_session_settings_do_not_replace_saved_defaults(self):
         custom = self.custom_calibration()
         self.store.save_calibration(custom)

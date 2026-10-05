@@ -65,6 +65,21 @@ class ScannerWorkflowTests(unittest.TestCase):
     def task_types(self):
         return [task.task_type for task in self.window.task_worker.tasks]
 
+    def test_manual_rgb_exposure_is_in_scan_settings_and_locked_during_scan(self):
+        self.window.rgb_exposure_combo.setCurrentIndex(self.window.rgb_exposure_combo.findData("manual"))
+        self.window.rgb_shutter_spin.setValue(250)
+        self.fresh_frame()
+        self.window._start_scan()
+        task = self.window.task_worker.tasks[-1]
+        self.assertEqual(ServerTaskType.RESET, task.task_type)
+        self.assertEqual("manual", task.kwargs["settings"]["rgb_exposure_mode"])
+        self.assertEqual(250, task.kwargs["settings"]["rgb_shutter_speed"])
+        self.assertFalse(self.window.rgb_exposure_combo.isEnabled())
+        self.window._on_reset_done({"session_id": "manual-shutter", "settings": task.kwargs["settings"]})
+        self.assertFalse(self.window.rgb_exposure_combo.isEnabled())
+        self.window._on_frame(self.rgb, self.depth, {"rgb_exposure_mode": "manual", "rgb_exposure_us": 3957})
+        self.assertIn("3.96 ms", self.window.rgb_exposure_status_label.text())
+
     def protection(self, choice, path="/tmp/workflow-session.zip"):
         dialog_patch = patch.object(dialogs, "SessionProtectionDialog")
         mocked = dialog_patch.start()
