@@ -69,6 +69,8 @@ def check_client(port, rgb, depth):
 
     try:
         wait_until(lambda: window.server_client.is_connected)
+        window.capture_mode_combo.setCurrentIndex(window.capture_mode_combo.findData("manual"))
+        window._on_frame(rgb, depth)
         window.depth_near_spin.setValue(750)
         window.depth_far_spin.setValue(1500)
         window.final_voxel_spin.setValue(4)
@@ -120,11 +122,15 @@ def check_client(port, rgb, depth):
         preview_path = window._last_preview_path
         window._stop_and_build()
         wait_until(lambda: window.btn_export_ply.isEnabled())
-        assert window.btn_export_obj.isEnabled() and window.btn_start_scan.isEnabled()
+        assert window.btn_export_obj.isEnabled()
         assert (
             window.btn_export_glb.isEnabled()
             and window.btn_export_texture_obj.isEnabled()
         )
+        wait_until(lambda: window._last_preview_path is not None and not window._final_preview_pending)
+        assert window._last_preview_path != preview_path, "Final inspection must fetch the final mesh"
+        window._on_frame(rgb, depth)
+        assert window.btn_start_scan.isEnabled(), "New Scan requires a fresh camera frame"
         final = window.server_client._http.get("/api/scan/diagnostics").json()[
             "final_reconstruction"
         ]
@@ -137,6 +143,7 @@ def check_client(port, rgb, depth):
         )
         Path(preview_path).unlink(missing_ok=True)
     finally:
+        window._close_approved = True  # This isolated check contains disposable synthetic captures.
         window.close()
         assert window.worker.wait(5000) and window.task_worker.wait(5000), (
             "Client threads did not stop"
@@ -311,6 +318,7 @@ def main():
                     "PASS: complete synthetic scan over loopback HTTP/WebSocket",
                     flush=True,
                 )
+                http.post("/api/scan/reset", json={"rgb_mode": "rgb_low_res"}).raise_for_status()
                 check_client(port, rgb, depth)
                 if args.public_data:
                     from replay_scan import load_dataset, replay_server

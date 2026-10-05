@@ -23,4 +23,43 @@ unmeasured quality presets, invented completeness percentages and turntable
 tracking. The capture model requires moving the Kinect around a stationary subject.
 
 Baseline: `fdd978f` preserves the pre-existing measured calibration and capture work.
-Baseline verification: 95 tests passed, with two unavailable-hardware skips.
+Baseline verification: 95 tests run, with two unavailable-hardware skips.
+
+## Completed snapshots
+
+| Stage | Snapshot | Result |
+| --- | --- | --- |
+| 1 | `86603cb` | Fixed primary actions, explicit capture modes, Pause/Resume, readiness, shortcuts and guidance. Collapsed setup sections and the export dialog landed here because the layout depended on them. |
+| 2 | `ac5464e` | Save/discard/cancel protection, paused reconnect, retry/resume, asynchronous connection, atomic exports and final-mesh inspection. |
+| 3 | `a044201` | Prominent reconstruction, camera aspect fitting, visible view controls, depth palette, crop outline and legend. |
+| 4 | `56da9c8` | Clear operation phases, build-timeout reconciliation, retained-session recording safeguards, shortcut guards during connection/build, persistent disconnected guidance and exact restored crop display. |
+| 5 | Integration/documentation snapshot | Updated workflow documentation and the synthetic client/server check; verified both window sizes and independently reviewed workflow/view behavior. |
+
+## Verification
+
+The final regression suite and end-to-end check run with an offscreen Qt backend,
+four OpenMP threads, and a 5000-block reconstruction budget:
+
+- Final suite: 144 tests run; 142 passed and 2 CUDA tests skipped.
+- Synthetic client/server scan: passed, including final inspection and all export formats.
+- Ruff and Git whitespace checks: passed on changed Python files.
+
+```sh
+QT_QPA_PLATFORM=offscreen OMP_NUM_THREADS=4 KINECT_BLOCK_COUNT=5000 python -m unittest discover -s tests -v
+QT_QPA_PLATFORM=offscreen OMP_NUM_THREADS=4 KINECT_BLOCK_COUNT=5000 python scripts/check_scanner.py
+```
+
+The end-to-end check covers real loopback HTTP/WebSocket capture, reconstruction,
+preview, final rebuild, PLY/OBJ exports, textured GLB/OBJ ZIP, lossless session
+export, and Qt final-model inspection. It uses synthetic input and no Kinect.
+
+Native Qt renderings were inspected at 960×600 and 1280×800: ready, capture,
+paused, depth/crop, expanded diagnostics, scrolled setup, export and session
+protection. Primary actions stay outside the settings scroll area; no horizontal
+scrolling is required. Review images are generated locally in `logs/ux-review/`
+and remain outside Git. The minimum-size action layout is also regression-tested.
+
+Independent reviews covered worker/session recovery, workflow protection and
+view/state consistency. Live Kinect ergonomics and scan quality still require
+a physical scan; these checks do not measure them. CUDA checks depend on NVIDIA
+hardware and are skipped on this Mac.

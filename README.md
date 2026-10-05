@@ -81,15 +81,33 @@ python scripts/check_camera.py --window --offscreen
 The check prints frame counts, preview status, pairing offset, and shutdown time;
 it does not save camera images.
 
-The **RGB**, **Depth**, and **Scanner** tabs display live camera views. The
-Scanner tab shows RGB and depth side by side. To reconstruct a model, click
-**Start Scan**, capture overlapping frames manually or with **Auto every**,
-The **Live fused point cloud feedback** setting adds a persistent 3D view while
-frames are processed during capture. Drag to orbit, scroll to zoom, and
-double-click to switch color/shape. The view displays up to 30,000 fused points
-with larger dots; use **Preview Scan** to see the mesh. Pending frames and processing time show when
-the server falls behind. Click **Preview Scan** for a full snapshot in a separate
-viewer, or **Stop & Build Mesh** for final export.
+The **Scan**, **Color**, and **Depth** views show the reconstruction or a full
+camera preview. In Scan view, the fused point cloud is prominent and the color
+camera appears beside it. Choose **Automatic** or **Manual** before **Start Scan**.
+Automatic capture starts when the server acknowledges the new session; Manual
+offers **Capture Frame**. Keep the subject stationary and move the Kinect slowly
+around it with overlapping views. Turntable scanning is not supported.
+
+Scan actions stay visible while setup settings scroll independently. **Pause**
+and **Resume Capture** retain the current scan; **Finish Scan** builds the final
+model. **Inspect Scan** generates a temporary mesh during capture and opens the
+finished mesh after a build. Final inspection downloads the actual final mesh,
+including any enabled final refinement, rather than an earlier preview.
+
+The point cloud offers visible **Follow**, **Orbit**, **Color**, **Shape**, and
+**Fit View** controls. In Orbit, drag to rotate and scroll to zoom. **Details**
+shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
+means missing depth, gray means excluded depth, and a white outline marks the
+crop. Automatic capture waits for backlog or disconnected live feedback, with
+its state shown separately from movement guidance and task notifications.
+
+**Space** pauses/resumes capture and **C** captures in Manual mode, except while
+editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
+or plain OBJ; texture choices appear in that dialog. **Open Model…** opens a file.
+**Save Session…** preserves lossless observations for replay. New Scan and close
+offer Save Session / Discard / Cancel for unsaved captures, and continue only
+after a requested save succeeds. Reconnecting restores an existing server scan
+paused; a failed build offers retry or resumed capture without resetting frames.
 
 To check the pipeline without connecting or using a Kinect:
 
@@ -119,12 +137,12 @@ and distortion, IR–depth grid correspondence, IR-to-RGB pose, and board-checke
 raw-depth conversion. RGB capture defaults to **1280 × 1024 at 10 fps**; select
 **640 × 480 at 30 fps** in scan settings when preferred. Depth remains native
 640 × 480 raw disparity. Reconstruction uses the calibrated depth grid, while
-texture exports sample original full-resolution RGB. **Load calibration JSON**
+texture exports sample original full-resolution RGB. **Load Calibration…**
 requires the complete publication. Single-camera JSON files are rejected. Recordings
 retain original observations and all calibration data. See the
 [JSON structure and runtime conventions](calibration/README.md).
 
-**Auto every** follows fresh camera frames. Its interval rounds to whole frame
+**Automatic** follows fresh camera frames. Its interval rounds to whole frame
 periods: 0.1-second steps in 10 fps mode, or 1/30-second steps in 30 fps mode.
 A 0.5-second interval selects every five high-resolution pairs or fifteen VGA
 pairs. Capture waits for fresh input and reconstruction capacity; delays extend
@@ -213,16 +231,15 @@ The **client** captures Kinect frames and displays live video. Frames are compre
 ## Scanning Workflow
 
 ```
-Connect to Server ──> Start Scan ──> Capture Frames ──> Preview ──> Build Mesh ──> Export
-                                      (batched to server)  (optional)  (on server)   PLY/OBJ
+Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> Inspect / Export
 ```
 
-1. Enter the server IP and click **Connect**
-2. Click **Start Scan** to begin a new session
-3. Move the Kinect around the object, clicking **Capture Frame** or enabling auto-capture — frames are compressed, batched, and uploaded to the server
-4. Optionally click **Preview Scan** to process frames and view the current mesh
-5. Click **Stop & Build Mesh** to process all remaining frames and extract the final mesh on the server
-6. **Export** as PLY or OBJ — the file is downloaded from the server and saved locally
+1. Use automatic local connection, or expand **Connection details** to connect remotely.
+2. Wait for fresh camera frames, set the scan range, and choose Automatic or Manual.
+3. Click **Start Scan** and move the Kinect around the stationary subject. In Manual, use **Capture Frame**.
+4. Pause/resume as needed. **Inspect Scan** temporarily suspends capture to prepare a mesh snapshot.
+5. Click **Finish Scan**. The finished mesh opens for inspection; failed builds retain captures for retry/resume.
+6. Use **Export…** for a model or **Save Session…** for replayable source captures.
 
 ---
 

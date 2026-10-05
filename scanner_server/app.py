@@ -123,7 +123,7 @@ async def _broadcast(msg: dict):
     async def send(ws):
         try:
             await asyncio.wait_for(ws.send_text(data), timeout=1.0)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a failed subscriber must not interrupt scan progress.
             _ws_clients.discard(ws)
 
     await asyncio.gather(*(send(ws) for ws in tuple(_ws_clients)))
@@ -224,7 +224,7 @@ async def scan_frame(request: Request):
         return {"success": False, "message": "Empty body"}
     try:
         rgb, depth, metadata = unpack_frame_with_metadata(body)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — report malformed protocol input at the HTTP boundary.
         return {"success": False, "message": f"Unpack error: {e}"}
 
     try:
@@ -265,7 +265,7 @@ async def scan_frames_batch(request: Request):
             count, total, submitted, results = await _engine_call(
                 _unpack_and_store, body
             )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — return a batch failure without losing the scan session.
         return {"success": False, "message": f"Batch error: {e}"}
 
     if count:

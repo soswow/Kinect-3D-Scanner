@@ -70,21 +70,23 @@ camera-to-world pose, camera calibration, session ID, counts, backend, and the l
 Messages are limited to approximately two per second plus the final update of a
 drained queue. Slow sockets time out independently. The persistent Qt view uses
 software rendering and follows the latest accepted scanner pose by default,
-with perspective projection using the session's calibrated RGB intrinsics.
+with perspective projection using the session's calibrated depth intrinsics.
 The camera image fits the view without stretching or changing its field of view.
-Skipped tracking frames hold the last accepted viewpoint. Uncheck **Follow scanner**
-to drag to orbit and wheel to zoom; check it again to resume following. Double-click
-switches color/shape display. The view ignores snapshots from previous sessions
+Skipped tracking frames hold the last accepted viewpoint. Select **Orbit**
+to drag to orbit and wheel to zoom; select **Follow** to resume following. **Fit View**
+frames the whole cloud; **Color** and **Shape** select its display. The view ignores snapshots from previous sessions
 and needs no OpenGL context or screen capture.
 
 This is responsive reconstruction feedback, not a guaranteed camera-rate mesh.
 Geometry is sampled from the fused cloud before tracking downsamples it, using
 the existing model extraction, refreshed every three accepted integrations.
-The client draws 3×3 dots with depth ordering; **Preview Scan** opens the mesh.
+The client draws 3×3 dots with depth ordering; **Inspect Scan** opens the mesh.
 `geometry_frame_count` makes that lag visible. Processing can fall
 behind capture; the view shows pending frames, server processing time, and time
-since its last update. These values are not an end-to-end latency measurement.
-The existing Preview button still requests a full snapshot and pauses capture.
+since its last update under **Details**. These values are not an end-to-end latency measurement.
+**Inspect Scan** requests a full snapshot and temporarily suspends capture.
+**Finish Scan** opens the final exported mesh after the build succeeds. If live
+feedback disconnects, capture waits and guidance asks the operator to pause movement.
 
 ## Portable texture exports
 
