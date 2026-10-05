@@ -2,12 +2,16 @@
 
 import threading
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import Qt
 
 from kinect_scanner.server_client import ServerClient
-from kinect_scanner.server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
+from kinect_scanner.server_task_worker import (
+    ServerTask,
+    ServerTaskType,
+    ServerTaskWorker,
+)
 
 
 class ServerTaskTests(unittest.TestCase):
@@ -62,6 +66,52 @@ class ServerTaskTests(unittest.TestCase):
         self.assertEqual(updates, [{"session_id": "restored", "has_mesh": True}])
         self.assertEqual(client.session_id, "restored")
         client.disconnect.assert_called_once_with()
+
+    def test_recording_setup_failure_still_reports_committed_reset(self):
+        client = ServerClient()
+        result = {"success": True, "session_id": "new", "settings": {"live_reconstruction": True}}
+        client.reset_scan = Mock(return_value=result)
+        resets, warnings, failures = [], [], []
+        client.reset_done.connect(resets.append)
+        client.task_error.connect(warnings.append)
+        client.task_failed.connect(lambda kind, detail: failures.append((kind, detail)))
+        worker = ServerTaskWorker(client)
+        with patch("kinect_scanner.server_task_worker.RecordingWriter", side_effect=OSError("disk full")):
+            worker._dispatch(ServerTask(ServerTaskType.RESET, {"record": True}))
+        self.assertEqual(resets, [result])
+        self.assertEqual(warnings, ["Local recording unavailable: disk full"])
+        self.assertEqual(failures, [])
+        self.assertIsNone(worker._recording)
+        self.assertIsNone(worker._recording_session_id)
+        self.assertEqual(client.session_id, "new")
+        self.assertTrue(worker._live)
+
+    def test_reconnect_preserves_only_matching_session_recording(self):
+        client = ServerClient()
+        client.connect_to_server = Mock(return_value=True)
+        client.last_status = {"session_id": "same", "settings": {"live_reconstruction": True}}
+        worker = ServerTaskWorker(client)
+        recording = worker._recording = Mock()
+        worker._recording_session_id = "same"
+        task = ServerTask(ServerTaskType.CONNECT, {"host": "server", "port": 8000})
+        worker._dispatch(task)
+        self.assertIs(worker._recording, recording)
+        self.assertEqual(worker._recording_session_id, "same")
+        self.assertTrue(worker._live)
+        client.last_status = {"session_id": "different", "settings": {"live_reconstruction": False}}
+        worker._dispatch(task)
+        self.assertIsNone(worker._recording)
+        self.assertIsNone(worker._recording_session_id)
+        self.assertFalse(worker._live)
+
+    def test_successful_recording_tracks_committed_session(self):
+        client = ServerClient()
+        client.reset_scan = Mock(return_value={"success": True, "session_id": "recorded", "settings": {}})
+        worker = ServerTaskWorker(client)
+        with patch("kinect_scanner.server_task_worker.RecordingWriter") as recording:
+            worker._dispatch(ServerTask(ServerTaskType.RESET, {"record": True}))
+        self.assertIs(worker._recording, recording.return_value)
+        self.assertEqual(worker._recording_session_id, "recorded")
 
     def test_exception_identifies_failed_task_and_worker_continues(self):
         client = ServerClient()

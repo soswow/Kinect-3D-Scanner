@@ -1,10 +1,17 @@
 """Depth preview semantics, crop indication, and frame interval labels."""
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import unittest
+
 import numpy as np
 from PyQt6.QtWidgets import QApplication
-from kinect_scanner.gui.widgets import colorize_depth, depth_legend_text, FrameIntervalSpinBox
+
+from kinect_scanner.gui.widgets import (
+    FrameIntervalSpinBox,
+    colorize_depth,
+    depth_legend_text,
+)
 
 
 class DepthDisplayTests(unittest.TestCase):
@@ -29,8 +36,14 @@ class DepthDisplayTests(unittest.TestCase):
         self.assertIn("no depth", legend)
         self.assertIn("excluded", legend)
 
+    def test_calibrated_distances_are_clipped_before_display_rounding(self):
+        rgb = colorize_depth(np.array([[499.6, 500.4, 1500.4]]), 500, 1500)[0]
+        np.testing.assert_array_equal(rgb[0], [42, 42, 42])
+        self.assertFalse(np.array_equal(rgb[1], [42, 42, 42]))
+        np.testing.assert_array_equal(rgb[2], [42, 42, 42])
+
     def test_interval_label_is_short_and_cadence_stays_whole_frames(self):
-        app = QApplication.instance() or QApplication([])
+        self.app = QApplication.instance() or QApplication([])
         widget = FrameIntervalSpinBox(fps=10)
         self.assertEqual(widget.text(), "0.5 s")
         widget.set_interval_seconds(0.34)

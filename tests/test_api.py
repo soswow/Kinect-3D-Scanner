@@ -50,6 +50,13 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(422, response.status_code)
 
+    async def test_status_exposes_active_operation_without_waiting_for_build_lock(self):
+        async with server._exclusive_operation("build"):
+            response = await self.http.get("/api/scan/status")
+            self.assertEqual("build", response.json()["operation"])
+        response = await self.http.get("/api/scan/status")
+        self.assertIsNone(response.json()["operation"])
+
     async def test_build_reset_and_upload_serialize(self):
         entered = threading.Event()
         release = threading.Event()

@@ -65,14 +65,24 @@ class LiveViewTests(unittest.TestCase):
         np.testing.assert_array_equal(xy, [[500, 240]])
         np.testing.assert_array_equal(depth, [1])
 
+    def test_disconnected_guidance_survives_updates_until_feedback_returns(self):
+        self.snapshot([[0, 0, 1]], guidance="Move around the subject")
+        self.view.set_feedback_connected(False)
+        self.view._tick()
+        self.assertIn("Pause movement", self.view.guidance_label.text())
+        self.snapshot([[0, 0, 1]], guidance="Move slowly with overlap")
+        self.assertIn("Pause movement", self.view.guidance_label.text())
+        self.view.set_feedback_connected(True)
+        self.assertEqual("Move slowly with overlap", self.view.guidance_label.text())
+
     def test_render_nearest_splat_and_empty_camera_view(self):
         self.snapshot([[0, 0, 2], [0, 0, 1]], colors=[[1, 0, 0], [0, 1, 0]])
         image = self.view.grab().toImage()
         viewport = self.view.drawing_rect
         xy, _, _ = self.view._project_points(viewport.width(), viewport.height())
         x, y = xy[0] + [viewport.x(), viewport.y()]
-        for x, y in [(x, y), (x - 1, y - 1), (x + 1, y + 1)]:
-            self.assertEqual((0, 255, 0), image.pixelColor(x, y).getRgb()[:3])
+        for sample_x, sample_y in [(x, y), (x - 1, y - 1), (x + 1, y + 1)]:
+            self.assertEqual((0, 255, 0), image.pixelColor(sample_x, sample_y).getRgb()[:3])
         self.snapshot([[0, 0, -1]])
         self.view.colored = False
         self.assertEqual((21, 32, 43), self.view.grab().toImage().pixelColor(int(x), int(y)).getRgb()[:3])

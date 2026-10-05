@@ -5,8 +5,15 @@ import time
 import numpy as np
 from PyQt6.QtCore import QRect, QTimer
 from PyQt6.QtGui import QColor, QImage, QPainter
-from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QHBoxLayout, QLabel,
-                             QPushButton, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from shared.config import LIVE_MAX_POINTS
 from shared.settings import CameraCalibration
@@ -86,6 +93,7 @@ class LiveView(QWidget):
 
     def reset(self):
         self.snapshot = {}
+        self._feedback_connected = True
         self.camera_to_world = np.eye(4)
         self.camera = CameraCalibration()
         self.follow_cb.setChecked(True)
@@ -161,6 +169,10 @@ class LiveView(QWidget):
         self._refresh_labels()
         self.update()
 
+    def set_feedback_connected(self, connected):
+        self._feedback_connected = connected
+        self._refresh_labels()
+
     def _layout_panel(self):
         self.panel.setFixedWidth(self.width())
         self.panel.adjustSize()
@@ -173,7 +185,10 @@ class LiveView(QWidget):
     def _refresh_labels(self):
         s = self.snapshot
         result = s.get("result", {})
-        self.guidance_label.setText(s.get("guidance", "Move slowly with overlap"))
+        self.guidance_label.setText(
+            s.get("guidance", "Move slowly with overlap") if self._feedback_connected
+            else "Live feedback disconnected. Pause movement until updates return."
+        )
         self.status_label.setText(
             f"{s.get('frame_count', 0)} integrated · {s.get('pending_count', 0)} pending"
         )

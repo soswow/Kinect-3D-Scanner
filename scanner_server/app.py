@@ -46,17 +46,20 @@ _live_task = None
 _latest_live = None
 _shutting_down = False
 _exclusive = False
+_exclusive_kind = None
 
 
 @asynccontextmanager
-async def _exclusive_operation():
-    global _exclusive
+async def _exclusive_operation(kind):
+    global _exclusive, _exclusive_kind
     _exclusive = True
+    _exclusive_kind = kind
     try:
         async with _build_lock:
             yield
     finally:
         _exclusive = False
+        _exclusive_kind = None
 
 
 def _ensure_live_worker():
@@ -160,6 +163,7 @@ async def health():
         "stored_count": engine.stored_count,
         "frame_count": engine.frame_count,
         "has_mesh": engine.mesh is not None,
+        "operation": _exclusive_kind if _exclusive else None,
     }
 
 
@@ -174,6 +178,7 @@ async def scan_status():
         "settings": engine.settings.to_dict(),
         "skipped_count": sum(not r["success"] for r in engine.diagnostics),
         "has_mesh": engine.mesh is not None,
+        "operation": _exclusive_kind if _exclusive else None,
     }
 
 
@@ -282,7 +287,7 @@ async def scan_build():
     if _exclusive:
         return {"success": False, "message": "Build already in progress"}
 
-    async with _exclusive_operation():
+    async with _exclusive_operation("build"):
         loop = asyncio.get_event_loop()
         progress_queue: asyncio.Queue = asyncio.Queue()
 
@@ -346,7 +351,7 @@ async def scan_preview():
     if _exclusive:
         return Response(status_code=409, content="Build in progress")
 
-    async with _exclusive_operation():
+    async with _exclusive_operation("preview"):
         loop = asyncio.get_event_loop()
         progress_queue: asyncio.Queue = asyncio.Queue()
 

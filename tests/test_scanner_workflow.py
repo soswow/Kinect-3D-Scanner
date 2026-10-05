@@ -169,6 +169,102 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertFalse(self.window.auto_capture_cb.isChecked())
         self.assertNotIn(ServerTaskType.RESET, self.task_types())
 
+    def test_reconnect_protects_new_frames_in_previously_saved_session(self):
+        self.retain_scan()
+        self.window._session_dirty = False
+        self.window._restore_server_session({
+            "session_id": "retained", "stored_count": 5, "frame_count": 3,
+            "has_mesh": False, "settings": {},
+        })
+        self.assertTrue(self.window._session_dirty)
+        self.assertTrue(self.window._paused)
+        self.assertFalse(self.window.auto_capture_cb.isChecked())
+
+    def test_transport_timeout_reconciles_completed_server_build(self):
+        self.retain_scan()
+        self.window._build_pending = True
+        self.window._on_task_failed("BUILD_MESH", "HTTP timeout")
+        self.assertEqual([ServerTaskType.STATUS], self.task_types())
+        self.window._on_server_status({
+            "session_id": "retained", "stored_count": 3, "frame_count": 3,
+            "has_mesh": False, "settings": {}, "operation": "build",
+        })
+        self.assertFalse(self.window.btn_stop_build.isEnabled())
+        self.window._on_server_status({
+            "session_id": "retained", "stored_count": 3, "frame_count": 3,
+            "has_mesh": True, "settings": {}, "operation": None,
+        })
+        self.assertTrue(self.window._has_mesh)
+        self.assertFalse(self.window._build_failed)
+        self.assertEqual(ServerTaskType.FINAL_PREVIEW, self.task_types()[-1])
+
+    def test_session_save_pauses_capture_and_mesh_export_does_not_clear_dirty(self):
+        self.retain_scan()
+        self.window._has_mesh = True
+        self.protection("save")
+        self.window._export_mesh("ply")
+        self.window._capture_frame()
+        self.assertNotIn(ServerTaskType.SEND_FRAME, self.task_types())
+        self.window._on_export_done(True, "/tmp/workflow-session.zip")
+        self.assertTrue(self.window._session_dirty)
+        self.assertFalse(self.window._paused)
+
+    def test_stale_final_preview_cannot_replace_new_session(self):
+        self.window._session_id = "new-session"
+        self.window._final_preview_session = "old-session"
+        self.window._has_mesh = True
+        self.window._on_final_preview_done("/tmp/old-final.ply")
+        self.assertIsNone(self.window._last_preview_path)
+
+    def test_shortcuts_cannot_resume_capture_during_server_build(self):
+        self.retain_scan()
+        self.window._paused = True
+        self.window._server_operation = "build"
+        self.window._pause_or_resume()
+        self.assertTrue(self.window._paused)
+        self.window._paused = False
+        self.window._capture_frame()
+        self.window._auto_capture_tick()
+        self.assertEqual([], self.task_types())
+
+    def test_paused_scan_can_be_replaced_with_protection(self):
+        self.retain_scan()
+        self.window._paused = True
+        self.window._refresh_controls()
+        self.assertTrue(self.window.btn_start_scan.isEnabled())
+        self.protection("cancel")
+        self.window._start_scan()
+        self.assertEqual([], self.task_types())
+        self.assertTrue(self.window._session_dirty)
+
+    def test_shortcuts_cannot_capture_or_resume_during_disconnect(self):
+        self.retain_scan()
+        self.window._connect_pending = True
+        self.window._capture_frame()
+        self.window._auto_capture_tick()
+        self.window._paused = True
+        self.window._pause_or_resume()
+        self.assertTrue(self.window._paused)
+        self.assertEqual([], self.task_types())
+
+    def test_retained_session_restores_into_scan_view(self):
+        self.window.show()
+        self.window._restore_server_session({"session_id": "existing", "stored_count": 3,
+                                             "settings": {"live_reconstruction": True}})
+        self.app.processEvents()
+        self.assertEqual(main_window.MODE_SCANNER, self.window._mode)
+        self.assertTrue(self.window.live_view.isVisible())
+        self.assertTrue(self.window._mode_actions[0].isChecked())
+
+    def test_depth_preview_uses_exact_restored_crop_during_capture(self):
+        self.retain_scan()
+        self.window._session_settings = {"roi": [20, 30, 60, 90], "near_m": 0.5, "far_m": 1.5}
+        with patch.object(main_window, "raw_depth_to_mm", return_value=np.full((480, 640), 1000.0)):
+            preview = self.window._depth_display(self.depth)
+        np.testing.assert_array_equal(preview[30, 20], [255, 255, 255])
+        np.testing.assert_array_equal(preview[200, 300], [42, 42, 42])
+        self.assertFalse(np.array_equal(preview[50, 40], [42, 42, 42]))
+
     def test_final_preview_replaces_snapshot_without_resuming_capture(self):
         self.window._last_preview_path = "/tmp/old-snapshot.ply"
         self.window._has_mesh = True

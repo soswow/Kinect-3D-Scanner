@@ -49,6 +49,7 @@ class ServerClient(QObject):
         self._ws_generation = 0
         self._ws_socket = None
         self.session_id = None
+        self.last_status = {}
 
     @property
     def is_connected(self) -> bool:
@@ -69,12 +70,13 @@ class ServerClient(QObject):
             if health.get("status") != "ok":
                 raise RuntimeError(f"Server not ok: {health}")
             status = self.get_status()
-        except Exception as exc:
+        except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
             self.disconnect(notify=False)
             self.disconnected.emit(str(exc))
             return False
         self._connected = True
         self.session_id = status.get("session_id")
+        self.last_status = dict(status)
         self._ws_stop = threading.Event()
         self._ws_thread = threading.Thread(
             target=self._ws_listener,
@@ -118,7 +120,7 @@ class ServerClient(QObject):
         generation = generation if generation is not None else self._ws_generation
         try:
             import websocket as ws_lib
-        except Exception as exc:
+        except ImportError as exc:
             if generation == self._ws_generation and not stop.is_set():
                 self.websocket_status.emit("reconnecting", str(exc))
             return
@@ -149,7 +151,7 @@ class ServerClient(QObject):
                         continue
                     if active() and isinstance(msg, dict):
                         self._handle_ws_message(msg)
-            except Exception as exc:
+            except (ws_lib.WebSocketException, OSError, RuntimeError, ValueError) as exc:
                 if active():
                     logger.warning("WebSocket error: %s, reconnecting...", exc)
                     self.websocket_status.emit("reconnecting", str(exc))
@@ -159,8 +161,8 @@ class ServerClient(QObject):
                 if sock is not None:
                     try:
                         sock.close()
-                    except Exception:
-                        pass
+                    except Exception:  # Closing a failed transport is best effort.
+                        logger.debug("Could not close failed WebSocket", exc_info=True)
             if active():
                 stop.wait(1.0)
 

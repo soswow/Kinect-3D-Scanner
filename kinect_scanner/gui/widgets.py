@@ -8,7 +8,7 @@ from PyQt6.QtGui import QImage, QValidator
 from PyQt6.QtWidgets import QSpinBox
 
 
-def colorize_depth(depth: np.ndarray, near: int, far: int, roi=None) -> np.ndarray:
+def colorize_depth(depth: np.ndarray, near: float, far: float, roi=None) -> np.ndarray:
     """Color included distances; black means missing, gray means excluded.
 
     ROI coordinates are (left, top, right, bottom), with exclusive end pixels.
@@ -37,9 +37,9 @@ def colorize_depth(depth: np.ndarray, near: int, far: int, roi=None) -> np.ndarr
     return colored
 
 
-def depth_legend_text(near: int, far: int) -> str:
+def depth_legend_text(near: float, far: float) -> str:
     """Accessible labels for the depth preview palette and exclusion states."""
-    return (f"Blue: {near} mm · red: {far} mm\n"
+    return (f"Blue: {near:g} mm · red: {far:g} mm\n"
             "Black: no depth · gray: excluded · white outline: crop")
 
 

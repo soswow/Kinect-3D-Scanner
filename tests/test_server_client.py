@@ -2,12 +2,12 @@
 
 import os
 import sys
-from pathlib import Path
 import tempfile
 import threading
 import unittest
-from unittest.mock import Mock, patch
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import Qt
 
@@ -121,9 +121,11 @@ class ServerClientTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "existing.ply"
             destination.write_bytes(b"previous final mesh")
-            with patch("kinect_scanner.server_client.os.replace", side_effect=OSError("disk error")):
-                with self.assertRaisesRegex(OSError, "disk error"):
-                    client.request_export("ply", str(destination))
+            with (
+                patch("kinect_scanner.server_client.os.replace", side_effect=OSError("disk error")),
+                self.assertRaisesRegex(OSError, "disk error"),
+            ):
+                client.request_export("ply", str(destination))
             self.assertEqual(destination.read_bytes(), b"previous final mesh")
             self.assertEqual(list(Path(directory).iterdir()), [destination])
             self.assertTrue(client.request_export("ply", str(destination)))

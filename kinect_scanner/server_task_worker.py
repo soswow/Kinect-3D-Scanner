@@ -7,7 +7,7 @@ remote server instead of calling ScanEngine directly.
 import queue
 import traceback
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
@@ -52,6 +52,7 @@ class ServerTaskWorker(QThread):
         self._stop_flag = False
         self._pending = None
         self._recording = None
+        self._recording_session_id = None
         self._live = False
 
     def submit(self, task: ServerTask):
@@ -78,7 +79,7 @@ class ServerTaskWorker(QThread):
                 break
             try:
                 self._dispatch(task)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — contain failures at the queued task boundary.
                 traceback.print_exc()
                 self._client.task_error.emit(f"{task.task_type.name}: {exc}")
                 self._client.task_failed.emit(task.task_type.name, str(exc))
@@ -140,6 +141,12 @@ class ServerTaskWorker(QThread):
             self._client.task_started.emit("Connecting to server...")
             if not self._client.connect_to_server(task.kwargs["host"], task.kwargs["port"]):
                 self._client.task_failed.emit(tt.name, "Could not connect to server")
+            else:
+                status = self._client.last_status
+                self._live = bool(status.get("settings", {}).get("live_reconstruction"))
+                if status.get("session_id") != self._recording_session_id:
+                    self._recording = None
+                    self._recording_session_id = None
 
         elif tt == ServerTaskType.DISCONNECT:
             self._client.disconnect()
@@ -147,6 +154,7 @@ class ServerTaskWorker(QThread):
         elif tt == ServerTaskType.STATUS:
             result = self._client.get_status()
             self._client.session_id = result.get("session_id")
+            self._client.last_status = dict(result)
             self._client.status_updated.emit(result)
 
         elif tt == ServerTaskType.FINAL_PREVIEW:
@@ -166,11 +174,18 @@ class ServerTaskWorker(QThread):
             if not result.get("success"):
                 raise RuntimeError(result.get("message", "Reset failed"))
             self._recording = None
+            self._recording_session_id = None
+            self._client.session_id = result.get("session_id")
             self._live = result["settings"].get("live_reconstruction", False)
             if task.kwargs.get("record"):
                 root = Path(__file__).resolve().parents[1] / "recordings"
-                path = root / datetime.now().strftime("scan-%Y%m%d-%H%M%S-%f")
-                self._recording = RecordingWriter(path, result["settings"])
+                path = root / datetime.now(timezone.utc).astimezone().strftime("scan-%Y%m%d-%H%M%S-%f")
+                try:
+                    self._recording = RecordingWriter(path, result["settings"])
+                    self._recording_session_id = result.get("session_id")
+                except Exception as exc:  # noqa: BLE001 — optional recording must not undo a committed reset.
+                    self._client.task_error.emit(f"Local recording unavailable: {exc}")
+            # The server already committed the new session, even if local disk setup failed.
             self._client.reset_done.emit(result)
 
         elif tt == ServerTaskType.BUILD_MESH:
@@ -222,7 +237,7 @@ class ServerTaskWorker(QThread):
         if self._recording is not None:
             try:
                 self._recording.save_reconstruction(self._client.get_reconstruction())
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — a report failure must not hide a completed reconstruction.
                 self._client.task_error.emit(
                     f"Could not save reconstruction report: {exc}"
                 )
