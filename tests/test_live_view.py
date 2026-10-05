@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import unittest
 from dataclasses import asdict
+from unittest.mock import patch
 
 import numpy as np
 from PyQt6.QtWidgets import QApplication
@@ -67,11 +68,14 @@ class LiveViewTests(unittest.TestCase):
     def test_render_nearest_splat_and_empty_camera_view(self):
         self.snapshot([[0, 0, 2], [0, 0, 1]], colors=[[1, 0, 0], [0, 1, 0]])
         image = self.view.grab().toImage()
-        for x, y in [(320, 240), (319, 239), (321, 241)]:
+        viewport = self.view.drawing_rect
+        xy, _, _ = self.view._project_points(viewport.width(), viewport.height())
+        x, y = xy[0] + [viewport.x(), viewport.y()]
+        for x, y in [(x, y), (x - 1, y - 1), (x + 1, y + 1)]:
             self.assertEqual((0, 255, 0), image.pixelColor(x, y).getRgb()[:3])
         self.snapshot([[0, 0, -1]])
         self.view.colored = False
-        self.assertEqual((21, 32, 43), self.view.grab().toImage().pixelColor(320, 240).getRgb()[:3])
+        self.assertEqual((21, 32, 43), self.view.grab().toImage().pixelColor(int(x), int(y)).getRgb()[:3])
 
     def test_orbit_toggle_returns_to_latest_pose_and_reset_follows(self):
         self.snapshot([[0, 0, 1], [0.2, 0, 1]])
@@ -88,6 +92,72 @@ class LiveViewTests(unittest.TestCase):
         self.view.reset()
         self.assertTrue(self.view.follow_cb.isChecked())
         np.testing.assert_array_equal(self.view.camera_to_world, np.eye(4))
+
+    def test_visible_controls_fit_narrow_view_and_switch_modes(self):
+        self.view.resize(300, 240)
+        self.view.show()
+        self.app.processEvents()
+        controls = [self.view.follow_button, self.view.orbit_button,
+                    self.view.color_button, self.view.shape_button, self.view.fit_button]
+        for button in controls:
+            self.assertTrue(button.isVisible())
+            self.assertTrue(button.accessibleName())
+            position = button.mapTo(self.view, button.rect().topLeft())
+            self.assertGreaterEqual(position.x(), 0)
+            self.assertLessEqual(position.x() + button.width(), 300)
+            self.assertGreaterEqual(button.width(), button.sizeHint().width())
+        self.view.orbit_button.click()
+        self.assertFalse(self.view.follow_cb.isChecked())
+        self.view.follow_button.click()
+        self.assertTrue(self.view.follow_cb.isChecked())
+        self.view.shape_button.click()
+        self.assertFalse(self.view.colored)
+        self.view.color_button.click()
+        self.assertTrue(self.view.colored)
+        self.assertFalse(self.view.details_label.isVisible())
+        self.view.details_button.click()
+        self.assertTrue(self.view.details_label.isVisible())
+
+    def test_fit_recalculates_bounds_after_cloud_grows_and_resets_orbit(self):
+        self.snapshot([[0, 0, 1], [0.2, 0, 1]])
+        self.snapshot([[0, 0, 1], [10, 0, 1]])
+        self.view.yaw, self.view.pitch, self.view.zoom = 1, 1, 3
+        self.view.fit_button.click()
+        np.testing.assert_array_equal(self.view.center, [5, 0, 1])
+        self.assertEqual(self.view.radius, 5)
+        self.assertEqual((self.view.yaw, self.view.pitch, self.view.zoom), (0, 0, 1))
+        self.assertFalse(self.view.follow_cb.isChecked())
+        self.assertEqual(len(self.view._project_points(300, 240)[0]), 2)
+
+    def test_fit_includes_points_omitted_from_bounded_display(self):
+        with patch("kinect_scanner.gui.live_view.LIVE_MAX_POINTS", 2):
+            self.snapshot([[0, 0, 1], [20, 0, 1], [1, 0, 1]])
+        self.assertEqual(len(self.view.points), 2)
+        self.view.fit_view()
+        np.testing.assert_array_equal(self.view.center, [10, 0, 1])
+        self.assertEqual(self.view.radius, 10)
+
+    def test_expanded_details_reserve_uncovered_drawing_viewport(self):
+        self.view.resize(300, 300)
+        self.snapshot([[0, 0, 2], [0, 0, 1]], colors=[[1, 0, 0], [0, 1, 0]],
+                      guidance="Move slowly and keep overlap", result={"success": True})
+        self.view.show()
+        self.app.processEvents()
+        collapsed = self.view.drawing_rect
+        self.view.details_button.click()
+        self.app.processEvents()
+        viewport = self.view.drawing_rect
+        self.assertGreater(viewport.height(), 20)
+        self.assertLess(viewport.height(), collapsed.height())
+        self.assertEqual(viewport.top(), self.view.panel.geometry().bottom() + 1)
+        xy, _, _ = self.view._project_points(viewport.width(), viewport.height())
+        x, y = xy[0] + [viewport.x(), viewport.y()]
+        image = self.view.grab().toImage()
+        self.assertEqual((0, 255, 0), image.pixelColor(int(x), int(y)).getRgb()[:3])
+        self.assertGreaterEqual(y, viewport.top())
+        with patch.object(self.view, "_layout_panel", wraps=self.view._layout_panel) as layout:
+            self.view.grab()
+            layout.assert_not_called()
 
 
 if __name__ == "__main__":

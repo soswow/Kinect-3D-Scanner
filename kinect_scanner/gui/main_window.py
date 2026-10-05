@@ -46,7 +46,7 @@ from ..worker import KinectWorker
 from .live_view import LiveView
 from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
-from .widgets import FrameIntervalSpinBox, colorize_depth, numpy_to_qimage
+from .widgets import FrameIntervalSpinBox, colorize_depth, depth_legend_text, numpy_to_qimage
 
 # Default export directory (relative to where the app is launched)
 _PROJECT_ROOT = os.path.dirname(
@@ -689,6 +689,10 @@ class MainWindow(QMainWindow):
 
     def _switch_mode(self, mode: str):
         self._mode = mode
+        self.live_view.setVisible(mode == MODE_SCANNER and bool(self._session_id) and self.live_cb.isChecked())
+        self.guidance_label.setVisible(not self.live_view.isVisible())
+        if self.live_view.isVisible():
+            self.splitter.setSizes([max(300, self.splitter.width() * 2 // 3), max(240, self.splitter.width() // 3)])
         self.camera_title.setText("Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
         self.depth_legend_label.setVisible(mode == MODE_DEPTH)
         if self._last_rgb is not None and self._last_depth is not None:
@@ -748,13 +752,9 @@ class MainWindow(QMainWindow):
     def _depth_display(self, depth):
         depth = np.rint(raw_depth_to_mm(depth, self._sensor_calibration)).astype(np.uint16)
         roi = self._selected_roi()
-        if roi is not None:
-            x0, y0, x1, y1 = roi
-            masked = np.zeros_like(depth)
-            masked[y0:y1, x0:x1] = depth[y0:y1, x0:x1]
-            depth = masked
+        self.depth_legend_label.setText(depth_legend_text(self.depth_near_spin.value(), self.depth_far_spin.value()))
         return colorize_depth(
-            depth, self.depth_near_spin.value(), self.depth_far_spin.value()
+            depth, self.depth_near_spin.value(), self.depth_far_spin.value(), roi=roi
         )
 
     def _show_depth(self, depth):
