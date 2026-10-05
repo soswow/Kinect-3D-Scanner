@@ -8,10 +8,19 @@ from PyQt6.QtGui import QImage, QValidator
 from PyQt6.QtWidgets import QSpinBox
 
 
-def colorize_depth(depth: np.ndarray, near: int, far: int) -> np.ndarray:
-    """Convert a uint16 depth map to a JET-colorized RGB image."""
+def colorize_depth(depth: np.ndarray, near: int, far: int, roi=None) -> np.ndarray:
+    """Color included distances; black means missing, gray means excluded.
+
+    ROI coordinates are (left, top, right, bottom), with exclusive end pixels.
+    """
     d = depth.astype(np.float32)
-    valid = (d > 0) & (d < far)
+    present = np.isfinite(d) & (d > 0)
+    valid = present & (d >= near) & (d <= far)
+    if roi is not None:
+        x0, y0, x1, y1 = roi
+        inside = np.zeros_like(valid)
+        inside[y0:y1, x0:x1] = True
+        valid &= inside
     norm = np.zeros_like(d, dtype=np.uint8)
     if valid.any():
         norm[valid] = (
@@ -20,8 +29,18 @@ def colorize_depth(depth: np.ndarray, near: int, far: int) -> np.ndarray:
             .astype(np.uint8)
         )
     colored = cv2.applyColorMap(norm, cv2.COLORMAP_JET)
-    colored[~valid] = 0
-    return cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
+    colored[~valid] = [42, 42, 42]
+    colored[~present] = 0
+    colored = cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
+    if roi is not None:
+        cv2.rectangle(colored, (x0, y0), (x1 - 1, y1 - 1), (255, 255, 255), 1)
+    return colored
+
+
+def depth_legend_text(near: int, far: int) -> str:
+    """Accessible labels for the depth preview palette and exclusion states."""
+    return (f"Blue: {near} mm · red: {far} mm\n"
+            "Black: no depth · gray: excluded · white outline: crop")
 
 
 def numpy_to_qimage(arr: np.ndarray) -> QImage:
@@ -62,7 +81,9 @@ class FrameIntervalSpinBox(QSpinBox):
         self._update_tooltip()
 
     def textFromValue(self, frames):
-        return self.locale().toString(frames / self._fps, "f", 3)
+        return self.locale().toString(frames / self._fps, "f", 3).rstrip("0").rstrip(
+            self.locale().decimalPoint()
+        )
 
     def valueFromText(self, text):
         seconds, valid = self.locale().toDouble(

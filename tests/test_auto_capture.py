@@ -36,6 +36,7 @@ class NoTasks(QThread):
     def __init__(self, client):
         super().__init__()
         self.frames = []
+        self.tasks = []
         self.accept = True
 
     def run(self):
@@ -45,6 +46,7 @@ class NoTasks(QThread):
         pass
 
     def submit(self, task):
+        self.tasks.append(task)
         if self.accept and task.task_type == ServerTaskType.SEND_FRAME:
             self.frames.append(task.kwargs)
         return self.accept
@@ -94,7 +96,7 @@ class AutoCaptureTests(unittest.TestCase):
         spin.lineEdit().setText("0.260 s")
         spin.interpretText()
         self.assertEqual(3, spin.value())
-        self.assertEqual("0.300 s", spin.text())
+        self.assertEqual("0.3 s", spin.text())
         self.window.rgb_mode_combo.setCurrentIndex(1)
         self.assertEqual(9, spin.value())  # Preserve the nominal .3 s interval.
         spin.setValue(1)

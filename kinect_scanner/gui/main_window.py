@@ -7,7 +7,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QPixmap
+from PyQt6.QtGui import QAction, QActionGroup, QKeySequence, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
     QToolBar,
@@ -42,6 +43,7 @@ from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .live_view import LiveView
+from .components import CameraPreview, CollapsibleSection
 from .widgets import FrameIntervalSpinBox, colorize_depth, numpy_to_qimage
 
 # Default export directory (relative to where the app is launched)
@@ -61,6 +63,11 @@ class MainWindow(QMainWindow):
         self._closing = False
         self._mode = MODE_RGB
         self._scanning = False
+        self._paused = False
+        self._build_pending = False
+        self._build_failed = False
+        self._camera_ok = False
+        self._capture_waiting = ""
         self._fps_counter = 0
         self._fps_value = 0.0
         self._last_fps_time = time.time()
@@ -155,296 +162,298 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QHBoxLayout(central)
-        layout.setContentsMargins(4, 4, 4, 4)
-
-        self.view_label = QLabel("Connecting to Kinect...")
-        self.view_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.view_label.setMinimumSize(320, 240)
-        self.view_label.setStyleSheet(
-            "background-color: #1e1e1e; color: #aaa; font-size: 18px;"
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(8, 8, 8, 8)
+        self.guidance_label = QLabel(
+            "Keep the subject stationary. Move the Kinect slowly around it with overlapping views."
         )
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.view_label)
+        self.guidance_label.setWordWrap(True)
+        self.guidance_label.setAccessibleName("Scanning guidance")
+        layout.addWidget(self.guidance_label)
+        self.camera_panel = QWidget()
+        camera_layout = QVBoxLayout(self.camera_panel)
+        camera_layout.setContentsMargins(0, 0, 0, 0)
+        self.camera_title = QLabel("Live camera · Color")
+        camera_layout.addWidget(self.camera_title)
+        self.view_label = CameraPreview()
+        camera_layout.addWidget(self.view_label, stretch=1)
+        self.depth_legend_label = QLabel()
+        self.depth_legend_label.setWordWrap(True)
+        self.depth_legend_label.hide()
+        camera_layout.addWidget(self.depth_legend_label)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.live_view = LiveView()
         self.live_view.hide()
-        splitter.addWidget(self.live_view)
-        layout.addWidget(splitter, stretch=1)
+        self.splitter.addWidget(self.live_view)
+        self.splitter.addWidget(self.camera_panel)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 1)
+        layout.addWidget(self.splitter, stretch=1)
 
     def _build_toolbar(self):
-        toolbar = QToolBar("Modes")
+        toolbar = QToolBar("Views")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
-        for mode in (MODE_RGB, MODE_DEPTH, MODE_SCANNER):
-            action = QAction(mode, self)
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        self._mode_actions = []
+        for title, mode in (("Scan", MODE_SCANNER), ("Color", MODE_RGB), ("Depth", MODE_DEPTH)):
+            action = QAction(title, self)
+            action.setData(mode)
             action.setCheckable(True)
-            if mode == MODE_RGB:
-                action.setChecked(True)
+            action.setChecked(mode == self._mode)
             action.triggered.connect(lambda checked, m=mode: self._switch_mode(m))
+            group.addAction(action)
             toolbar.addAction(action)
-        self._mode_actions = toolbar.actions()
+            self._mode_actions.append(action)
+        toolbar.addSeparator()
+        open_action = QAction("Open Model…", self)
+        open_action.setShortcut(QKeySequence.StandardKey.Open)
+        open_action.triggered.connect(self._view_3d_file)
+        toolbar.addAction(open_action)
+        self.pause_action = QAction("Pause / Resume", self)
+        self.pause_action.setShortcut(QKeySequence("Space"))
+        self.pause_action.triggered.connect(self._shortcut_pause)
+        self.addAction(self.pause_action)
+        self.capture_action = QAction("Capture Frame", self)
+        self.capture_action.setShortcut(QKeySequence("C"))
+        self.capture_action.triggered.connect(self._shortcut_capture)
+        self.addAction(self.capture_action)
 
     def _build_dock(self):
-        dock = QDockWidget("Controls", self)
+        dock = QDockWidget("Scan", self)
         dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-        dock.setMinimumWidth(260)
+        dock.setMinimumWidth(300)
+        dock.setMaximumWidth(430)
+        self.controls_dock = dock
         container = QWidget()
         layout = QVBoxLayout(container)
+        layout.setContentsMargins(8, 6, 8, 6)
 
-        # ── Server Connection ─────────────────────────────────────
-        server_group = QGroupBox("Server Connection")
-        sg_layout = QVBoxLayout(server_group)
+        self.scan_status_label = QLabel("Waiting for connection")
+        self.scan_status_label.setWordWrap(True)
+        self.scan_status_label.setAccessibleName("Scan state")
+        self.scan_status_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.scan_status_label)
+        self.frame_count_label = QLabel("Captured: 0 · Added to model: 0")
+        self.frame_count_label.setWordWrap(True)
+        layout.addWidget(self.frame_count_label)
+        self.capture_mode_combo = QComboBox()
+        self.capture_mode_combo.addItem("Automatic", "automatic")
+        self.capture_mode_combo.addItem("Manual", "manual")
+        mode_label = QLabel("Capture mode")
+        mode_label.setBuddy(self.capture_mode_combo)
+        layout.addWidget(mode_label)
+        layout.addWidget(self.capture_mode_combo)
+        # Retain the cadence flag internally; operation is controlled by explicit actions.
+        self.auto_capture_cb = QCheckBox(container)
+        self.auto_capture_cb.hide()
+        self.auto_capture_cb.toggled.connect(self._toggle_auto_capture)
+        self.auto_capture_spin = FrameIntervalSpinBox(10)
+        self.auto_capture_spin.valueChanged.connect(self._reset_auto_capture_cadence)
+        self.interval_row = QWidget()
+        interval_layout = QHBoxLayout(self.interval_row)
+        interval_layout.setContentsMargins(0, 0, 0, 0)
+        interval_label = QLabel("Capture interval")
+        interval_label.setBuddy(self.auto_capture_spin)
+        interval_layout.addWidget(interval_label)
+        interval_layout.addWidget(self.auto_capture_spin)
+        layout.addWidget(self.interval_row)
+        self.interval_help = QLabel("Capture slows automatically while processing catches up.")
+        self.interval_help.setWordWrap(True)
+        layout.addWidget(self.interval_help)
+        self.adaptive_capture_cb = QCheckBox(container)
+        self.adaptive_capture_cb.setChecked(True)
+        self.adaptive_capture_cb.hide()
+        self.texture_exposure_cb = QCheckBox(container)
+        self.texture_exposure_cb.hide()
+        self.texture_best_cb = QCheckBox(container)
+        self.texture_best_cb.hide()
 
-        ip_row = QHBoxLayout()
-        self.server_ip_edit = QLineEdit()
-        self.server_ip_edit.setText(os.environ.get("KINECT_SERVER_HOST", "127.0.0.1"))
-        self.server_ip_edit.setPlaceholderText("Server IP, e.g. 10.0.0.107")
-        ip_row.addWidget(self.server_ip_edit, stretch=1)
-        self.server_port_spin = QSpinBox()
-        self.server_port_spin.setRange(1, 65535)
-        self.server_port_spin.setValue(
-            int(os.environ.get("KINECT_SERVER_PORT", "8000"))
-        )
-        self.server_port_spin.setFixedWidth(70)
-        ip_row.addWidget(self.server_port_spin)
-        sg_layout.addLayout(ip_row)
+        start_row = QHBoxLayout()
+        self.btn_start_scan = QPushButton("Start Scan")
+        self.btn_start_scan.clicked.connect(self._start_scan)
+        self.btn_pause = QPushButton("Pause")
+        self.btn_pause.setToolTip("Pause or resume capture (Space)")
+        self.btn_pause.clicked.connect(self._pause_or_resume)
+        start_row.addWidget(self.btn_start_scan)
+        start_row.addWidget(self.btn_pause)
+        layout.addLayout(start_row)
+        self.btn_capture = QPushButton("Capture Frame")
+        self.btn_capture.setToolTip("Capture one fresh frame (C)")
+        self.btn_capture.clicked.connect(self._capture_frame)
+        layout.addWidget(self.btn_capture)
+        finish_row = QHBoxLayout()
+        self.btn_preview_scan = QPushButton("Inspect Scan")
+        self.btn_preview_scan.clicked.connect(self._preview_scan)
+        self.btn_stop_build = QPushButton("Finish Scan")
+        self.btn_stop_build.clicked.connect(self._stop_and_build)
+        finish_row.addWidget(self.btn_preview_scan)
+        finish_row.addWidget(self.btn_stop_build)
+        layout.addLayout(finish_row)
+        output_row = QHBoxLayout()
+        self.btn_export = QPushButton("Export…")
+        self.btn_export.clicked.connect(self._choose_export)
+        self.btn_export_session = QPushButton("Save Session…")
+        self.btn_export_session.clicked.connect(self._export_session)
+        output_row.addWidget(self.btn_export)
+        output_row.addWidget(self.btn_export_session)
+        layout.addLayout(output_row)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.hide()
+        layout.addWidget(self.progress_bar)
+        self.readiness_label = QLabel("Connect the server and wait for live camera frames.")
+        self.readiness_label.setWordWrap(True)
+        layout.addWidget(self.readiness_label)
+        # Old command entry points remain for API/pipeline compatibility, without UI duplication.
+        for name, title, handler in (
+            ("btn_export_ply", "Export PLY", self._export_ply),
+            ("btn_export_obj", "Export OBJ", self._export_obj),
+            ("btn_export_glb", "Export textured GLB", lambda: self._export_texture("glb")),
+            ("btn_export_texture_obj", "Export textured OBJ", lambda: self._export_texture("obj.zip")),
+            ("btn_preview_3d", "View snapshot", self._preview_3d),
+            ("btn_save_mesh", "Save Mesh", self._save_mesh),
+            ("btn_load_mesh", "Open Model", self._load_mesh),
+            ("btn_view_file", "Open Model", self._view_3d_file),
+        ):
+            button = QPushButton(title, container)
+            button.clicked.connect(handler)
+            button.hide()
+            setattr(self, name, button)
 
-        self.btn_connect = QPushButton("Connect")
-        self.btn_connect.clicked.connect(self._toggle_connection)
-        sg_layout.addWidget(self.btn_connect)
-
-        self.server_status_label = QLabel("Not connected")
-        self.server_status_label.setStyleSheet("color: #888;")
-        self.server_status_label.setWordWrap(True)
-        sg_layout.addWidget(self.server_status_label)
-
-        self.backend_label = QLabel("Backend: unknown")
-        self.backend_label.setWordWrap(True)
-        sg_layout.addWidget(self.backend_label)
-        layout.addWidget(server_group)
-
-        # ── Depth visualisation range ─────────────────────────────
-        viz_group = QGroupBox("Scan settings (apply to new scan)")
-        self.settings_group = viz_group
-        vg = QVBoxLayout(viz_group)
-
-        vg.addWidget(QLabel("Near clip (mm):"))
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.settings_scroll = scroll
+        settings = QWidget()
+        settings_layout = QVBoxLayout(settings)
+        settings_layout.setContentsMargins(0, 4, 0, 4)
+        self.settings_group = QGroupBox("Setup for next scan")
+        vg = QVBoxLayout(self.settings_group)
         self.depth_near_spin = QSpinBox()
-        self.depth_near_spin.setRange(0, 4000)
+        self.depth_near_spin.setRange(0, 7999)
         self.depth_near_spin.setValue(500)
         self.depth_near_spin.setSingleStep(100)
-        vg.addWidget(self.depth_near_spin)
-
-        vg.addWidget(QLabel("Far clip (mm):"))
+        self.depth_near_spin.setSuffix(" mm")
         self.depth_far_spin = QSpinBox()
-        self.depth_far_spin.setRange(500, 8000)
+        self.depth_far_spin.setRange(1, 8000)
         self.depth_far_spin.setValue(4000)
         self.depth_far_spin.setSingleStep(100)
-        vg.addWidget(self.depth_far_spin)
-
-        self.voxel_spin = QDoubleSpinBox()
-        self.voxel_spin.setRange(2, 30)
-        self.voxel_spin.setValue(5)
-        self.voxel_spin.setSuffix(" mm")
-        vg.addWidget(QLabel("Voxel size:"))
-        vg.addWidget(self.voxel_spin)
-        self.final_voxel_spin = QDoubleSpinBox()
-        self.final_voxel_spin.setRange(0, 30)
-        self.final_voxel_spin.setValue(0)
-        self.final_voxel_spin.setSuffix(" mm")
-        self.final_voxel_spin.setSpecialValueText("Use live voxel")
-        self.final_voxel_spin.setToolTip(
-            "Optional final rebuild: 2 mm up to the live voxel size"
-        )
-        vg.addWidget(QLabel("Final voxel size:"))
-        vg.addWidget(self.final_voxel_spin)
-        self.final_blocks_spin = QSpinBox()
-        self.final_blocks_spin.setRange(128, 50000)
-        self.final_blocks_spin.setValue(5000)
-        self.final_blocks_spin.setToolTip(
-            "5000 blocks: about 391 MiB of voxel attributes, plus live volume and scratch memory"
-        )
-        vg.addWidget(QLabel("Final block budget:"))
-        vg.addWidget(self.final_blocks_spin)
-        self.weight_spin = QDoubleSpinBox()
-        self.weight_spin.setRange(0.5, 20)
-        self.weight_spin.setValue(2)
-        self.weight_spin.setSingleStep(0.5)
-        vg.addWidget(QLabel("Final surface confidence (weight):"))
-        vg.addWidget(self.weight_spin)
+        self.depth_far_spin.setSuffix(" mm")
+        for title, control in (("Nearest surface", self.depth_near_spin), ("Farthest surface", self.depth_far_spin)):
+            label = QLabel(title)
+            label.setBuddy(control)
+            vg.addWidget(label)
+            vg.addWidget(control)
         self.crop_cb = QCheckBox("Crop to central region")
         self.crop_spin = QSpinBox()
         self.crop_spin.setRange(10, 100)
         self.crop_spin.setValue(70)
         self.crop_spin.setSuffix("% of image")
+        self.crop_spin.setEnabled(False)
+        self.crop_cb.toggled.connect(self.crop_spin.setEnabled)
         vg.addWidget(self.crop_cb)
         vg.addWidget(self.crop_spin)
+        self.record_cb = QCheckBox("Record captures locally")
+        self.record_cb.setToolTip("Lossless RGB/depth captures are saved in the recordings folder for later replay.")
+        vg.addWidget(self.record_cb)
+        self.settings_error_label = QLabel()
+        self.settings_error_label.setWordWrap(True)
+        vg.addWidget(self.settings_error_label)
+
+        advanced = CollapsibleSection("Advanced reconstruction")
+        av = advanced.content_layout
+        self.voxel_spin = QDoubleSpinBox()
+        self.voxel_spin.setRange(2, 30)
+        self.voxel_spin.setValue(5)
+        self.voxel_spin.setSuffix(" mm")
+        self.final_voxel_spin = QDoubleSpinBox()
+        self.final_voxel_spin.setRange(0, 5)
+        self.final_voxel_spin.setValue(0)
+        self.final_voxel_spin.setSuffix(" mm")
+        self.final_voxel_spin.setSpecialValueText("Use live resolution")
+        self.final_blocks_spin = QSpinBox()
+        self.final_blocks_spin.setRange(128, 50000)
+        self.final_blocks_spin.setValue(5000)
+        self.final_blocks_spin.setToolTip("5000 blocks uses about 391 MiB, plus live reconstruction and working memory.")
+        self.weight_spin = QDoubleSpinBox()
+        self.weight_spin.setRange(0.5, 20)
+        self.weight_spin.setValue(2)
+        self.weight_spin.setSingleStep(0.5)
+        for title, control in (("Live voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final memory budget (blocks)", self.final_blocks_spin), ("Final surface confidence", self.weight_spin)):
+            label = QLabel(title)
+            label.setBuddy(control)
+            av.addWidget(label)
+            av.addWidget(control)
+        self.rgb_mode_combo = QComboBox()
+        self.rgb_mode_combo.addItem("Color detail · 1280 × 1024, 10 fps", "rgb_high_res")
+        self.rgb_mode_combo.addItem("Motion detail · 640 × 480, 30 fps", "rgb_low_res")
+        self.rgb_mode_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.rgb_mode_combo.setMinimumContentsLength(18)
+        self.rgb_mode_combo.currentIndexChanged.connect(self._change_rgb_mode)
+        av.addWidget(QLabel("Camera capture"))
+        av.addWidget(self.rgb_mode_combo)
+        self.live_cb = QCheckBox("Show live reconstruction")
+        self.live_cb.setChecked(True)
+        av.addWidget(self.live_cb)
         self.calibration_label = QLabel(self._sensor_calibration.name)
         self.calibration_label.setWordWrap(True)
-        vg.addWidget(self.calibration_label)
-        self.rgb_mode_combo = QComboBox()
-        self.rgb_mode_combo.addItem("RGB 1280 × 1024 · 10 fps", "rgb_high_res")
-        self.rgb_mode_combo.addItem("RGB 640 × 480 · 30 fps", "rgb_low_res")
-        self.rgb_mode_combo.currentIndexChanged.connect(self._change_rgb_mode)
-        vg.addWidget(self.rgb_mode_combo)
-        calibration_btn = QPushButton("Load calibration JSON")
+        av.addWidget(self.calibration_label)
+        calibration_btn = QPushButton("Load Calibration…")
         calibration_btn.clicked.connect(self._load_calibration)
-        vg.addWidget(calibration_btn)
-        self.color_tracking_cb = QCheckBox("Color-assisted tracking (experimental)")
-        self.color_tracking_cb.setToolTip(
-            "Uses RGB-D motion to seed ICP; requires synchronized, textured views"
-        )
-        vg.addWidget(self.color_tracking_cb)
-        self.live_cb = QCheckBox("Live fused point cloud feedback")
-        self.live_cb.setChecked(True)
-        self.live_cb.setToolTip(
-            "Shows up to 30,000 fused points from the last tracked scanner viewpoint. "
-            "Uncheck Follow scanner in the view to orbit. Pending count shows when "
-            "reconstruction falls behind. Use Preview Scan for the mesh."
-        )
-        vg.addWidget(self.live_cb)
-        self.refine_cb = QCheckBox("Final pose refinement (experimental)")
-        self.refine_cb.setToolTip(
-            "Validate loop matches and rebuild fusion; uses additional memory and time"
-        )
-        vg.addWidget(self.refine_cb)
-        self.relocalize_cb = QCheckBox("Recover lost tracking (experimental)")
-        self.relocalize_cb.setToolTip(
-            "Verified RGB-D matching after two skipped frames; repeated scenes can remain ambiguous"
-        )
-        self.confidence_cb = QCheckBox(
-            "Weight depth by sensor confidence (experimental)"
-        )
-        self.confidence_cb.setToolTip(
-            "Range/angle/edge prior; fractional weights need more observations at the final threshold"
-        )
-        vg.addWidget(self.relocalize_cb)
-        vg.addWidget(self.confidence_cb)
-        self.record_cb = QCheckBox("Save local RGB-D recording")
-        vg.addWidget(self.record_cb)
-        layout.addWidget(viz_group)
-
-        # ── Scanner Controls ──────────────────────────────────────
-        scan_group = QGroupBox("3D Scanner")
-        sg = QVBoxLayout(scan_group)
-
-        self.btn_start_scan = QPushButton("Start Scan")
-        self.btn_start_scan.clicked.connect(self._start_scan)
-        sg.addWidget(self.btn_start_scan)
-
-        self.btn_capture = QPushButton("Capture Frame")
-        self.btn_capture.setEnabled(False)
-        self.btn_capture.clicked.connect(self._capture_frame)
-        sg.addWidget(self.btn_capture)
-
-        # Auto-capture
-        auto_row = QHBoxLayout()
-        self.auto_capture_cb = QCheckBox("Auto every")
-        self.auto_capture_spin = FrameIntervalSpinBox(
-            RGB_MODE_FPS[self.rgb_mode_combo.currentData()]
-        )
-        self.auto_capture_spin.valueChanged.connect(self._reset_auto_capture_cadence)
-        self.auto_capture_cb.setEnabled(False)
-        self.auto_capture_spin.setEnabled(False)
-        self.auto_capture_cb.toggled.connect(self._toggle_auto_capture)
-        auto_row.addWidget(self.auto_capture_cb)
-        auto_row.addWidget(self.auto_capture_spin)
-        sg.addLayout(auto_row)
-        self.adaptive_capture_cb = QCheckBox("Pause auto capture for backlog")
-        self.adaptive_capture_cb.setChecked(True)
-        self.adaptive_capture_cb.setToolTip(
-            "Resumes automatically when the server queue catches up; manual capture stays available"
-        )
-        sg.addWidget(self.adaptive_capture_cb)
-
-        self.btn_preview_scan = QPushButton("Preview Scan")
-        self.btn_preview_scan.setEnabled(False)
-        self.btn_preview_scan.clicked.connect(self._preview_scan)
-        sg.addWidget(self.btn_preview_scan)
-
-        self.btn_stop_build = QPushButton("Stop && Build Mesh")
-        self.btn_stop_build.setEnabled(False)
-        self.btn_stop_build.clicked.connect(self._stop_and_build)
-        sg.addWidget(self.btn_stop_build)
-
-        export_row = QHBoxLayout()
-        self.btn_export_ply = QPushButton("Export PLY")
-        self.btn_export_ply.setEnabled(False)
-        self.btn_export_ply.clicked.connect(self._export_ply)
-        export_row.addWidget(self.btn_export_ply)
-        self.btn_export_obj = QPushButton("Export OBJ")
-        self.btn_export_obj.setEnabled(False)
-        self.btn_export_obj.clicked.connect(self._export_obj)
-        export_row.addWidget(self.btn_export_obj)
-        sg.addLayout(export_row)
-        self.btn_export_glb = QPushButton("Export textured GLB")
-        self.btn_export_glb.setEnabled(False)
-        self.btn_export_glb.clicked.connect(lambda: self._export_texture("glb"))
-        sg.addWidget(self.btn_export_glb)
-        self.btn_export_texture_obj = QPushButton("Export textured OBJ bundle")
-        self.btn_export_texture_obj.setEnabled(False)
-        self.btn_export_texture_obj.clicked.connect(
-            lambda: self._export_texture("obj.zip")
-        )
-        sg.addWidget(self.btn_export_texture_obj)
-        self.texture_exposure_cb = QCheckBox("Match texture exposures")
-        self.texture_exposure_cb.setToolTip(
-            "Bounded RGB gains must improve held-out, depth-visible overlap"
-        )
-        self.texture_best_cb = QCheckBox("Use one best view per texel")
-        self.texture_best_cb.setToolTip(
-            "Selects by viewing angle and distance; can sharpen detail but expose seams"
-        )
-        sg.addWidget(self.texture_exposure_cb)
-        sg.addWidget(self.texture_best_cb)
-        self.btn_export_session = QPushButton("Save full RGB-D session")
-        self.btn_export_session.setEnabled(False)
-        self.btn_export_session.clicked.connect(self._export_session)
-        sg.addWidget(self.btn_export_session)
-
-        # Preview 3D button (current scan)
-        self.btn_preview_3d = QPushButton("Preview 3D")
-        self.btn_preview_3d.setEnabled(False)
-        self.btn_preview_3d.clicked.connect(self._preview_3d)
-        sg.addWidget(self.btn_preview_3d)
-
-        # Save / Load mesh
-        mesh_row = QHBoxLayout()
-        self.btn_save_mesh = QPushButton("Save Mesh")
-        self.btn_save_mesh.setEnabled(False)
-        self.btn_save_mesh.clicked.connect(self._save_mesh)
-        mesh_row.addWidget(self.btn_save_mesh)
-        self.btn_load_mesh = QPushButton("Load Mesh")
-        self.btn_load_mesh.clicked.connect(self._load_mesh)
-        mesh_row.addWidget(self.btn_load_mesh)
-        sg.addLayout(mesh_row)
-
-        # View 3D file from disk
-        self.btn_view_file = QPushButton("View 3D File")
-        self.btn_view_file.clicked.connect(self._view_3d_file)
-        sg.addWidget(self.btn_view_file)
-
-        self.frame_count_label = QLabel("Stored: 0 | Integrated: 0")
-        sg.addWidget(self.frame_count_label)
-
-        self.scan_status_label = QLabel("Idle")
-        self.scan_status_label.setWordWrap(True)
-        sg.addWidget(self.scan_status_label)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)
-        self.progress_bar.setVisible(False)
-        sg.addWidget(self.progress_bar)
-
-        layout.addWidget(scan_group)
-        layout.addStretch()
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(container)
-        dock.setWidget(scroll)
+        av.addWidget(calibration_btn)
+        vg.addWidget(advanced)
+        experimental = CollapsibleSection("Experimental options")
+        ev = experimental.content_layout
+        self.color_tracking_cb = QCheckBox("Color-assisted tracking")
+        self.refine_cb = QCheckBox("Refine final camera poses")
+        self.relocalize_cb = QCheckBox("Recover lost tracking")
+        self.confidence_cb = QCheckBox("Use sensor confidence")
+        for control, help_text in (
+            (self.color_tracking_cb, "Uses synchronized color/depth observations to help initialize tracking."),
+            (self.refine_cb, "Validates loop matches and rebuilds fusion; needs extra time and memory."),
+            (self.relocalize_cb, "Attempts verified recovery after skipped frames; repeated scenes may be ambiguous."),
+            (self.confidence_cb, "Weights depth using range, angle and edges; may require more observations."),
+        ):
+            control.setToolTip(help_text)
+            ev.addWidget(control)
+        vg.addWidget(experimental)
+        settings_layout.addWidget(self.settings_group)
+        connection = CollapsibleSection("Connection details")
+        self.connection_section = connection
+        cl = connection.content_layout
+        self.server_ip_edit = QLineEdit(os.environ.get("KINECT_SERVER_HOST", "127.0.0.1"))
+        self.server_ip_edit.setPlaceholderText("Server host")
+        self.server_port_spin = QSpinBox()
+        self.server_port_spin.setRange(1, 65535)
+        self.server_port_spin.setValue(int(os.environ.get("KINECT_SERVER_PORT", "8000")))
+        for title, control in (("Server host", self.server_ip_edit), ("Port", self.server_port_spin)):
+            label = QLabel(title)
+            label.setBuddy(control)
+            cl.addWidget(label)
+            cl.addWidget(control)
+        self.btn_connect = QPushButton("Connect")
+        self.btn_connect.clicked.connect(self._toggle_connection)
+        cl.addWidget(self.btn_connect)
+        self.server_status_label = QLabel("Not connected")
+        self.server_status_label.setWordWrap(True)
+        cl.addWidget(self.server_status_label)
+        self.backend_label = QLabel("Backend: unknown")
+        self.backend_label.setWordWrap(True)
+        cl.addWidget(self.backend_label)
+        settings_layout.addWidget(connection)
+        settings_layout.addStretch()
+        scroll.setWidget(settings)
+        layout.addWidget(scroll, stretch=1)
+        dock.setWidget(container)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        self.resizeDocks([dock], [260], Qt.Orientation.Horizontal)
-
+        self.resizeDocks([dock], [310], Qt.Orientation.Horizontal)
+        self.capture_mode_combo.currentIndexChanged.connect(self._capture_mode_changed)
+        self.depth_near_spin.valueChanged.connect(self._validate_setup)
+        self.depth_far_spin.valueChanged.connect(self._validate_setup)
+        self.voxel_spin.valueChanged.connect(self._validate_setup)
+        self.final_voxel_spin.valueChanged.connect(self._validate_setup)
+        self._capture_mode_changed()
 
     def _build_statusbar(self):
         self.statusBar().showMessage("Ready")
@@ -454,29 +463,141 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.kinect_label)
 
     def _set_scan_controls_enabled(self, enabled: bool):
-        """Enable/disable scan controls based on server connection state."""
-        self.btn_start_scan.setEnabled(enabled)
         if not enabled:
-            self._scanning = False
-            self._reset_auto_capture_cadence()
+            self._paused = self._scanning or self._paused
             self.auto_capture_cb.setChecked(False)
-            for control in (
-                self.btn_capture,
-                self.btn_stop_build,
-                self.btn_preview_scan,
-                self.auto_capture_cb,
-                self.auto_capture_spin,
-                self.btn_export_ply,
-                self.btn_export_obj,
-                self.btn_export_glb,
-                self.btn_export_texture_obj,
-                self.btn_export_session,
-                self.btn_save_mesh,
-            ):
-                control.setEnabled(False)
-            self.settings_group.setEnabled(True)
+        self._refresh_controls()
 
-    # ── Server connection ─────────────────────────────────────────────
+    def _camera_ready(self):
+        return bool(self._camera_ok and self._last_rgb is not None and self._last_depth is not None
+                    and time.monotonic() - self._last_frame_time <= 0.5)
+
+    def _refresh_controls(self):
+        connected = self.server_client.is_connected
+        ready = self._camera_ready()
+        busy = self._reset_pending or self._preview_pending or self._build_pending
+        active = self._scanning
+        frames = self._server_stored > 0 or getattr(self.task_worker, "queued_task_count", 0) > 0
+        valid_setup = self.depth_near_spin.value() < self.depth_far_spin.value() and (
+            self.final_voxel_spin.value() == 0 or self.final_voxel_spin.value() >= 2
+        )
+        self.btn_start_scan.setEnabled(connected and ready and valid_setup and not busy and not active)
+        self.btn_start_scan.setText("New Scan" if self._session_id else "Start Scan")
+        self.btn_pause.setEnabled(connected and ready and not busy and (active or frames))
+        self.btn_pause.setText("Resume Capture" if self._paused or not active else "Pause")
+        self.btn_capture.setEnabled(connected and ready and active and not self._paused and not busy)
+        self.btn_stop_build.setEnabled(connected and frames and not busy)
+        self.btn_stop_build.setText("Retry Build" if self._build_failed else "Finish Scan")
+        self.btn_preview_scan.setEnabled(connected and frames and not busy)
+        self.btn_export.setEnabled(connected and self._has_mesh and not busy)
+        self.btn_export_session.setEnabled(connected and frames and not busy)
+        for button in (self.btn_export_ply, self.btn_export_obj, self.btn_export_glb,
+                       self.btn_export_texture_obj, self.btn_save_mesh):
+            button.setEnabled(connected and self._has_mesh and not busy)
+        self.settings_group.setEnabled(not active and not busy and not self._server_stored)
+        self.capture_mode_combo.setEnabled(not busy)
+        self.auto_capture_spin.setEnabled(not busy)
+        self.auto_capture_cb.setEnabled(connected and active and not busy)
+        if not connected:
+            reason = "Connect the reconstruction server."
+        elif not ready:
+            reason = "Waiting for fresh color and depth frames from the Kinect."
+        else:
+            reason = "Space: pause/resume · C: capture in Manual mode"
+        self.readiness_label.setText(reason)
+        self.btn_start_scan.setToolTip(reason if not self.btn_start_scan.isEnabled() else "Begin a new capture session")
+        self._refresh_status()
+
+    def _refresh_status(self):
+        if self._reset_pending:
+            state = "Starting scan…"
+        elif self._build_pending:
+            state = "Building final surface…"
+        elif self._preview_pending:
+            state = "Preparing inspection · capture temporarily paused"
+        elif not self.server_client.is_connected:
+            state = "Server disconnected · reconnect to continue" if self._session_id else "Waiting for server connection"
+        elif self._build_failed:
+            state = "Build failed · retry or resume capture"
+        elif self._scanning and self._paused:
+            state = "Paused · scan retained"
+        elif self._scanning and self._capture_waiting:
+            state = self._capture_waiting
+        elif self._scanning:
+            state = "Capturing automatically" if self.auto_capture_cb.isChecked() else "Manual capture · ready"
+        elif self._has_mesh:
+            state = "Final model ready · inspect or export"
+        elif self._server_stored:
+            state = "Scan retained · resume capture or finish"
+        else:
+            state = "Ready to scan" if self._camera_ready() else "Waiting for camera"
+        self.scan_status_label.setText(state)
+
+    def _capture_mode_changed(self):
+        automatic = self.capture_mode_combo.currentData() == "automatic"
+        self.interval_row.setVisible(automatic)
+        self.interval_help.setVisible(automatic)
+        self.btn_capture.setVisible(not automatic)
+        self.auto_capture_cb.setChecked(automatic and self._scanning)
+        self._reset_auto_capture_cadence()
+        self._refresh_controls()
+
+    def _pause_or_resume(self):
+        if self._reset_pending or self._build_pending or self._preview_pending:
+            return
+        if not self.server_client.is_connected:
+            return
+        if self._scanning and not self._paused:
+            self._paused = True
+        elif self._camera_ready() and (self._scanning or self._server_stored):
+            self._scanning = True
+            self._paused = False
+            self._build_failed = False
+            self._has_mesh = False
+            self.auto_capture_cb.setChecked(self.capture_mode_combo.currentData() == "automatic")
+        self._capture_waiting = ""
+        self._reset_auto_capture_cadence()
+        self._refresh_controls()
+
+    def _shortcut_pause(self):
+        if not isinstance(QApplication.focusWidget(), (QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox)):
+            self._pause_or_resume()
+
+    def _shortcut_capture(self):
+        if self.capture_mode_combo.currentData() == "manual" and not isinstance(
+                QApplication.focusWidget(), (QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox)):
+            self._capture_frame()
+
+    def _validate_setup(self):
+        self.final_voxel_spin.setMaximum(self.voxel_spin.value())
+        error = ""
+        if self.depth_near_spin.value() >= self.depth_far_spin.value():
+            error = "Nearest surface must be closer than farthest surface."
+        elif 0 < self.final_voxel_spin.value() < 2:
+            error = "Final voxel size must be at least 2 mm, or use live resolution."
+        self.settings_error_label.setText(error)
+        self.settings_error_label.setStyleSheet("color: #b4382c;" if error else "")
+        self._refresh_controls()
+        if error:
+            self.btn_start_scan.setEnabled(False)
+        if self._last_depth is not None and self._mode == MODE_DEPTH:
+            self._show_depth(self._last_depth)
+
+    def _choose_export(self):
+        from .dialogs import ExportDialog
+        dialog = ExportDialog(self)
+        if dialog.exec():
+            fmt = dialog.selected_format
+            self.texture_exposure_cb.setChecked(dialog.texture_options.get("exposure_correction", False))
+            self.texture_best_cb.setChecked(dialog.texture_options.get("blend_mode") == "best")
+            if fmt in ("glb", "obj.zip"):
+                self._export_texture(fmt)
+            elif fmt == "ply":
+                self._export_ply()
+            else:
+                self._export_obj()
+
+
     def _toggle_connection(self):
         if self.server_client.is_connected:
             self.server_client.disconnect()
@@ -524,15 +645,20 @@ class MainWindow(QMainWindow):
     # ── mode switching ────────────────────────────────────────────────
     def _switch_mode(self, mode: str):
         self._mode = mode
+        self.camera_title.setText("Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
+        self.depth_legend_label.setVisible(mode == MODE_DEPTH)
+        if self._last_rgb is not None and self._last_depth is not None:
+            self._show_depth(self._last_depth) if mode == MODE_DEPTH else self._show_rgb(self._last_rgb)
         for action in self._mode_actions:
-            action.setChecked(action.text() == mode)
+            action.setChecked(action.data() == mode)
 
     # ── frame display ─────────────────────────────────────────────────
     def _on_frame(self, video: np.ndarray, depth: np.ndarray, metadata=None):
         if self._closing:
             return
         self._fps_counter += 1
-        self.kinect_label.setText("Kinect: connected")
+        self._camera_ok = True
+        self.kinect_label.setText("Kinect: live")
         self._last_rgb = video
         self._last_depth = depth
         self._frame_sequence += 1
@@ -554,11 +680,13 @@ class MainWindow(QMainWindow):
         if (
             self._scanning
             and not self._preview_pending
+            and not self._paused
             and self.auto_capture_cb.isChecked()
         ):
             self._auto_frames_since_capture += 1
             if self._auto_frames_since_capture >= self.auto_capture_spin.value():
                 self._auto_capture_tick()
+        self._refresh_controls()
 
     def _show_rgb(self, rgb):
         self._set_pixmap(numpy_to_qimage(rgb))
@@ -587,23 +715,11 @@ class MainWindow(QMainWindow):
         self._set_pixmap(numpy_to_qimage(self._depth_display(depth)))
 
     def _show_scanner(self, rgb, depth):
-        if rgb.shape[:2] != depth.shape:
-            rgb = cv2.resize(
-                rgb,
-                (round(rgb.shape[1] * depth.shape[0] / rgb.shape[0]), depth.shape[0]),
-                interpolation=cv2.INTER_AREA,
-            )
-        combined = np.hstack([rgb, self._depth_display(depth)])
-        self._set_pixmap(numpy_to_qimage(combined))
+        # The reconstruction gets the main view; camera remains useful at its own aspect ratio.
+        self._show_rgb(rgb)
 
     def _set_pixmap(self, qimg):
-        self.view_label.setPixmap(
-            QPixmap.fromImage(qimg).scaled(
-                self.view_label.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        )
+        self.view_label.set_image(qimg)
 
     def _load_calibration(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -625,6 +741,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Not Connected", "Connect to the server first.")
             return
 
+        if self._reset_pending or self._build_pending or self._preview_pending or self._scanning:
+            return
+        if not self._camera_ready():
+            self._capture_waiting = "Waiting for a fresh camera frame"
+            self._refresh_controls()
+            return
         try:
             voxel = self.voxel_spin.value() / 1000
             roi = self._selected_roi()
@@ -677,26 +799,16 @@ class MainWindow(QMainWindow):
         self._server_stored = 0
         self._server_integrated = 0
 
+        self._last_preview_path = None
         self._scanning = True
+        self._paused = False
+        self._build_pending = self._build_failed = False
+        self._capture_waiting = ""
         self._switch_mode(MODE_SCANNER)
-        self.btn_start_scan.setEnabled(False)
-        self.btn_capture.setEnabled(True)
-        self.btn_stop_build.setEnabled(True)
-        self.btn_export_ply.setEnabled(False)
-        self.btn_export_obj.setEnabled(False)
-        self.btn_export_glb.setEnabled(False)
-        self.btn_export_texture_obj.setEnabled(False)
-        self.btn_export_session.setEnabled(False)
-        self.btn_preview_3d.setEnabled(False)
-        self.btn_save_mesh.setEnabled(False)
-        self.btn_preview_scan.setEnabled(True)
-        self.auto_capture_cb.setEnabled(True)
-        self.auto_capture_spin.setEnabled(True)
-        self.frame_count_label.setText("Stored: 0 | Integrated: 0")
-        self.scan_status_label.setText("Scanning — capture frames")
-        self.statusBar().showMessage(
-            "Scan started. Move Kinect and press Capture Frame."
-        )
+        self.auto_capture_cb.setChecked(self.capture_mode_combo.currentData() == "automatic")
+        self.frame_count_label.setText("Captured: 0 · Added to model: 0")
+        self._refresh_controls()
+        self.statusBar().showMessage("Scan started", 4000)
 
     def _auto_capture_tick(self):
         snapshot = self.live_view.snapshot
@@ -705,22 +817,25 @@ class MainWindow(QMainWindow):
             or snapshot.get("pending_count", 0) >= 5
             or snapshot.get("pending_age_s", 0) > 2
         ):
-            self.scan_status_label.setText(
-                "Auto capture waiting for reconstruction to catch up"
-            )
+            self._capture_waiting = "Auto capture waiting for reconstruction to catch up"
+            self._refresh_status()
             return
+        self._capture_waiting = ""
         self._capture_frame()
 
     def _capture_frame(self):
         if (
             not self._scanning
+            or self._paused
+            or self._build_pending
             or self._preview_pending
             or not self.server_client.is_connected
             or self._closing
         ):
             return
         if self._last_rgb is None or self._last_depth is None:
-            self.scan_status_label.setText("No frame available yet")
+            self._capture_waiting = "No frame available yet"
+            self._refresh_status()
             return
 
         frame_id = self._last_frame_metadata.get("frame_id")
@@ -728,7 +843,8 @@ class MainWindow(QMainWindow):
             frame_id == self._last_capture_id
             or time.monotonic() - self._last_frame_time > 0.5
         ):
-            self.scan_status_label.setText("Waiting for a fresh camera frame")
+            self._capture_waiting = "Waiting for a fresh camera frame"
+            self._refresh_status()
             return
         queued = self.task_worker.submit(
             ServerTask(
@@ -741,10 +857,13 @@ class MainWindow(QMainWindow):
             )
         )
         if not queued:
-            self.scan_status_label.setText("Upload queue full; skipped capture")
+            self._capture_waiting = "Upload queue full; skipped capture"
+            self._refresh_status()
         else:
             self._last_capture_id = frame_id
+            self._capture_waiting = ""
             self._reset_auto_capture_cadence()
+            self._refresh_controls()
 
     def _reset_auto_capture_cadence(self):
         self._auto_frames_since_capture = 0
@@ -753,6 +872,12 @@ class MainWindow(QMainWindow):
         self._reset_auto_capture_cadence()
 
     def _stop_and_build(self):
+        if self._build_pending or self._preview_pending or not self.server_client.is_connected:
+            return
+        if not self._server_stored and not getattr(self.task_worker, "queued_task_count", 0):
+            return
+        self._build_pending = True
+        self._build_failed = False
         self._scanning = False
         self._reset_auto_capture_cadence()
         self.auto_capture_cb.setChecked(False)
@@ -768,8 +893,14 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
 
         self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH))
+        self._refresh_controls()
 
     def _preview_scan(self):
+        if self._has_mesh and self._last_preview_path:
+            self._preview_3d()
+            return
+        if self._preview_pending or self._build_pending:
+            return
         if self._server_stored == 0:
             QMessageBox.information(
                 self, "Preview", "Capture at least one frame first."
@@ -785,6 +916,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
 
         self.task_worker.submit(ServerTask(ServerTaskType.PREVIEW))
+        self._refresh_controls()
 
     def _preview_3d(self):
         if self._last_preview_path:
@@ -905,13 +1037,10 @@ class MainWindow(QMainWindow):
         self._server_stored = max(self._server_stored, snapshot.get("stored_count", 0))
         self._server_integrated = snapshot.get("frame_count", 0)
         self.frame_count_label.setText(
-            f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
+            f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
-        if self._scanning and not self._preview_pending:
-            self.scan_status_label.setText(
-                snapshot.get("guidance")
-                or snapshot.get("result", {}).get("message", "Scanning")
-            )
+        self.guidance_label.setText(snapshot.get("guidance") or "Move slowly with overlapping views.")
+        self._refresh_controls()
 
     def _on_frame_stored(self, result: dict):
         if result.get("session_id") and result["session_id"] != self._session_id:
@@ -922,11 +1051,11 @@ class MainWindow(QMainWindow):
             self._server_stored, result.get("stored_count", self._server_stored)
         )
         self.frame_count_label.setText(
-            f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
+            f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
         self.btn_export_session.setEnabled(self._server_stored > 0)
-        self.scan_status_label.setText(result.get("message", "Frame stored"))
-        self.statusBar().showMessage(result.get("message", "Frame stored"))
+        self._refresh_controls()
+        self.statusBar().showMessage(result.get("message", "Frame stored"), 3000)
 
     def _on_process_progress(self, current: int, total: int, result: dict):
         if result.get("session_id") and result["session_id"] != self._session_id:
@@ -935,13 +1064,15 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(current)
         self._server_integrated = result.get("frame_count", self._server_integrated)
         self.frame_count_label.setText(
-            f"Stored: {self._server_stored} | Integrated: {self._server_integrated}"
+            f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
         self.scan_status_label.setText(
             f"Processing {current}/{total}: {result.get('message', '')}"
         )
 
     def _on_build_mesh_done(self, success: bool, detail: str):
+        self._build_pending = False
+        self._build_failed = not success
         self._has_mesh = success
         self.progress_bar.setVisible(False)
         self.scan_status_label.setText(detail)
@@ -958,6 +1089,7 @@ class MainWindow(QMainWindow):
 
         self.btn_start_scan.setEnabled(True)
         self.settings_group.setEnabled(True)
+        self._refresh_controls()
 
     def _resume_capture(self):
         self._preview_pending = False
@@ -966,6 +1098,7 @@ class MainWindow(QMainWindow):
             self.btn_stop_build.setEnabled(True)
             self.btn_preview_scan.setEnabled(True)
             self._toggle_auto_capture(self.auto_capture_cb.isChecked())
+        self._refresh_controls()
 
     def _on_preview_done(self, path: str):
         self._resume_capture()
@@ -982,6 +1115,7 @@ class MainWindow(QMainWindow):
             launch_viewer_subprocess(path)
         else:
             self.scan_status_label.setText("Preview extraction failed")
+        self._refresh_controls()
 
     def _on_export_done(self, success: bool, path: str):
         self.btn_export_ply.setEnabled(self._has_mesh)
@@ -1014,6 +1148,9 @@ class MainWindow(QMainWindow):
         ):
             button.setEnabled(self._has_mesh)
         self.progress_bar.setVisible(False)
+        if self._build_pending:
+            self._build_pending = False
+            self._build_failed = True
         if self._reset_pending:
             self._reset_pending = False
             self.btn_start_scan.setEnabled(True)
@@ -1025,6 +1162,7 @@ class MainWindow(QMainWindow):
             self.settings_group.setEnabled(True)
         self.scan_status_label.setText(f"Error: {msg}")
         self.statusBar().showMessage(f"Error: {msg}")
+        self._refresh_controls()
 
     # ── FPS / errors / cleanup ────────────────────────────────────────
     def _update_fps(self):
@@ -1034,12 +1172,19 @@ class MainWindow(QMainWindow):
             self._fps_value = self._fps_counter / elapsed
         self._fps_counter = 0
         self._last_fps_time = now
-        self.fps_label.setText(f"FPS: {self._fps_value:.1f}")
+        self.fps_label.setText(f"Camera: {self._fps_value:.1f} fps")
+        if self._last_rgb is not None and not self._camera_ready():
+            self.view_label.set_stale(True, "Camera delayed · last image")
+            self.kinect_label.setText("Kinect: waiting for frames")
+        self._refresh_controls()
 
     def _on_error(self, msg: str):
         if self._closing:
             return
-        self.kinect_label.setText("Kinect: error")
+        self._camera_ok = False
+        self.kinect_label.setText("Kinect: unavailable")
+        self.view_label.set_stale(True, "Camera unavailable · reconnecting")
+        self._refresh_controls()
         if self._last_rgb is None:
             self.view_label.setText(msg)
         self.statusBar().showMessage(f"Error: {msg}")
