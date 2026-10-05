@@ -82,6 +82,7 @@ class ScanSettings:
     color_recovery: bool = False
     live_reconstruction: bool = False
     refine_poses: bool = False
+    reconnect_fragments: bool = False
     relocalize: bool = False
     confidence_fusion: bool = False
     final_voxel_m: float | None = None
@@ -116,6 +117,7 @@ class ScanSettings:
             or type(self.color_recovery) is not bool
             or type(self.live_reconstruction) is not bool
             or type(self.refine_poses) is not bool
+            or type(self.reconnect_fragments) is not bool
             or type(self.relocalize) is not bool
             or type(self.confidence_fusion) is not bool
             or type(self.min_component_triangles) is not int

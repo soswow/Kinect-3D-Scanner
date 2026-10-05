@@ -241,6 +241,20 @@ They preserve the full final mesh for PLY/plain OBJ export.
 
 **Save full RGB-D session** downloads lossless images, calibration, settings,
 estimated poses, diagnostics, and timings. Unzip it for recording replay.
+**Reconnect separated views at Finish** is enabled for new GUI scans. Finish
+reconstructs local fragments from retained raw frames, verifies overlapping
+fragments, optimizes their pose graph, and rebuilds a fresh volume from the
+connected views. Unconnected fragments remain in the saved session and are
+reported explicitly. This runs offline at Finish and may leave a partial model
+when there is insufficient overlap or repeated geometry. For an older ZIP, run:
+
+```bash
+python scripts/reconnect_session.py export/your-session.zip \
+  --output-dir export/reconnected --save-session
+```
+
+See [fragment reconnection and its limits](docs/FRAGMENT_RECONNECTION.md).
+
 **Final pose refinement** is experimental and off by default: it validates loop
 constraints, optimizes a bounded keyframe graph, and reintegrates into a fresh
 volume only after separate geometry samples improve. It can retain the original

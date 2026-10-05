@@ -178,6 +178,7 @@ class MainWindow(QMainWindow):
                 (self.live_cb, "scan/live_reconstruction"),
                 (self.color_tracking_cb, "scan/color_tracking"),
                 (self.refine_cb, "scan/refine_poses"),
+                (self.reconnect_fragments_cb, "scan/reconnect_fragments"),
                 (self.relocalize_cb, "scan/relocalize"),
                 (self.confidence_cb, "scan/confidence"),
                 (self.rgb_exposure_combo, "camera/exposure_mode"),
@@ -555,6 +556,13 @@ class MainWindow(QMainWindow):
         self.live_cb = QCheckBox("Show live reconstruction")
         self.live_cb.setChecked(True)
         av.addWidget(self.live_cb)
+        self.reconnect_fragments_cb = QCheckBox("Reconnect separated views at Finish")
+        self.reconnect_fragments_cb.setChecked(True)
+        self.reconnect_fragments_cb.setToolTip(
+            "Search retained frames for overlapping fragments, verify links, and rebuild the connected scan. "
+            "Adds processing time; views without a verified connection remain in the saved session."
+        )
+        av.addWidget(self.reconnect_fragments_cb)
         self.calibration_label = QLabel(self._sensor_calibration.name)
         self.calibration_label.setWordWrap(True)
         av.addWidget(self.calibration_label)
@@ -1004,6 +1012,7 @@ class MainWindow(QMainWindow):
                 color_recovery=self.color_tracking_cb.isChecked(),
                 live_reconstruction=self.live_cb.isChecked(),
                 refine_poses=self.refine_cb.isChecked(),
+                reconnect_fragments=self.reconnect_fragments_cb.isChecked(),
                 relocalize=self.relocalize_cb.isChecked(),
                 confidence_fusion=self.confidence_cb.isChecked(),
                 final_voxel_m=self.final_voxel_spin.value() / 1000
@@ -1441,7 +1450,7 @@ class MainWindow(QMainWindow):
                     self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin,
-                    self.color_tracking_cb, self.refine_cb, self.relocalize_cb, self.confidence_cb)
+                    self.color_tracking_cb, self.refine_cb, self.reconnect_fragments_cb, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
         exposure_changed = (self.rgb_exposure_combo.currentData() != profile.rgb_exposure_mode
@@ -1462,6 +1471,7 @@ class MainWindow(QMainWindow):
             self.live_cb.setChecked(profile.live_reconstruction)
             self.color_tracking_cb.setChecked(profile.color_recovery)
             self.refine_cb.setChecked(profile.refine_poses)
+            self.reconnect_fragments_cb.setChecked(profile.reconnect_fragments)
             self.relocalize_cb.setChecked(profile.relocalize)
             self.confidence_cb.setChecked(profile.confidence_fusion)
             self.crop_cb.setChecked(profile.roi is not None)
