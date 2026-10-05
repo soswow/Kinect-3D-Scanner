@@ -29,7 +29,13 @@ feedback belong alongside milestones 4 and 6.
 
 ## Calibration workflow
 
-Save a full RGB-D session and unzip it into ignored `recordings/`. For intrinsics,
+The scanner loads the complete measured [calibration default](../calibration/default.json).
+Its calibration control requires that full JSON format, described in the
+[calibration guide](../calibration/README.md).
+
+The following single-camera analysis tools apply to registered metric dataset
+recordings; their output does not contain the full Kinect calibration and cannot
+be loaded in the GUI. Unzip a dataset recording into ignored `recordings/`. For intrinsics,
 collect at least 16 sharp views of a flat checkerboard spanning the image and
 several tilts. Columns/rows count **inner corners**; measure printed square size.
 
@@ -42,9 +48,8 @@ python scripts/calibrate_camera.py recordings/plane \
   --plane-roi 100 100 540 380 --expected-z-m 1.0
 ```
 
-Only accepted fits write a loadable camera JSON; a separate report records
-held-out errors and rejection reasons. Load that camera through the GUI's
-calibration control. Depth scale is **not** estimated from RGB checkerboards:
+Only accepted fits write single-camera analysis JSON; a separate report records
+held-out errors and rejection reasons. Depth scale is **not** estimated from RGB checkerboards:
 use several known front-facing plane depths to validate any scale correction.
 Plane residuals describe precision, not absolute accuracy. Recordings remain
 raw; correction is applied consistently before tracking, fusion and texturing.

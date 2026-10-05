@@ -15,7 +15,12 @@ class RecordingWriter:
         (self.path / "depth").mkdir()
         self.manifest = {
             "version": 1,
-            "depth_unit": "millimetres",
+            "depth_unit": "raw_11bit_disparity"
+            if settings.get("sensor_calibration")
+            else "millimetres",
+            "depth_encoding": "raw_11bit"
+            if settings.get("sensor_calibration")
+            else "registered_mm",
             "settings": settings,
             "frames": [],
         }

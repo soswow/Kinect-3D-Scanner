@@ -1,7 +1,7 @@
 """Bounded RGB-D serialization, compatible with original frame/batch packets.
 
-V2 adds JSON metadata before the original compressed uint8 RGB / uint16 mm
-payload. Legacy unpack_frame still returns two arrays. Dimensions are 640x480.
+V2 adds metadata; V3 carries native RGB dimensions (VGA or 1280x1024).
+Depth stays uint16 640x480; session settings define raw disparity or metric units.
 """
 
 import json
@@ -13,15 +13,16 @@ import numpy as np
 _HEADER = struct.Struct(">I")
 _BATCH_MAGIC = 0x42415448
 _V2_MAGIC = b"RGB2"
+_V3_MAGIC = b"RGB3"
 _MAX_BATCH = 100
-_MAX_FRAME_BYTES = 3_000_000
+_MAX_FRAME_BYTES = 6_000_000
 
 
 def validate_arrays(rgb, depth):
-    if rgb.shape != (480, 640, 3) or rgb.dtype != np.uint8:
-        raise ValueError("RGB must be uint8 480x640x3")
+    if rgb.shape not in ((480, 640, 3), (1024, 1280, 3)) or rgb.dtype != np.uint8:
+        raise ValueError("RGB must be uint8 VGA or 1280x1024")
     if depth.shape != (480, 640) or depth.dtype != np.uint16:
-        raise ValueError("Depth must be uint16 480x640 millimetres")
+        raise ValueError("Depth must be uint16 480x640")
 
 
 def pack_frame(rgb, depth, metadata=None):
@@ -29,11 +30,20 @@ def pack_frame(rgb, depth, metadata=None):
     color = zlib.compress(np.ascontiguousarray(rgb).tobytes(), level=1)
     metric = zlib.compress(np.ascontiguousarray(depth, dtype="<u2").tobytes(), level=1)
     payload = _HEADER.pack(len(color)) + color + metric
-    if metadata is not None:
+    high_res = rgb.shape == (1024, 1280, 3)
+    if metadata is not None or high_res:
+        metadata = dict(metadata or {})
+        if high_res:
+            metadata["rgb_shape"] = list(rgb.shape)
         header = json.dumps(metadata, allow_nan=False, separators=(",", ":")).encode()
         if len(header) > 4096:
             raise ValueError("Frame metadata too large")
-        payload = _V2_MAGIC + _HEADER.pack(len(header)) + header + payload
+        payload = (
+            (_V3_MAGIC if high_res else _V2_MAGIC)
+            + _HEADER.pack(len(header))
+            + header
+            + payload
+        )
     return payload
 
 
@@ -49,20 +59,26 @@ def unpack_frame_with_metadata(data):
     if not 8 <= len(data) <= _MAX_FRAME_BYTES:
         raise ValueError("Invalid frame length")
     metadata = {}
-    if data[:4] == _V2_MAGIC:
+    shape = (480, 640, 3)
+    version3 = data[:4] == _V3_MAGIC
+    if data[:4] in (_V2_MAGIC, _V3_MAGIC):
         length = _HEADER.unpack_from(data, 4)[0]
         if length > 4096 or 8 + length + 4 > len(data):
             raise ValueError("Invalid metadata length")
         metadata = json.loads(data[8 : 8 + length])
         if not isinstance(metadata, dict):
             raise ValueError("Metadata must be an object")
+        if version3:
+            shape = tuple(metadata.get("rgb_shape", ()))
+            if shape not in ((480, 640, 3), (1024, 1280, 3)):
+                raise ValueError("Unsupported RGB dimensions")
         data = data[8 + length :]
     rgb_len = _HEADER.unpack_from(data)[0]
     if not 0 < rgb_len < len(data) - 4:
         raise ValueError("Invalid RGB payload length")
     rgb = np.frombuffer(
-        _decompress(data[4 : 4 + rgb_len], 480 * 640 * 3), dtype=np.uint8
-    ).reshape(480, 640, 3)
+        _decompress(data[4 : 4 + rgb_len], int(np.prod(shape))), dtype=np.uint8
+    ).reshape(shape)
     depth = (
         np.frombuffer(_decompress(data[4 + rgb_len :], 480 * 640 * 2), dtype="<u2")
         .reshape(480, 640)

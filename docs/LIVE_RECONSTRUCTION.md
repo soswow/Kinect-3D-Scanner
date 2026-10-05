@@ -54,7 +54,7 @@ Accelerating fusion alone would therefore leave most of that run's cost intact.
 
 ## Continuous feedback
 
-The GUI enables **Live fused surface feedback** for new scans. API clients use
+The GUI enables **Live fused point cloud feedback** for new scans. API clients use
 `{"live_reconstruction": true}` in reset settings; omission retains the previous
 on-demand processing workflow.
 
@@ -65,16 +65,23 @@ that a build is already running. Cancellation waits for native processing to
 finish before releasing the lock. Client frame batching preserves command
 barriers and uses batches of at most eight in live mode.
 
-WebSocket `live` messages contain at most 5000 sampled fused points with colors,
-camera-to-world pose, session ID, counts, backend, and the latest tracking result.
+WebSocket `live` messages contain at most 30,000 sampled fused points with colors,
+camera-to-world pose, camera calibration, session ID, counts, backend, and the latest tracking result.
 Messages are limited to approximately two per second plus the final update of a
 drained queue. Slow sockets time out independently. The persistent Qt view uses
-software rendering, supports orbit/zoom and color/shape display, and ignores
-snapshots from previous sessions. It needs no OpenGL context or screen capture.
+software rendering and follows the latest accepted scanner pose by default,
+with perspective projection using the session's calibrated RGB intrinsics.
+The camera image fits the view without stretching or changing its field of view.
+Skipped tracking frames hold the last accepted viewpoint. Uncheck **Follow scanner**
+to drag to orbit and wheel to zoom; check it again to resume following. Double-click
+switches color/shape display. The view ignores snapshots from previous sessions
+and needs no OpenGL context or screen capture.
 
 This is responsive reconstruction feedback, not a guaranteed camera-rate mesh.
-Geometry comes from the cached tracking model, refreshed every three accepted
-integrations. `geometry_frame_count` makes that lag visible. Processing can fall
+Geometry is sampled from the fused cloud before tracking downsamples it, using
+the existing model extraction, refreshed every three accepted integrations.
+The client draws 3×3 dots with depth ordering; **Preview Scan** opens the mesh.
+`geometry_frame_count` makes that lag visible. Processing can fall
 behind capture; the view shows pending frames, server processing time, and time
 since its last update. These values are not an end-to-end latency measurement.
 The existing Preview button still requests a full snapshot and pauses capture.
@@ -94,8 +101,16 @@ true. Optional `exposure_correction=true` enables bounded gain matching on
 held-out depth-visible overlap; `blend_mode=best` selects the strongest
 angle/distance view instead of blending. Both have GUI export checkboxes. The texture mesh is a simplified copy;
 the full final mesh remains available through PLY/plain OBJ. UV seams duplicate
-export vertices deliberately. UV generation requires an edge/vertex manifold;
-invalid geometry returns an actionable error rather than silently removing it.
+export vertices deliberately. Non-manifold edge connections and disconnected
+vertex fans are separated into UV seams on the export copy before atlas
+generation. This preserves triangle positions and colors; the topology repair
+counts are included in `texture-report.json`.
+Contradictory winding is also cut into separate sheets. If native atlas
+generation still rejects a partition, independently repaired charts are packed
+into texture tiles, subdividing only rejected charts. The report records the
+atlas method, chart count and subdivisions; this fallback preserves every face
+of the simplified export mesh.
+Connections that cannot be separated return an actionable error.
 
 The portable projection algorithm works on ARM CPUs:
 

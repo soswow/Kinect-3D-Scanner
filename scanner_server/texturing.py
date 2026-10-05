@@ -13,7 +13,144 @@ import open3d as o3d
 import trimesh
 from PIL import Image
 
-from shared.calibration import prepare_rgbd
+from shared.calibration import prepare_rgbd, project_rgb
+
+
+def _winding_cuts(faces):
+    """Find face cuts that make shared-edge winding constraints consistent."""
+    directed = faces[:, [[0, 1], [1, 2], [2, 0]]].reshape(-1, 2)
+    edges = np.sort(directed, axis=1)
+    _, inverse, counts = np.unique(
+        edges, axis=0, return_inverse=True, return_counts=True
+    )
+    order = np.argsort(inverse, kind="stable")
+    starts = np.cumsum(counts) - counts
+    adjacency = [[] for _ in faces]
+    forward = directed[:, 0] < directed[:, 1]
+    for edge in np.flatnonzero(counts == 2):
+        a, b = order[starts[edge] : starts[edge] + 2]
+        flip = bool(forward[a] == forward[b])
+        adjacency[a // 3].append((b // 3, flip))
+        adjacency[b // 3].append((a // 3, flip))
+    winding = np.full(len(faces), -1, dtype=np.int8)
+    cuts = set()
+    for root in range(len(faces)):
+        if winding[root] >= 0 or root in cuts:
+            continue
+        winding[root] = 0
+        pending = [root]
+        while pending:
+            face = pending.pop()
+            if face in cuts:
+                continue
+            for neighbor, flip in adjacency[face]:
+                if neighbor in cuts:
+                    continue
+                wanted = int(winding[face]) ^ flip
+                if winding[neighbor] < 0:
+                    winding[neighbor] = wanted
+                    pending.append(neighbor)
+                elif winding[neighbor] != wanted:
+                    cuts.add(int(neighbor))
+    return cuts
+
+
+def _make_uv_manifold(mesh):
+    """Cut ambiguous connections on an export copy without deleting faces."""
+    bad_edges = np.asarray(mesh.get_non_manifold_edges(allow_boundary_edges=True))
+    bad_vertices = mesh.get_non_manifold_vertices()
+    report = {
+        "non_manifold_edges": len(bad_edges),
+        "non_manifold_vertices": len(bad_vertices),
+        "isolated_triangles": 0,
+        "winding_conflict_triangles": 0,
+        "added_vertices": 0,
+        "removed_triangles": 0,
+    }
+    if not len(bad_edges) and not len(bad_vertices) and mesh.is_orientable():
+        mesh.orient_triangles()
+        return report
+
+    vertices = np.asarray(mesh.vertices).copy()
+    colors = np.asarray(mesh.vertex_colors).copy()
+    faces = np.asarray(mesh.triangles).copy()
+    source_ids = list(range(len(vertices)))
+    if len(bad_edges):
+        edges = np.sort(faces[:, [[0, 1], [1, 2], [2, 0]]].reshape(-1, 2), axis=1)
+        _, inverse, counts = np.unique(
+            edges, axis=0, return_inverse=True, return_counts=True
+        )
+        order = np.argsort(inverse, kind="stable")
+        starts = np.cumsum(counts) - counts
+        # Keep two faces per shared edge; give any extra sheets their own
+        # corners. Their positions and colors remain exactly the same.
+        isolate = set()
+        for edge_id in np.flatnonzero(counts > 2):
+            incident = order[starts[edge_id] : starts[edge_id] + counts[edge_id]] // 3
+            isolate.update(incident[2:].tolist())
+        for face_id in sorted(isolate):
+            original = faces[face_id].copy()
+            faces[face_id] = np.arange(len(source_ids), len(source_ids) + 3)
+            source_ids.extend(original.tolist())
+        report["isolated_triangles"] = len(isolate)
+        mesh.vertices = o3d.utility.Vector3dVector(vertices[source_ids])
+        mesh.triangles = o3d.utility.Vector3iVector(faces)
+
+    # Manifold scans can still contain a twisted sheet with contradictory
+    # winding. Cut that connection for UVs instead of rejecting the scan.
+    if not mesh.is_orientable():
+        cuts = _winding_cuts(faces)
+        for face_id in sorted(cuts):
+            original = faces[face_id].copy()
+            faces[face_id] = np.arange(len(source_ids), len(source_ids) + 3)
+            source_ids.extend(source_ids[int(vertex)] for vertex in original)
+        report["winding_conflict_triangles"] = len(cuts)
+        mesh.vertices = o3d.utility.Vector3dVector(vertices[source_ids])
+        mesh.triangles = o3d.utility.Vector3iVector(faces)
+
+    # A vertex can still join disjoint triangle fans (a bow-tie). Give each
+    # fan its own coincident vertex so the UV atlas sees separate sheets.
+    for vertex in mesh.get_non_manifold_vertices():
+        incident, corners = np.where(faces == vertex)
+        neighbors = {}
+        for local, face_id in enumerate(incident):
+            for other in faces[face_id]:
+                if other != vertex:
+                    neighbors.setdefault(int(other), []).append(local)
+        adjacency = [set() for _ in incident]
+        for joined in neighbors.values():
+            for local in joined:
+                adjacency[local].update(joined)
+        remaining = set(range(len(incident)))
+        first = True
+        while remaining:
+            pending = [remaining.pop()]
+            component = []
+            while pending:
+                local = pending.pop()
+                component.append(local)
+                connected = adjacency[local] & remaining
+                remaining.difference_update(connected)
+                pending.extend(connected)
+            if first:
+                first = False
+                continue
+            new_vertex = len(source_ids)
+            source_ids.append(source_ids[vertex])
+            faces[incident[component], corners[component]] = new_vertex
+
+    mesh.vertices = o3d.utility.Vector3dVector(vertices[source_ids])
+    mesh.triangles = o3d.utility.Vector3iVector(faces)
+    if len(colors) == len(vertices):
+        mesh.vertex_colors = o3d.utility.Vector3dVector(colors[source_ids])
+    report["added_vertices"] = len(source_ids) - len(vertices)
+    if (
+        not mesh.is_edge_manifold(allow_boundary_edges=True)
+        or not mesh.is_vertex_manifold()
+        or not mesh.orient_triangles()
+    ):
+        raise ValueError("Could not separate non-manifold connections for texture export")
+    return report
 
 
 def _views(engine, max_views):
@@ -42,7 +179,65 @@ def _views(engine, max_views):
     return selected
 
 
-def _project(world, normals, rgb, depth, pose, camera_model, near, far):
+def _fallback_uv_atlas(mesh, size, max_faces=1000):
+    """Atlas independent repaired charts; subdivide only charts rejected by UVAtlas."""
+    tensor = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+    partitions = tensor.pca_partition(max_faces=max_faces)
+    groups = tensor.triangle["partition_ids"].numpy()
+    vertices = np.asarray(mesh.vertices)
+    faces = np.asarray(mesh.triangles)
+    charts = []
+    retries = 0
+
+    def unwrap(ids):
+        nonlocal retries
+        if len(ids) == 1:
+            charts.append((ids, np.array([[[0.05, 0.05], [0.95, 0.05], [0.5, 0.95]]])))
+            return
+        used, remap = np.unique(faces[ids], return_inverse=True)
+        part = o3d.geometry.TriangleMesh(
+            o3d.utility.Vector3dVector(vertices[used]),
+            o3d.utility.Vector3iVector(remap.reshape(-1, 3)),
+        )
+        _make_uv_manifold(part)
+        local = o3d.t.geometry.TriangleMesh.from_legacy(part)
+        try:
+            local.compute_uvatlas(size=256, parallel_partitions=1, nthreads=1)
+        except RuntimeError as exc:
+            if "Non-manifold mesh" not in str(exc):
+                raise
+            retries += 1
+            middle = len(ids) // 2
+            unwrap(ids[:middle])
+            unwrap(ids[middle:])
+            return
+        # Local winding repair can reorder corners. Map UVs back to the
+        # original triangles so geometry and attribute interpolation agree.
+        original = vertices[faces[ids]]
+        repaired = np.asarray(part.vertices)[np.asarray(part.triangles)]
+        distance = ((original[:, :, None] - repaired[:, None, :]) ** 2).sum(axis=-1)
+        corner = distance.argmin(axis=2)
+        uv = local.triangle["texture_uvs"].numpy()
+        charts.append((ids, uv[np.arange(len(ids))[:, None], corner]))
+
+    for group in range(partitions):
+        unwrap(np.flatnonzero(groups == group))
+    columns = int(np.ceil(np.sqrt(len(charts))))
+    rows = int(np.ceil(len(charts) / columns))
+    cell = np.array([1 / columns, 1 / rows])
+    padding = np.minimum(1 / size, cell * 0.1)
+    uv = np.empty((len(faces), 3, 2), dtype=np.float32)
+    for chart, (ids, local_uv) in enumerate(charts):
+        origin = np.array([chart % columns, chart // columns]) * cell
+        uv[ids] = origin + padding + local_uv * (cell - 2 * padding)
+    tensor.triangle["texture_uvs"] = o3d.core.Tensor(uv)
+    return tensor, {"method": "repaired_chart_tiles", "charts": len(charts), "subdivisions": retries}
+
+
+def _project(
+    world, normals, rgb, depth, pose, camera_model, near, far,
+    sensor_calibration=None, rgb_camera=None,
+):
     extrinsic = np.linalg.inv(pose)
     camera = world @ extrinsic[:3, :3].T + extrinsic[:3, 3]
     z = camera[:, 2]
@@ -51,7 +246,18 @@ def _project(world, normals, rgb, depth, pose, camera_model, near, far):
     x = np.clip(np.rint(u), 0, camera_model.width - 1).astype(int)
     y = np.clip(np.rint(v), 0, camera_model.height - 1).astype(int)
     observed = depth[y, x]
-    direction = pose[:3, 3] - world
+    if sensor_calibration is not None:
+        pixels, rgb_z = project_rgb(camera * 1000, sensor_calibration, rgb_camera)
+        color_u, color_v = pixels.T
+        center_ir = (
+            -np.asarray(sensor_calibration.rotation).T
+            @ np.asarray(sensor_calibration.translation_mm) / 1000
+        )
+        center_world = pose[:3, :3] @ center_ir + pose[:3, 3]
+    else:
+        color_u, color_v, rgb_z = u, v, z
+        center_world = pose[:3, 3]
+    direction = center_world - world
     direction /= np.maximum(np.linalg.norm(direction, axis=1, keepdims=True), 1e-6)
     cosine = np.abs(np.sum(normals * direction, axis=1))
     mask = (
@@ -64,12 +270,17 @@ def _project(world, normals, rgb, depth, pose, camera_model, near, far):
         & (observed > 0)
         & (np.abs(observed - z) <= np.maximum(0.015, 0.01 * z))
         & (cosine > 0.25)
+        & (rgb_z > 0)
+        & (color_u >= 0)
+        & (color_u < rgb.shape[1] - 1)
+        & (color_v >= 0)
+        & (color_v < rgb.shape[0] - 1)
     )
     ids = np.flatnonzero(mask)
     colors = np.zeros((len(world), 3), np.float32)
     weights = np.zeros(len(world), np.float32)
-    x0, y0 = np.floor(u[ids]).astype(int), np.floor(v[ids]).astype(int)
-    dx, dy = (u[ids] - x0)[:, None], (v[ids] - y0)[:, None]
+    x0, y0 = np.floor(color_u[ids]).astype(int), np.floor(color_v[ids]).astype(int)
+    dx, dy = (color_u[ids] - x0)[:, None], (color_v[ids] - y0)[:, None]
     colors[ids] = (
         rgb[y0, x0] * (1 - dx) * (1 - dy)
         + rgb[y0, x0 + 1] * dx * (1 - dy)
@@ -104,19 +315,17 @@ def make_textured_mesh(
     mesh.remove_duplicated_triangles()
     mesh.remove_degenerate_triangles()
     mesh.remove_unreferenced_vertices()
-    if (
-        not mesh.is_edge_manifold(allow_boundary_edges=True)
-        or not mesh.is_vertex_manifold()
-    ):
-        raise ValueError(
-            "Texture UV generation needs a manifold mesh; inspect or clean the final surface"
-        )
+    topology_report = _make_uv_manifold(mesh)
     mesh.compute_vertex_normals()
     tensor = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-    # Iso-chart spectral solves can take minutes on one large connected chart.
-    # Partition before atlas generation to bound each solve on scan meshes.
     partitions = max(1, min(256, int(np.ceil(len(mesh.triangles) / 1000))))
-    tensor.compute_uvatlas(size=size, parallel_partitions=partitions, nthreads=4)
+    atlas_report = {"method": "native_partitioned"}
+    try:
+        tensor.compute_uvatlas(size=size, parallel_partitions=partitions, nthreads=4)
+    except RuntimeError as exc:
+        if "Non-manifold mesh" not in str(exc):
+            raise
+        tensor, atlas_report = _fallback_uv_atlas(mesh, size)
     colors = np.asarray(mesh.vertex_colors)
     if len(colors) != len(mesh.vertices):
         colors = np.full((len(mesh.vertices), 3), 0.6, np.float32)
@@ -138,7 +347,10 @@ def make_textured_mesh(
     valid_indices = np.flatnonzero(valid)
     prepared = []
     for index, pose in views:
-        rgb, depth = prepare_rgbd(*engine.raw_frames[index], engine.settings)
+        source_rgb, source_depth = engine.raw_frames[index]
+        rgb, depth = prepare_rgbd(source_rgb, source_depth, engine.settings)
+        if engine.settings.sensor_calibration:
+            rgb = source_rgb  # Native lens pixels, sampled with K,D and R,T.
         prepared.append((pose, rgb, depth.astype(np.float32) / 1000))
     exposure_report = {"applied": False, "reason": "Not requested"}
     gains = np.ones((len(views), 3), np.float32)
@@ -157,6 +369,8 @@ def make_textured_mesh(
                 c,
                 engine.settings.near_m,
                 engine.settings.far_m,
+                sensor_calibration=engine.settings.sensor_calibration,
+                rgb_camera=engine.settings.rgb_camera,
             )
             samples.append(values)
             visible.append(weight > 0)
@@ -176,6 +390,8 @@ def make_textured_mesh(
                 c,
                 engine.settings.near_m,
                 engine.settings.far_m,
+                sensor_calibration=engine.settings.sensor_calibration,
+                rgb_camera=engine.settings.rgb_camera,
             )
             values = np.clip(values * gains[view_index], 0, 1)
             if blend_mode == "best":
@@ -212,8 +428,10 @@ def make_textured_mesh(
         "blend_mode": blend_mode,
         "exposure_correction": exposure_report,
         "atlas_partitions": partitions,
+        "atlas": atlas_report,
         "original_triangles": original_triangles,
         "export_triangles": len(faces),
+        "topology_repair": topology_report,
         "views": [i for i, _ in views],
         "projected_fraction": float(projected.sum() / max(1, valid.sum())),
         "unobserved_fallback": "fused vertex colors",

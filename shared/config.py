@@ -8,6 +8,9 @@ FX, FY = 525.0, 525.0
 CX, CY = 319.5, 239.5
 DEPTH_W, DEPTH_H = 640, 480
 
+# Shared bound for live feedback payloads and software rendering.
+LIVE_MAX_POINTS = 30000
+
 # ── View modes ────────────────────────────────────────────────────────────
 MODE_RGB = "RGB"
 MODE_DEPTH = "Depth"

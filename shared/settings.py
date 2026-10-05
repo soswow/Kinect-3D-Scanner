@@ -1,11 +1,11 @@
-"""Validated, serializable settings for registered RGB-D sessions.
-
-Depth is uint16 millimetres in the RGB pixel grid. Calibration must describe
-that grid; IR intrinsics must not be substituted for registered depth.
-"""
+"""Validated settings for metric datasets and calibrated native Kinect streams."""
 
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .sensor_calibration import SensorCalibration
 
 
 @dataclass(frozen=True)
@@ -31,10 +31,17 @@ class CameraCalibration:
             raise ValueError("Measured depth-scale correction must be 0.8–1.2")
         if type(self.width) is not int or type(self.height) is not int:
             raise ValueError("Image dimensions must be integers")
-        if (self.width, self.height) != (640, 480):
-            raise ValueError("Transport currently requires 640x480 images")
-        if self.image_space != "registered_rgb":
-            raise ValueError("Use RGB intrinsics for registered depth")
+        sizes = {
+            "registered_rgb": ((640, 480),),
+            "native_depth": ((640, 480),),
+            "native_rgb": ((640, 480), (1280, 1024)),
+            "native_ir": ((640, 488),),
+        }
+        if (
+            self.image_space not in sizes
+            or (self.width, self.height) not in sizes[self.image_space]
+        ):
+            raise ValueError("Unsupported camera image space or dimensions")
         if not all(math.isfinite(v) for v in (self.fx, self.fy, self.cx, self.cy)):
             raise ValueError("Camera parameters must be finite")
         if not (100 < self.fx < 2000 and 100 < self.fy < 2000):
@@ -78,9 +85,26 @@ class ScanSettings:
     final_voxel_m: float | None = None
     final_block_count: int = 5000
 
+    sensor_calibration: "SensorCalibration | None" = None
+    rgb_mode: str = "rgb_high_res"
+
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
-            raise ValueError("Invalid camera calibration")
+            raise TypeError("Invalid camera calibration")
+        if self.rgb_mode not in ("rgb_high_res", "rgb_low_res"):
+            raise ValueError("RGB mode must be rgb_high_res or rgb_low_res")
+        if self.sensor_calibration is not None:
+            from .sensor_calibration import SensorCalibration
+
+            if not isinstance(self.sensor_calibration, SensorCalibration):
+                raise ValueError("Invalid complete sensor calibration")
+            object.__setattr__(self, "camera", self.sensor_calibration.depth)
+        elif self.camera.image_space != "registered_rgb":
+            raise ValueError(
+                "Native camera profiles require a complete sensor calibration"
+            )
+        else:
+            object.__setattr__(self, "rgb_mode", "rgb_low_res")
         if (
             type(self.filter_depth) is not bool
             or type(self.color_recovery) is not bool
@@ -139,11 +163,34 @@ class ScanSettings:
                 raise ValueError("ROI must be inside the image")
 
     def to_dict(self):
-        return asdict(self)
+        result = {f.name: getattr(self, f.name) for f in fields(self)}
+        result["camera"] = asdict(self.camera)
+        result["sensor_calibration"] = (
+            self.sensor_calibration.to_dict() if self.sensor_calibration else None
+        )
+        return result
+
+    @property
+    def rgb_camera(self):
+        return (
+            getattr(self.sensor_calibration, self.rgb_mode)
+            if self.sensor_calibration
+            else self.camera
+        )
+
+    @property
+    def depth_encoding(self):
+        return "raw_11bit" if self.sensor_calibration else "registered_mm"
 
     @classmethod
     def from_dict(cls, value):
         value = dict(value)
+        if value.get("sensor_calibration") is not None:
+            from .sensor_calibration import SensorCalibration
+
+            value["sensor_calibration"] = SensorCalibration.from_dict(
+                value["sensor_calibration"]
+            )
         if "camera" in value:
             value["camera"] = CameraCalibration(**value["camera"])
         if value.get("roi") is not None:

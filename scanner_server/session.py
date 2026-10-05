@@ -10,7 +10,10 @@ from PIL import Image
 def export_session(engine, path):
     manifest = {
         "version": 1,
-        "depth_unit": "millimetres",
+        "depth_unit": "raw_11bit_disparity"
+        if engine.settings.sensor_calibration
+        else "millimetres",
+        "depth_encoding": engine.settings.depth_encoding,
         "settings": engine.settings.to_dict(),
         "frames": [],
         "reconstruction": "reconstruction.json",

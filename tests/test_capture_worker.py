@@ -48,7 +48,7 @@ def wait_for(predicate, timeout=5):
 
 class CaptureWorkerTests(unittest.TestCase):
     def start_worker(self, target, **kwargs):
-        worker = KinectWorker(capture_target=target, **kwargs)
+        worker = KinectWorker(capture_target=target, rgb_mode="rgb_low_res", **kwargs)
         self.addCleanup(self.stop_worker, worker)
         worker.start()
         return worker
@@ -85,7 +85,10 @@ class CaptureWorkerTests(unittest.TestCase):
     def test_copy_frame_before_child_reuses_buffer_and_detect_stream_stall(self):
         frames, errors = [], []
         worker = KinectWorker(
-            capture_target=one_frame_capture, frame_timeout=0.3, retry_delay=10
+            capture_target=one_frame_capture,
+            rgb_mode="rgb_low_res",
+            frame_timeout=0.3,
+            retry_delay=10,
         )
         self.addCleanup(self.stop_worker, worker)
         worker.frame_pair_ready.connect(

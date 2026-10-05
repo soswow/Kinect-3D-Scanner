@@ -4,13 +4,13 @@ import time
 
 import numpy as np
 
-from shared.capture import timestamp_delta_ms
+from shared.capture import RGB_MODE_FPS, timestamp_delta_ms
 
 RGB_SHAPE = (480, 640, 3)
 DEPTH_SHAPE = (480, 640)
 
 
-def capture_frames(connection, stop_event, rgb_buffer, depth_buffer):
+def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True):
     """Publish one shared-memory pair at a time, awaiting a copy acknowledgement.
 
     Only small messages cross the pipe. The child never overwrites a published
@@ -36,22 +36,59 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer):
             )
         for result in (
             freenect.set_depth_mode(
-                dev, freenect.RESOLUTION_MEDIUM, freenect.DEPTH_REGISTERED
+                dev,
+                freenect.RESOLUTION_MEDIUM,
+                freenect.DEPTH_11BIT,
             ),
             freenect.set_video_mode(
-                dev, freenect.RESOLUTION_MEDIUM, freenect.VIDEO_RGB
+                dev, freenect.RESOLUTION_MEDIUM, freenect.VIDEO_IR_10BIT
             ),
         ):
             if result < 0:
-                raise RuntimeError(
-                    "Cannot configure Kinect RGB/registered depth streams"
-                )
+                raise RuntimeError("Cannot configure Kinect video/depth streams")
         latest = {}
+        warming = True
+        warmup_frames = 30
+        settling = 0
+        rgb_deadline = None
+        warmup_retry = True
+        rgb_resolution = (
+            freenect.RESOLUTION_HIGH if high_res else freenect.RESOLUTION_MEDIUM
+        )
+
+        def switch_video(ir=False):
+            nonlocal video_started, settling
+            if freenect.stop_video(dev) < 0:
+                raise RuntimeError("Cannot stop video for IR/RGB switch")
+            video_started = False
+            if (
+                freenect.set_video_mode(
+                    dev,
+                    freenect.RESOLUTION_MEDIUM if ir else rgb_resolution,
+                    freenect.VIDEO_IR_10BIT if ir else freenect.VIDEO_RGB,
+                )
+                < 0
+            ):
+                raise RuntimeError("Cannot configure IR/RGB mode")
+            if freenect.start_video(dev) < 0:
+                raise RuntimeError("Cannot restart video after mode switch")
+            video_started = True
+            settling = 2
+            latest.clear()
+            connection.send(("phase", "warming IR" if ir else "waiting for RGB"))
 
         def depth_callback(device, array, stamp):
             latest["depth"] = (array.copy(), int(stamp))
 
         def video_callback(device, array, stamp):
+            nonlocal warmup_frames, rgb_deadline, settling
+            if warming:
+                warmup_frames -= 1
+                return
+            rgb_deadline = None
+            if settling:
+                settling -= 1
+                return
             latest["rgb"] = (array.copy(), int(stamp))
 
         freenect.set_depth_callback(dev, depth_callback)
@@ -62,13 +99,34 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer):
         if freenect.start_video(dev) < 0:
             raise RuntimeError("Cannot start Kinect RGB stream")
         video_started = True
-        rgb_out = np.frombuffer(rgb_buffer, np.uint8).reshape(RGB_SHAPE)
+        rgb_out = np.frombuffer(rgb_buffer, np.uint8).reshape(
+            (1024, 1280, 3) if high_res else RGB_SHAPE
+        )
         depth_out = np.frombuffer(depth_buffer, np.uint16).reshape(DEPTH_SHAPE)
         awaiting_copy = False
         while not stop_event.is_set():
             # This call can block inside libusb; the parent enforces a deadline.
-            if freenect.process_events(ctx) < 0:
+            process_events = getattr(
+                freenect, "process_events_timeout", freenect.process_events
+            )
+            if process_events(ctx) < 0:
                 raise RuntimeError("Kinect USB stream disconnected or failed")
+            if warming:
+                if warmup_frames <= 0:
+                    switch_video()
+                    warming = False
+                    rgb_deadline = time.monotonic() + 1.5
+                continue
+            if (
+                rgb_deadline is not None
+                and warmup_retry
+                and time.monotonic() > rgb_deadline
+            ):
+                warmup_retry = False
+                switch_video(ir=True)
+                warming = True
+                warmup_frames = 30
+                continue
             if awaiting_copy:
                 if not connection.poll():
                     continue
@@ -96,6 +154,11 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer):
                         "rgb_timestamp_ticks": rgb_stamp,
                         "device_timestamp_hz": 60_000_000,
                         "rgb_depth_delta_ms": delta,
+                        "rgb_mode": "rgb_high_res" if high_res else "rgb_low_res",
+                        "rgb_fps": RGB_MODE_FPS[
+                            "rgb_high_res" if high_res else "rgb_low_res"
+                        ],
+                        "depth_encoding": "raw_11bit",
                     },
                 )
             )

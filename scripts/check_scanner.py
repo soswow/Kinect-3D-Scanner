@@ -37,6 +37,9 @@ def check_client(port, rgb, depth):
         frame_ready = pyqtSignal(np.ndarray, np.ndarray)
         error_occurred = pyqtSignal(str)
 
+        def __init__(self, **kwargs):
+            super().__init__()
+
         def run(self):
             pass
 
@@ -54,6 +57,7 @@ def check_client(port, rgb, depth):
     main_window.launch_viewer_subprocess = lambda path: None
     app = QApplication([])
     window = main_window.MainWindow()
+    window.rgb_mode_combo.setCurrentIndex(1)  # Native calibrated VGA fixture.
 
     def wait_until(predicate):
         deadline = time.monotonic() + 30
@@ -191,12 +195,21 @@ def main():
                     timeout=5,
                     http_no_proxy=["127.0.0.1"],
                 )
-                assert http.post("/api/scan/reset").json()["success"]
+                reset = http.post("/api/scan/reset", json={"rgb_mode": "rgb_low_res"}).json()
+                assert reset["success"]
+                assert reset["settings"]["sensor_calibration"]["camera_serial"] == "A00363W00948202A"
 
                 # A curved depth surface with a raised central patch constrains ICP.
                 y, x = np.mgrid[:480, :640]
                 depth = (1100 + 100 * np.sin(x / 90) * np.cos(y / 70)).astype(np.uint16)
                 depth[140:340, 220:420] -= 150
+                from shared.sensor_calibration import load_calibration
+
+                calibration = load_calibration()
+                depth = np.rint(
+                    (calibration.scale * 1000 / depth.astype(float) - calibration.b)
+                    / calibration.a_per_code
+                ).astype(np.uint16)
                 rgb = np.stack((x % 256, y % 256, (x + y) % 256), axis=-1).astype(
                     np.uint8
                 )

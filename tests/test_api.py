@@ -27,6 +27,17 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         await self.http.aclose()
         server.engine = self.original
 
+    async def test_empty_reset_uses_complete_measured_kinect_default(self):
+        response = await self.http.post("/api/scan/reset", json={})
+        self.assertEqual(200, response.status_code)
+        settings = response.json()["settings"]
+        self.assertEqual("rgb_high_res", settings["rgb_mode"])
+        self.assertEqual("native_depth", settings["camera"]["image_space"])
+        self.assertEqual(
+            "A00363W00948202A", settings["sensor_calibration"]["camera_serial"]
+        )
+        self.assertEqual(1280, server.engine.settings.rgb_camera.width)
+
     async def test_invalid_settings_do_not_reset_session(self):
         before = server.engine.vbg
         response = await self.http.post(

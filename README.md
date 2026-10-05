@@ -31,7 +31,9 @@ opens the GUI, and connects automatically. Closing the GUI stops the server.
 Only one application should use the Kinect at a time.
 
 On macOS, **Start Scanner.command** can be opened from Finder. It uses the
-repository's `.venv/`, an activated virtual environment, or `python3` from PATH.
+repository's `.venv/`, the parent folder's `.venv/`, an activated virtual
+environment, or `python3` from PATH, in that order. Finder launches do not
+require activating either local environment in Terminal first.
 For an environment located elsewhere, run the launcher with that environment's
 Python interpreter directly. The driver and compiled Python bindings must both
 be installed; the Python dependencies alone do not provide `freenect`.
@@ -82,9 +84,10 @@ it does not save camera images.
 The **RGB**, **Depth**, and **Scanner** tabs display live camera views. The
 Scanner tab shows RGB and depth side by side. To reconstruct a model, click
 **Start Scan**, capture overlapping frames manually or with **Auto every**,
-The **Live fused surface feedback** setting adds a persistent 3D view while
+The **Live fused point cloud feedback** setting adds a persistent 3D view while
 frames are processed during capture. Drag to orbit, scroll to zoom, and
-double-click to switch color/shape. Pending frames and processing time show when
+double-click to switch color/shape. The view displays up to 30,000 fused points
+with larger dots; use **Preview Scan** to see the mesh. Pending frames and processing time show when
 the server falls behind. Click **Preview Scan** for a full snapshot in a separate
 viewer, or **Stop & Build Mesh** for final export.
 
@@ -105,10 +108,27 @@ synthetic input and an offscreen Qt platform; it does not open a 3D viewer.
 ## Reconstruction Quality and Public Replay
 
 Configure near/far clipping, voxel size, final surface confidence, optional central
-crop, and registered-RGB calibration **before starting a scan**. These settings
+crop, RGB capture mode, and calibration **before starting a scan**. These settings
 now affect reconstruction. Capture fresh overlapping views while moving the
 Kinect around a stationary subject. “Save local RGB-D recording” enables later
 replay without hardware; recordings stay outside Git.
+
+The GUI now loads the [complete measured Kinect calibration](calibration/default.json)
+by default: independent RGB profiles at both resolutions, IR/depth intrinsics
+and distortion, IR–depth grid correspondence, IR-to-RGB pose, and board-checked
+raw-depth conversion. RGB capture defaults to **1280 × 1024 at 10 fps**; select
+**640 × 480 at 30 fps** in scan settings when preferred. Depth remains native
+640 × 480 raw disparity. Reconstruction uses the calibrated depth grid, while
+texture exports sample original full-resolution RGB. **Load calibration JSON**
+requires the complete publication. Single-camera JSON files are rejected. Recordings
+retain original observations and all calibration data. See the
+[JSON structure and runtime conventions](calibration/README.md).
+
+**Auto every** follows fresh camera frames. Its interval rounds to whole frame
+periods: 0.1-second steps in 10 fps mode, or 1/30-second steps in 30 fps mode.
+A 0.5-second interval selects every five high-resolution pairs or fifteen VGA
+pairs. Capture waits for fresh input and reconstruction capacity; delays extend
+the interval without creating duplicate captures or catch-up bursts.
 
 The updated tracker reduced camera-position RMSE from about 220 mm to 44 mm on
 an 80-frame public TUM Kinect replay using identical intrinsics (80/80 frames
@@ -303,10 +323,18 @@ Frames are serialized using the `shared.protocol` module.
 | Field | Size | Description |
 |-------|------|-------------|
 | `rgb_len` | 4 bytes (big-endian uint32) | Length of compressed RGB data |
-| `rgb_compressed` | variable | zlib level=1 compressed RGB (480x640x3 uint8) |
-| `depth_compressed` | remainder | zlib level=1 compressed depth (480x640 uint16) |
+| `rgb_compressed` | variable | zlib level=1 compressed RGB (480x640x3 or 1024x1280x3 uint8) |
+| `depth_compressed` | remainder | zlib level=1 compressed depth (480x640 uint16; session defines units) |
 
-Typical compressed frame size: ~150-300 KB (vs ~1.5 MB uncompressed).
+High-resolution frames prepend `RGB3`, a big-endian uint32 JSON length, and a
+JSON header containing `rgb_shape: [1024, 1280, 3]`, followed by this payload.
+VGA metadata packets use `RGB2`; original packets remain supported. Session
+settings define whether depth contains raw 11-bit disparity or registered
+millimetres. See [calibration conventions](calibration/README.md).
+
+
+Uncompressed native high-resolution RGB plus depth is about 4.5 MB per frame;
+compression depends on image detail.
 
 ### Batch (multiple frames)
 
@@ -318,10 +346,10 @@ Typical compressed frame size: ~150-300 KB (vs ~1.5 MB uncompressed).
 | `frames` | variable | Concatenated single-frame payloads |
 
 The client batches consecutive captures up to 100 frames per request (8 in live mode). It preserves
-reset/preview/build command barriers. New frames prepend `RGB2`, a 4-byte JSON
-metadata length, and metadata before the original single-frame payload. Depth
-bytes are little-endian millimetres. The server still accepts legacy packets;
-new clients and servers should be upgraded together for metadata support.
+reset/preview/build command barriers. Frames prepend `RGB3` for high-resolution
+RGB or `RGB2` for VGA, a 4-byte JSON metadata length, and metadata before the
+single-frame payload. Depth bytes are little-endian uint16 raw disparity for
+Kinect sessions; explicit public dataset replay settings use millimetres.
 
 ---
 

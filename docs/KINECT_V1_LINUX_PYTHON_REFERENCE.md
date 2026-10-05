@@ -3,8 +3,8 @@
 The standalone examples below explain the underlying APIs. The production
 scanner uses isolated asynchronous acquisition with bounded shutdown; Kinect v1
 timestamps are wrapping 60 MHz ticks, not milliseconds. For the current measured
-calibration workflow and shared RGB/depth rectification, see
-[implementation milestones](IMPLEMENTATION_MILESTONES.md).
+calibration workflow, native depth geometry and RGB projection, see
+[the calibration guide](../calibration/README.md).
 
 ## Table of Contents
 1. [Hardware Specifications](#1-hardware-specifications)
@@ -447,8 +447,8 @@ kinect_thread.start()
 The numbers below are Nicolas Burrus's calibration of an example Kinect, not
 factory calibration for every device. Use IR intrinsics only with unregistered
 IR depth; `DEPTH_REGISTERED` needs RGB intrinsics. The active application uses
-an approximate RGB model and accepts per-session calibration. See
-[the current quality guide](SCAN_QUALITY.md) for the tested pipeline.
+native raw depth and the complete measured Kinect calibration, with calibrated
+high-resolution RGB by default. See [the calibration guide](../calibration/README.md).
 
 #### Depth Camera Intrinsics (640x480)
 ```python

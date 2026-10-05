@@ -24,7 +24,9 @@ from scanner_server.backend import select_backend
 from scanner_server.engine import ScanEngine
 from scanner_server.refinement import propose_poses
 from scanner_server.session import export_session
-from scanner_server.texturing import export_texture, make_textured_mesh
+from scanner_server.texturing import (
+    _make_uv_manifold, _fallback_uv_atlas, export_texture, make_textured_mesh,
+)
 from shared.depth import prepare_depth
 from shared.settings import ScanSettings
 from tests.test_quality import scene_frames
@@ -131,6 +133,92 @@ class FeatureTests(unittest.TestCase):
                 next(iter(loaded_obj.geometry.values())).visual,
                 trimesh.visual.texture.TextureVisuals,
             )
+
+    def test_texture_export_separates_non_manifold_sheets_without_losing_faces(self):
+        engine = texture_scene()
+        vertices = np.array([
+            [0, 0, 1.2], [0.1, 0, 1.2], [0, 0.1, 1.2],
+            [0, -0.1, 1.2], [0.05, 0, 1.3], [-0.1, 0, 1.2], [0, 0, 1.3],
+        ])
+        faces = np.array([[0, 1, 2], [1, 0, 3], [0, 1, 4], [0, 5, 6]])
+        mesh = o3d.geometry.TriangleMesh(
+            o3d.utility.Vector3dVector(vertices), o3d.utility.Vector3iVector(faces)
+        )
+        colors = np.arange(len(vertices) * 3).reshape(-1, 3) / 21
+        mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
+        engine.mesh = mesh
+        textured, report = make_textured_mesh(engine, size=256, use_images=False)
+        self.assertEqual(len(faces), report["export_triangles"])
+        self.assertGreater(report["topology_repair"]["added_vertices"], 0)
+        self.assertEqual(0, report["topology_repair"]["removed_triangles"])
+        np.testing.assert_array_equal(textured.vertices[textured.faces], vertices[faces])
+        np.testing.assert_array_equal(mesh.vertices, vertices)
+        np.testing.assert_array_equal(mesh.triangles, faces)
+        repaired = o3d.geometry.TriangleMesh(mesh)
+        _make_uv_manifold(repaired)
+        self.assertTrue(repaired.is_edge_manifold(allow_boundary_edges=True))
+        self.assertTrue(repaired.is_vertex_manifold())
+        np.testing.assert_array_equal(
+            np.asarray(repaired.vertex_colors)[np.asarray(repaired.triangles)], colors[faces]
+        )
+
+    def test_texture_cuts_non_orientable_sheet_without_removing_surface(self):
+        sections = 12
+        vertices = []
+        for index in range(sections):
+            angle = 2 * np.pi * index / sections
+            for width in (-0.05, 0.05):
+                radius = 0.2 + width * np.cos(angle / 2)
+                vertices.append([
+                    radius * np.cos(angle), radius * np.sin(angle),
+                    1.2 + width * np.sin(angle / 2),
+                ])
+        faces = []
+        for index in range(sections):
+            a, b = 2 * index, 2 * index + 1
+            c, d = (2 * index + 2, 2 * index + 3) if index < sections - 1 else (1, 0)
+            faces.extend(((a, b, c), (b, d, c)))
+        mesh = o3d.geometry.TriangleMesh(
+            o3d.utility.Vector3dVector(vertices), o3d.utility.Vector3iVector(faces)
+        )
+        original = np.asarray(mesh.vertices)[np.asarray(mesh.triangles)].copy()
+        self.assertFalse(mesh.is_orientable())
+        report = _make_uv_manifold(mesh)
+        self.assertTrue(mesh.is_orientable())
+        self.assertGreater(report["winding_conflict_triangles"], 0)
+        np.testing.assert_array_equal(
+            np.sort(np.asarray(mesh.vertices)[np.asarray(mesh.triangles)], axis=1),
+            np.sort(original, axis=1),
+        )
+
+    def test_fallback_atlas_keeps_every_face_and_bakes_correct_colors(self):
+        engine = texture_scene()
+        native = o3d.t.geometry.TriangleMesh.compute_uvatlas
+        calls = 0
+
+        def fail_first(mesh, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("UVAtlasPartition: Non-manifold mesh")
+            return native(mesh, *args, **kwargs)
+
+        with patch.object(o3d.t.geometry.TriangleMesh, "compute_uvatlas", fail_first):
+            textured, report = make_textured_mesh(engine, size=256)
+        self.assertEqual("repaired_chart_tiles", report["atlas"]["method"])
+        self.assertEqual(len(engine.mesh.triangles), len(textured.faces))
+        self.assertTrue(np.all(np.isfinite(textured.visual.uv)))
+        self.assertTrue(np.all((textured.visual.uv >= 0) & (textured.visual.uv <= 1)))
+        centers = textured.vertices[textured.faces].mean(axis=1)
+        uv = textured.visual.uv[textured.faces].mean(axis=1)
+        colors = trimesh.visual.color.uv_to_color(uv, textured.visual.material.image)
+        front = np.isclose(centers[:, 2], 1.2)
+        expected = np.column_stack((
+            (centers[front, 0] * 525 / 1.2 + 319.5) / 640 * 255,
+            (centers[front, 1] * 525 / 1.2 + 239.5) / 480 * 255,
+            np.zeros(front.sum()),
+        ))
+        np.testing.assert_allclose(colors[front, :3], expected, atol=5)
 
     def test_session_lossless_and_estimates_separate_from_reference(self):
         engine = ScanEngine()

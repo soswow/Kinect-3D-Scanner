@@ -10,11 +10,12 @@ results below describe the preceding tracking baseline.
 
 ## What changed
 
-- **Consistent camera model.** Registered depth is projected into RGB pixels.
-  The former 594/591 focal lengths came from an example IR calibration. Sessions
-  now carry explicit RGB calibration. The 525/525 default is an approximation,
-  not measured calibration for your device. The GUI accepts the schema in
-  [registered-rgb-calibration.json](examples/registered-rgb-calibration.json).
+- **Consistent camera model.** Live Kinect scans use the complete measured
+  [calibration default](../calibration/default.json): native depth intrinsics,
+  IR/depth grid correspondence, lens distortion, metric conversion and RGB pose.
+  RGB defaults to 1280×1024 at 10 fps. The GUI requires the complete JSON format;
+  see the [calibration guide](../calibration/README.md). Public dataset replays
+  supply their own explicit camera model and metric depth.
 - **Real depth bounds and cropping.** Near/far settings now mask both tracking
   and fusion. The optional central crop removes the outer image region from both.
   Settings are frozen during capture. Keep enough distinct geometry inside the
@@ -51,8 +52,8 @@ results below describe the preceding tracking baseline.
   and actual integration counts are retained. `GET /api/scan/diagnostics` exposes
   them; skipped frames do not inflate the displayed integration count.
 - **Bounded capture.** The client limits pending captures to 100. The server
-  defaults to 500 raw frames per session (`KINECT_MAX_FRAMES`), roughly 768 MB
-  for RGB/depth arrays, in addition to reconstruction memory.
+  defaults to 500 raw frames per session (`KINECT_MAX_FRAMES`), roughly 2.3 GB
+  for full-resolution RGB/native depth arrays, in addition to reconstruction memory.
 - **Replayable recordings.** “Save local RGB-D recording” saves lossless PNGs and
   a manifest with the session settings under ignored `recordings/`. The option
   starts a new folder per scan and is off by default.
@@ -80,8 +81,9 @@ contains five registered 640×480 RGB-D frames, intrinsic parameters, and a
 reference trajectory. [TUM RGB-D](https://cvg.cit.tum.de/data/datasets/rgbd-dataset/download)
 provides real Kinect sequences with timestamped images and motion-capture poses.
 
-The scanner standard is uint8 RGB, uint16 depth in **millimetres**, registered
-RGB pixels, and camera-to-world poses in metres. Redwood depth is already mm.
+The public dataset replay standard is uint8 RGB, uint16 depth in **millimetres**, registered
+RGB pixels, and camera-to-world poses in metres. Live Kinect sessions retain
+native raw disparity with the complete calibration. Redwood depth is already mm.
 TUM depth values are divided by five and rounded to mm; its supplied depth
 correction is not applied again. RGB/depth files are associated one-to-one within
 20 ms; reference poses are matched within 20 ms. TUM's recommended approximate

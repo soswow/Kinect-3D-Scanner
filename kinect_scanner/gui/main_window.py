@@ -1,16 +1,17 @@
 """MainWindow — primary application window (client/server mode)."""
 
-import json
 import os
 import time
 from datetime import datetime
 
+import cv2
 import numpy as np
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
@@ -30,7 +31,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from shared.settings import CameraCalibration, ScanSettings
+from shared.capture import RGB_MODE_FPS
+from shared.settings import ScanSettings
+from shared.sensor_calibration import load_calibration
+from shared.calibration import raw_depth_to_mm
 
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..server_client import ServerClient
@@ -38,7 +42,7 @@ from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .live_view import LiveView
-from .widgets import colorize_depth, numpy_to_qimage
+from .widgets import FrameIntervalSpinBox, colorize_depth, numpy_to_qimage
 
 # Default export directory (relative to where the app is launched)
 _PROJECT_ROOT = os.path.dirname(
@@ -62,11 +66,13 @@ class MainWindow(QMainWindow):
         self._last_fps_time = time.time()
         self._last_rgb = None
         self._last_depth = None
-        self._camera = CameraCalibration()
+        self._sensor_calibration = load_calibration()
+        self._camera = self._sensor_calibration.depth
         self._frame_sequence = 0
         self._last_frame_metadata = {}
         self._last_frame_time = 0
         self._last_capture_id = None
+        self._auto_frames_since_capture = 0
         self._reset_pending = False
         self._preview_pending = False
         self._last_preview_path: str | None = None
@@ -105,18 +111,45 @@ class MainWindow(QMainWindow):
         self._fps_timer.timeout.connect(self._update_fps)
         self._fps_timer.start(1000)
 
-        self.worker = KinectWorker()
-        if hasattr(self.worker, "frame_pair_ready"):
-            self.worker.frame_pair_ready.connect(self._on_frame)
-        else:
-            self.worker.frame_ready.connect(self._on_frame)
-        self.worker.error_occurred.connect(self._on_error)
-        self.worker.start()
+        self._start_camera()
 
         # Disable scan controls until server connected
         self._set_scan_controls_enabled(False)
         if os.environ.get("KINECT_AUTOCONNECT") == "1":
             QTimer.singleShot(0, self._toggle_connection)
+
+    def _start_camera(self):
+        self.worker = KinectWorker(
+            rgb_mode=self.rgb_mode_combo.currentData(),
+        )
+        worker = self.worker
+        # Ignore any queued observation from the old worker after a mode change.
+        def received(*args):
+            if worker is self.worker:
+                self._on_frame(*args)
+        if hasattr(worker, "frame_pair_ready"):
+            worker.frame_pair_ready.connect(received)
+        else:
+            worker.frame_ready.connect(received)
+        self.worker.error_occurred.connect(self._on_error)
+        self.worker.start()
+
+    def _restart_camera(self):
+        self.worker.stop()
+        if not self.worker.wait(2500):
+            raise RuntimeError("Camera did not stop within 2.5 seconds")
+        self._last_rgb = self._last_depth = None
+        self._last_frame_metadata = {}
+        self._reset_auto_capture_cadence()
+        self._start_camera()
+
+    def _change_rgb_mode(self):
+        self.auto_capture_spin.set_fps(RGB_MODE_FPS[self.rgb_mode_combo.currentData()])
+        self._reset_auto_capture_cadence()
+        try:
+            self._restart_camera()
+        except RuntimeError as exc:
+            self.scan_status_label.setText(str(exc))
 
     # ── UI construction ───────────────────────────────────────────────
     def _build_ui(self):
@@ -154,7 +187,7 @@ class MainWindow(QMainWindow):
     def _build_dock(self):
         dock = QDockWidget("Controls", self)
         dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
-        dock.setFixedWidth(260)
+        dock.setMinimumWidth(260)
         container = QWidget()
         layout = QVBoxLayout(container)
 
@@ -246,10 +279,15 @@ class MainWindow(QMainWindow):
         self.crop_spin.setSuffix("% of image")
         vg.addWidget(self.crop_cb)
         vg.addWidget(self.crop_spin)
-        self.calibration_label = QLabel(self._camera.name)
+        self.calibration_label = QLabel(self._sensor_calibration.name)
         self.calibration_label.setWordWrap(True)
         vg.addWidget(self.calibration_label)
-        calibration_btn = QPushButton("Load RGB calibration JSON")
+        self.rgb_mode_combo = QComboBox()
+        self.rgb_mode_combo.addItem("RGB 1280 × 1024 · 10 fps", "rgb_high_res")
+        self.rgb_mode_combo.addItem("RGB 640 × 480 · 30 fps", "rgb_low_res")
+        self.rgb_mode_combo.currentIndexChanged.connect(self._change_rgb_mode)
+        vg.addWidget(self.rgb_mode_combo)
+        calibration_btn = QPushButton("Load calibration JSON")
         calibration_btn.clicked.connect(self._load_calibration)
         vg.addWidget(calibration_btn)
         self.color_tracking_cb = QCheckBox("Color-assisted tracking (experimental)")
@@ -257,10 +295,12 @@ class MainWindow(QMainWindow):
             "Uses RGB-D motion to seed ICP; requires synchronized, textured views"
         )
         vg.addWidget(self.color_tracking_cb)
-        self.live_cb = QCheckBox("Live fused surface feedback")
+        self.live_cb = QCheckBox("Live fused point cloud feedback")
         self.live_cb.setChecked(True)
         self.live_cb.setToolTip(
-            "Processes frames during capture; pending count shows when reconstruction falls behind"
+            "Shows up to 30,000 fused points from the last tracked scanner viewpoint. "
+            "Uncheck Follow scanner in the view to orbit. Pending count shows when "
+            "reconstruction falls behind. Use Preview Scan for the mesh."
         )
         vg.addWidget(self.live_cb)
         self.refine_cb = QCheckBox("Final pose refinement (experimental)")
@@ -300,12 +340,10 @@ class MainWindow(QMainWindow):
         # Auto-capture
         auto_row = QHBoxLayout()
         self.auto_capture_cb = QCheckBox("Auto every")
-        self.auto_capture_spin = QDoubleSpinBox()
-        self.auto_capture_spin.setRange(0.03, 30.0)
-        self.auto_capture_spin.setValue(0.5)
-        self.auto_capture_spin.setSingleStep(0.01)
-        self.auto_capture_spin.setDecimals(2)
-        self.auto_capture_spin.setSuffix("s")
+        self.auto_capture_spin = FrameIntervalSpinBox(
+            RGB_MODE_FPS[self.rgb_mode_combo.currentData()]
+        )
+        self.auto_capture_spin.valueChanged.connect(self._reset_auto_capture_cadence)
         self.auto_capture_cb.setEnabled(False)
         self.auto_capture_spin.setEnabled(False)
         self.auto_capture_cb.toggled.connect(self._toggle_auto_capture)
@@ -391,7 +429,6 @@ class MainWindow(QMainWindow):
 
         self.scan_status_label = QLabel("Idle")
         self.scan_status_label.setWordWrap(True)
-        self.scan_status_label.setMaximumWidth(240)
         sg.addWidget(self.scan_status_label)
 
         self.progress_bar = QProgressBar()
@@ -406,9 +443,8 @@ class MainWindow(QMainWindow):
         scroll.setWidget(container)
         dock.setWidget(scroll)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        self.resizeDocks([dock], [260], Qt.Orientation.Horizontal)
 
-        self._auto_timer = QTimer(self)
-        self._auto_timer.timeout.connect(self._auto_capture_tick)
 
     def _build_statusbar(self):
         self.statusBar().showMessage("Ready")
@@ -422,7 +458,7 @@ class MainWindow(QMainWindow):
         self.btn_start_scan.setEnabled(enabled)
         if not enabled:
             self._scanning = False
-            self._auto_timer.stop()
+            self._reset_auto_capture_cadence()
             self.auto_capture_cb.setChecked(False)
             for control in (
                 self.btn_capture,
@@ -515,6 +551,15 @@ class MainWindow(QMainWindow):
         elif self._mode == MODE_SCANNER:
             self._show_scanner(video, depth)
 
+        if (
+            self._scanning
+            and not self._preview_pending
+            and self.auto_capture_cb.isChecked()
+        ):
+            self._auto_frames_since_capture += 1
+            if self._auto_frames_since_capture >= self.auto_capture_spin.value():
+                self._auto_capture_tick()
+
     def _show_rgb(self, rgb):
         self._set_pixmap(numpy_to_qimage(rgb))
 
@@ -527,6 +572,7 @@ class MainWindow(QMainWindow):
         return x, y, x + width, y + height
 
     def _depth_display(self, depth):
+        depth = np.rint(raw_depth_to_mm(depth, self._sensor_calibration)).astype(np.uint16)
         roi = self._selected_roi()
         if roi is not None:
             x0, y0, x1, y1 = roi
@@ -541,6 +587,12 @@ class MainWindow(QMainWindow):
         self._set_pixmap(numpy_to_qimage(self._depth_display(depth)))
 
     def _show_scanner(self, rgb, depth):
+        if rgb.shape[:2] != depth.shape:
+            rgb = cv2.resize(
+                rgb,
+                (round(rgb.shape[1] * depth.shape[0] / rgb.shape[0]), depth.shape[0]),
+                interpolation=cv2.INTER_AREA,
+            )
         combined = np.hstack([rgb, self._depth_display(depth)])
         self._set_pixmap(numpy_to_qimage(combined))
 
@@ -555,14 +607,16 @@ class MainWindow(QMainWindow):
 
     def _load_calibration(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "RGB calibration", "", "JSON (*.json)"
+            self, "Kinect calibration", "", "JSON (*.json)"
         )
         if path:
             try:
-                with open(path) as source:
-                    self._camera = CameraCalibration(**json.load(source))
-                self.calibration_label.setText(self._camera.name)
-            except (ValueError, TypeError, OSError) as exc:
+                profile = load_calibration(path)
+                self._sensor_calibration = profile
+                self._camera = profile.depth
+                self.calibration_label.setText(profile.name)
+                self._restart_camera()
+            except (ValueError, TypeError, OSError, RuntimeError) as exc:
                 self.scan_status_label.setText(f"Invalid calibration: {exc}")
 
     # ── scanning workflow ─────────────────────────────────────────────
@@ -576,6 +630,8 @@ class MainWindow(QMainWindow):
             roi = self._selected_roi()
             settings = ScanSettings(
                 camera=self._camera,
+                sensor_calibration=self._sensor_calibration,
+                rgb_mode=self.rgb_mode_combo.currentData(),
                 near_m=self.depth_near_spin.value() / 1000,
                 far_m=self.depth_far_spin.value() / 1000,
                 voxel_m=voxel,
@@ -617,6 +673,7 @@ class MainWindow(QMainWindow):
             result.get("settings", {}).get("live_reconstruction", False)
         )
         self._last_capture_id = None
+        self._reset_auto_capture_cadence()
         self._server_stored = 0
         self._server_integrated = 0
 
@@ -673,7 +730,6 @@ class MainWindow(QMainWindow):
         ):
             self.scan_status_label.setText("Waiting for a fresh camera frame")
             return
-        self._last_capture_id = frame_id
         queued = self.task_worker.submit(
             ServerTask(
                 ServerTaskType.SEND_FRAME,
@@ -686,16 +742,19 @@ class MainWindow(QMainWindow):
         )
         if not queued:
             self.scan_status_label.setText("Upload queue full; skipped capture")
+        else:
+            self._last_capture_id = frame_id
+            self._reset_auto_capture_cadence()
+
+    def _reset_auto_capture_cadence(self):
+        self._auto_frames_since_capture = 0
 
     def _toggle_auto_capture(self, checked: bool):
-        if checked and self._scanning:
-            self._auto_timer.start(int(self.auto_capture_spin.value() * 1000))
-        else:
-            self._auto_timer.stop()
+        self._reset_auto_capture_cadence()
 
     def _stop_and_build(self):
         self._scanning = False
-        self._auto_timer.stop()
+        self._reset_auto_capture_cadence()
         self.auto_capture_cb.setChecked(False)
         self.auto_capture_cb.setEnabled(False)
         self.auto_capture_spin.setEnabled(False)
@@ -717,7 +776,7 @@ class MainWindow(QMainWindow):
             )
             return
         self._preview_pending = True
-        self._auto_timer.stop()
+        self._reset_auto_capture_cadence()
         self.btn_capture.setEnabled(False)
         self.btn_stop_build.setEnabled(False)
         self.btn_preview_scan.setEnabled(False)
@@ -988,7 +1047,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if not self._closing:
             self._closing = True
-            self._auto_timer.stop()
+            self._reset_auto_capture_cadence()
             self._fps_timer.stop()
             self.worker.stop()
             self.task_worker.stop()

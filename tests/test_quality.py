@@ -26,7 +26,7 @@ from shared.recording import RecordingWriter
 from shared.settings import CameraCalibration, ScanSettings
 
 
-def scene_frames(count=8):
+def scene_frames(count=8, camera=None):
     """Raycast a static asymmetric scene from known moving camera poses."""
     scene = o3d.t.geometry.RaycastingScene()
     for size, offset in [
@@ -37,7 +37,7 @@ def scene_frames(count=8):
     ]:
         mesh = o3d.geometry.TriangleMesh.create_box(*size).translate(offset)
         scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
-    camera = CameraCalibration()
+    camera = camera or CameraCalibration()
     k = np.array([[camera.fx, 0, camera.cx], [0, camera.fy, camera.cy], [0, 0, 1.0]])
     rng = np.random.default_rng(42)
     frames = []
@@ -46,6 +46,19 @@ def scene_frames(count=8):
         pose[:3, :3] = o3d.geometry.get_rotation_matrix_from_xyz((0, i * 0.006, 0))
         pose[:3, 3] = [i * 0.015, i * 0.003, 0]
         rays = scene.create_rays_pinhole(k, np.linalg.inv(pose), 640, 480)
+        if any(camera.distortion):
+            import cv2
+
+            y, x = np.indices((480, 640), dtype=np.float64)
+            pixels = np.stack((x, y), axis=-1).reshape(-1, 1, 2)
+            normalized = cv2.undistortPoints(pixels, k, np.array(camera.distortion))
+            directions = np.concatenate(
+                (normalized.reshape(480, 640, 2), np.ones((480, 640, 1))), axis=-1
+            ) @ pose[:3, :3].T
+            origins = np.broadcast_to(pose[:3, 3], directions.shape)
+            rays = o3d.core.Tensor(
+                np.concatenate((origins, directions), axis=-1).astype(np.float32)
+            )
         z = scene.cast_rays(rays)["t_hit"].numpy()
         depth = np.where(np.isfinite(z), z * 1000, 0)
         valid = depth > 0

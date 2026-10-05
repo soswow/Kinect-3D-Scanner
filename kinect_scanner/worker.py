@@ -28,6 +28,7 @@ class KinectWorker(QThread):
         startup_timeout=8.0,
         frame_timeout=3.0,
         retry_delay=2.0,
+        rgb_mode="rgb_high_res",
     ):
         super().__init__(parent)
         self._stop_event = threading.Event()
@@ -35,6 +36,10 @@ class KinectWorker(QThread):
         self._startup_timeout = startup_timeout
         self._frame_timeout = frame_timeout
         self._retry_delay = retry_delay
+        if rgb_mode not in ("rgb_high_res", "rgb_low_res"):
+            raise ValueError("RGB mode must be rgb_high_res or rgb_low_res")
+        self._high_res = rgb_mode == "rgb_high_res"
+        self._rgb_shape = (1024, 1280, 3) if self._high_res else RGB_SHAPE
 
     def stop(self):
         self._stop_event.set()
@@ -59,11 +64,12 @@ class KinectWorker(QThread):
         while not self._stop_event.is_set():
             parent, child = context.Pipe()
             stop_event = context.Event()
-            rgb_buffer = context.RawArray("B", int(np.prod(RGB_SHAPE)))
+            rgb_buffer = context.RawArray("B", int(np.prod(self._rgb_shape)))
             depth_buffer = context.RawArray("H", int(np.prod(DEPTH_SHAPE)))
             process = context.Process(
                 target=self._capture_target,
-                args=(child, stop_event, rgb_buffer, depth_buffer),
+                args=(child, stop_event, rgb_buffer, depth_buffer)
+                + ((self._high_res,) if self._capture_target is capture_frames else ()),
                 daemon=True,
                 name="Kinect capture",
             )
@@ -77,13 +83,15 @@ class KinectWorker(QThread):
                 while not self._stop_event.is_set():
                     if parent.poll(0.1):
                         kind, payload = parent.recv()
+                        if kind == "phase":
+                            continue
                         if kind == "error":
                             raise RuntimeError(payload)
                         if kind != "frame":
                             raise RuntimeError("Invalid camera process message")
                         rgb = (
                             np.frombuffer(rgb_buffer, np.uint8)
-                            .reshape(RGB_SHAPE)
+                            .reshape(self._rgb_shape)
                             .copy()
                         )
                         depth = (
@@ -95,7 +103,10 @@ class KinectWorker(QThread):
                         sequence += 1
                         metadata = dict(payload, frame_id=sequence)
                         if not streaming:
-                            logger.info("Kinect RGB/registered-depth stream ready")
+                            logger.info(
+                                "Kinect %s RGB/raw-depth stream ready",
+                                self._rgb_shape,
+                            )
                             streaming = True
                         self.frame_pair_ready.emit(rgb, depth, metadata)
                         self.frame_ready.emit(rgb, depth)

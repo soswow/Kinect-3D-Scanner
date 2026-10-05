@@ -19,7 +19,7 @@ import time
 import traceback
 import uuid
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -28,7 +28,7 @@ import open3d.core as o3c
 import trimesh
 
 from shared.calibration import prepare_rgbd
-from shared.config import PRESET_DEFAULT, ScanPreset
+from shared.config import LIVE_MAX_POINTS, PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
 
 from .backend import select_backend
@@ -105,6 +105,8 @@ class ScanEngine:
         self.original_poses = None
         self._refined_count = None
         self.model_pcd = None
+        self._live_points = np.empty((0, 3), dtype=np.float32)
+        self._live_colors = np.empty((0, 3), dtype=np.float32)
         self._last_rgbd = None
         self._model_fpfh = None
         self._model_feature_cloud = None
@@ -170,12 +172,13 @@ class ScanEngine:
             "final_reconstruction": self.final_reconstruction,
         }
 
-    def live_snapshot(self, max_points=5000):
+    def live_snapshot(self, max_points=LIVE_MAX_POINTS):
         """Bounded immutable view of cached fused geometry; no extra extraction."""
-        cloud = self.model_pcd
-        points = np.asarray(cloud.points) if cloud is not None else np.empty((0, 3))
+        if max_points < 1:
+            raise ValueError("Live point budget must be positive")
+        max_points = min(max_points, LIVE_MAX_POINTS)
+        points, colors = self._live_points, self._live_colors
         step = max(1, int(np.ceil(len(points) / max_points)))
-        colors = np.asarray(cloud.colors) if cloud is not None else np.empty((0, 3))
         pending_age = (
             time.monotonic() - self._stored_monotonic[self._processed_count]
             if self.unprocessed_count
@@ -209,6 +212,7 @@ class ScanEngine:
             "points": points[::step].astype(np.float32).tolist(),
             "colors": np.clip(colors[::step], 0, 1).astype(np.float32).tolist(),
             "camera_to_world": self.cumulative_T.tolist(),
+            "camera": asdict(self.settings.camera),
             "backend": self.backend,
             "result": self.diagnostics[-1] if self.diagnostics else {},
         }
@@ -216,7 +220,7 @@ class ScanEngine:
     def _make_rgbd(self, rgb, depth):
         """Create legacy Open3D RGBDImage for registration point cloud.
 
-        depth is uint16 in mm from DEPTH_REGISTERED.
+        Input depth is native raw disparity or legacy registered millimetres.
         """
         depth_f = depth.astype(np.float32)
         depth_f[(depth == 0) | (depth > self.max_depth_m * 1000)] = 0.0
@@ -300,6 +304,12 @@ class ScanEngine:
         )
         pcd = t_pcd.to_legacy()
         del t_pcd
+        # Reuse this extraction before tracking downsamples it. Keep only a
+        # bounded copy for feedback, independent of the registration model.
+        points, colors = np.asarray(pcd.points), np.asarray(pcd.colors)
+        step = max(1, int(np.ceil(len(points) / LIVE_MAX_POINTS)))
+        self._live_points = points[::step].astype(np.float32)
+        self._live_colors = colors[::step].astype(np.float32)
         pcd = pcd.voxel_down_sample(self.reg_voxel)
         pcd.estimate_normals(
             o3d.geometry.KDTreeSearchParamHybrid(radius=self.reg_voxel * 4, max_nn=30)
@@ -674,11 +684,16 @@ class ScanEngine:
     # ── public API: capture (fast) ─────────────────────────────────────
     def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None) -> dict:
         """Store a raw frame for later processing. Very fast — no ICP/TSDF."""
-        if rgb.shape != (480, 640, 3) or rgb.dtype != np.uint8:
-            raise ValueError("RGB must be uint8 480x640x3")
+        c = self.settings.rgb_camera
+        if rgb.shape != (c.height, c.width, 3) or rgb.dtype != np.uint8:
+            raise ValueError(f"RGB must be uint8 {c.height}x{c.width}x3 for the selected calibration")
         if depth.shape != (480, 640) or depth.dtype != np.uint16:
-            raise ValueError("Depth must be uint16 480x640 millimetres")
+            raise ValueError("Depth must be uint16 480x640")
         metadata = dict(metadata or {})
+        if metadata.get("depth_encoding", self.settings.depth_encoding) != self.settings.depth_encoding:
+            raise ValueError("Frame depth encoding does not match the session calibration")
+        if self.settings.sensor_calibration and np.any(depth > 2047):
+            raise ValueError("Raw 11-bit depth codes must be in 0..2047")
         stamp = metadata.get("timestamp_s")
         if stamp is not None and (
             not isinstance(stamp, (int, float)) or not np.isfinite(stamp)
@@ -952,6 +967,8 @@ class ScanEngine:
                 for name in (
                     "vbg",
                     "model_pcd",
+                    "_live_points",
+                    "_live_colors",
                     "_model_feature_cloud",
                     "_model_fpfh",
                     "_model_pyramid",

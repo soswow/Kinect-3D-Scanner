@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 
 from shared.protocol import unpack_frame_with_metadata, unpack_frames
+from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
 from .engine import ScanEngine
@@ -39,6 +40,7 @@ async def lifespan(app):
 
 app = FastAPI(title="Kinect 3D Scanner Server", lifespan=lifespan)
 engine = ScanEngine()
+engine.reset(settings=ScanSettings(sensor_calibration=load_calibration()))
 _build_lock = asyncio.Lock()
 _live_task = None
 _latest_live = None
@@ -190,7 +192,12 @@ async def scan_reset(request: Request):
     try:
         import json
 
-        settings = ScanSettings.from_dict(json.loads(body)) if body else ScanSettings()
+        value = json.loads(body) if body else {}
+        # Live Kinect sessions use the measured default. Public dataset replay
+        # supplies its own metric camera explicitly.
+        if "camera" not in value and "sensor_calibration" not in value:
+            value["sensor_calibration"] = load_calibration().to_dict()
+        settings = ScanSettings.from_dict(value)
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
     async with _build_lock:
@@ -517,6 +524,7 @@ async def export_textured(
                     blend_mode=blend_mode,
                 )
             except ValueError as exc:
+                logger.warning("Texture export %s rejected: %s", fmt, exc)
                 raise HTTPException(422, str(exc)) from exc
         data = await asyncio.to_thread(Path(path).read_bytes)
         return Response(

@@ -11,11 +11,34 @@ import unittest
 from unittest.mock import patch
 
 import httpx
+import numpy as np
 
 from scanner_server import app as server
 from scanner_server.engine import ScanEngine
+from shared.config import LIVE_MAX_POINTS
 from shared.protocol import pack_frame, pack_frames
-from tests.test_quality import scene_frames
+from shared.sensor_calibration import load_calibration
+from tests.test_quality import scene_frames as metric_scene_frames
+
+
+def scene_frames(count):
+    """Express the synthetic surfaces as Kinect-native disparity observations."""
+    calibration = load_calibration()
+    frames = []
+    for rgb, metric, pose in metric_scene_frames(count, camera=calibration.depth):
+        # Put the synthetic scene in the calibration's measured 0.8–1.6 m
+        # range. Scale both scene depths and the known camera translations.
+        metric = metric.astype(float) * 0.7
+        pose = pose.copy()
+        pose[:3, 3] *= 0.7
+        raw = np.full(metric.shape, 2047, np.uint16)
+        valid = metric > 0
+        raw[valid] = np.rint(
+            (calibration.scale * 1000 / metric[valid] - calibration.b)
+            / calibration.a_per_code
+        ).astype(np.uint16)
+        frames.append((rgb, raw, pose))
+    return frames
 
 
 class LiveApiTests(unittest.IsolatedAsyncioTestCase):
@@ -47,7 +70,7 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_live_batch_acknowledgements_and_bounded_snapshot(self):
         reset = (
-            await self.http.post("/api/scan/reset", json={"live_reconstruction": True})
+            await self.http.post("/api/scan/reset", json={"live_reconstruction": True, "rgb_mode": "rgb_low_res"})
         ).json()
         frames = scene_frames(2)
         payload = [
@@ -68,13 +91,34 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reset["session_id"], snapshot["session_id"])
         self.assertEqual(2, snapshot["frame_count"])
         self.assertEqual(0, snapshot["pending_count"])
-        self.assertLessEqual(len(snapshot["points"]), 5000)
+        self.assertGreater(len(snapshot["points"]), 5000)
+        self.assertLessEqual(len(snapshot["points"]), LIVE_MAX_POINTS)
+        self.assertEqual(len(snapshot["points"]), len(snapshot["colors"]))
+        self.assertEqual(server.engine.settings.to_dict()["camera"], snapshot["camera"])
+        np.testing.assert_array_equal(snapshot["camera_to_world"], server.engine.cumulative_T)
+        with patch.object(server.engine, "vbg") as volume:
+            volume.extract_point_cloud.side_effect = AssertionError(
+                "Feedback must reuse cached extraction"
+            )
+            limited = server.engine.live_snapshot(max_points=200)
+        self.assertLessEqual(len(limited["points"]), 200)
         report = (await self.http.get("/api/scan/diagnostics")).json()
         self.assertEqual(2, len(report["poses"]))
         self.assertIn("fusion", report["stage_totals_ms"])
 
+        # A rejected frame must keep the previous scanner viewpoint, even
+        # though the latest tracking result and processing counts advance.
+        tracked_pose = np.asarray(snapshot["camera_to_world"])
+        rgb, depth, _ = frames[-1]
+        await self.http.post("/api/scan/frame", content=pack_frame(rgb, np.full_like(depth, 2047)))
+        await asyncio.wait_for(asyncio.shield(server._live_task), 20)
+        skipped = server._latest_live
+        self.assertFalse(skipped["result"]["success"])
+        self.assertEqual(2, skipped["frame_count"])
+        np.testing.assert_array_equal(skipped["camera_to_world"], tracked_pose)
+
     async def test_build_waits_for_live_frame_instead_of_rejecting(self):
-        await self.http.post("/api/scan/reset", json={"live_reconstruction": True})
+        await self.http.post("/api/scan/reset", json={"live_reconstruction": True, "rgb_mode": "rgb_low_res"})
         entered, release = threading.Event(), threading.Event()
         original = server.engine.process_frames
         events = []
@@ -110,7 +154,7 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reset_waits_for_native_live_processing(self):
         old_session = (
-            await self.http.post("/api/scan/reset", json={"live_reconstruction": True})
+            await self.http.post("/api/scan/reset", json={"live_reconstruction": True, "rgb_mode": "rgb_low_res"})
         ).json()["session_id"]
         entered, release = threading.Event(), threading.Event()
         original = server.engine.process_frames
