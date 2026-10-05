@@ -290,7 +290,7 @@ class MainWindow(QMainWindow):
         self.sound_action = QAction("Scan sounds", self)
         self.sound_action.setCheckable(True)
         self.sound_action.setChecked(self.capture_sound.enabled)
-        self.sound_action.setToolTip("Capture confirmations and tracking-loss alerts. Toggle to mute or enable.")
+        self.sound_action.setToolTip("Capture confirmations, tracking-loss and recovery alerts. Toggle to mute or enable.")
         self.sound_action.toggled.connect(self.capture_sound.set_enabled)
         toolbar.addAction(self.sound_action)
         self.pause_action = QAction("Pause / Resume", self)
@@ -962,7 +962,7 @@ class MainWindow(QMainWindow):
         self._pending_action = None
         self._has_mesh = False
         self.live_view.reset()
-        self.capture_sound.set_tracking_lost(False)
+        self.capture_sound.reset_tracking()
         self.live_view.setVisible(
             result.get("settings", {}).get("live_reconstruction", False)
         )
@@ -1106,6 +1106,7 @@ class MainWindow(QMainWindow):
         self._operation_error = ""
         self._last_preview_path = None
         self._scanning = False
+        self.capture_sound.reset_tracking()
         self._reset_auto_capture_cadence()
         self.auto_capture_cb.setChecked(False)
         self.auto_capture_cb.setEnabled(False)
@@ -1319,7 +1320,7 @@ class MainWindow(QMainWindow):
             self._session_dirty = self._server_stored > 0
             self._last_preview_path = None
             self.live_view.reset()
-            self.capture_sound.set_tracking_lost(False)
+            self.capture_sound.reset_tracking()
         elif self._server_stored != previous_stored:
             self._capture_revision += max(1, self._server_stored - previous_stored)
             self._session_dirty = True
@@ -1402,7 +1403,10 @@ class MainWindow(QMainWindow):
             return
         self.live_view.set_snapshot(snapshot)
         self._on_server_status(snapshot)
-        self.capture_sound.set_tracking_lost(self._scanning and snapshot.get("fusion_paused", False))
+        if not self._scanning:
+            self.capture_sound.reset_tracking()
+        elif "fusion_paused" in snapshot:
+            self.capture_sound.set_tracking_lost(snapshot["fusion_paused"])
         self._server_stored = max(self._server_stored, snapshot.get("stored_count", 0))
         self._server_integrated = snapshot.get("frame_count", 0)
         self.frame_count_label.setText(

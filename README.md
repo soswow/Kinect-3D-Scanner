@@ -155,9 +155,10 @@ the interval without creating duplicate captures or catch-up bursts.
 frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
 do not overlap. Skipped, rejected or failed uploads stay silent. Tracking loss
-plays a distinct descending double tone once per loss episode. It takes priority
-over capture confirmations, which resume after tracking recovers. The same mute
-control applies to both sounds.
+plays a distinct descending double tone once per loss episode; verified recovery
+plays its rising reverse once. Both take priority over capture confirmations,
+which resume after the recovery tone finishes. Starting, cancelling, or restoring
+another session stays silent. The same mute control applies to all scan sounds.
 
 Your choices save automatically as you edit them and restore on the next launch:
 capture mode and interval, clipping and crop, recording, reconstruction and
