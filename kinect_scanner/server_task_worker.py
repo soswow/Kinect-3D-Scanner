@@ -18,6 +18,10 @@ from shared.recording import RecordingWriter
 
 
 class ServerTaskType(Enum):
+    CONNECT = auto()
+    DISCONNECT = auto()
+    STATUS = auto()
+    FINAL_PREVIEW = auto()
     SEND_FRAME = auto()
     BUILD_MESH = auto()
     PREVIEW = auto()
@@ -51,6 +55,8 @@ class ServerTaskWorker(QThread):
         self._live = False
 
     def submit(self, task: ServerTask):
+        if self._stop_flag:
+            return False
         if task.task_type == ServerTaskType.SEND_FRAME and self._queue.qsize() >= 100:
             return False
         self._queue.put(task)
@@ -75,6 +81,7 @@ class ServerTaskWorker(QThread):
             except Exception as exc:
                 traceback.print_exc()
                 self._client.task_error.emit(f"{task.task_type.name}: {exc}")
+                self._client.task_failed.emit(task.task_type.name, str(exc))
 
     _MAX_BATCH = 100  # max frames per HTTP request
 
@@ -129,7 +136,27 @@ class ServerTaskWorker(QThread):
     def _dispatch(self, task: ServerTask):
         tt = task.task_type
 
-        if tt == ServerTaskType.SEND_FRAME:
+        if tt == ServerTaskType.CONNECT:
+            self._client.task_started.emit("Connecting to server...")
+            if not self._client.connect_to_server(task.kwargs["host"], task.kwargs["port"]):
+                self._client.task_failed.emit(tt.name, "Could not connect to server")
+
+        elif tt == ServerTaskType.DISCONNECT:
+            self._client.disconnect()
+
+        elif tt == ServerTaskType.STATUS:
+            result = self._client.get_status()
+            self._client.session_id = result.get("session_id")
+            self._client.status_updated.emit(result)
+
+        elif tt == ServerTaskType.FINAL_PREVIEW:
+            self._client.task_started.emit("Downloading final mesh preview...")
+            path = self._client.request_final_preview()
+            if not path:
+                raise RuntimeError("Final preview failed — no final mesh")
+            self._client.final_preview_done.emit(path)
+
+        elif tt == ServerTaskType.SEND_FRAME:
             result = self._drain_send_frames(task)
             self._client.frame_stored.emit(result)
 
@@ -162,7 +189,7 @@ class ServerTaskWorker(QThread):
             if path:
                 self._client.preview_done.emit(path)
             else:
-                self._client.task_error.emit("Preview failed — no geometry")
+                raise RuntimeError("Preview failed — no geometry")
 
         elif tt == ServerTaskType.EXPORT_PLY:
             path = task.kwargs["path"]

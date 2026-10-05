@@ -2,6 +2,7 @@
 
 import os
 import time
+import uuid
 from datetime import datetime
 
 import cv2
@@ -44,6 +45,7 @@ from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .live_view import LiveView
 from .components import CameraPreview, CollapsibleSection
+from .dialogs import ExportDialog, SessionProtectionDialog
 from .widgets import FrameIntervalSpinBox, colorize_depth, numpy_to_qimage
 
 # Default export directory (relative to where the app is launched)
@@ -68,6 +70,21 @@ class MainWindow(QMainWindow):
         self._build_failed = False
         self._camera_ok = False
         self._capture_waiting = ""
+        self._session_dirty = False
+        self._capture_revision = 0
+        self._saved_revision = 0
+        self._capture_run_id = uuid.uuid4().hex[:12]
+        self._pending_action = None
+        self._export_pending = None
+        self._connect_pending = False
+        self._restore_on_status = False
+        self._session_settings = None
+        self._final_preview_pending = False
+        self._final_preview_session = None
+        self._preview_session = None
+        self._close_approved = False
+        self._operation_error = ""
+        self._progress_link_ok = True
         self._fps_counter = 0
         self._fps_value = 0.0
         self._last_fps_time = time.time()
@@ -97,6 +114,9 @@ class MainWindow(QMainWindow):
         self.server_client.process_progress.connect(self._on_process_progress)
         self.server_client.build_mesh_done.connect(self._on_build_mesh_done)
         self.server_client.preview_done.connect(self._on_preview_done)
+        self.server_client.final_preview_done.connect(self._on_final_preview_done)
+        self.server_client.task_failed.connect(self._on_task_failed)
+        self.server_client.websocket_status.connect(self._on_websocket_status)
         self.server_client.export_done.connect(self._on_export_done)
         self.server_client.save_mesh_done.connect(self._on_save_mesh_done)
         self.server_client.task_started.connect(self._on_task_started)
@@ -146,6 +166,8 @@ class MainWindow(QMainWindow):
         if not self.worker.wait(2500):
             raise RuntimeError("Camera did not stop within 2.5 seconds")
         self._last_rgb = self._last_depth = None
+        self._camera_ok = False
+        self.view_label.set_stale(True, "Camera restarting…")
         self._last_frame_metadata = {}
         self._reset_auto_capture_cadence()
         self._start_camera()
@@ -475,7 +497,8 @@ class MainWindow(QMainWindow):
     def _refresh_controls(self):
         connected = self.server_client.is_connected
         ready = self._camera_ready()
-        busy = self._reset_pending or self._preview_pending or self._build_pending
+        busy = self._reset_pending or self._preview_pending or self._build_pending or bool(self._export_pending)
+        busy = busy or self._connect_pending or self._final_preview_pending
         active = self._scanning
         frames = self._server_stored > 0 or getattr(self.task_worker, "queued_task_count", 0) > 0
         valid_setup = self.depth_near_spin.value() < self.depth_far_spin.value() and (
@@ -488,13 +511,13 @@ class MainWindow(QMainWindow):
         self.btn_capture.setEnabled(connected and ready and active and not self._paused and not busy)
         self.btn_stop_build.setEnabled(connected and frames and not busy)
         self.btn_stop_build.setText("Retry Build" if self._build_failed else "Finish Scan")
-        self.btn_preview_scan.setEnabled(connected and frames and not busy)
+        self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
         self.btn_export.setEnabled(connected and self._has_mesh and not busy)
         self.btn_export_session.setEnabled(connected and frames and not busy)
         for button in (self.btn_export_ply, self.btn_export_obj, self.btn_export_glb,
                        self.btn_export_texture_obj, self.btn_save_mesh):
             button.setEnabled(connected and self._has_mesh and not busy)
-        self.settings_group.setEnabled(not active and not busy and not self._server_stored)
+        self.settings_group.setEnabled(not active and not busy)
         self.capture_mode_combo.setEnabled(not busy)
         self.auto_capture_spin.setEnabled(not busy)
         self.auto_capture_cb.setEnabled(connected and active and not busy)
@@ -506,19 +529,31 @@ class MainWindow(QMainWindow):
             reason = "Space: pause/resume · C: capture in Manual mode"
         self.readiness_label.setText(reason)
         self.btn_start_scan.setToolTip(reason if not self.btn_start_scan.isEnabled() else "Begin a new capture session")
+        self.btn_connect.setEnabled(not busy)
+        self.server_ip_edit.setEnabled(not connected and not self._connect_pending)
+        self.server_port_spin.setEnabled(not connected and not self._connect_pending)
+        self.btn_preview_3d.setEnabled(bool(self._last_preview_path) and not busy)
         self._refresh_status()
 
     def _refresh_status(self):
-        if self._reset_pending:
+        if self._connect_pending:
+            state = "Connecting to reconstruction server…"
+        elif self._reset_pending:
             state = "Starting scan…"
         elif self._build_pending:
             state = "Building final surface…"
+        elif self._export_pending:
+            state = "Saving captured session…" if self._export_pending["kind"] == "session" else "Exporting final model…"
+        elif self._final_preview_pending:
+            state = "Loading final model for inspection…"
         elif self._preview_pending:
             state = "Preparing inspection · capture temporarily paused"
         elif not self.server_client.is_connected:
             state = "Server disconnected · reconnect to continue" if self._session_id else "Waiting for server connection"
         elif self._build_failed:
             state = "Build failed · retry or resume capture"
+        elif self._operation_error:
+            state = self._operation_error
         elif self._scanning and self._paused:
             state = "Paused · scan retained"
         elif self._scanning and self._capture_waiting:
@@ -543,17 +578,20 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _pause_or_resume(self):
-        if self._reset_pending or self._build_pending or self._preview_pending:
+        if self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending:
             return
         if not self.server_client.is_connected:
             return
         if self._scanning and not self._paused:
             self._paused = True
         elif self._camera_ready() and (self._scanning or self._server_stored):
+            self._apply_session_settings(self._session_settings)
             self._scanning = True
             self._paused = False
             self._build_failed = False
             self._has_mesh = False
+            self._last_preview_path = None
+            self._operation_error = ""
             self.auto_capture_cb.setChecked(self.capture_mode_combo.currentData() == "automatic")
         self._capture_waiting = ""
         self._reset_auto_capture_cadence()
@@ -584,7 +622,8 @@ class MainWindow(QMainWindow):
             self._show_depth(self._last_depth)
 
     def _choose_export(self):
-        from .dialogs import ExportDialog
+        if not self.btn_export.isEnabled():
+            return
         dialog = ExportDialog(self)
         if dialog.exec():
             fmt = dialog.selected_format
@@ -599,50 +638,55 @@ class MainWindow(QMainWindow):
 
 
     def _toggle_connection(self):
+        if self._connect_pending or self._build_pending or self._preview_pending or self._export_pending:
+            return
         if self.server_client.is_connected:
-            self.server_client.disconnect()
-            self.btn_connect.setText("Connect")
-            self.server_status_label.setText("Disconnected")
-            self.server_status_label.setStyleSheet("color: #888;")
-            self.server_ip_edit.setEnabled(True)
-            self.server_port_spin.setEnabled(True)
-            self._set_scan_controls_enabled(False)
-            return
-
-        host = self.server_ip_edit.text().strip()
-        port = self.server_port_spin.value()
-        if not host:
-            self.server_status_label.setText("Enter a server IP")
-            self.server_status_label.setStyleSheet("color: #c00;")
-            return
-
-        self.server_status_label.setText("Connecting...")
-        self.server_status_label.setStyleSheet("color: #888;")
-        self.btn_connect.setEnabled(False)
-        QApplication.processEvents()
-
-        ok = self.server_client.connect_to_server(host, port)
-        self.btn_connect.setEnabled(True)
-
-        if ok:
-            self.btn_connect.setText("Disconnect")
-            self.server_ip_edit.setEnabled(False)
-            self.server_port_spin.setEnabled(False)
-        # Signal handlers below update the rest
+            self._paused = True
+            self.auto_capture_cb.setChecked(False)
+            self._connect_pending = True
+            self.task_worker.submit(ServerTask(ServerTaskType.DISCONNECT))
+        else:
+            host = self.server_ip_edit.text().strip()
+            if not host:
+                self.server_status_label.setText("Enter a server host.")
+                self.connection_section.toggle.setChecked(True)
+                return
+            self._connect_pending = True
+            self._restore_on_status = True
+            self._operation_error = ""
+            self.server_status_label.setText("Connecting…")
+            self.task_worker.submit(ServerTask(ServerTaskType.CONNECT, {
+                "host": host, "port": self.server_port_spin.value(),
+            }))
+        self._refresh_controls()
 
     def _on_server_connected(self):
+        self._connect_pending = False
+        self.btn_connect.setText("Disconnect")
         self.server_status_label.setText("Connected")
-        self.server_status_label.setStyleSheet("color: #0a0; font-weight: bold;")
+        self.server_status_label.setStyleSheet("color: #0a0;")
+        self._operation_error = ""
         self._set_scan_controls_enabled(True)
-        self.statusBar().showMessage("Connected to server")
+        self.statusBar().showMessage("Connected to reconstruction server", 4000)
 
     def _on_server_disconnected(self, reason: str):
-        self.server_status_label.setText(f"Error: {reason}")
-        self.server_status_label.setStyleSheet("color: #c00;")
+        self._connect_pending = False
+        self.btn_connect.setText("Reconnect" if self._session_id else "Connect")
+        self.server_status_label.setText(reason)
+        self.server_status_label.setStyleSheet("color: #b4382c;")
         self._set_scan_controls_enabled(False)
-        self.statusBar().showMessage(f"Server connection failed: {reason}")
+        self.connection_section.toggle.setChecked(True)
+        self.statusBar().showMessage(f"Server: {reason}")
 
-    # ── mode switching ────────────────────────────────────────────────
+    def _on_websocket_status(self, state, detail):
+        self._progress_link_ok = state == "connected"
+        if not self._progress_link_ok:
+            self.guidance_label.setText("Live feedback disconnected; reconnecting. Pause movement until updates return.")
+        elif self._session_id:
+            self.guidance_label.setText(self.live_view.snapshot.get("guidance", "Move slowly with overlapping views."))
+        self.server_status_label.setText("Connected" if self._progress_link_ok else "Connected · live feedback reconnecting")
+        self.statusBar().showMessage(detail, 5000)
+
     def _switch_mode(self, mode: str):
         self._mode = mode
         self.camera_title.setText("Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
@@ -667,7 +711,7 @@ class MainWindow(QMainWindow):
             "captured_monotonic_s", time.monotonic()
         )
         # GUI sequence remains unique if the USB device reconnects mid-session.
-        self._last_frame_metadata["frame_id"] = self._frame_sequence
+        self._last_frame_metadata["frame_id"] = f"{self._capture_run_id}:{self._frame_sequence}"
         self._last_frame_metadata.setdefault("timestamp_s", time.time())
 
         if self._mode == MODE_RGB:
@@ -680,6 +724,8 @@ class MainWindow(QMainWindow):
         if (
             self._scanning
             and not self._preview_pending
+            and not self._reset_pending
+            and not self._export_pending
             and not self._paused
             and self.auto_capture_cb.isChecked()
         ):
@@ -736,12 +782,12 @@ class MainWindow(QMainWindow):
                 self.scan_status_label.setText(f"Invalid calibration: {exc}")
 
     # ── scanning workflow ─────────────────────────────────────────────
-    def _start_scan(self):
+    def _start_scan(self, checked=False, *, protected=False):
         if not self.server_client.is_connected:
             QMessageBox.warning(self, "Not Connected", "Connect to the server first.")
             return
 
-        if self._reset_pending or self._build_pending or self._preview_pending or self._scanning:
+        if self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or (self._scanning and not protected):
             return
         if not self._camera_ready():
             self._capture_waiting = "Waiting for a fresh camera frame"
@@ -773,6 +819,9 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             self.scan_status_label.setText(str(exc))
             return
+        if not protected and not self._protect_session("new_scan"):
+            return
+        self._operation_error = ""
         self._reset_pending = True
         self.settings_group.setEnabled(False)
         self.btn_start_scan.setEnabled(False)
@@ -789,6 +838,10 @@ class MainWindow(QMainWindow):
         if not self.server_client.is_connected or self._closing:
             return
         self._session_id = result.get("session_id")
+        self._session_settings = result.get("settings")
+        self._session_dirty = False
+        self._capture_revision = self._saved_revision = 0
+        self._pending_action = None
         self._has_mesh = False
         self.live_view.reset()
         self.live_view.setVisible(
@@ -800,11 +853,16 @@ class MainWindow(QMainWindow):
         self._server_integrated = 0
 
         self._last_preview_path = None
+        self._final_preview_pending = False
+        self._preview_session = None
+        self._final_preview_session = None
+        self._operation_error = ""
         self._scanning = True
         self._paused = False
         self._build_pending = self._build_failed = False
         self._capture_waiting = ""
         self._switch_mode(MODE_SCANNER)
+        self.guidance_label.setVisible(not self.live_view.isVisible())
         self.auto_capture_cb.setChecked(self.capture_mode_combo.currentData() == "automatic")
         self.frame_count_label.setText("Captured: 0 · Added to model: 0")
         self._refresh_controls()
@@ -812,6 +870,10 @@ class MainWindow(QMainWindow):
 
     def _auto_capture_tick(self):
         snapshot = self.live_view.snapshot
+        if not self._progress_link_ok and self.live_cb.isChecked():
+            self._capture_waiting = "Auto capture waiting for live feedback to reconnect"
+            self._refresh_status()
+            return
         if self.adaptive_capture_cb.isChecked() and (
             self.task_worker.queued_task_count >= 5
             or snapshot.get("pending_count", 0) >= 5
@@ -826,8 +888,10 @@ class MainWindow(QMainWindow):
     def _capture_frame(self):
         if (
             not self._scanning
+            or self._reset_pending
             or self._paused
             or self._build_pending
+            or self._export_pending
             or self._preview_pending
             or not self.server_client.is_connected
             or self._closing
@@ -861,6 +925,9 @@ class MainWindow(QMainWindow):
             self._refresh_status()
         else:
             self._last_capture_id = frame_id
+            self._capture_revision += 1
+            self._session_dirty = True
+            self._operation_error = ""
             self._capture_waiting = ""
             self._reset_auto_capture_cadence()
             self._refresh_controls()
@@ -872,12 +939,14 @@ class MainWindow(QMainWindow):
         self._reset_auto_capture_cadence()
 
     def _stop_and_build(self):
-        if self._build_pending or self._preview_pending or not self.server_client.is_connected:
+        if self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or not self.server_client.is_connected:
             return
         if not self._server_stored and not getattr(self.task_worker, "queued_task_count", 0):
             return
         self._build_pending = True
         self._build_failed = False
+        self._operation_error = ""
+        self._last_preview_path = None
         self._scanning = False
         self._reset_auto_capture_cadence()
         self.auto_capture_cb.setChecked(False)
@@ -896,8 +965,11 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _preview_scan(self):
-        if self._has_mesh and self._last_preview_path:
-            self._preview_3d()
+        if self._has_mesh:
+            if self._last_preview_path:
+                self._preview_3d()
+            else:
+                self._request_final_preview()
             return
         if self._preview_pending or self._build_pending:
             return
@@ -907,6 +979,8 @@ class MainWindow(QMainWindow):
             )
             return
         self._preview_pending = True
+        self._preview_session = self._session_id
+        self._operation_error = ""
         self._reset_auto_capture_cadence()
         self.btn_capture.setEnabled(False)
         self.btn_stop_build.setEnabled(False)
@@ -927,64 +1001,85 @@ class MainWindow(QMainWindow):
         return EXPORT_DIR
 
     def _export_ply(self):
-        default_path = os.path.join(self._ensure_export_dir(), "scan.ply")
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export PLY", default_path, "PLY files (*.ply)"
-        )
-        if path:
-            self.btn_export_ply.setEnabled(False)
-            self.task_worker.submit(
-                ServerTask(ServerTaskType.EXPORT_PLY, {"path": path})
-            )
+        self._export_mesh("ply")
 
     def _export_obj(self):
-        default_path = os.path.join(self._ensure_export_dir(), "scan.obj")
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export OBJ", default_path, "OBJ files (*.obj)"
-        )
-        if path:
-            self.btn_export_obj.setEnabled(False)
-            self.task_worker.submit(
-                ServerTask(ServerTaskType.EXPORT_OBJ, {"path": path})
-            )
+        self._export_mesh("obj")
 
     def _export_texture(self, fmt):
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export textured surface",
-            os.path.join(self._ensure_export_dir(), f"scan.{fmt}"),
-            "GLB (*.glb)" if fmt == "glb" else "ZIP (*.zip)",
-        )
-        if path:
-            self.btn_export_glb.setEnabled(False)
-            self.btn_export_texture_obj.setEnabled(False)
-            self.task_worker.submit(
-                ServerTask(
-                    ServerTaskType.EXPORT_TEXTURE,
-                    {
-                        "path": path,
-                        "format": fmt,
-                        "options": {
-                            "exposure_correction": self.texture_exposure_cb.isChecked(),
-                            "blend_mode": "best"
-                            if self.texture_best_cb.isChecked()
-                            else "blend",
-                        },
-                    },
-                )
-            )
+        self._export_mesh(fmt)
 
-    def _export_session(self):
+    def _export_mesh(self, fmt):
+        if not self._has_mesh or self._export_pending:
+            return
+        extension = "zip" if fmt == "obj.zip" else fmt
         path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save lossless RGB-D session",
-            os.path.join(self._ensure_export_dir(), "scan-session.zip"),
-            "ZIP (*.zip)",
+            self, "Export final model", os.path.join(self._ensure_export_dir(), f"scan.{extension}"),
+            f"{extension.upper()} files (*.{extension})",
         )
-        if path:
-            self.task_worker.submit(
-                ServerTask(ServerTaskType.EXPORT_SESSION, {"path": path})
-            )
+        if not path:
+            return
+        kwargs = {"path": path}
+        task_type = {"ply": ServerTaskType.EXPORT_PLY, "obj": ServerTaskType.EXPORT_OBJ}.get(fmt, ServerTaskType.EXPORT_TEXTURE)
+        if task_type == ServerTaskType.EXPORT_TEXTURE:
+            kwargs.update(format=fmt, options={
+                "exposure_correction": self.texture_exposure_cb.isChecked(),
+                "blend_mode": "best" if self.texture_best_cb.isChecked() else "blend",
+            })
+        self._begin_export("mesh", path, ServerTask(task_type, kwargs))
+
+    def _export_session(self, checked=False):
+        if self._export_pending or not self.server_client.is_connected:
+            return False
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save captured session", os.path.join(self._ensure_export_dir(), "scan-session.zip"),
+            "ZIP files (*.zip)",
+        )
+        if not path:
+            return False
+        return self._begin_export("session", path, ServerTask(ServerTaskType.EXPORT_SESSION, {"path": path}))
+
+    def _begin_export(self, kind, path, task):
+        restore_capture = (self._scanning, self._paused)
+        self._paused = True
+        self._export_pending = {
+            "kind": kind, "path": path, "revision": self._capture_revision,
+            "restore_capture": restore_capture,
+        }
+        self._operation_error = ""
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.show()
+        if not self.task_worker.submit(task):
+            self._on_export_done(False, path)
+            return False
+        self._refresh_controls()
+        return True
+
+    def _protect_session(self, reason):
+        if not self._session_dirty:
+            return True
+        if self._export_pending:
+            self.statusBar().showMessage("Wait for the current save or export to finish.")
+            return False
+        restore_capture = (self._scanning, self._paused)
+        was_paused = self._paused
+        self._paused = True
+        self._refresh_controls()
+        dialog = SessionProtectionDialog(reason, self)
+        dialog.exec()
+        if dialog.choice == "discard":
+            self._paused = was_paused
+            return True
+        if dialog.choice == "save":
+            self._pending_action = reason
+            if self._export_session():
+                self._export_pending["restore_capture"] = restore_capture
+                return False  # Continue only after the saved session is confirmed.
+            self._pending_action = None
+        self._paused = was_paused
+        self._reset_auto_capture_cadence()
+        self._refresh_controls()
+        return False
 
     def _save_mesh(self):
         os.makedirs(MESH_DIR, exist_ok=True)
@@ -1024,6 +1119,86 @@ class MainWindow(QMainWindow):
             f"Fusion: {backend.get('device', 'unknown')} · ICP: {backend.get('tracking', 'unknown')}"
         )
         self.backend_label.setToolTip(backend.get("fallback_reason") or "")
+        if self._restore_on_status and "settings" in status:
+            self._restore_on_status = False
+            self._restore_server_session(status)
+
+    def _restore_server_session(self, status):
+        session_id = status.get("session_id")
+        same_session = session_id == self._session_id
+        self._session_id = session_id if status.get("stored_count", 0) or status.get("has_mesh") else None
+        self._session_settings = status.get("settings")
+        self._server_stored = status.get("stored_count", 0)
+        self._server_integrated = status.get("frame_count", 0)
+        self._has_mesh = bool(status.get("has_mesh"))
+        self._scanning = self._server_stored > 0 and not self._has_mesh
+        self._paused = self._server_stored > 0
+        self.auto_capture_cb.setChecked(False)
+        if not same_session:
+            self._capture_revision = self._server_stored
+            self._saved_revision = 0
+            self._session_dirty = self._server_stored > 0
+            self._last_preview_path = None
+            self.live_view.reset()
+        if self._server_stored or self._has_mesh:
+            self._apply_session_settings(self._session_settings)
+        live = bool((self._session_settings or {}).get("live_reconstruction"))
+        self.live_view.setVisible(live and self._server_stored > 0)
+        self.guidance_label.setVisible(not self.live_view.isVisible())
+        self.frame_count_label.setText(f"Captured: {self._server_stored} · Added to model: {self._server_integrated}")
+        self._capture_waiting = ""
+        self._operation_error = ""
+        self._refresh_controls()
+        if self._has_mesh:
+            self._request_final_preview()
+
+    def _apply_session_settings(self, settings):
+        if not settings:
+            return
+        try:
+            profile = ScanSettings.from_dict(settings)
+        except (ValueError, TypeError) as exc:
+            self._operation_error = f"Cannot restore scan settings: {exc}"
+            return
+        controls = (self.depth_near_spin, self.depth_far_spin, self.voxel_spin,
+                    self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
+                    self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
+                    self.color_tracking_cb, self.refine_cb, self.relocalize_cb, self.confidence_cb)
+        previous = [control.blockSignals(True) for control in controls]
+        rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
+        calibration_changed = profile.sensor_calibration is not None and profile.sensor_calibration != self._sensor_calibration
+        try:
+            self.depth_near_spin.setValue(round(profile.near_m * 1000))
+            self.depth_far_spin.setValue(round(profile.far_m * 1000))
+            self.voxel_spin.setValue(profile.voxel_m * 1000)
+            self.final_voxel_spin.setMaximum(profile.voxel_m * 1000)
+            self.final_voxel_spin.setValue((profile.final_voxel_m or 0) * 1000)
+            self.final_blocks_spin.setValue(profile.final_block_count)
+            self.weight_spin.setValue(profile.final_weight)
+            self.rgb_mode_combo.setCurrentIndex(self.rgb_mode_combo.findData(profile.rgb_mode))
+            self.live_cb.setChecked(profile.live_reconstruction)
+            self.color_tracking_cb.setChecked(profile.color_recovery)
+            self.refine_cb.setChecked(profile.refine_poses)
+            self.relocalize_cb.setChecked(profile.relocalize)
+            self.confidence_cb.setChecked(profile.confidence_fusion)
+            self.crop_cb.setChecked(profile.roi is not None)
+            if profile.roi:
+                self.crop_spin.setValue(round((profile.roi[2] - profile.roi[0]) / profile.camera.width * 100))
+            if profile.sensor_calibration:
+                self._sensor_calibration = profile.sensor_calibration
+                self._camera = profile.camera
+                self.calibration_label.setText(profile.sensor_calibration.name)
+        finally:
+            for control, blocked in zip(controls, previous):
+                control.blockSignals(blocked)
+        self.crop_spin.setEnabled(self.crop_cb.isChecked())
+        self.auto_capture_spin.set_fps(RGB_MODE_FPS[profile.rgb_mode])
+        if rgb_changed or calibration_changed:
+            try:
+                self._restart_camera()
+            except RuntimeError as exc:
+                self._operation_error = str(exc)
+        self._validate_setup()
 
     def _on_live_updated(self, snapshot):
         if (
@@ -1046,7 +1221,8 @@ class MainWindow(QMainWindow):
         if result.get("session_id") and result["session_id"] != self._session_id:
             return
         if not result.get("success"):
-            self.auto_capture_cb.setChecked(False)
+            self._paused = True
+            self._operation_error = result.get("message", "Capture rejected; scan retained")
         self._server_stored = max(
             self._server_stored, result.get("stored_count", self._server_stored)
         )
@@ -1074,22 +1250,34 @@ class MainWindow(QMainWindow):
         self._build_pending = False
         self._build_failed = not success
         self._has_mesh = success
-        self.progress_bar.setVisible(False)
-        self.scan_status_label.setText(detail)
-
-        if success:
-            self.btn_export_ply.setEnabled(True)
-            self.btn_export_obj.setEnabled(True)
-            self.btn_export_glb.setEnabled(True)
-            self.btn_export_texture_obj.setEnabled(True)
-            self.btn_save_mesh.setEnabled(True)
-            self.statusBar().showMessage("Mesh built. Ready to export or preview.")
-        else:
-            self.statusBar().showMessage("Mesh build failed.")
-
-        self.btn_start_scan.setEnabled(True)
-        self.settings_group.setEnabled(True)
+        self._scanning = False
+        self._paused = True
+        self.progress_bar.hide()
+        self._operation_error = "" if success else detail
+        self.statusBar().showMessage(detail, 8000)
         self._refresh_controls()
+        if success and not self._pending_action:
+            self._request_final_preview()
+
+    def _request_final_preview(self):
+        if not self._has_mesh or self._final_preview_pending or self._export_pending:
+            return
+        self._final_preview_pending = True
+        self._final_preview_session = self._session_id
+        self._last_preview_path = None
+        self._operation_error = ""
+        self.task_worker.submit(ServerTask(ServerTaskType.FINAL_PREVIEW))
+        self._refresh_controls()
+
+    def _on_final_preview_done(self, path):
+        if self._closing or self._final_preview_session != self._session_id or not self._has_mesh:
+            return
+        self._final_preview_pending = False
+        self._last_preview_path = path
+        self.progress_bar.hide()
+        self._refresh_controls()
+        if path and not self._pending_action:
+            launch_viewer_subprocess(path)
 
     def _resume_capture(self):
         self._preview_pending = False
@@ -1101,6 +1289,8 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _on_preview_done(self, path: str):
+        if self._closing or self._preview_session != self._session_id:
+            return
         self._resume_capture()
         self.progress_bar.setVisible(False)
         if self._scanning:
@@ -1118,53 +1308,65 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _on_export_done(self, success: bool, path: str):
-        self.btn_export_ply.setEnabled(self._has_mesh)
-        self.btn_export_obj.setEnabled(self._has_mesh)
-        self.btn_export_glb.setEnabled(self._has_mesh)
-        self.btn_export_texture_obj.setEnabled(self._has_mesh)
+        pending = self._export_pending
+        if pending and pending["path"] != path:
+            return
+        self._export_pending = None
+        self.progress_bar.hide()
+        action, self._pending_action = self._pending_action, None
         if success:
-            self.statusBar().showMessage(f"Exported: {path}")
-            QMessageBox.information(self, "Export", f"Saved to:\n{path}")
+            if pending and pending["kind"] == "session":
+                self._saved_revision = pending["revision"]
+                self._session_dirty = self._capture_revision != self._saved_revision
+            self.statusBar().showMessage(f"Saved: {path}", 10000)
+            self._operation_error = ""
         else:
-            QMessageBox.warning(self, "Export", f"Failed to export:\n{path}")
+            self._operation_error = "Save failed · scan retained; choose Save Session to retry"
+            self.statusBar().showMessage(f"Could not save {path}; current scan is retained.")
+        if pending and (not action or not success):
+            self._scanning, self._paused = pending["restore_capture"]
+            self._reset_auto_capture_cadence()
+        self._refresh_controls()
+        if success and action == "new_scan":
+            self._start_scan(protected=True)
+        elif success and action == "close":
+            self._close_approved = True
+            self.close()
 
     def _on_save_mesh_done(self, success: bool, path: str):
-        self.btn_save_mesh.setEnabled(True)
-        if success:
-            self.statusBar().showMessage(f"Mesh saved: {path}")
-            QMessageBox.information(self, "Save Mesh", f"Saved to:\n{path}")
-        else:
-            QMessageBox.warning(self, "Save Mesh", "Failed to save mesh.")
+        self.statusBar().showMessage(f"Saved: {path}" if success else f"Save failed: {path}", 10000)
+        self._refresh_controls()
 
     def _on_task_started(self, msg: str):
         self.statusBar().showMessage(msg)
 
     def _on_task_error(self, msg: str):
-        for button in (
-            self.btn_export_ply,
-            self.btn_export_obj,
-            self.btn_export_glb,
-            self.btn_export_texture_obj,
-        ):
-            button.setEnabled(self._has_mesh)
-        self.progress_bar.setVisible(False)
-        if self._build_pending:
+        # Recording/report warnings are independent of build or inspection success.
+        self.statusBar().showMessage(msg, 10000)
+
+    def _on_task_failed(self, task_type, message):
+        self.progress_bar.hide()
+        self._operation_error = f"{message} · current scan retained"
+        if task_type == "CONNECT":
+            self._connect_pending = False
+            self.connection_section.toggle.setChecked(True)
+        elif task_type == "RESET":
+            self._reset_pending = False
+        elif task_type == "BUILD_MESH":
             self._build_pending = False
             self._build_failed = True
-        if self._reset_pending:
-            self._reset_pending = False
-            self.btn_start_scan.setEnabled(True)
-            self.settings_group.setEnabled(True)
-        elif self._preview_pending:
+        elif task_type == "PREVIEW":
             self._resume_capture()
-        elif not self._scanning:
-            self.btn_start_scan.setEnabled(True)
-            self.settings_group.setEnabled(True)
-        self.scan_status_label.setText(f"Error: {msg}")
-        self.statusBar().showMessage(f"Error: {msg}")
+        elif task_type == "FINAL_PREVIEW":
+            self._final_preview_pending = False
+        elif task_type in ("EXPORT_PLY", "EXPORT_OBJ", "EXPORT_TEXTURE", "EXPORT_SESSION"):
+            if self._export_pending:
+                self._on_export_done(False, self._export_pending["path"])
+        elif task_type == "SEND_FRAME":
+            self._paused = True
         self._refresh_controls()
 
-    # ── FPS / errors / cleanup ────────────────────────────────────────
+
     def _update_fps(self):
         now = time.time()
         elapsed = now - self._last_fps_time
@@ -1190,13 +1392,16 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Error: {msg}")
 
     def closeEvent(self, event):
+        if not self._closing and not self._close_approved:
+            if not self._protect_session("close"):
+                event.ignore()
+                return
         if not self._closing:
             self._closing = True
             self._reset_auto_capture_cadence()
             self._fps_timer.stop()
             self.worker.stop()
             self.task_worker.stop()
-            self.server_client.disconnect()
         self.worker.wait(100)
         self.task_worker.wait(100)
         if self.worker.isRunning() or self.task_worker.isRunning():
@@ -1210,4 +1415,5 @@ class MainWindow(QMainWindow):
             event.ignore()
             QTimer.singleShot(200, self.close)
             return
+        self.server_client.disconnect(notify=False)
         super().closeEvent(event)

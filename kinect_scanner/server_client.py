@@ -2,9 +2,9 @@
 
 import json
 import logging
+import os
 import tempfile
 import threading
-import time
 
 import httpx
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -28,12 +28,15 @@ class ServerClient(QObject):
     process_progress = pyqtSignal(int, int, dict)
     build_mesh_done = pyqtSignal(bool, str)
     preview_done = pyqtSignal(str)  # PLY temp file path
+    final_preview_done = pyqtSignal(str)
     export_done = pyqtSignal(bool, str)
     save_mesh_done = pyqtSignal(bool, str)
     status_updated = pyqtSignal(dict)
     live_updated = pyqtSignal(dict)
     task_started = pyqtSignal(str)
     task_error = pyqtSignal(str)
+    task_failed = pyqtSignal(str, str)
+    websocket_status = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,6 +46,9 @@ class ServerClient(QObject):
         self._ws_thread: threading.Thread | None = None
         self._ws_stop = threading.Event()
         self._connected = False
+        self._ws_generation = 0
+        self._ws_socket = None
+        self.session_id = None
 
     @property
     def is_connected(self) -> bool:
@@ -51,79 +57,112 @@ class ServerClient(QObject):
     # ── Connection ─────────────────────────────────────────────────────
 
     def connect_to_server(self, host: str, port: int) -> bool:
-        """Try to connect. Returns True on success. Starts WebSocket listener."""
+        """Connect synchronously; the GUI invokes this through ServerTaskWorker."""
+        self.disconnect(notify=False)
         self._base_url = f"http://{host}:{port}"
         self._ws_url = f"ws://{host}:{port}/ws/progress"
-
         try:
             self._http = httpx.Client(base_url=self._base_url, timeout=30.0)
-            resp = self._http.get("/api/health")
+            resp = self._http.get("/api/health", timeout=5.0)
             resp.raise_for_status()
-            data = resp.json()
-            if data.get("status") != "ok":
-                raise RuntimeError(f"Server not ok: {data}")
-        except Exception as e:
-            self._connected = False
-            self.disconnected.emit(str(e))
+            health = resp.json()
+            if health.get("status") != "ok":
+                raise RuntimeError(f"Server not ok: {health}")
+            status = self.get_status()
+        except Exception as exc:
+            self.disconnect(notify=False)
+            self.disconnected.emit(str(exc))
             return False
-
         self._connected = True
-        self._ws_stop.clear()
+        self.session_id = status.get("session_id")
+        self._ws_stop = threading.Event()
         self._ws_thread = threading.Thread(
-            target=self._ws_listener, daemon=True, name="ws-listener"
+            target=self._ws_listener,
+            args=(self._ws_stop, self._ws_url, self._ws_generation),
+            daemon=True, name="ws-listener",
         )
         self._ws_thread.start()
         self.connected.emit()
-        self.status_updated.emit(data)
+        self.status_updated.emit(status)
         return True
 
-    def disconnect(self):
-        """Close HTTP client and stop WebSocket thread."""
+    def disconnect(self, notify=True):
+        """Stop local transports without resetting the server's scan session."""
+        self._ws_generation += 1
         self._ws_stop.set()
-        if self._http:
-            self._http.close()
-            self._http = None
+        sock, self._ws_socket = self._ws_socket, None
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                logger.debug("Could not close WebSocket", exc_info=True)
+        http, self._http = self._http, None
+        if http is not None:
+            try:
+                http.close()
+            except Exception:
+                logger.debug("Could not close HTTP client", exc_info=True)
         self._connected = False
         if self._ws_thread and self._ws_thread.is_alive():
-            self._ws_thread.join(timeout=2.0)
+            self._ws_thread.join(timeout=0.25)
         self._ws_thread = None
+        if notify:
+            self.disconnected.emit("Disconnected")
 
     # ── WebSocket listener ─────────────────────────────────────────────
 
-    def _ws_listener(self):
-        """Background thread: listen for progress messages over WebSocket."""
-        import websocket as ws_lib
+    def _ws_listener(self, stop=None, url=None, generation=None):
+        """Reconnect progress transport; retain the active server session."""
+        stop = stop if stop is not None else self._ws_stop
+        url = url if url is not None else self._ws_url
+        generation = generation if generation is not None else self._ws_generation
+        try:
+            import websocket as ws_lib
+        except Exception as exc:
+            if generation == self._ws_generation and not stop.is_set():
+                self.websocket_status.emit("reconnecting", str(exc))
+            return
 
-        while not self._ws_stop.is_set():
+        def active():
+            return not stop.is_set() and generation == self._ws_generation
+
+        while active():
+            sock = None
             try:
                 sock = ws_lib.WebSocket()
                 sock.settimeout(5.0)
-                sock.connect(self._ws_url)
-                logger.info("WebSocket connected to %s", self._ws_url)
-
-                while not self._ws_stop.is_set():
+                sock.connect(url)
+                if not active():
+                    break
+                self._ws_socket = sock
+                self.websocket_status.emit("connected", "Progress connection established")
+                while active():
                     try:
                         raw = sock.recv()
                     except ws_lib.WebSocketTimeoutException:
                         continue
-                    except ws_lib.WebSocketConnectionClosedException:
-                        break
-
                     if not raw:
-                        continue
-
+                        raise RuntimeError("Progress connection closed")
                     try:
                         msg = json.loads(raw)
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, TypeError):
                         continue
-
-                    self._handle_ws_message(msg)
-
-                sock.close()
-            except Exception as e:
-                if not self._ws_stop.is_set():
-                    logger.warning("WebSocket error: %s, reconnecting...", e)
-                    time.sleep(1.0)
+                    if active() and isinstance(msg, dict):
+                        self._handle_ws_message(msg)
+            except Exception as exc:
+                if active():
+                    logger.warning("WebSocket error: %s, reconnecting...", exc)
+                    self.websocket_status.emit("reconnecting", str(exc))
+            finally:
+                if self._ws_socket is sock:
+                    self._ws_socket = None
+                if sock is not None:
+                    try:
+                        sock.close()
+                    except Exception:
+                        pass
+            if active():
+                stop.wait(1.0)
 
     def _handle_ws_message(self, msg: dict):
         """Route a parsed WebSocket message to the appropriate Qt signal."""
@@ -200,31 +239,52 @@ class ServerClient(QObject):
             # Got JSON error response
             return None
 
-        fd, tmp_path = tempfile.mkstemp(suffix=".ply")
-        import os
+        return self._save_temp_mesh(resp.content)
 
-        os.close(fd)
-        with open(tmp_path, "wb") as f:
-            f.write(resp.content)
-        return tmp_path
+    @staticmethod
+    def _save_temp_mesh(content: bytes) -> str:
+        fd, path = tempfile.mkstemp(suffix=".ply")
+        try:
+            with os.fdopen(fd, "wb") as output:
+                output.write(content)
+        except BaseException:
+            os.unlink(path)
+            raise
+        return path
+
+    def request_final_preview(self) -> str | None:
+        """Download the current final mesh without rebuilding a preview."""
+        resp = self._http.get("/api/scan/export/ply", timeout=600.0)
+        resp.raise_for_status()
+        if "octet-stream" not in resp.headers.get("content-type", ""):
+            return None
+        return self._save_temp_mesh(resp.content)
 
     def request_export(self, fmt: str, save_path: str, options=None) -> bool:
-        """Download exported mesh and save to local path."""
+        """Download and atomically replace the destination only after success."""
         resp = self._http.get(
             f"/api/scan/export/{fmt}", params=options or {}, timeout=600.0
         )
         resp.raise_for_status()
-
-        content_type = resp.headers.get("content-type", "")
-        if "octet-stream" not in content_type:
+        if "octet-stream" not in resp.headers.get("content-type", ""):
             return False
-
-        with open(save_path, "wb") as f:
-            f.write(resp.content)
+        destination = os.path.abspath(save_path)
+        fd, temporary = tempfile.mkstemp(
+            prefix=".scanner-export-", dir=os.path.dirname(destination)
+        )
+        try:
+            with os.fdopen(fd, "wb") as output:
+                output.write(resp.content)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, destination)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
         return True
 
     def get_status(self) -> dict:
-        resp = self._http.get("/api/scan/status")
+        resp = self._http.get("/api/scan/status", timeout=10.0)
         resp.raise_for_status()
         return resp.json()
 

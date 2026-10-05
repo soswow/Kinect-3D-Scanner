@@ -71,6 +71,7 @@ class AutoCaptureTests(unittest.TestCase):
         self.depth = np.full((2, 2), 750, np.uint16)
 
     def tearDown(self):
+        self.window._close_approved = True
         self.window.close()
         self.window.worker.wait(2500)
         self.window.task_worker.wait(2500)
@@ -83,7 +84,7 @@ class AutoCaptureTests(unittest.TestCase):
             self.window._on_frame(self.rgb, self.depth, metadata)
 
     def ids(self):
-        return [f["metadata"]["frame_id"] for f in self.window.task_worker.frames]
+        return [int(f["metadata"]["frame_id"].rsplit(":", 1)[-1]) for f in self.window.task_worker.frames]
 
     def test_interval_editor_caps_frequency_and_steps_whole_frames(self):
         spin = self.window.auto_capture_spin
