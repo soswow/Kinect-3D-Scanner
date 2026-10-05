@@ -182,6 +182,11 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
 
 ## Live Feedback, NVIDIA Compute, and Textures
 
+On tracking loss, fusion pauses until the last good camera view is verified.
+The red notice, overhead trajectory, and saved reference image guide recovery;
+RGB/depth timing warnings explain when color recovery is unavailable. See
+[tracking recovery and the chest-session analysis](docs/TRACKING_RECOVERY.md).
+
 New scans enable live feedback in the GUI; API clients opt in with
 `live_reconstruction: true` in reset settings. CPU remains supported on Apple
 Silicon. An NVIDIA server can select CUDA fusion, extraction, and tensor ICP:

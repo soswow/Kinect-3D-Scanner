@@ -226,6 +226,7 @@ class ScanEngine:
             "camera_to_world": self.cumulative_T.tolist(),
             **self.tracking_snapshot(),
             "camera": asdict(self.settings.camera),
+            "color_assistance_requested": self.settings.color_recovery or self.settings.relocalize,
             "backend": self.backend,
             "result": self.diagnostics[-1] if self.diagnostics else {},
         }

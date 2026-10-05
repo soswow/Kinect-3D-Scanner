@@ -91,6 +91,12 @@ class LiveView(QWidget):
         self.status_label.setWordWrap(True)
         self.status_label.setAccessibleName("Reconstruction status")
         layout.addWidget(self.status_label)
+        self.color_warning_label = QLabel(self.panel)
+        self.color_warning_label.setWordWrap(True)
+        self.color_warning_label.setStyleSheet("color: #ffcf79;")
+        self.color_warning_label.setAccessibleName("Color recovery synchronization warning")
+        layout.addWidget(self.color_warning_label)
+        self.color_warning_label.hide()
         self.details_label = QLabel(self.panel)
         self.details_label.setWordWrap(True)
         self.details_label.setAccessibleName("Reconstruction diagnostics")
@@ -217,12 +223,20 @@ class LiveView(QWidget):
             f"{s.get('frame_count', 0)} integrated · {s.get('pending_count', 0)} pending"
             + (f" · return to Frame {s['last_tracked_index'] + 1}" if lost and s.get("last_tracked_index") is not None else "")
         )
+        lag = result.get("metadata", {}).get("rgb_depth_delta_ms")
+        sync_warning = s.get("color_assistance_requested") and lag is not None and abs(lag) > 20
+        self.color_warning_label.setVisible(bool(sync_warning))
+        if sync_warning:
+            self.color_warning_label.setText(
+                f"Color recovery unavailable · RGB/depth {abs(lag):.0f} ms apart (limit 20 ms)"
+            )
         state = ("tracking accepted" if result.get("success") else "tracking skipped") if result else "waiting"
         age = "waiting for frames" if self._received is None else f"last update {time.monotonic() - self._received:.1f}s ago"
         self.details_label.setText(
             f"{state} · {age}\n"
             f"Processing: {result.get('elapsed_ms', 0):.0f} ms/frame · displayed: {len(self.points):,} points\n"
             f"Skipped: {s.get('skipped_count', 0)} · queue age: {s.get('pending_age_s', 0):.1f}s · geometry frames: {s.get('geometry_frame_count', 0)}"
+            + (f"\nReason: {result.get('message', 'Tracking could not be verified')}" if lost else "")
         )
         self._layout_panel()
 

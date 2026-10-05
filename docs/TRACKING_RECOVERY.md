@@ -14,7 +14,7 @@ Accepted runs are Frames 1–14, 20–35, and 37–48. These are runs in capture
 
 The object, floor, and surrounding room are all included: no crop was configured, and the depth range was 0.5–3.0 m. Cuboid faces, woven repeating texture, and a broad planar floor make geometric matches ambiguous.
 
-Color-assisted tracking and appearance recovery were enabled, but **45 of the 50 stored RGB/depth pairs exceeded their 20 ms synchronization limit**. Their offsets range from about 14 to 49 ms. Only 5 pairs were eligible individually, and adjacent RGB-D odometry requires both observations to pass. These settings therefore supplied much less assistance than their enabled checkboxes suggest. The guards should not be weakened merely to hide this problem.
+Color-assisted tracking and appearance recovery were enabled, but **45 of the 50 stored RGB/depth pairs exceeded their 20 ms synchronization limit**. Their offsets range from about 14 to 49 ms. Only 5 pairs were eligible individually, and adjacent RGB-D odometry requires both observations to pass. These settings therefore supplied much less assistance than their enabled checkboxes suggest. The guards should not be weakened merely to hide this problem. The live panel now shows a persistent warning for a requested color recovery path whose current observation exceeds this timing limit.
 
 Typical capture spacing was 1.07 s; reconstruction took roughly 1–4.4 s per accepted frame. Total recorded capture duration was 105.25 s and summed processing time was 106.45 s. The three long gaps precede the abrupt viewpoint changes; they do not establish whether movement was paused deliberately or by capture backpressure.
 
@@ -46,6 +46,8 @@ For this particular scan, manually selected distinct correspondences across the 
 
 ## Implementation and validation
 
-Implemented in the isolated `codex/chest-tracking-recovery` worktree. Added engine recovery gates and tracking snapshots, a Qt trajectory/reference inset, a large loss notice, recovery probe backpressure, and `scripts/inspect_session.py` for reproducible read-only archive inspection. The UI continues to use the accepted camera orientation for Follow and supports Orbit separately.
+Developed in the isolated `codex/chest-tracking-recovery` worktree and combined with the other chat's capture sound and automatically saved settings. Added engine recovery gates and tracking snapshots, a Qt trajectory/reference inset, a large loss notice, recovery probe backpressure, synchronization warnings, and `scripts/inspect_session.py` for reproducible read-only archive inspection. The UI continues to use the accepted camera orientation for Follow and supports Orbit separately.
 
 Validation includes real Open3D tests for rejected depth leaving fusion and pose unchanged, return-to-anchor recovery, planar ambiguity rejection, and preventing ordinary model ICP from bypassing recovery. Qt checks cover estimated-up projection, loss/recovery visibility, and recovery probe queue limits. Screenshots use the actual session images and geometry at 960×600 and 1280×800. Physical Kinect recovery and CUDA remain unverified.
+
+Combined verification: 177 tests passed, 2 CUDA tests skipped; the synthetic HTTP/WebSocket and Qt scan pipeline passed. After the synchronization warning was added, 56 affected tests passed and 1 CUDA test was skipped. Lint passed for the changed UI, API, inspection script, and test files; the engine retains its four pre-existing broad-exception lint findings.

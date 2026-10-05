@@ -98,13 +98,18 @@ class RecoveryViewTests(unittest.TestCase):
         view.resize(640, 600)
         view.show()
         view.set_snapshot({"fusion_paused": True, "last_tracked_index": 3,
+                           "color_assistance_requested": True,
+                           "result": {"metadata": {"rgb_depth_delta_ms": -43}},
                            "trajectory": [{"index": 3, "camera_to_world": np.eye(4).tolist()}]})
         self.app.processEvents()
         self.assertTrue(view.recovery_label.isVisible())
         self.assertTrue(view.overview.isVisible())
+        self.assertTrue(view.color_warning_label.isVisible())
+        self.assertIn("43 ms", view.color_warning_label.text())
         view.set_snapshot({"fusion_paused": False, "trajectory": []})
         self.assertFalse(view.recovery_label.isVisible())
         self.assertFalse(view.overview.isVisible())
+        self.assertFalse(view.color_warning_label.isVisible())
         view.close()
 
 

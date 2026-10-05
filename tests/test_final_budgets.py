@@ -87,7 +87,11 @@ class FinalBudgetTests(unittest.TestCase):
         self.assertLessEqual(len(snapshot["points"]), 200)
         engine.store_frame(rgb, np.zeros_like(depth))
         engine.process_frames()
-        self.assertIn("Too few valid depth", engine.live_snapshot()["guidance"])
+        recovery = engine.live_snapshot()
+        self.assertIn("STOP", recovery["guidance"])
+        self.assertTrue(recovery["fusion_paused"])
+        self.assertEqual(5, recovery["last_tracked_index"])
+        self.assertIn("Too few valid depth", recovery["result"]["message"])
         self.assertEqual(1, engine.live_snapshot()["skipped_count"])
         self.assertEqual(0, engine.live_snapshot()["pending_age_s"])
 
