@@ -70,6 +70,7 @@ class FrameIntervalSpinBox(QSpinBox):
         if not math.isfinite(seconds):
             raise ValueError("Capture interval must be finite")
         self.setValue(max(1, math.floor(seconds * self._fps + 0.5)))
+        self._update_tooltip()
 
     def set_fps(self, fps):
         seconds = self.interval_seconds

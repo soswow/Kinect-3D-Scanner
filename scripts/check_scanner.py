@@ -28,10 +28,11 @@ from shared.protocol import pack_frame, pack_frames
 
 
 def check_client(port, rgb, depth):
-    from PyQt6.QtCore import QThread, pyqtSignal
+    from PyQt6.QtCore import QSettings, QThread, pyqtSignal
     from PyQt6.QtWidgets import QApplication
 
     from kinect_scanner.gui import main_window
+    from kinect_scanner.gui.preferences import ScannerPreferences
 
     class NoCameraWorker(QThread):
         frame_ready = pyqtSignal(np.ndarray, np.ndarray)
@@ -58,7 +59,9 @@ def check_client(port, rgb, depth):
     capture_cues = []
     main_window.CaptureSound.play = lambda self: capture_cues.append(True)  # Keep the check silent.
     app = QApplication([])
-    window = main_window.MainWindow()
+    settings_dir = tempfile.TemporaryDirectory()
+    store = QSettings(str(Path(settings_dir.name) / "scanner.ini"), QSettings.Format.IniFormat)
+    window = main_window.MainWindow(preferences=ScannerPreferences(store))
     window.rgb_mode_combo.setCurrentIndex(1)  # Native calibrated VGA fixture.
 
     def wait_until(predicate):
@@ -165,6 +168,7 @@ def check_client(port, rgb, depth):
             "Client threads did not stop"
         )
         app.processEvents()
+        settings_dir.cleanup()
 
 
 def main():

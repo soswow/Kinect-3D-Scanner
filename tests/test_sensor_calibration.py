@@ -205,10 +205,11 @@ class SensorCalibrationTests(unittest.TestCase):
     def test_gui_requires_complete_calibration_and_switches_rgb_modes(self):
         from dataclasses import asdict
 
-        from PyQt6.QtCore import QThread, pyqtSignal
+        from PyQt6.QtCore import QSettings, QThread, pyqtSignal
         from PyQt6.QtWidgets import QApplication
 
         from kinect_scanner.gui import main_window
+        from kinect_scanner.gui.preferences import ScannerPreferences
         from shared.settings import CameraCalibration
 
         class NoCamera(QThread):
@@ -226,8 +227,9 @@ class SensorCalibrationTests(unittest.TestCase):
                 pass
 
         app = QApplication.instance() or QApplication([])
-        with patch.object(main_window, "KinectWorker", NoCamera):
-            window = main_window.MainWindow()
+        with tempfile.TemporaryDirectory() as settings_dir, patch.object(main_window, "KinectWorker", NoCamera):
+            store = QSettings(str(Path(settings_dir) / "scanner.ini"), QSettings.Format.IniFormat)
+            window = main_window.MainWindow(preferences=ScannerPreferences(store))
             try:
                 self.assertEqual(self.calibration, window._sensor_calibration)
                 self.assertEqual(

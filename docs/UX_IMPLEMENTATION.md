@@ -102,3 +102,27 @@ reset, cancellation and shutdown clear any cue waiting for its audio file to loa
 Verification: 48 feedback/workflow/cadence/worker tests passed. Qt loaded the
 bundled PCM WAV successfully. The loopback check verifies that accepted uploads
 request sound confirmation, with playback suppressed during synthetic scans.
+
+## Follow-up: automatic preferences
+
+User choices save immediately through Qt's per-user settings store: capture mode
+and interval, RGB resolution, clipping/crop, recording, reconstruction and
+experimental options, connection details, sound and accepted export choices.
+Loaded calibration is preserved as a validated snapshot, independent of its
+source file. Invalid stored values fall back to the existing widget defaults.
+
+Restoration applies camera resolution before cadence and live voxel size before
+final voxel size. It refreshes dependent controls and starts the camera once.
+Server-session restoration suspends preference writes, including indirect
+changes to cadence, so an existing scan cannot overwrite user defaults.
+Connection environment variables take precedence for that launch. Restoring
+Automatic mode leaves capture idle until an explicit scan action.
+
+GUI tests and the synthetic pipeline use isolated temporary preference stores
+so their fixture values cannot replace the operator's choices.
+
+Verification: the full regression run passed (171 tests, two CUDA hardware
+skips). All 13 preference tests passed, including the two additional edge tests
+added after that run began. The synthetic HTTP/WebSocket scan, Ruff and Git
+whitespace checks passed. An independent sub-agent reviewed preference loading,
+session separation and export handling while implementing the regression tests.

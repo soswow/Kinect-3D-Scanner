@@ -1,6 +1,7 @@
 """Auto-capture must select fresh camera frames at a whole-frame cadence."""
 
 import os
+import tempfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -8,11 +9,12 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QSettings, QThread, pyqtSignal
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from kinect_scanner.gui import main_window
+from kinect_scanner.gui.preferences import ScannerPreferences
 from kinect_scanner.server_task_worker import ServerTaskType
 
 
@@ -62,7 +64,9 @@ class AutoCaptureTests(unittest.TestCase):
         self.tasks_patch = patch.object(main_window, "ServerTaskWorker", NoTasks)
         self.camera_patch.start()
         self.tasks_patch.start()
-        self.window = main_window.MainWindow()
+        self.preferences_dir = tempfile.TemporaryDirectory()
+        store = QSettings(os.path.join(self.preferences_dir.name, "scanner.ini"), QSettings.Format.IniFormat)
+        self.window = main_window.MainWindow(preferences=ScannerPreferences(store))
         self.window.server_client._connected = True
         self.window._scanning = True
         self.window.auto_capture_cb.setEnabled(True)
@@ -78,6 +82,7 @@ class AutoCaptureTests(unittest.TestCase):
         self.app.processEvents()
         self.camera_patch.stop()
         self.tasks_patch.stop()
+        self.preferences_dir.cleanup()
 
     def receive(self, count=1, **metadata):
         for _ in range(count):

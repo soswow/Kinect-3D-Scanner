@@ -28,7 +28,7 @@ class ExportDialog(QDialog):
         ),
     )
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, preferences=None):
         super().__init__(parent)
         self.setWindowTitle("Export mesh")
         self.setMinimumWidth(390)
@@ -59,6 +59,10 @@ class ExportDialog(QDialog):
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
+        if preferences is not None:
+            preferences.restore(self.format_combo, "export/format")
+            preferences.restore(self.texture_exposure_cb, "export/exposure_correction")
+            preferences.restore(self.texture_best_cb, "export/best_source")
         self.format_combo.currentIndexChanged.connect(self._update_format)
         self._update_format()
 

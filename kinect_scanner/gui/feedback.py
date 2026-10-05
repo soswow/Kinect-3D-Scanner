@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 class CaptureSound(QObject):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, settings=None):
         super().__init__(parent)
-        self._settings = QSettings("Kinect3DScanner", "Scanner")
+        self._settings = settings if settings is not None else QSettings("Kinect3DScanner", "Scanner")
         self.enabled = self._settings.value("feedback/capture_sound", True, type=bool)
         self._effect = None
         self._pending = False
@@ -20,6 +20,7 @@ class CaptureSound(QObject):
     def set_enabled(self, enabled):
         self.enabled = bool(enabled)
         self._settings.setValue("feedback/capture_sound", self.enabled)
+        self._settings.sync()
         if not self.enabled:
             self.stop()
 

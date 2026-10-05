@@ -1,6 +1,7 @@
 """Scan recovery and protection must retain frames until saving succeeds."""
 
 import os
+import tempfile
 import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -9,10 +10,11 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, QSettings
 from PyQt6.QtWidgets import QApplication
 
 from kinect_scanner.gui import dialogs, main_window
+from kinect_scanner.gui.preferences import ScannerPreferences
 from kinect_scanner.server_task_worker import ServerTaskType
 from tests.test_auto_capture import NoCamera, NoTasks
 
@@ -31,7 +33,9 @@ class ScannerWorkflowTests(unittest.TestCase):
         ]
         for item in self.patches:
             item.start()
-        self.window = main_window.MainWindow()
+        self.preferences_dir = tempfile.TemporaryDirectory()
+        store = QSettings(os.path.join(self.preferences_dir.name, "scanner.ini"), QSettings.Format.IniFormat)
+        self.window = main_window.MainWindow(preferences=ScannerPreferences(store))
         self.window.server_client._connected = True
         self.rgb = np.full((2, 2, 3), 42, np.uint8)
         self.depth = np.full((2, 2), 750, np.uint16)
@@ -45,6 +49,7 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.app.processEvents()
         for item in reversed(self.patches):
             item.stop()
+        self.preferences_dir.cleanup()
 
     def fresh_frame(self):
         self.window._on_frame(self.rgb, self.depth, {"captured_monotonic_s": time.monotonic()})

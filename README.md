@@ -156,6 +156,17 @@ frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
 do not overlap. Skipped, rejected or failed uploads stay silent.
 
+Your choices save automatically as you edit them and restore on the next launch:
+capture mode and interval, clipping and crop, recording, reconstruction and
+experimental options, camera resolution, calibration, server host/port, sound,
+and the last accepted export format and texture options. Calibration is saved
+as a complete snapshot, so its original JSON file can be moved afterward.
+Preferences use Qt's per-user settings store. `KINECT_SERVER_HOST` and
+`KINECT_SERVER_PORT` override the saved connection target for that launch.
+Reconnecting to an existing server scan restores that scan's setup without
+replacing your saved defaults. Capture starts only after **Start Scan** or
+**Resume**, including when Automatic is your saved mode.
+
 The updated tracker reduced camera-position RMSE from about 220 mm to 44 mm on
 an 80-frame public TUM Kinect replay using identical intrinsics (80/80 frames
 accepted). Processing is slower; individual-device quality still needs a live

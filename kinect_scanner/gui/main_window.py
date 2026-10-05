@@ -45,6 +45,7 @@ from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
+from .preferences import ScannerPreferences
 from .widgets import (
     FrameIntervalSpinBox,
     colorize_depth,
@@ -61,8 +62,9 @@ MESH_DIR = os.path.join(_PROJECT_ROOT, "mesh")
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, *, preferences=None):
         super().__init__()
+        self.preferences = preferences if preferences is not None else ScannerPreferences()
         self.setWindowTitle("Kinect 3D Scanner")
         self.setMinimumSize(960, 600)
 
@@ -97,7 +99,7 @@ class MainWindow(QMainWindow):
         self._last_fps_time = time.time()
         self._last_rgb = None
         self._last_depth = None
-        self._sensor_calibration = load_calibration()
+        self._sensor_calibration = self.preferences.load_calibration(load_calibration())
         self._camera = self._sensor_calibration.depth
         self._frame_sequence = 0
         self._last_frame_metadata = {}
@@ -138,10 +140,11 @@ class MainWindow(QMainWindow):
         self.task_worker.start()
 
         self._build_ui()
-        self.capture_sound = CaptureSound(self)
+        self.capture_sound = CaptureSound(self, settings=self.preferences.settings)
         self._build_toolbar()
         self._build_dock()
         self._build_statusbar()
+        self._restore_preferences()
 
         self._fps_timer = QTimer(self)
         self._fps_timer.timeout.connect(self._update_fps)
@@ -153,6 +156,39 @@ class MainWindow(QMainWindow):
         self._set_scan_controls_enabled(False)
         if os.environ.get("KINECT_AUTOCONNECT") == "1":
             QTimer.singleShot(0, self._toggle_connection)
+
+    def _restore_preferences(self):
+        preferences = self.preferences
+        with preferences.suspend():
+            preferences.bind(self.rgb_mode_combo, "scan/rgb_mode")
+            self.auto_capture_spin.set_fps(RGB_MODE_FPS[self.rgb_mode_combo.currentData()])
+            preferences.bind(self.auto_capture_spin, "capture/interval_s")
+            preferences.bind(self.voxel_spin, "scan/voxel_mm")
+            self.final_voxel_spin.setMaximum(self.voxel_spin.value())
+            for widget, key in (
+                (self.capture_mode_combo, "capture/mode"),
+                (self.depth_near_spin, "scan/near_mm"),
+                (self.depth_far_spin, "scan/far_mm"),
+                (self.crop_cb, "scan/crop_enabled"),
+                (self.crop_spin, "scan/crop_percent"),
+                (self.record_cb, "scan/record"),
+                (self.final_voxel_spin, "scan/final_voxel_mm"),
+                (self.final_blocks_spin, "scan/final_blocks"),
+                (self.weight_spin, "scan/final_weight"),
+                (self.live_cb, "scan/live_reconstruction"),
+                (self.color_tracking_cb, "scan/color_tracking"),
+                (self.refine_cb, "scan/refine_poses"),
+                (self.relocalize_cb, "scan/relocalize"),
+                (self.confidence_cb, "scan/confidence"),
+            ):
+                preferences.bind(widget, key)
+            preferences.bind(self.server_ip_edit, "connection/host",
+                             restore="KINECT_SERVER_HOST" not in os.environ)
+            preferences.bind(self.server_port_spin, "connection/port",
+                             restore="KINECT_SERVER_PORT" not in os.environ)
+            self.crop_spin.setEnabled(self.crop_cb.isChecked())
+            self._capture_mode_changed()
+            self._validate_setup()
 
     def _start_camera(self):
         self.worker = KinectWorker(
@@ -667,11 +703,14 @@ class MainWindow(QMainWindow):
     def _choose_export(self):
         if not self.btn_export.isEnabled():
             return
-        dialog = ExportDialog(self)
+        dialog = ExportDialog(self, preferences=self.preferences)
         if dialog.exec():
             fmt = dialog.selected_format
             self.texture_exposure_cb.setChecked(dialog.texture_options.get("exposure_correction", False))
             self.texture_best_cb.setChecked(dialog.texture_options.get("blend_mode") == "best")
+            self.preferences.write("export/format", fmt)
+            self.preferences.write("export/exposure_correction", self.texture_exposure_cb.isChecked())
+            self.preferences.write("export/best_source", self.texture_best_cb.isChecked())
             if fmt in ("glb", "obj.zip"):
                 self._export_texture(fmt)
             elif fmt == "ply":
@@ -848,6 +887,7 @@ class MainWindow(QMainWindow):
                 self._sensor_calibration = profile
                 self._camera = profile.depth
                 self.calibration_label.setText(profile.name)
+                self.preferences.save_calibration(profile)
                 self._restart_camera()
             except (ValueError, TypeError, OSError, RuntimeError) as exc:
                 self.scan_status_label.setText(f"Invalid calibration: {exc}")
@@ -1291,6 +1331,10 @@ class MainWindow(QMainWindow):
             self._request_final_preview()
 
     def _apply_session_settings(self, settings):
+        with self.preferences.suspend():
+            self._restore_session_settings(settings)
+
+    def _restore_session_settings(self, settings):
         if not settings:
             return
         try:
