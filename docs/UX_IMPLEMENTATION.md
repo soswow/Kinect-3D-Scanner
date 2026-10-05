@@ -63,3 +63,18 @@ Independent reviews covered worker/session recovery, workflow protection and
 view/state consistency. Live Kinect ergonomics and scan quality still require
 a physical scan; these checks do not measure them. CUDA checks depend on NVIDIA
 hardware and are skipped on this Mac.
+
+## Follow-up: cancel without finishing
+
+**Cancel Scan** sits beside **Finish Scan** and works for active or paused
+capture, even when camera frames stop. Save Session / Discard / Cancel protects
+unsaved captures. It resets the server without building a mesh and returns to
+setup after acknowledgement; **Start Scan** begins the next scan explicitly.
+If cancellation times out, capture remains paused while the client checks the
+server, retries failed status requests, and restores the confirmed state.
+
+Verification: 49 workflow/dialog/cadence/worker tests passed; the loopback
+client/server check passed cancellation followed by a fresh scan, final build
+and export. The new button fits the 960×600 layout. An independent workflow
+review found a status-polling recovery issue, which was fixed and covered by
+regression tests.

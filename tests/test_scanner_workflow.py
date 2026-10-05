@@ -237,6 +237,141 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertEqual([], self.task_types())
         self.assertTrue(self.window._session_dirty)
 
+    def test_discard_cancel_returns_to_setup_without_a_build_or_camera(self):
+        self.retain_scan()
+        self.window.auto_capture_cb.setChecked(True)
+        self.window._last_frame_time = time.monotonic() - 2
+        self.window._refresh_controls()
+        self.assertTrue(self.window.btn_cancel_scan.isEnabled())
+        self.protection("discard")
+        self.window.btn_cancel_scan.click()
+        self.assertEqual([ServerTaskType.RESET], self.task_types())
+        self.assertTrue(self.window._cancel_pending)
+        self.assertFalse(self.window.auto_capture_cb.isChecked())
+        self.assertEqual(3, self.window._server_stored)  # Clear only on server acknowledgement.
+        self.window._on_reset_done({"session_id": "empty", "settings": {"live_reconstruction": True}})
+        self.assertFalse(self.window._scanning)
+        self.assertIsNone(self.window._session_id)
+        self.assertEqual(0, self.window._server_stored)
+        self.assertFalse(self.window._session_dirty)
+        self.assertTrue(self.window.settings_group.isEnabled())
+        self.assertFalse(self.window.btn_stop_build.isEnabled())
+        self.assertFalse(self.window.btn_cancel_scan.isEnabled())
+        self.fresh_frame()
+        self.assertTrue(self.window.btn_start_scan.isEnabled())
+        self.assertEqual("Start Scan", self.window.btn_start_scan.text())
+        self.window._start_scan()
+        self.assertEqual([ServerTaskType.RESET, ServerTaskType.RESET], self.task_types())
+
+    def test_declining_cancel_keeps_the_running_scan(self):
+        self.retain_scan()
+        self.window.auto_capture_cb.setChecked(True)
+        self.protection("cancel")
+        self.window._cancel_scan()
+        self.assertEqual([], self.task_types())
+        self.assertTrue(self.window._scanning)
+        self.assertFalse(self.window._paused)
+        self.assertTrue(self.window.auto_capture_cb.isChecked())
+        self.assertTrue(self.window._session_dirty)
+
+    def test_cancel_after_save_waits_for_success_and_stays_idle(self):
+        self.retain_scan()
+        self.protection("save")
+        self.window._cancel_scan()
+        self.assertEqual([ServerTaskType.EXPORT_SESSION], self.task_types())
+        self.assertTrue(self.window._paused)
+        self.window._on_export_done(True, "/tmp/workflow-session.zip")
+        self.assertEqual([ServerTaskType.EXPORT_SESSION, ServerTaskType.RESET], self.task_types())
+        self.window._on_reset_done({"session_id": "empty", "settings": {}})
+        self.assertFalse(self.window._scanning)
+        self.assertFalse(self.window.auto_capture_cb.isChecked())
+
+    def test_failed_save_before_cancel_keeps_captures(self):
+        self.retain_scan()
+        self.protection("save")
+        self.window._cancel_scan()
+        self.window._on_export_done(False, "/tmp/workflow-session.zip")
+        self.assertEqual([ServerTaskType.EXPORT_SESSION], self.task_types())
+        self.assertTrue(self.window._scanning)
+        self.assertFalse(self.window._paused)
+        self.assertEqual(3, self.window._server_stored)
+        self.assertTrue(self.window._session_dirty)
+
+    def test_empty_scan_can_be_cancelled_without_a_prompt(self):
+        self.window._scanning = True
+        self.window._session_id = "empty-running"
+        with patch.object(main_window, "SessionProtectionDialog") as dialog:
+            self.window._cancel_scan()
+        dialog.assert_not_called()
+        self.assertEqual([ServerTaskType.RESET], self.task_types())
+
+    def test_failed_cancel_checks_server_before_clearing_captures(self):
+        self.retain_scan()
+        self.protection("discard")
+        self.window._cancel_scan()
+        self.window._on_task_failed("RESET", "HTTP timeout")
+        self.assertEqual([ServerTaskType.RESET, ServerTaskType.STATUS], self.task_types())
+        self.assertEqual(3, self.window._server_stored)
+        self.assertTrue(self.window._paused)
+        self.assertFalse(self.window._cancel_pending)
+        self.window._on_server_status({"session_id": "retained", "stored_count": 3,
+                                      "frame_count": 2, "settings": {}})
+        self.assertTrue(self.window._scanning)
+        self.assertTrue(self.window._paused)
+
+        self.assertFalse(self.window._status_pending)
+        self.window._on_task_failed("BUILD_MESH", "Another timeout")
+        self.assertEqual([ServerTaskType.RESET, ServerTaskType.STATUS, ServerTaskType.STATUS], self.task_types())
+
+    def test_cancel_timeout_restores_idle_when_server_reset_completed(self):
+        self.retain_scan()
+        self.protection("discard")
+        self.window._cancel_scan()
+        self.window._on_task_failed("RESET", "HTTP timeout")
+        self.window._on_server_status({"session_id": "empty", "stored_count": 0,
+                                      "frame_count": 0, "settings": {}})
+        self.assertFalse(self.window._status_pending)
+        self.assertFalse(self.window._restore_on_status)
+        self.assertFalse(self.window._scanning)
+        self.assertIsNone(self.window._session_id)
+        self.assertEqual(0, self.window._server_stored)
+
+    def test_failed_cancel_status_check_retries_without_resuming_capture(self):
+        self.retain_scan()
+        self.protection("discard")
+        self.window._cancel_scan()
+        self.window._on_task_failed("RESET", "HTTP timeout")
+        with patch.object(main_window.QTimer, "singleShot") as retry:
+            self.window._on_task_failed("STATUS", "Server unreachable")
+        retry.assert_called_once_with(3000, self.window._poll_server_status)
+        self.assertFalse(self.window._status_pending)
+        self.assertTrue(self.window._paused)
+        self.window._poll_server_status()
+        self.assertEqual([ServerTaskType.RESET, ServerTaskType.STATUS, ServerTaskType.STATUS], self.task_types())
+
+    def test_cancel_confirmation_blocks_capture_and_scan_commands(self):
+        self.retain_scan()
+        self.protection("discard")
+        self.window._cancel_scan()
+        self.window._on_task_failed("RESET", "HTTP timeout")
+        self.window._pause_or_resume()
+        self.window._capture_frame()
+        self.window._start_scan()
+        self.window._cancel_scan(protected=True)
+        self.assertTrue(self.window._paused)
+        self.assertFalse(self.window.btn_cancel_scan.isEnabled())
+        self.assertEqual([ServerTaskType.RESET, ServerTaskType.STATUS], self.task_types())
+
+    def test_cancel_does_not_interrupt_build_inspection_or_export(self):
+        self.retain_scan()
+        for flag, busy in (("_build_pending", True), ("_preview_pending", True),
+                           ("_export_pending", {"kind": "session"}), ("_server_operation", "build")):
+            with self.subTest(flag=flag):
+                setattr(self.window, flag, busy)
+                self.window._cancel_scan(protected=True)
+                self.assertEqual([], self.task_types())
+                setattr(self.window, flag, False)
+
     def test_shortcuts_cannot_capture_or_resume_during_disconnect(self):
         self.retain_scan()
         self.window._connect_pending = True
@@ -280,10 +415,13 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.app.processEvents()
         for control in (self.window.btn_start_scan, self.window.btn_pause,
                         self.window.btn_stop_build, self.window.btn_preview_scan,
+                        self.window.btn_cancel_scan,
                         self.window.btn_export, self.window.btn_export_session):
             self.assertTrue(control.isVisible())
             position = control.mapTo(self.window, QPoint(0, 0))
             self.assertGreaterEqual(position.y(), 0)
+            self.assertGreaterEqual(position.x(), 0)
+            self.assertLessEqual(position.x() + control.width(), self.window.width())
             self.assertLessEqual(position.y() + control.height(), self.window.height())
             self.assertFalse(self.window.settings_scroll.isAncestorOf(control))
 

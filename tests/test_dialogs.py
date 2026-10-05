@@ -85,6 +85,11 @@ class DialogTests(unittest.TestCase):
         self.assertEqual("save", dialog.choice)
         self.assertEqual(QDialog.DialogCode.Accepted, dialog.result())
 
+    def test_cancellation_prompt_names_the_action(self):
+        dialog = SessionProtectionDialog("cancel_scan")
+        self.assertIn("before cancelling the scan", dialog.message_label.text())
+        self.assertEqual("cancel", dialog.choice)
+
 
 if __name__ == "__main__":
     unittest.main()

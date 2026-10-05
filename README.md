@@ -90,7 +90,9 @@ around it with overlapping views. Turntable scanning is not supported.
 
 Scan actions stay visible while setup settings scroll independently. **Pause**
 and **Resume Capture** retain the current scan; **Finish Scan** builds the final
-model. **Inspect Scan** generates a temporary mesh during capture and opens the
+model. **Cancel Scan** returns to setup without a build, offering to save or
+discard unsaved captures. Click **Start Scan** afterward to restart.
+**Inspect Scan** generates a temporary mesh during capture and opens the
 finished mesh after a build. Final inspection downloads the actual final mesh,
 including any enabled final refinement, rather than an earlier preview.
 
@@ -104,7 +106,7 @@ its state shown separately from movement guidance and task notifications.
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
 or plain OBJ; texture choices appear in that dialog. **Open Model…** opens a file.
-**Save Session…** preserves lossless observations for replay. New Scan and close
+**Save Session…** preserves lossless observations for replay. New Scan, Cancel Scan and close
 offer Save Session / Discard / Cancel for unsaved captures, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
 paused; a failed build offers retry or resumed capture without resetting frames.
@@ -237,7 +239,7 @@ Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> I
 1. Use automatic local connection, or expand **Connection details** to connect remotely.
 2. Wait for fresh camera frames, set the scan range, and choose Automatic or Manual.
 3. Click **Start Scan** and move the Kinect around the stationary subject. In Manual, use **Capture Frame**.
-4. Pause/resume as needed. **Inspect Scan** temporarily suspends capture to prepare a mesh snapshot.
+4. Pause/resume as needed, or **Cancel Scan** to return to setup without building. **Inspect Scan** temporarily suspends capture to prepare a mesh snapshot.
 5. Click **Finish Scan**. The finished mesh opens for inspection; failed builds retain captures for retry/resume.
 6. Use **Export…** for a model or **Save Session…** for replayable source captures.
 

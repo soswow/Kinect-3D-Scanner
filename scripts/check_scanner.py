@@ -120,6 +120,19 @@ def check_client(port, rgb, depth):
             flush=True,
         )
         preview_path = window._last_preview_path
+        window._session_dirty = False  # Save/discard protection is covered by GUI regression tests.
+        window._cancel_scan()
+        wait_until(lambda: not window._reset_pending and not window._scanning)
+        assert window.server_client.get_status()["stored_count"] == 0
+        assert not window.auto_capture_cb.isChecked() and window.settings_group.isEnabled()
+        window._on_frame(rgb, depth)
+        window._start_scan()
+        wait_until(lambda: window._scanning)
+        for _ in range(3):
+            window._on_frame(rgb, depth)
+            window._capture_frame()
+        wait_until(lambda: window._server_stored == 3)
+        print("PASS: Qt client cancels without a build and starts a fresh scan", flush=True)
         window._stop_and_build()
         wait_until(lambda: window.btn_export_ply.isEnabled())
         assert window.btn_export_obj.isEnabled()

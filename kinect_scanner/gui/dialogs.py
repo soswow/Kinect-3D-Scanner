@@ -92,7 +92,9 @@ class SessionProtectionDialog(QDialog):
         self.setMinimumWidth(410)
         layout = QVBoxLayout(self)
         closing = reason in ("close", "closing", "quit", "exit")
-        action = "closing the scanner" if closing else "starting a new scan"
+        action = "closing the scanner" if closing else (
+            "cancelling the scan" if reason == "cancel_scan" else "starting a new scan"
+        )
         self.message_label = QLabel(
             f"Save the current scan before {action}?\n\n"
             "Save session preserves the captured RGB-D frames so you can rebuild later. "
