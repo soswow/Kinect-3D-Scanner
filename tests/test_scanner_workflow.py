@@ -400,6 +400,30 @@ class ScannerWorkflowTests(unittest.TestCase):
         np.testing.assert_array_equal(preview[200, 300], [42, 42, 42])
         self.assertFalse(np.array_equal(preview[50, 40], [42, 42, 42]))
 
+    def test_capture_sound_confirms_successful_single_and_batch_uploads(self):
+        self.retain_scan()
+        with patch.object(self.window.capture_sound, "play") as cue:
+            self.window._on_frame_stored({"session_id": "retained", "success": True,
+                                          "stored_count": 4, "index": 3})
+            cue.assert_called_once()
+            self.window._on_frame_stored({"session_id": "retained", "success": True,
+                                          "stored_count": 6, "batch_size": 2,
+                                          "results": [{"success": True}, {"success": True}]})
+            self.assertEqual(2, cue.call_count)
+        self.assertEqual(6, self.window._server_stored)
+
+    def test_rejected_stale_or_abandoned_captures_do_not_sound(self):
+        self.retain_scan()
+        with patch.object(self.window.capture_sound, "play") as cue:
+            self.window._on_frame_stored({"session_id": "old-session", "success": True})
+            self.window._on_frame_stored({"session_id": "retained", "success": False})
+            self.window._reset_pending = True
+            self.window._on_frame_stored({"session_id": "retained", "success": True})
+            self.window._reset_pending = False
+            with patch.object(self.window, "_closing", True):
+                self.window._on_frame_stored({"session_id": "retained", "success": True})
+            cue.assert_not_called()
+
     def test_final_preview_replaces_snapshot_without_resuming_capture(self):
         self.window._last_preview_path = "/tmp/old-snapshot.ply"
         self.window._has_mesh = True

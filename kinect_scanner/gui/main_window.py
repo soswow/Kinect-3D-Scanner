@@ -43,6 +43,7 @@ from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
+from .feedback import CaptureSound
 from .live_view import LiveView
 from .widgets import (
     FrameIntervalSpinBox,
@@ -137,6 +138,7 @@ class MainWindow(QMainWindow):
         self.task_worker.start()
 
         self._build_ui()
+        self.capture_sound = CaptureSound(self)
         self._build_toolbar()
         self._build_dock()
         self._build_statusbar()
@@ -248,6 +250,13 @@ class MainWindow(QMainWindow):
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self._view_3d_file)
         toolbar.addAction(open_action)
+        toolbar.addSeparator()
+        self.sound_action = QAction("Capture sound", self)
+        self.sound_action.setCheckable(True)
+        self.sound_action.setChecked(self.capture_sound.enabled)
+        self.sound_action.setToolTip("Sound confirmation after captures reach the server. Toggle to mute or enable.")
+        self.sound_action.toggled.connect(self.capture_sound.set_enabled)
+        toolbar.addAction(self.sound_action)
         self.pause_action = QAction("Pause / Resume", self)
         self.pause_action.setShortcut(QKeySequence("Space"))
         self.pause_action.triggered.connect(self._shortcut_pause)
@@ -886,6 +895,7 @@ class MainWindow(QMainWindow):
         self._operation_error = ""
         self._cancel_pending = False
         self._reset_pending = True
+        self.capture_sound.stop()
         self.settings_group.setEnabled(False)
         self.btn_start_scan.setEnabled(False)
         self.scan_status_label.setText("Starting scan...")
@@ -946,6 +956,7 @@ class MainWindow(QMainWindow):
         if not protected and not self._protect_session("cancel_scan"):
             return
         self._cancel_pending = self._reset_pending = True
+        self.capture_sound.stop()
         self._paused = True
         self.auto_capture_cb.setChecked(False)
         self._operation_error = ""
@@ -1350,6 +1361,8 @@ class MainWindow(QMainWindow):
         if not result.get("success"):
             self._paused = True
             self._operation_error = result.get("message", "Capture rejected; scan retained")
+        elif not self._closing and not self._reset_pending:
+            self.capture_sound.play()
         self._server_stored = max(
             self._server_stored, result.get("stored_count", self._server_stored)
         )
@@ -1545,6 +1558,7 @@ class MainWindow(QMainWindow):
             return
         if not self._closing:
             self._closing = True
+            self.capture_sound.stop()
             self._reset_auto_capture_cadence()
             self._fps_timer.stop()
             self.worker.stop()

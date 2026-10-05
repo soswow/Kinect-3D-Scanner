@@ -151,6 +151,11 @@ A 0.5-second interval selects every five high-resolution pairs or fifteen VGA
 pairs. Capture waits for fresh input and reconstruction capacity; delays extend
 the interval without creating duplicate captures or catch-up bursts.
 
+**Capture sound** in the toolbar plays a short confirmation when captured
+frames reach the server, in Automatic and Manual modes. Click it to mute; the
+preference is remembered. A batch of frames uses one cue, and rapid confirmations
+do not overlap. Skipped, rejected or failed uploads stay silent.
+
 The updated tracker reduced camera-position RMSE from about 220 mm to 44 mm on
 an 80-frame public TUM Kinect replay using identical intrinsics (80/80 frames
 accepted). Processing is slower; individual-device quality still needs a live

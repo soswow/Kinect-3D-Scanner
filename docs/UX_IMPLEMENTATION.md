@@ -90,3 +90,15 @@ large preview.
 Verification: 49 existing workflow, depth, cadence and calibration tests passed.
 Native Qt renders were inspected at 960×600 and 1280×800, including expanded
 cloud details, paused capture, full Depth view and scrolled setup.
+
+## Follow-up: capture sound
+
+A bundled 70 ms cue confirms successful captured-frame upload in Automatic and
+Manual modes. **Capture sound** in the toolbar toggles it and remembers mute
+across launches. Failed/rejected uploads and old-session acknowledgements stay
+silent. Batches use one cue, rapid confirmations do not overlap, and mute,
+reset, cancellation and shutdown clear any cue waiting for its audio file to load.
+
+Verification: 48 feedback/workflow/cadence/worker tests passed. Qt loaded the
+bundled PCM WAV successfully. The loopback check verifies that accepted uploads
+request sound confirmation, with playback suppressed during synthetic scans.

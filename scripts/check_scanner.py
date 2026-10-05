@@ -55,6 +55,8 @@ def check_client(port, rgb, depth):
     )
     # Preview launch is checked separately; avoid opening a window in this test.
     main_window.launch_viewer_subprocess = lambda path: None
+    capture_cues = []
+    main_window.CaptureSound.play = lambda self: capture_cues.append(True)  # Keep the check silent.
     app = QApplication([])
     window = main_window.MainWindow()
     window.rgb_mode_combo.setCurrentIndex(1)  # Native calibrated VGA fixture.
@@ -89,6 +91,7 @@ def check_client(port, rgb, depth):
             window._capture_frame()
         wait_until(lambda: window._server_stored == 3)
         wait_until(lambda: window.live_view.snapshot.get("frame_count") == 3)
+        assert capture_cues, "Accepted captures must request sound confirmation"
         assert len(window.live_view.points) > 0 and not window.live_view.isHidden()
         image = window.live_view.grab().toImage()
         assert not image.isNull(), "Persistent live view did not render"
