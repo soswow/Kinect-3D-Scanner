@@ -6,14 +6,14 @@ import numpy as np
 
 from shared.capture import RGB_MODE_FPS, timestamp_delta_ms, validate_rgb_exposure
 
-from .rgb_exposure import apply_rgb_exposure
+from .rgb_exposure import ExposureControlUnavailable, RGBExposureControl
 
 RGB_SHAPE = (480, 640, 3)
 DEPTH_SHAPE = (480, 640)
 
 
 def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True,
-                   rgb_exposure_mode="auto", rgb_shutter_speed=125):
+                   rgb_exposure_mode="auto", rgb_shutter_speed=125, rgb_gain=1):
     """Publish one shared-memory pair at a time, awaiting a copy acknowledgement.
 
     Only small messages cross the pipe. The child never overwrites a published
@@ -26,7 +26,7 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
         import freenect
 
         validate_rgb_exposure(rgb_exposure_mode, rgb_shutter_speed,
-                              "rgb_high_res" if high_res else "rgb_low_res")
+                              "rgb_high_res" if high_res else "rgb_low_res", rgb_gain)
 
         ctx = freenect.init()
         if ctx is None:
@@ -62,9 +62,12 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             freenect.RESOLUTION_HIGH if high_res else freenect.RESOLUTION_MEDIUM
         )
         exposure_metadata = {}
+        exposure_controls = None
+        exposure_phase = "ready"
+        exposure_checked = 0
 
         def switch_video(ir=False):
-            nonlocal video_started, settling, exposure_metadata
+            nonlocal video_started, settling, exposure_metadata, exposure_controls, exposure_phase
             if freenect.stop_video(dev) < 0:
                 raise RuntimeError("Cannot stop video for IR/RGB switch")
             video_started = False
@@ -80,12 +83,23 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             if freenect.start_video(dev) < 0:
                 raise RuntimeError("Cannot restart video after mode switch")
             video_started = True
-            if not ir:
-                # Stream startup and IR warmup can reset camera registers.
-                exposure_metadata = apply_rgb_exposure(
-                    freenect, dev, rgb_exposure_mode, rgb_shutter_speed
-                )
             settling = 2
+            if not ir:
+                # Let RGB firmware startup and white balance finish before locking
+                # shutter/gain. Register readback accesses pending frame values.
+                try:
+                    exposure_controls = RGBExposureControl(freenect, dev)
+                except ExposureControlUnavailable:
+                    if rgb_exposure_mode == "manual":
+                        raise
+                    exposure_controls = None
+                exposure_metadata = {"rgb_exposure_mode": "auto", "rgb_exposure_controls": False}
+                if exposure_controls is not None:
+                    exposure_controls.apply("auto", rgb_shutter_speed, rgb_gain)
+                    exposure_metadata = exposure_controls.verify()
+                exposure_phase = "auto_settling" if rgb_exposure_mode == "manual" else "ready"
+                if rgb_exposure_mode == "manual":
+                    settling = RGB_MODE_FPS["rgb_high_res" if high_res else "rgb_low_res"]
             latest.clear()
             connection.send(("phase", "warming IR" if ir else "waiting for RGB"))
 
@@ -139,6 +153,19 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                 warming = True
                 warmup_frames = 30
                 continue
+            if exposure_phase != "ready":
+                if settling:
+                    continue
+                latest.clear()
+                if exposure_phase == "auto_settling":
+                    exposure_controls.apply("manual", rgb_shutter_speed, rgb_gain)
+                    settling = 2
+                    exposure_phase = "manual_settling"
+                else:
+                    exposure_metadata = exposure_controls.verify()
+                    exposure_checked = time.monotonic()
+                    exposure_phase = "ready"
+                continue
             if awaiting_copy:
                 if not connection.poll():
                     continue
@@ -146,6 +173,9 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                 awaiting_copy = False
             if "rgb" not in latest or "depth" not in latest:
                 continue
+            if rgb_exposure_mode == "manual" and time.monotonic() - exposure_checked >= 0.5:
+                exposure_metadata = exposure_controls.verify()
+                exposure_checked = time.monotonic()
             rgb, rgb_stamp = latest["rgb"]
             depth, depth_stamp = latest["depth"]
             delta = timestamp_delta_ms(rgb_stamp, depth_stamp)

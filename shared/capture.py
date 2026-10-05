@@ -5,9 +5,10 @@ difference in ticks before converting; the device clock wraps every ~72 s.
 """
 
 RGB_MODE_FPS = {"rgb_high_res": 10, "rgb_low_res": 30}
+RGB_GAIN_CHOICES = (1, 2, 4, 8)
 
 
-def validate_rgb_exposure(mode, shutter_speed, rgb_mode):
+def validate_rgb_exposure(mode, shutter_speed, rgb_mode, gain=1):
     if mode not in ("auto", "manual"):
         raise ValueError("RGB exposure must be auto or manual")
     if type(shutter_speed) is not int or not 10 <= shutter_speed <= 10000:
@@ -16,6 +17,8 @@ def validate_rgb_exposure(mode, shutter_speed, rgb_mode):
         raise ValueError("RGB mode must be rgb_high_res or rgb_low_res")
     if mode == "manual" and shutter_speed < RGB_MODE_FPS[rgb_mode]:
         raise ValueError("RGB exposure time cannot exceed the camera frame period")
+    if type(gain) is not int or gain not in RGB_GAIN_CHOICES:
+        raise ValueError("RGB gain must be 1, 2, 4, or 8")
 
 
 def timestamp_delta_ms(a, b):

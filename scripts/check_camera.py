@@ -23,9 +23,10 @@ def main():
     parser.add_argument("--exposure", choices=("auto", "manual"), default="auto")
     parser.add_argument("--shutter-speed", type=int, default=125,
                         help="Reciprocal seconds: 250 selects 1/250 s in manual mode")
+    parser.add_argument("--gain", type=int, choices=(1, 2, 4, 8), default=1)
     args = parser.parse_args()
     if args.window and (args.exposure != "auto" or args.shutter_speed != 125
-                        or args.rgb_mode != "rgb_high_res"):
+                        or args.rgb_mode != "rgb_high_res" or args.gain != 1):
         parser.error("Exposure/resolution overrides require running without --window")
     if args.offscreen:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -46,8 +47,8 @@ def main():
     else:
         app = QCoreApplication([])
         worker = KinectWorker(rgb_mode=args.rgb_mode, rgb_exposure_mode=args.exposure,
-                              rgb_shutter_speed=args.shutter_speed)
-    frames, deltas, errors, exposures = [], [], [], []
+                              rgb_shutter_speed=args.shutter_speed, rgb_gain=args.gain)
+    frames, deltas, errors, exposures, brightness, clipped = [], [], [], [], [], []
     started = time.monotonic()
     close_started = None
     capture_timer = QTimer()
@@ -58,8 +59,10 @@ def main():
             capture_timer.start(int(args.seconds * 1000))
         frames.append((int((depth > 0).sum()), rgb.shape, depth.shape))
         deltas.append(metadata["rgb_depth_delta_ms"])
+        brightness.append(float(rgb.mean()))
+        clipped.append(float((rgb >= 250).mean()))
         exposures.append({key: metadata.get(key) for key in
-                          ("rgb_exposure_mode", "rgb_shutter_speed", "rgb_exposure_us", "rgb_exposure_controls")})
+                          ("rgb_exposure_mode", "rgb_shutter_speed", "rgb_exposure_us", "rgb_gain", "rgb_exposure_controls")})
 
     worker.frame_pair_ready.connect(received)
     worker.error_occurred.connect(errors.append)
@@ -105,6 +108,8 @@ def main():
         else None,
         "errors": errors,
         "exposure": exposures[-1] if exposures else None,
+        "mean_rgb": round(sum(brightness) / len(brightness), 2) if brightness else None,
+        "clipped_channel_fraction": round(sum(clipped) / len(clipped), 4) if clipped else None,
     }
     print(json.dumps(report, indent=2))
     success = (

@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
 )
 
 from shared.calibration import raw_depth_to_mm
-from shared.capture import RGB_MODE_FPS
+from shared.capture import RGB_GAIN_CHOICES, RGB_MODE_FPS
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
@@ -183,6 +183,7 @@ class MainWindow(QMainWindow):
                 (self.confidence_cb, "scan/confidence"),
                 (self.rgb_exposure_combo, "camera/exposure_mode"),
                 (self.rgb_shutter_spin, "camera/shutter_speed"),
+                (self.rgb_gain_combo, "camera/gain"),
             ):
                 preferences.bind(widget, key)
             preferences.bind(self.server_ip_edit, "connection/host",
@@ -199,6 +200,7 @@ class MainWindow(QMainWindow):
             rgb_mode=self.rgb_mode_combo.currentData(),
             rgb_exposure_mode=self.rgb_exposure_combo.currentData(),
             rgb_shutter_speed=self.rgb_shutter_spin.value(),
+            rgb_gain=self.rgb_gain_combo.currentData(),
         )
         self._camera_configuration = self._selected_camera_configuration()
         worker = self.worker
@@ -235,7 +237,7 @@ class MainWindow(QMainWindow):
 
     def _selected_camera_configuration(self):
         return (self.rgb_mode_combo.currentData(), self.rgb_exposure_combo.currentData(),
-                self.rgb_shutter_spin.value())
+                self.rgb_shutter_spin.value(), self.rgb_gain_combo.currentData())
 
     def _update_exposure_controls(self):
         previous_speed = self.rgb_shutter_spin.value()
@@ -249,6 +251,8 @@ class MainWindow(QMainWindow):
         manual = self.rgb_exposure_combo.currentData() == "manual"
         self.rgb_shutter_spin.setEnabled(manual)
         self.rgb_shutter_label.setEnabled(manual)
+        self.rgb_gain_combo.setEnabled(manual)
+        self.rgb_gain_label.setEnabled(manual)
 
     def _change_rgb_exposure(self):
         self._update_exposure_controls()
@@ -498,7 +502,7 @@ class MainWindow(QMainWindow):
         cv.addWidget(self.rgb_mode_combo)
         self.rgb_exposure_combo = QComboBox()
         self.rgb_exposure_combo.addItem("Auto exposure", "auto")
-        self.rgb_exposure_combo.addItem("Manual shutter", "manual")
+        self.rgb_exposure_combo.addItem("Manual exposure", "manual")
         label = QLabel("Exposure")
         label.setBuddy(self.rgb_exposure_combo)
         cv.addWidget(label)
@@ -514,18 +518,20 @@ class MainWindow(QMainWindow):
         self.rgb_shutter_label.setBuddy(self.rgb_shutter_spin)
         cv.addWidget(self.rgb_shutter_label)
         cv.addWidget(self.rgb_shutter_spin)
-        self.rgb_exposure_help_label = QLabel(
-            "Manual fixes the shutter; white balance stays automatic. Kinect v1 cannot "
-            "limit auto exposure to a minimum shutter speed or compensate with automatic ISO. "
-            "Use more light if the image is too dark."
-        )
-        self.rgb_exposure_help_label.setWordWrap(True)
-        cv.addWidget(self.rgb_exposure_help_label)
+        self.rgb_gain_combo = QComboBox()
+        for gain in RGB_GAIN_CHOICES:
+            self.rgb_gain_combo.addItem(f"{gain}×", gain)
+        self.rgb_gain_combo.setToolTip("Higher gain brightens the image and increases noise.")
+        self.rgb_gain_label = QLabel("Sensitivity (gain)")
+        self.rgb_gain_label.setBuddy(self.rgb_gain_combo)
+        cv.addWidget(self.rgb_gain_label)
+        cv.addWidget(self.rgb_gain_combo)
         self.rgb_exposure_status_label = QLabel("Waiting for camera…")
         self.rgb_exposure_status_label.setWordWrap(True)
         cv.addWidget(self.rgb_exposure_status_label)
         self.rgb_exposure_combo.currentIndexChanged.connect(self._change_rgb_exposure)
         self.rgb_shutter_spin.valueChanged.connect(self._change_rgb_exposure)
+        self.rgb_gain_combo.currentIndexChanged.connect(self._change_rgb_exposure)
         self._update_exposure_controls()
         vg.addWidget(self.rgb_camera_section)
 
@@ -900,7 +906,8 @@ class MainWindow(QMainWindow):
         elif self._last_frame_metadata.get("rgb_exposure_mode") == "manual":
             duration = self._last_frame_metadata.get("rgb_exposure_us")
             if duration is not None:
-                self.rgb_exposure_status_label.setText(f"Manual shutter · {duration / 1000:.2f} ms reported by camera")
+                gain = self._last_frame_metadata.get("rgb_gain", self.rgb_gain_combo.currentData())
+                self.rgb_exposure_status_label.setText(f"Manual · {duration / 1000:.2f} ms · {gain}× gain")
         elif self._last_frame_metadata.get("rgb_exposure_mode") == "auto":
             self.rgb_exposure_status_label.setText("Auto exposure active")
         self._last_frame_time = self._last_frame_metadata.get(
@@ -1004,6 +1011,7 @@ class MainWindow(QMainWindow):
                 rgb_mode=self.rgb_mode_combo.currentData(),
                 rgb_exposure_mode=self.rgb_exposure_combo.currentData(),
                 rgb_shutter_speed=self.rgb_shutter_spin.value(),
+                rgb_gain=self.rgb_gain_combo.currentData(),
                 near_m=self.depth_near_spin.value() / 1000,
                 far_m=self.depth_far_spin.value() / 1000,
                 voxel_m=voxel,
@@ -1449,12 +1457,13 @@ class MainWindow(QMainWindow):
         controls = (self.depth_near_spin, self.depth_far_spin, self.voxel_spin,
                     self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
-                    self.rgb_exposure_combo, self.rgb_shutter_spin,
+                    self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
                     self.color_tracking_cb, self.refine_cb, self.reconnect_fragments_cb, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
         exposure_changed = (self.rgb_exposure_combo.currentData() != profile.rgb_exposure_mode
-                            or self.rgb_shutter_spin.value() != profile.rgb_shutter_speed)
+                            or self.rgb_shutter_spin.value() != profile.rgb_shutter_speed
+                            or self.rgb_gain_combo.currentData() != profile.rgb_gain)
         calibration_changed = profile.sensor_calibration is not None and profile.sensor_calibration != self._sensor_calibration
         try:
             self.depth_near_spin.setValue(round(profile.near_m * 1000))
@@ -1468,6 +1477,7 @@ class MainWindow(QMainWindow):
             self.rgb_exposure_combo.setCurrentIndex(self.rgb_exposure_combo.findData(profile.rgb_exposure_mode))
             self.rgb_shutter_spin.setMinimum(RGB_MODE_FPS[profile.rgb_mode])
             self.rgb_shutter_spin.setValue(profile.rgb_shutter_speed)
+            self.rgb_gain_combo.setCurrentIndex(self.rgb_gain_combo.findData(profile.rgb_gain))
             self.live_cb.setChecked(profile.live_reconstruction)
             self.color_tracking_cb.setChecked(profile.color_recovery)
             self.refine_cb.setChecked(profile.refine_poses)

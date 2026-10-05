@@ -11,7 +11,9 @@ import numpy as np
 from kinect_scanner.capture_process import capture_frames
 from kinect_scanner.rgb_exposure import (
     AUTO_EXPOSURE, AUTO_FLICKER, AUTO_WHITE_BALANCE,
-    ExposureControlUnavailable, RGBExposureControl, apply_rgb_exposure,
+    AUTOMATIC_MASK, CHANNEL_GAINS, CHIP_VERSION, DIGITAL_GAINS, MODE_CONTROL,
+    MT9M112_VERSION, SHUTTER_DELAY, UNITY_DIGITAL_GAINS,
+    ExposureControlUnavailable, RGBExposureControl, analog_gain, apply_rgb_exposure, sensor_gain,
 )
 from kinect_scanner.worker import KinectWorker
 from shared.sensor_calibration import load_calibration
@@ -19,18 +21,40 @@ from shared.settings import ScanSettings
 
 
 def exposure_driver():
-    return SimpleNamespace(set_flag=Mock(return_value=0),
-                           set_exposure=Mock(return_value=0),
-                           get_exposure=Mock(return_value=3957))
+    # Model the sensor rule: automatic white balance/exposure ignore manual writes.
+    registers = {CHIP_VERSION: MT9M112_VERSION, MODE_CONTROL: AUTOMATIC_MASK,
+                 DIGITAL_GAINS: 0x4040, SHUTTER_DELAY: 99, 0x009: 1000}
+    registers.update(zip(CHANNEL_GAINS, (0x31C0, 0x31E0, 0x31D0, 0x31C0)))
+
+    def flag(device, flag, enabled):
+        registers[MODE_CONTROL] = ((registers[MODE_CONTROL] | flag) if enabled
+                                   else (registers[MODE_CONTROL] & ~flag))
+        return 6
+
+    def write(device, reg, value):
+        if not registers[MODE_CONTROL] & AUTOMATIC_MASK:
+            registers[reg] = value
+        return 6
+
+    return SimpleNamespace(
+        registers=registers, set_flag=Mock(side_effect=flag),
+        set_exposure=Mock(side_effect=lambda dev, value: write(dev, 0x009, int(value / 54.21))),
+        get_exposure=Mock(side_effect=lambda dev: int(registers[0x009] * 54.21)),
+        read_cmos_register=Mock(side_effect=lambda dev, reg: registers[reg]),
+        write_cmos_register=Mock(side_effect=write),
+    )
 
 
 class RGBExposureTests(unittest.TestCase):
-    def test_fixed_shutter_disables_ae_and_flicker_but_retains_white_balance(self):
+    def test_manual_shutter_disables_awb_and_clears_automatic_gain(self):
         driver, device = exposure_driver(), object()
         metadata = apply_rgb_exposure(driver, device, "manual", 250)
         self.assertEqual([(device, AUTO_EXPOSURE, 0), (device, AUTO_FLICKER, 0),
-                          (device, AUTO_WHITE_BALANCE, 1)],
+                          (device, AUTO_WHITE_BALANCE, 0)],
                          [call.args for call in driver.set_flag.call_args_list])
+        self.assertEqual([32, 48, 40, 32], [driver.registers[reg] for reg in CHANNEL_GAINS])
+        self.assertEqual(UNITY_DIGITAL_GAINS, driver.registers[DIGITAL_GAINS])
+        self.assertEqual(0, driver.registers[SHUTTER_DELAY])
         driver.set_exposure.assert_called_once_with(device, 4000)
         self.assertEqual(3957, metadata["rgb_exposure_us"])
         self.assertEqual(250, metadata["rgb_shutter_speed"])
@@ -57,12 +81,14 @@ class RGBExposureTests(unittest.TestCase):
         for operation in ("set_flag", "set_exposure"):
             with self.subTest(operation=operation):
                 driver = exposure_driver()
+                getattr(driver, operation).side_effect = None
                 getattr(driver, operation).return_value = -1
                 with self.assertRaises(RuntimeError):
                     apply_rgb_exposure(driver, object(), "manual", 250)
-        for readback in (-1, 0, 4001, None, True):
+        for readback in (-1, 0, 3000, 4001, None, True):
             with self.subTest(readback=readback):
                 driver = exposure_driver()
+                driver.get_exposure.side_effect = None
                 driver.get_exposure.return_value = readback
                 with self.assertRaisesRegex(RuntimeError, "confirm"):
                     apply_rgb_exposure(driver, object(), "manual", 250)
@@ -83,6 +109,10 @@ class RGBExposureTests(unittest.TestCase):
             return 0
 
         library.freenect_get_exposure = Mock(side_effect=read)
+        sensor = exposure_driver()
+        library.freenect_set_flag.side_effect = sensor.set_flag.side_effect
+        library.read_cmos_register = Mock(side_effect=sensor.read_cmos_register.side_effect)
+        library.write_cmos_register = Mock(side_effect=sensor.write_cmos_register.side_effect)
         with patch("kinect_scanner.rgb_exposure.ctypes.CDLL", return_value=library) as loader:
             self.assertEqual(3957, RGBExposureControl(driver, device).apply("manual", 250))
             loader.assert_called_once_with(driver.__file__)
@@ -113,11 +143,13 @@ class RGBExposureTests(unittest.TestCase):
                                 rgb_exposure_mode="manual", rgb_shutter_speed=250)
         self.assertEqual(settings, ScanSettings.from_dict(settings.to_dict()))
         legacy = settings.to_dict()
-        del legacy["rgb_exposure_mode"], legacy["rgb_shutter_speed"]
+        del legacy["rgb_exposure_mode"], legacy["rgb_shutter_speed"], legacy["rgb_gain"]
         self.assertEqual("auto", ScanSettings.from_dict(legacy).rgb_exposure_mode)
+        self.assertEqual(1, ScanSettings.from_dict(legacy).rgb_gain)
         invalid = ({"rgb_exposure_mode": "shutter_priority"}, {"rgb_shutter_speed": True},
                    {"rgb_shutter_speed": 9}, {"rgb_shutter_speed": 10001},
                    {"rgb_shutter_speed": 125.0}, {"rgb_shutter_speed": "125"},
+                   {"rgb_gain": True}, {"rgb_gain": 3}, {"rgb_gain": 2.0},
                    {"rgb_exposure_mode": "manual", "rgb_shutter_speed": 10, "rgb_mode": "rgb_low_res"})
         for values in invalid:
             with self.subTest(values=values):
@@ -126,7 +158,44 @@ class RGBExposureTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     KinectWorker(**values)
 
-    def run_capture(self, mode, *, high_res=True, fail=False, retry=False):
+    def test_gain_choices_are_analog_and_preserve_white_balance(self):
+        for gain in (1, 2, 4, 8):
+            with self.subTest(gain=gain):
+                driver = exposure_driver()
+                metadata = apply_rgb_exposure(driver, object(), "manual", 600, gain)
+                self.assertEqual(gain, metadata["rgb_gain"])
+                self.assertEqual(gain, sensor_gain(driver.registers[CHANNEL_GAINS[0]]))
+                self.assertAlmostEqual(1.5, sensor_gain(driver.registers[CHANNEL_GAINS[1]]) / gain)
+                self.assertAlmostEqual(1.25, sensor_gain(driver.registers[CHANNEL_GAINS[2]]) / gain)
+                self.assertFalse(driver.registers[CHANNEL_GAINS[0]] & 0x7000)
+                self.assertEqual(gain, sensor_gain(analog_gain(gain)))
+
+    def test_sensor_guard_and_missing_register_api_fail_before_manual_writes(self):
+        driver = exposure_driver()
+        driver.registers[CHIP_VERSION] = 0x143A
+        with self.assertRaises(ExposureControlUnavailable):
+            apply_rgb_exposure(driver, object(), "manual", 120)
+        driver.set_flag.assert_not_called()
+        del driver.read_cmos_register, driver.write_cmos_register
+        with self.assertRaises(ExposureControlUnavailable):
+            apply_rgb_exposure(driver, object(), "manual", 120)
+        self.assertEqual("auto", apply_rgb_exposure(driver, object(), "auto", 120)["rgb_exposure_mode"])
+
+    def test_changed_shutter_is_confirmed_and_later_overrides_fail(self):
+        driver = exposure_driver()
+        controls = RGBExposureControl(driver, object())
+        first = controls.apply("manual", 120)
+        second = controls.apply("manual", 600)
+        self.assertGreater(first, second * 4)
+        driver.registers[MODE_CONTROL] |= AUTO_WHITE_BALANCE
+        with self.assertRaisesRegex(RuntimeError, "restored automatic"):
+            controls.verify()
+        driver.registers[MODE_CONTROL] &= ~AUTO_WHITE_BALANCE
+        driver.registers[DIGITAL_GAINS] = 0x4040
+        with self.assertRaisesRegex(RuntimeError, "sensitivity"):
+            controls.verify()
+
+    def run_capture(self, mode, *, high_res=True, fail=False, retry=False, overwrite=False):
         driver = exposure_driver()
         driver.RESOLUTION_MEDIUM, driver.RESOLUTION_HIGH = 1, 2
         driver.DEPTH_11BIT, driver.VIDEO_RGB, driver.VIDEO_IR_10BIT = 0, 0, 2
@@ -147,6 +216,7 @@ class RGBExposureTests(unittest.TestCase):
         for name in ("start_depth", "start_video", "stop_video", "stop_depth", "close_device", "shutdown"):
             setattr(driver, name, lambda *args: 0)
         if fail:
+            driver.set_exposure.side_effect = None
             driver.set_exposure.return_value = -1
         rgb_shape = (1024, 1280, 3) if high_res else (480, 640, 3)
         stamp = 0
@@ -159,6 +229,8 @@ class RGBExposureTests(unittest.TestCase):
                 return 0
             frame = np.zeros((488, 640), np.uint16) if driver.video_mode == 2 else np.full(rgb_shape, 42, np.uint8)
             driver.video_callback(None, frame, stamp)
+            if overwrite and driver.set_exposure.called:
+                driver.registers[MODE_CONTROL] |= AUTO_WHITE_BALANCE
             return 0
 
         driver.process_events = events
@@ -173,7 +245,7 @@ class RGBExposureTests(unittest.TestCase):
         with patch.dict("sys.modules", freenect=driver), \
              patch("kinect_scanner.capture_process.time.monotonic", side_effect=lambda: stamp / 2_000_000):
             capture_frames(connection, stop, bytearray(int(np.prod(rgb_shape))),
-                           bytearray(480 * 640 * 2), high_res, mode, 250)
+                           bytearray(480 * 640 * 2), high_res, mode, 250, 2)
         return driver, switches, packets
 
     def test_capture_reapplies_after_ir_retry_and_publishes_verified_exposure(self):
@@ -181,17 +253,24 @@ class RGBExposureTests(unittest.TestCase):
             with self.subTest(high_res=high_res):
                 driver, switches, packets = self.run_capture("manual", high_res=high_res, retry=True)
                 self.assertEqual([2, 0, 2, 0], switches)
-                self.assertEqual(2, driver.set_exposure.call_count)
+                self.assertEqual(1, driver.set_exposure.call_count)
                 frames = [payload for kind, payload in packets if kind == "frame"]
                 self.assertEqual(1, len(frames), packets)
                 self.assertEqual("manual", frames[0]["rgb_exposure_mode"])
                 self.assertEqual(3957, frames[0]["rgb_exposure_us"])
                 self.assertEqual(250, frames[0]["rgb_shutter_speed"])
+                self.assertEqual(2, frames[0]["rgb_gain"])
 
     def test_failed_manual_capture_sends_error_without_frames(self):
         driver, switches, packets = self.run_capture("manual", fail=True)
         self.assertEqual("error", packets[-1][0])
         self.assertIn("shutter", packets[-1][1])
+        self.assertFalse(any(kind == "frame" for kind, payload in packets))
+
+    def test_frames_do_not_claim_manual_success_if_firmware_overwrites_controls(self):
+        driver, switches, packets = self.run_capture("manual", overwrite=True)
+        self.assertEqual("error", packets[-1][0])
+        self.assertIn("automatic", packets[-1][1])
         self.assertFalse(any(kind == "frame" for kind, payload in packets))
 
 

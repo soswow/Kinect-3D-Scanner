@@ -68,12 +68,14 @@ class ScannerWorkflowTests(unittest.TestCase):
     def test_manual_rgb_exposure_is_in_scan_settings_and_locked_during_scan(self):
         self.window.rgb_exposure_combo.setCurrentIndex(self.window.rgb_exposure_combo.findData("manual"))
         self.window.rgb_shutter_spin.setValue(250)
+        self.window.rgb_gain_combo.setCurrentIndex(self.window.rgb_gain_combo.findData(4))
         self.fresh_frame()
         self.window._start_scan()
         task = self.window.task_worker.tasks[-1]
         self.assertEqual(ServerTaskType.RESET, task.task_type)
         self.assertEqual("manual", task.kwargs["settings"]["rgb_exposure_mode"])
         self.assertEqual(250, task.kwargs["settings"]["rgb_shutter_speed"])
+        self.assertEqual(4, task.kwargs["settings"]["rgb_gain"])
         self.assertFalse(self.window.rgb_exposure_combo.isEnabled())
         self.window._on_reset_done({"session_id": "manual-shutter", "settings": task.kwargs["settings"]})
         self.assertFalse(self.window.rgb_exposure_combo.isEnabled())

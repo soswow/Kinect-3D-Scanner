@@ -152,30 +152,36 @@ pairs. Capture waits for fresh input and reconstruction capacity; delays extend
 the interval without creating duplicate captures or catch-up bursts.
 
 Expand **RGB camera** in scan setup to choose **Auto exposure** (default) or
-**Manual shutter**. Manual accepts reciprocal seconds, such as **1/125 s** or
+**Manual exposure**. Manual accepts reciprocal seconds, such as **1/125 s** or
 **1/250 s**: a larger denominator gives a faster shutter and less motion blur.
 The slowest choice is 1/10 s at 10 fps or 1/30 s at 30 fps. Changing exposure
 restarts the camera preview; wait for fresh frames before starting a scan.
 Set exposure before capture, as with the other scan settings. The camera's
 reported exposure time appears in the section; hardware quantizes the request.
+The **Sensitivity (gain)** dropdown selects 1×, 2×, 4×, or 8× analog gain.
+Higher gain brightens the image and increases noise. Both controls are remembered
+and included in scan settings, recordings, and frame metadata.
 
 Kinect v1's [libfreenect exposure API](https://github.com/OpenKinect/libfreenect/blob/master/include/libfreenect.h)
-supports automatic exposure or a fixed shutter time. It does **not** expose a
-minimum shutter speed within auto exposure, automatic ISO compensation, or a
-gain control. Manual shutter keeps automatic white balance and disables flicker
-compensation so it cannot change shutter time. Faster shutters may darken the
-image, so add light as needed. Exposure choices are remembered and included in
-scan settings, recordings, and frame metadata. Camera reconnects reapply them.
-Older drivers without exposure controls retain default automatic operation and
-report the limitation; a manual request fails visibly instead of silently using auto.
+supports automatic exposure or a fixed shutter time. The sensor does not provide
+an independent automatic-gain mode with a fixed shutter. Manual exposure uses
+the MT9M112 sensor's gain registers; gain multipliers have no calibrated ISO
+mapping. RGB white balance settles before manual mode freezes its colour ratios.
+Manual then disables AE, AWB, and flicker, clears automatic digital gain and fine
+shutter delay, and applies shutter and analog gain. Controls are checked again
+after new frames arrive and periodically during capture. Camera reconnects reapply
+them. See the manufacturer's [MT9M112 datasheet, Tables 15 and 16](https://dlscorp.com/wp-content/uploads/2019/03/MT9M112_DS_full.pdf).
 
 The client uses the public C exposure functions from the same libfreenect library
 already loaded by the Python extension when its Python bindings omit them. This
-requires OpenKinect's `DevPtr` representation; no extra package or rebuild is needed
-for the tested bindings. With the scanner closed, test a manual shutter directly:
+requires OpenKinect's `DevPtr` representation. Manual gain also requires exported
+`read_cmos_register`/`write_cmos_register` functions (available in the tested macOS
+bindings) or Python wrappers for them, and checks the sensor ID before writing.
+Unsupported bindings retain automatic operation; manual requests fail visibly.
+With the scanner closed, test a manual shutter and gain directly:
 
 ```bash
-python scripts/check_camera.py --exposure manual --shutter-speed 250
+python scripts/check_camera.py --exposure manual --shutter-speed 250 --gain 2
 ```
 
 **Scan sounds** in the toolbar plays a short confirmation when captured
@@ -189,7 +195,7 @@ another session stays silent. The same mute control applies to all scan sounds.
 
 Your choices save automatically as you edit them and restore on the next launch:
 capture mode and interval, clipping and crop, recording, reconstruction and
-experimental options, camera resolution and exposure, shutter speed, calibration,
+experimental options, camera resolution and exposure, shutter speed and gain, calibration,
 server host/port, sound,
 and the last accepted export format and texture options. Calibration is saved
 as a complete snapshot, so its original JSON file can be moved afterward.
