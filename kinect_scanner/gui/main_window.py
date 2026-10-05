@@ -287,10 +287,10 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self._view_3d_file)
         toolbar.addAction(open_action)
         toolbar.addSeparator()
-        self.sound_action = QAction("Capture sound", self)
+        self.sound_action = QAction("Scan sounds", self)
         self.sound_action.setCheckable(True)
         self.sound_action.setChecked(self.capture_sound.enabled)
-        self.sound_action.setToolTip("Sound confirmation after captures reach the server. Toggle to mute or enable.")
+        self.sound_action.setToolTip("Capture confirmations and tracking-loss alerts. Toggle to mute or enable.")
         self.sound_action.toggled.connect(self.capture_sound.set_enabled)
         toolbar.addAction(self.sound_action)
         self.pause_action = QAction("Pause / Resume", self)
@@ -962,6 +962,7 @@ class MainWindow(QMainWindow):
         self._pending_action = None
         self._has_mesh = False
         self.live_view.reset()
+        self.capture_sound.set_tracking_lost(False)
         self.live_view.setVisible(
             result.get("settings", {}).get("live_reconstruction", False)
         )
@@ -1318,6 +1319,7 @@ class MainWindow(QMainWindow):
             self._session_dirty = self._server_stored > 0
             self._last_preview_path = None
             self.live_view.reset()
+            self.capture_sound.set_tracking_lost(False)
         elif self._server_stored != previous_stored:
             self._capture_revision += max(1, self._server_stored - previous_stored)
             self._session_dirty = True
@@ -1400,6 +1402,7 @@ class MainWindow(QMainWindow):
             return
         self.live_view.set_snapshot(snapshot)
         self._on_server_status(snapshot)
+        self.capture_sound.set_tracking_lost(self._scanning and snapshot.get("fusion_paused", False))
         self._server_stored = max(self._server_stored, snapshot.get("stored_count", 0))
         self._server_integrated = snapshot.get("frame_count", 0)
         self.frame_count_label.setText(

@@ -405,6 +405,25 @@ class ScannerWorkflowTests(unittest.TestCase):
         np.testing.assert_array_equal(preview[200, 300], [42, 42, 42])
         self.assertFalse(np.array_equal(preview[50, 40], [42, 42, 42]))
 
+    def test_loss_sound_follows_live_tracking_and_ignores_stale_sessions(self):
+        self.retain_scan()
+        with patch.object(self.window.capture_sound, "set_tracking_lost") as cue:
+            self.window._on_live_updated({"session_id": "previous", "fusion_paused": True})
+            cue.assert_not_called()
+            self.window._on_live_updated({"session_id": "retained", "fusion_paused": True})
+            cue.assert_called_once_with(True)
+            self.window._on_live_updated({"session_id": "retained", "fusion_paused": False})
+            cue.assert_called_with(False)
+            self.window._scanning = False
+            self.window._on_live_updated({"session_id": "retained", "fusion_paused": True})
+            cue.assert_called_with(False)
+
+    def test_new_scan_rearms_tracking_loss_sound(self):
+        self.retain_scan()
+        with patch.object(self.window.capture_sound, "set_tracking_lost") as cue:
+            self.window._on_reset_done({"session_id": "new", "settings": {}})
+            cue.assert_called_once_with(False)
+
     def test_capture_sound_confirms_successful_single_and_batch_uploads(self):
         self.retain_scan()
         with patch.object(self.window.capture_sound, "play") as cue:

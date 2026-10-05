@@ -61,6 +61,58 @@ class CaptureSoundTests(unittest.TestCase):
         self.effect.play.assert_not_called()
         self.assertTrue(self.sound.enabled)
 
+    def test_loss_alert_plays_once_per_episode_and_recovery_rearms(self):
+        self.effect.status.return_value = SoundStatus.Ready
+        for _ in range(5):
+            self.sound.set_tracking_lost(True)
+        self.effect.play.assert_called_once()
+        self.sound.set_tracking_lost(False)
+        self.sound.set_tracking_lost(True)
+        self.assertEqual(2, self.effect.play.call_count)
+
+    def test_recovery_cancels_warning_that_is_still_loading(self):
+        self.sound.set_tracking_lost(True)
+        self.sound.set_tracking_lost(False)
+        self.effect.status.return_value = SoundStatus.Ready
+        self.sound._on_loss_status_changed()
+        self.effect.play.assert_not_called()
+
+    def test_muting_cancels_warning_and_unmuting_does_not_repeat_episode(self):
+        self.sound.set_tracking_lost(True)
+        self.sound.set_enabled(False)
+        self.effect.status.return_value = SoundStatus.Ready
+        self.sound._on_loss_status_changed()
+        self.sound.set_enabled(True)
+        self.sound.set_tracking_lost(True)
+        self.effect.play.assert_not_called()
+        self.sound.set_tracking_lost(False)
+        self.sound.set_tracking_lost(True)
+        self.effect.play.assert_called_once()
+
+    def test_loss_warning_cancels_capture_click_and_silences_recovery_probes(self):
+        capture_effect = self.effect
+        loss_effect = Mock()
+        loss_effect.status.return_value = SoundStatus.Ready
+        self.effect_class.side_effect = [capture_effect, loss_effect]
+        self.sound.play()  # Still loading when tracking is lost.
+        self.sound.set_tracking_lost(True)
+        capture_effect.stop.assert_called_once()
+        capture_effect.status.return_value = SoundStatus.Ready
+        self.sound._on_status_changed()
+        self.sound.play()
+        capture_effect.play.assert_not_called()
+        loss_effect.play.assert_called_once()
+        self.sound.set_tracking_lost(False)
+        self.sound.play()
+        capture_effect.play.assert_called_once()
+
+    def test_stopped_warning_does_not_play_after_asset_loads(self):
+        self.sound.set_tracking_lost(True)
+        self.sound.stop()
+        self.effect.status.return_value = SoundStatus.Ready
+        self.sound._on_loss_status_changed()
+        self.effect.play.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

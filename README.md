@@ -151,10 +151,13 @@ A 0.5-second interval selects every five high-resolution pairs or fifteen VGA
 pairs. Capture waits for fresh input and reconstruction capacity; delays extend
 the interval without creating duplicate captures or catch-up bursts.
 
-**Capture sound** in the toolbar plays a short confirmation when captured
+**Scan sounds** in the toolbar plays a short confirmation when captured
 frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
-do not overlap. Skipped, rejected or failed uploads stay silent.
+do not overlap. Skipped, rejected or failed uploads stay silent. Tracking loss
+plays a distinct descending double tone once per loss episode. It takes priority
+over capture confirmations, which resume after tracking recovers. The same mute
+control applies to both sounds.
 
 Your choices save automatically as you edit them and restore on the next launch:
 capture mode and interval, clipping and crop, recording, reconstruction and
