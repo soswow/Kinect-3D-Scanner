@@ -83,7 +83,8 @@ it does not save camera images.
 
 The **Scan**, **Color**, and **Depth** views show the reconstruction or a full
 camera preview. In Scan view, the fused point cloud is prominent and the color
-camera appears beside it. Choose **Automatic** or **Manual** before **Start Scan**.
+and depth camera previews are stacked beside it, with color above depth.
+Choose **Automatic** or **Manual** before **Start Scan**.
 Automatic capture starts when the server acknowledges the new session; Manual
 offers **Capture Frame**. Keep the subject stationary and move the Kinect slowly
 around it with overlapping views. Turntable scanning is not supported.

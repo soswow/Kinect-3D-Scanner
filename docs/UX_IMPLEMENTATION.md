@@ -78,3 +78,15 @@ client/server check passed cancellation followed by a fresh scan, final build
 and export. The new button fits the 960×600 layout. An independent workflow
 review found a status-polling recovery issue, which was fixed and covered by
 regression tests.
+
+## Follow-up: stacked live cameras
+
+Scan view keeps the fused cloud on the left and stacks color above depth on the
+right. Both previews retain their aspect ratios and show camera delay/failure
+overlays. The depth preview uses the same calibrated clipping, restored crop
+and legend as the full Depth view. Color and Depth views still use a single
+large preview.
+
+Verification: 49 existing workflow, depth, cadence and calibration tests passed.
+Native Qt renders were inspected at 960×600 and 1280×800, including expanded
+cloud details, paused capture, full Depth view and scrolled setup.

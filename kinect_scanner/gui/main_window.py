@@ -174,7 +174,7 @@ class MainWindow(QMainWindow):
             raise RuntimeError("Camera did not stop within 2.5 seconds")
         self._last_rgb = self._last_depth = None
         self._camera_ok = False
-        self.view_label.set_stale(True, "Camera restarting…")
+        self._set_camera_stale("Camera restarting…")
         self._last_frame_metadata = {}
         self._reset_auto_capture_cadence()
         self._start_camera()
@@ -206,6 +206,14 @@ class MainWindow(QMainWindow):
         camera_layout.addWidget(self.camera_title)
         self.view_label = CameraPreview()
         camera_layout.addWidget(self.view_label, stretch=1)
+        self.scan_depth_panel = QWidget()
+        scan_depth_layout = QVBoxLayout(self.scan_depth_panel)
+        scan_depth_layout.setContentsMargins(0, 0, 0, 0)
+        scan_depth_layout.addWidget(QLabel("Live camera · Depth"))
+        self.scan_depth_view = CameraPreview()
+        scan_depth_layout.addWidget(self.scan_depth_view, stretch=1)
+        self.scan_depth_panel.hide()
+        camera_layout.addWidget(self.scan_depth_panel, stretch=1)
         self.depth_legend_label = QLabel()
         self.depth_legend_label.setWordWrap(True)
         self.depth_legend_label.hide()
@@ -639,8 +647,13 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
         if error:
             self.btn_start_scan.setEnabled(False)
-        if self._last_depth is not None and self._mode == MODE_DEPTH:
-            self._show_depth(self._last_depth)
+        if self._last_depth is not None:
+            if self._mode == MODE_DEPTH:
+                self._show_depth(self._last_depth)
+            elif self._mode == MODE_SCANNER:
+                self.scan_depth_view.set_image(numpy_to_qimage(self._depth_display(self._last_depth)))
+            if not self._camera_ready():
+                self._set_camera_stale("Camera delayed · last image")
 
     def _choose_export(self):
         if not self.btn_export.isEnabled():
@@ -726,9 +739,17 @@ class MainWindow(QMainWindow):
         if self.live_view.isVisible():
             self.splitter.setSizes([max(300, self.splitter.width() * 2 // 3), max(240, self.splitter.width() // 3)])
         self.camera_title.setText("Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
-        self.depth_legend_label.setVisible(mode == MODE_DEPTH)
+        self.scan_depth_panel.setVisible(mode == MODE_SCANNER)
+        self.depth_legend_label.setVisible(mode in (MODE_DEPTH, MODE_SCANNER))
         if self._last_rgb is not None and self._last_depth is not None:
-            self._show_depth(self._last_depth) if mode == MODE_DEPTH else self._show_rgb(self._last_rgb)
+            if mode == MODE_SCANNER:
+                self._show_scanner(self._last_rgb, self._last_depth)
+            elif mode == MODE_DEPTH:
+                self._show_depth(self._last_depth)
+            else:
+                self._show_rgb(self._last_rgb)
+            if not self._camera_ready():
+                self._set_camera_stale("Camera delayed · last image")
         for action in self._mode_actions:
             action.setChecked(action.data() == mode)
 
@@ -798,8 +819,12 @@ class MainWindow(QMainWindow):
         self._set_pixmap(numpy_to_qimage(self._depth_display(depth)))
 
     def _show_scanner(self, rgb, depth):
-        # The reconstruction gets the main view; camera remains useful at its own aspect ratio.
         self._show_rgb(rgb)
+        self.scan_depth_view.set_image(numpy_to_qimage(self._depth_display(depth)))
+
+    def _set_camera_stale(self, message):
+        for view in (self.view_label, self.scan_depth_view):
+            view.set_stale(True, message)
 
     def _set_pixmap(self, qimg):
         self.view_label.set_image(qimg)
@@ -1498,7 +1523,7 @@ class MainWindow(QMainWindow):
         self._last_fps_time = now
         self.fps_label.setText(f"Camera: {self._fps_value:.1f} fps")
         if self._last_rgb is not None and not self._camera_ready():
-            self.view_label.set_stale(True, "Camera delayed · last image")
+            self._set_camera_stale("Camera delayed · last image")
             self.kinect_label.setText("Kinect: waiting for frames")
         self._refresh_controls()
 
@@ -1507,10 +1532,11 @@ class MainWindow(QMainWindow):
             return
         self._camera_ok = False
         self.kinect_label.setText("Kinect: unavailable")
-        self.view_label.set_stale(True, "Camera unavailable · reconnecting")
+        self._set_camera_stale("Camera unavailable · reconnecting")
         self._refresh_controls()
         if self._last_rgb is None:
             self.view_label.setText(msg)
+            self.scan_depth_view.setText(msg)
         self.statusBar().showMessage(f"Error: {msg}")
 
     def closeEvent(self, event):
