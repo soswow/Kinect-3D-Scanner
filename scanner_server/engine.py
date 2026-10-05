@@ -130,6 +130,10 @@ class ScanEngine:
         self._stored_monotonic = []
         self._appearance_cache = {}
         self._tracking_lost_frames = 0
+        self._lost_at_index = None
+        self._recovery_preview = None
+        self._world_up = np.array([0.0, -1.0, 0.0])
+        self._up_estimated = False
         self._last_fusion_stats = {}
 
     # ── helpers ────────────────────────────────────────────────────────
@@ -170,6 +174,11 @@ class ScanEngine:
             "stage_totals_ms": dict(self.stage_totals_ms),
             "refinement": self.refinement,
             "final_reconstruction": self.final_reconstruction,
+            "tracking": {
+                "state": "recovering" if self._tracking_lost_frames else "tracking" if self.poses else "waiting",
+                "last_tracked_index": self.poses[-1][0] if self.poses else None,
+                "lost_at_index": self._lost_at_index,
+            },
         }
 
     def live_snapshot(self, max_points=LIVE_MAX_POINTS):
@@ -187,8 +196,11 @@ class ScanEngine:
         result = self.diagnostics[-1] if self.diagnostics else {}
         if result and not result.get("success"):
             guidance = (
-                result.get("message", "Tracking skipped")
-                + "; revisit the last tracked view"
+                "STOP — model paused. Return to the highlighted camera and match "
+                "the last good image. Recovery frames are checked without adding geometry."
+                if self.poses else
+                "STOP — model paused. Include more measured surface within depth range "
+                "to establish the first tracked view."
             )
         elif self.unprocessed_count >= 5 or pending_age > 2:
             guidance = (
@@ -212,9 +224,38 @@ class ScanEngine:
             "points": points[::step].astype(np.float32).tolist(),
             "colors": np.clip(colors[::step], 0, 1).astype(np.float32).tolist(),
             "camera_to_world": self.cumulative_T.tolist(),
+            **self.tracking_snapshot(),
             "camera": asdict(self.settings.camera),
             "backend": self.backend,
             "result": self.diagnostics[-1] if self.diagnostics else {},
+        }
+
+    def tracking_snapshot(self):
+        """Accepted poses only: the camera's current pose is unknown while lost."""
+        lost = self._tracking_lost_frames > 0
+        anchor = self.poses[-1] if self.poses else None
+        if lost and anchor is not None and self._recovery_preview is None:
+            import base64
+
+            import cv2
+
+            rgb = self.raw_frames[anchor[0]][0]
+            height = max(1, round(rgb.shape[0] * 240 / rgb.shape[1]))
+            preview = cv2.resize(rgb, (240, height), interpolation=cv2.INTER_AREA)
+            ok, encoded = cv2.imencode(".png", cv2.cvtColor(preview, cv2.COLOR_RGB2BGR))
+            if ok:
+                self._recovery_preview = base64.b64encode(encoded).decode("ascii")
+        return {
+            "tracking_state": "recovering" if lost else "tracking" if anchor else "waiting",
+            "fusion_paused": lost,
+            "lost_at_index": self._lost_at_index,
+            "last_tracked_index": anchor[0] if anchor else None,
+            "last_tracked_rgb_png": self._recovery_preview if lost else None,
+            "trajectory": [
+                {"index": i, "camera_to_world": p.tolist()} for i, p in self.poses
+            ],
+            "world_up": self._world_up.tolist(),
+            "up_estimated": self._up_estimated,
         }
 
     def _make_rgbd(self, rgb, depth):
@@ -633,6 +674,20 @@ class ScanEngine:
         Uses cumulative_T as initial guess so ICP starts near the true pose.
         Returns (result, method_str) or (None, error_str).
         """
+        if self._tracking_lost_frames:
+            # ICP against a large accumulated model can snap onto another side
+            # of a box. Resume only after verification against the last actual
+            # camera observation, or verified appearance relocalization.
+            recovered = self._recover_anchor(source_pcd)
+            if recovered is not None:
+                return recovered, "anchor+icp"
+            try:
+                recovered = self._relocalize(source_pcd, rgbd)
+                if recovered is not None:
+                    return recovered, "appearance+icp"
+            except (RuntimeError, ValueError):
+                logger.debug("Appearance relocalization failed", exc_info=True)
+            return None, "Tracking lost; match the last good view to resume fusion"
         if self.settings.color_recovery:
             try:
                 if self._integrations_since_model:
@@ -680,6 +735,44 @@ class ScanEngine:
         except (RuntimeError, ValueError):
             logger.debug("Appearance relocalization failed", exc_info=True)
         return None, error
+
+    def _recover_anchor(self, source):
+        """Require nearby, reciprocal overlap with the last accepted raw view."""
+        from .refinement import _match, _trustworthy, motion
+
+        if self._last_rgbd is None or not self.poses:
+            return None
+        target = self._make_reg_pcd(self._last_rgbd)
+        forward = _match(source, target, np.eye(4))
+        if not _trustworthy(forward, target):
+            return None
+        translation, angle = motion(forward.transformation)
+        if translation > min(0.15, self.settings.max_translation_m) or angle > min(
+            15, self.settings.max_rotation_deg
+        ):
+            return None
+        reverse = _match(target, source, np.linalg.inv(forward.transformation))
+        translation, angle = motion(reverse.transformation @ forward.transformation)
+        if not _trustworthy(reverse, source) or translation > 0.01 or angle > 2:
+            return None
+        if self._integrations_since_model:
+            self._extract_model_pcd()
+        result = self._icp(
+            source, self.model_pcd, self.poses[-1][1] @ forward.transformation
+        )
+        # Model refinement must agree with the independently observed anchor.
+        translation, angle = motion(
+            np.linalg.inv(self.poses[-1][1] @ forward.transformation)
+            @ result.transformation
+        )
+        if (
+            result.fitness < 0.6
+            or translation > 0.03
+            or angle > 3
+            or self._alignment_error(result, self.model_pcd) is not None
+        ):
+            return None
+        return result
 
     # ── public API: capture (fast) ─────────────────────────────────────
     def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None) -> dict:
@@ -787,9 +880,17 @@ class ScanEngine:
                 )
             result["elapsed_ms"] = (time.monotonic() - frame_started) * 1000
             self.diagnostics.append(result)
+            if not result["success"] and self._tracking_lost_frames == 0:
+                self._lost_at_index = i
+                self._recovery_preview = None
+            if result["success"]:
+                self._lost_at_index = None
+                self._recovery_preview = None
             self._tracking_lost_frames = (
                 0 if result["success"] else self._tracking_lost_frames + 1
             )
+            result["fusion_paused"] = bool(self._tracking_lost_frames)
+            result["last_tracked_index"] = self.poses[-1][0] if self.poses else None
             processed += 1
             if not result["success"]:
                 errors += 1
@@ -830,6 +931,13 @@ class ScanEngine:
 
         # First frame — integrate directly (need model_pcd immediately)
         if self.frame_count == 0:
+            # A dominant plane provides an estimated up direction for the map.
+            # It is an orientation aid, not a measured gravity sensor.
+            plane, inliers = current_pcd.segment_plane(0.015, 3, 100)
+            normal = np.asarray(plane[:3])
+            if len(inliers) >= 100 and abs(normal[1]) > 0.3:
+                self._world_up = normal * (-1 if normal[1] > 0 else 1)
+                self._up_estimated = True
             extrinsic = np.linalg.inv(self.cumulative_T)
             with self._stage("fusion"):
                 self._integrate_vbg(rgb, depth, extrinsic)

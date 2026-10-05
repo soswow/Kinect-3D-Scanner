@@ -625,6 +625,8 @@ class MainWindow(QMainWindow):
             state = "Build failed · retry or resume capture"
         elif self._operation_error:
             state = self._operation_error
+        elif self._scanning and self.live_view.snapshot.get("fusion_paused"):
+            state = "TRACKING LOST · model paused · match the highlighted last good view"
         elif self._scanning and self._paused:
             state = "Paused · scan retained"
         elif self._scanning and self._capture_waiting:
@@ -783,7 +785,7 @@ class MainWindow(QMainWindow):
     def _switch_mode(self, mode: str):
         self._mode = mode
         self.live_view.setVisible(mode == MODE_SCANNER and bool(self._session_id) and self.live_cb.isChecked())
-        self.guidance_label.setVisible(not self.live_view.isVisible())
+        self.guidance_label.setVisible(self.live_view.isHidden())
         if self.live_view.isVisible():
             self.splitter.setSizes([max(300, self.splitter.width() * 2 // 3), max(240, self.splitter.width() // 3)])
         self.camera_title.setText("Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
@@ -947,6 +949,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_reset_done(self, result):
+        self.guidance_label.setStyleSheet("")
         cancelled = self._cancel_pending
         self._cancel_pending = False
         self._reset_pending = False
@@ -979,7 +982,7 @@ class MainWindow(QMainWindow):
         self._switch_mode(MODE_RGB if cancelled else MODE_SCANNER)
         if cancelled:
             self.guidance_label.setText("Keep the subject stationary. Move the Kinect slowly around it with overlapping views.")
-        self.guidance_label.setVisible(not self.live_view.isVisible())
+        self.guidance_label.setVisible(self.live_view.isHidden())
         self.auto_capture_cb.setChecked(self._scanning and self.capture_mode_combo.currentData() == "automatic")
         self.frame_count_label.setText("Captured: 0 · Added to model: 0")
         self.progress_bar.hide()
@@ -1017,6 +1020,12 @@ class MainWindow(QMainWindow):
         snapshot = self.live_view.snapshot
         if not self._progress_link_ok and self.live_cb.isChecked():
             self._capture_waiting = "Auto capture waiting for live feedback to reconnect"
+            self._refresh_status()
+            return
+        if snapshot.get("fusion_paused") and (
+            self.task_worker.queued_task_count or snapshot.get("pending_count", 0)
+        ):
+            self._capture_waiting = "Model paused · waiting for recovery check; match the last good image"
             self._refresh_status()
             return
         if self.adaptive_capture_cb.isChecked() and (
@@ -1397,6 +1406,10 @@ class MainWindow(QMainWindow):
             f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
         self.guidance_label.setText(snapshot.get("guidance") or "Move slowly with overlapping views.")
+        self.guidance_label.setStyleSheet(
+            "font-size: 24px; font-weight: bold; color: white; background: #a52c29; padding: 8px;"
+            if snapshot.get("fusion_paused") else ""
+        )
         self._refresh_controls()
 
     def _on_frame_stored(self, result: dict):

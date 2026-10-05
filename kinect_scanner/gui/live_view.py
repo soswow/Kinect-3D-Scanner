@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
 from shared.config import LIVE_MAX_POINTS
 from shared.settings import CameraCalibration
 
+from .tracking_overview import TrackingOverview
+
 
 class LiveView(QWidget):
     def __init__(self, parent=None):
@@ -63,6 +65,14 @@ class LiveView(QWidget):
         layout = QVBoxLayout(self.panel)
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(4)
+        self.recovery_label = QLabel("STOP — TRACKING LOST\nModel paused", self.panel)
+        self.recovery_label.setWordWrap(True)
+        self.recovery_label.setStyleSheet(
+            "font-size: 26px; font-weight: bold; color: white; background: #a52c29; padding: 8px;"
+        )
+        self.recovery_label.setAccessibleName("Tracking lost: model paused")
+        layout.addWidget(self.recovery_label)
+        self.recovery_label.hide()
         self.title_label = QLabel("Fused point cloud", self.panel)
         layout.addWidget(self.title_label)
         for buttons in ((self.follow_button, self.orbit_button, self.fit_button),
@@ -86,6 +96,8 @@ class LiveView(QWidget):
         self.details_label.setAccessibleName("Reconstruction diagnostics")
         self.details_label.hide()
         layout.addWidget(self.details_label)
+        self.overview = TrackingOverview(self)
+        self.overview.hide()
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(1000)
@@ -93,6 +105,8 @@ class LiveView(QWidget):
 
     def reset(self):
         self.snapshot = {}
+        self.overview.set_snapshot({})
+        self.overview.hide()
         self._feedback_connected = True
         self.camera_to_world = np.eye(4)
         self.camera = CameraCalibration()
@@ -117,6 +131,8 @@ class LiveView(QWidget):
         self.points = points[::step]
         self.colors = colors[::step]
         self.snapshot = snapshot
+        self.overview.set_snapshot(snapshot)
+        self.overview.setVisible(bool(snapshot.get("trajectory")))
         pose = np.asarray(snapshot.get("camera_to_world", self.camera_to_world))
         if pose.shape == (4, 4) and np.isfinite(pose).all():
             self.camera_to_world = pose.copy()
@@ -177,6 +193,12 @@ class LiveView(QWidget):
         self.panel.setFixedWidth(self.width())
         self.panel.adjustSize()
         self.panel.move(0, 0)
+        available = max(0, self.height() - self.panel.height())
+        self.overview.setGeometry(
+            max(0, self.width() - 360), self.height() - min(180, available),
+            min(360, self.width()), min(180, available),
+        )
+        self.overview.setVisible(bool(self.snapshot.get("trajectory")) and available >= 140)
 
     def resizeEvent(self, event):
         self._layout_panel()
@@ -184,6 +206,8 @@ class LiveView(QWidget):
 
     def _refresh_labels(self):
         s = self.snapshot
+        lost = s.get("fusion_paused", False)
+        self.recovery_label.setVisible(lost)
         result = s.get("result", {})
         self.guidance_label.setText(
             s.get("guidance", "Move slowly with overlap") if self._feedback_connected
@@ -191,6 +215,7 @@ class LiveView(QWidget):
         )
         self.status_label.setText(
             f"{s.get('frame_count', 0)} integrated · {s.get('pending_count', 0)} pending"
+            + (f" · return to Frame {s['last_tracked_index'] + 1}" if lost and s.get("last_tracked_index") is not None else "")
         )
         state = ("tracking accepted" if result.get("success") else "tracking skipped") if result else "waiting"
         age = "waiting for frames" if self._received is None else f"last update {time.monotonic() - self._received:.1f}s ago"

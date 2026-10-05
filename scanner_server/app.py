@@ -178,6 +178,8 @@ async def scan_status():
         "settings": engine.settings.to_dict(),
         "skipped_count": sum(not r["success"] for r in engine.diagnostics),
         "has_mesh": engine.mesh is not None,
+        "tracking_state": "recovering" if engine._tracking_lost_frames else "tracking" if engine.poses else "waiting",
+        "fusion_paused": bool(engine._tracking_lost_frames),
         "operation": _exclusive_kind if _exclusive else None,
     }
 
