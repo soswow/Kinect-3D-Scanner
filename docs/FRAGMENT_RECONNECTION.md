@@ -16,8 +16,8 @@ observations can also help the Finish pass.
 
 1. Reconstruct calibrated, filtered point clouds from retained raw observations.
    Split sequences at timestamp gaps over three times the typical capture interval
-   (at least two seconds), missing geometry, and
-   failed adjacent registration. Each fragment gets its own local coordinates.
+   (at least two seconds), missing geometry, and failed adjacent registration.
+   Each fragment gets its own local coordinates.
    Adjacent registration uses measured geometry, reciprocal ICP, held-out points,
    and the configured motion limits, including for previously accepted views.
    Fragments contain at most sixteen views. Live poses provide initial guesses;
@@ -29,8 +29,8 @@ observations can also help the Finish pass.
 3. Verify each proposal with reciprocal coarse-to-fine point-to-plane ICP,
    nonplanar normal coverage, bidirectional overlap, and independent held-out
    samples. Partially overlapping unions can be verified using their shared
-   camera observations. Require supporting camera pairs from at least two distinct positions
-   on each side, separated by over 2 cm or 2°. Stationary duplicate captures and
+   camera observations. Require supporting camera pairs from at least two
+   distinct positions on each side, separated by over 2 cm or 2°. Stationary duplicate captures and
    single-view fragments cannot authorize a bridge. Reject competing verified
    transforms that disagree by over 5 cm or 5°.
 4. Optimize the anchored fragment pose graph with Open3D's Levenberg–Marquardt
@@ -38,14 +38,15 @@ observations can also help the Finish pass.
    additional bridges are uncertain constraints. Recompute connectivity after edge
    pruning, then validate optimized bridges against held-out geometry again.
    Re-estimate accepted poses as well as skipped views. Exclude observations
-   without a verified connection to the first fragment. Optional final pose refinement can subsequently refine
-   that connected trajectory using its separate validation rules.
-5. Count the required frustum blocks before allocating and fusing a fresh TSDF volume. Commit poses,
-   diagnostics, and tracking state only after native fusion and model extraction
+   without a verified connection to the first fragment. Optional final pose
+   refinement can subsequently refine that connected trajectory using its
+   separate validation rules.
+5. Count the required frustum blocks before allocating and fusing a fresh TSDF
+   volume. Commit poses, diagnostics, and tracking state only after native fusion and model extraction
    succeed. A failed allocation, exhausted fusion budget, or invalid proposal
    preserves the existing reconstruction and reports Finish as failed. The full
-   verification report survives a fusion failure. The live feedback snapshot is refreshed
-   after Finish, and exports use the resulting connected poses.
+   verification report survives a fusion failure. The live feedback snapshot is
+   refreshed after Finish, and exports use the resulting connected poses.
 
 The implementation follows Open3D's [global registration](https://www.open3d.org/docs/release/tutorial/pipelines/global_registration.html)
 and [multiway pose-graph registration](https://www.open3d.org/docs/latest/tutorial/pipelines/multiway_registration.html)
@@ -118,13 +119,18 @@ for test evaluation, then builds and exports the connected model. Tests also
 cover planar ambiguity, repeated stationary captures, conflicting proposals,
 pruned bridges, search caps, cache invalidation, native fusion failure rollback,
 raw ZIP replay, server counts/progress/snapshot refresh, and GUI preference
-restoration. Physical Kinect and CUDA reconnection remain unverified.
+restoration. The saved Kinect session repair below was verified on CPU.
+Updated live tracking guards have not yet been exercised in a new physical
+Kinect capture. CUDA reconnection remains unverified.
 
 The regression suite includes synthetic HTTP/WebSocket and Qt scan workflows
 through capture, Finish, rebuilding, and exports. New raycast tests exercise
 confidently accepted but drifted components, exclusion of unverifiable accepted
 views, raw-camera verification after tracking gaps, archived pose seed
 revalidation, and fusion-budget failure before any candidate integration.
+After integration with the current capture-performance changes, the full suite
+ran 266 tests: 264 passed and two CUDA tests were skipped. The separate synthetic
+HTTP/WebSocket and Qt workflow passed capture, Finish, rebuilding, and all exports.
 
 ## Chest session repair, 6 October 2026
 

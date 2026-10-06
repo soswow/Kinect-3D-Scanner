@@ -818,7 +818,9 @@ class ScanEngine:
         gap_limit = capture_gap_limit(self.frame_metadata[max(0, index - 8):self._processed_count + 1])
         if gap <= gap_limit and translation <= 0.1 and angle <= 8:
             return None
-        target = self._make_reg_pcd(self._last_rgbd)
+        if self._last_reg_pcd is None:
+            self._last_reg_pcd = self._make_reg_pcd(self._last_rgbd)
+        target = self._last_reg_pcd
         forward = _match(source, target, relative)
         reverse = _match(target, source, np.linalg.inv(forward.transformation))
         cycle_m, cycle_deg = motion(reverse.transformation @ forward.transformation)
