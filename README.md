@@ -71,6 +71,9 @@ The client reports missing hardware and retries automatically. Camera acquisitio
 runs in an isolated process: a stalled USB driver times out and restarts, and
 cannot prevent the window from closing. RGB/depth pairing uses the Kinect v1's
 60 MHz device clock, with wraparound handled before conversion to milliseconds.
+Acquisition retains a short depth history and pairs each RGB frame with the
+nearest unused depth timestamp, including RGB callbacks delivered late. These
+driver timestamps mark packet completion, rather than measured exposure times.
 
 With the scanner closed, check your connected camera and window shutdown:
 
@@ -223,7 +226,8 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
 On tracking loss, fusion pauses until the last good camera view is verified.
 The red notice, overhead trajectory, and saved reference image guide recovery;
 RGB/depth timing warnings explain when color recovery is unavailable. See
-[tracking recovery and the chest-session analysis](docs/TRACKING_RECOVERY.md).
+[tracking recovery](docs/TRACKING_RECOVERY.md) and the
+[RGB/depth timing explanation and second chest-session analysis](docs/RGB_DEPTH_TIMING.md).
 
 New scans enable live feedback in the GUI; API clients opt in with
 `live_reconstruction: true` in reset settings. CPU remains supported on Apple

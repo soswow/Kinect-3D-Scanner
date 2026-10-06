@@ -195,7 +195,8 @@ class RGBExposureTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "sensitivity"):
             controls.verify()
 
-    def run_capture(self, mode, *, high_res=True, fail=False, retry=False, overwrite=False):
+    def run_capture(self, mode, *, high_res=True, fail=False, retry=False, overwrite=False,
+                    delayed_rgb=False):
         driver = exposure_driver()
         driver.RESOLUTION_MEDIUM, driver.RESOLUTION_HIGH = 1, 2
         driver.DEPTH_11BIT, driver.VIDEO_RGB, driver.VIDEO_IR_10BIT = 0, 0, 2
@@ -223,12 +224,13 @@ class RGBExposureTests(unittest.TestCase):
 
         def events(ctx):
             nonlocal stamp
-            stamp += 2_000_000
-            driver.depth_callback(None, np.full((480, 640), 750, np.uint16), stamp)
+            stamp += 6_000_000 if delayed_rgb else 2_000_000
+            for offset in ((4_000_000, 2_000_000, 0) if delayed_rgb else (0,)):
+                driver.depth_callback(None, np.full((480, 640), 750, np.uint16), stamp - offset)
             if retry and driver.video_mode == 0 and switches.count(0) == 1:
                 return 0
             frame = np.zeros((488, 640), np.uint16) if driver.video_mode == 2 else np.full(rgb_shape, 42, np.uint8)
-            driver.video_callback(None, frame, stamp)
+            driver.video_callback(None, frame, stamp - 2_400_000 if delayed_rgb else stamp)
             if overwrite and driver.set_exposure.called:
                 driver.registers[MODE_CONTROL] |= AUTO_WHITE_BALANCE
             return 0
@@ -260,6 +262,14 @@ class RGBExposureTests(unittest.TestCase):
                 self.assertEqual(3957, frames[0]["rgb_exposure_us"])
                 self.assertEqual(250, frames[0]["rgb_shutter_speed"])
                 self.assertEqual(2, frames[0]["rgb_gain"])
+
+    def test_capture_pairs_delayed_rgb_with_closer_buffered_depth(self):
+        driver, switches, packets = self.run_capture("auto", delayed_rgb=True)
+        frames = [payload for kind, payload in packets if kind == "frame"]
+        self.assertEqual(1, len(frames), packets)
+        self.assertAlmostEqual(-1000 / 150, frames[0]["rgb_depth_delta_ms"])
+        self.assertEqual("nearest_depth", frames[0]["rgb_depth_pairing"])
+        self.assertEqual("packet_end", frames[0]["device_timestamp_reference"])
 
     def test_failed_manual_capture_sends_error_without_frames(self):
         driver, switches, packets = self.run_capture("manual", fail=True)

@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 from shared.config import LIVE_MAX_POINTS
 from shared.settings import CameraCalibration
 
@@ -95,6 +96,11 @@ class LiveView(QWidget):
         self.color_warning_label.setWordWrap(True)
         self.color_warning_label.setStyleSheet("color: #ffcf79;")
         self.color_warning_label.setAccessibleName("Color recovery synchronization warning")
+        self.color_warning_label.setToolTip(
+            "RGB is still recorded and used for fused model color. Color-assisted "
+            "tracking needs closer RGB/depth timing to avoid mismatched features "
+            "during motion. If this persists, try 640×480 RGB at 30 fps."
+        )
         layout.addWidget(self.color_warning_label)
         self.color_warning_label.hide()
         self.details_label = QLabel(self.panel)
@@ -224,11 +230,13 @@ class LiveView(QWidget):
             + (f" · return to Frame {s['last_tracked_index'] + 1}" if lost and s.get("last_tracked_index") is not None else "")
         )
         lag = result.get("metadata", {}).get("rgb_depth_delta_ms")
-        sync_warning = s.get("color_assistance_requested") and lag is not None and abs(lag) > 20
+        sync_warning = (s.get("color_assistance_requested") and lag is not None
+                        and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS)
         self.color_warning_label.setVisible(bool(sync_warning))
         if sync_warning:
             self.color_warning_label.setText(
-                f"Color recovery unavailable · RGB/depth {abs(lag):.0f} ms apart (limit 20 ms)"
+                f"Color-assisted tracking unavailable · RGB/depth {abs(lag):.0f} ms apart "
+                f"(limit {RGB_DEPTH_ASSISTANCE_LIMIT_MS} ms)"
             )
         state = ("tracking accepted" if result.get("success") else "tracking skipped") if result else "waiting"
         age = "waiting for frames" if self._received is None else f"last update {time.monotonic() - self._received:.1f}s ago"

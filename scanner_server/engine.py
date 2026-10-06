@@ -28,6 +28,7 @@ import open3d.core as o3c
 import trimesh
 
 from shared.calibration import prepare_rgbd
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS, RGB_DEPTH_CAPTURE_LIMIT_MS
 from shared.config import LIVE_MAX_POINTS, PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
 
@@ -482,7 +483,7 @@ class ScanEngine:
         from .refinement import _match, _trustworthy, motion
 
         lag = self.frame_metadata[self._processed_count].get("rgb_depth_delta_ms")
-        if lag is not None and abs(lag) > 20:
+        if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
             return None
         features = extract_features(
             np.asarray(rgbd.color),
@@ -500,7 +501,7 @@ class ScanEngine:
         for j in selected:
             index, pose = self.poses[j]
             lag = self.frame_metadata[index].get("rgb_depth_delta_ms")
-            if lag is not None and abs(lag) > 20:
+            if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
                 continue
             if index not in self._appearance_cache:
                 rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
@@ -631,7 +632,8 @@ class ScanEngine:
             return None
         lag = self.frame_metadata[self._processed_count].get("rgb_depth_delta_ms")
         previous_lag = self.frame_metadata[self.poses[-1][0]].get("rgb_depth_delta_ms")
-        if any(value is not None and abs(value) > 20 for value in (lag, previous_lag)):
+        if any(value is not None and abs(value) > RGB_DEPTH_ASSISTANCE_LIMIT_MS
+               for value in (lag, previous_lag)):
             return None
 
         def intensity(frame):
@@ -807,11 +809,11 @@ class ScanEngine:
                     "message": "Duplicate capture skipped",
                 }
         lag = metadata.get("rgb_depth_delta_ms")
-        if lag is not None and (not np.isfinite(lag) or abs(lag) > 50):
+        if lag is not None and (not np.isfinite(lag) or abs(lag) > RGB_DEPTH_CAPTURE_LIMIT_MS):
             return {
                 "success": False,
                 "stored_count": self.stored_count,
-                "message": "RGB/depth timestamps differ by more than 50 ms",
+                "message": f"RGB/depth timestamps differ by more than {RGB_DEPTH_CAPTURE_LIMIT_MS} ms",
             }
         if self.stored_count >= self.MAX_FRAMES:
             return {

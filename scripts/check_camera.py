@@ -7,6 +7,7 @@ and window closure as well as acquisition.
 import argparse
 import json
 import os
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -33,6 +34,7 @@ def main():
     from PyQt6.QtCore import QCoreApplication, QTimer
 
     from kinect_scanner.worker import KinectWorker
+    from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
     window = None
     if args.window:
@@ -98,6 +100,8 @@ def main():
         "capture_seconds": round(elapsed - (shutdown or 0), 2),
         "minimum_valid_depth_pixels": min((f[0] for f in frames), default=0),
         "max_rgb_depth_delta_ms": round(max(map(abs, deltas), default=0), 3),
+        "median_abs_rgb_depth_delta_ms": round(statistics.median(map(abs, deltas)), 3) if deltas else None,
+        "color_assistance_eligible_frames": sum(abs(d) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS for d in deltas),
         "shutdown_seconds": round(shutdown, 3) if shutdown is not None else None,
         "camera_label": window.kinect_label.text() if window else None,
         "preview_rendered": (

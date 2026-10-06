@@ -13,6 +13,7 @@ import numpy as np
 import open3d as o3d
 
 from shared.calibration import prepare_rgbd
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 from .appearance import Features, correspondences, extract_features, propose_transform
 from .refinement import _match, motion
@@ -114,7 +115,8 @@ def _view(engine, index):
     train.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=0.06, max_nn=30))
     lag = engine.frame_metadata[index].get("rgb_depth_delta_ms")
     features = (extract_features(rgb, depth, engine.settings.camera)
-                if lag is None or abs(lag) <= 20 else Features(np.empty((0, 2)), np.empty((0, 3)), None))
+                if lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS
+                else Features(np.empty((0, 2)), np.empty((0, 3)), None))
     return View(index, train, heldout, features)
 
 
