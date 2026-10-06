@@ -15,30 +15,36 @@ observations can also help the Finish pass.
 ## What the algorithm does
 
 1. Reconstruct calibrated, filtered point clouds from retained raw observations.
-   Split sequences at timestamp gaps over two seconds, missing geometry, and
+   Split sequences at timestamp gaps over three times the typical capture interval
+   (at least two seconds), missing geometry, and
    failed adjacent registration. Each fragment gets its own local coordinates.
    Adjacent registration uses measured geometry, reciprocal ICP, held-out points,
-   and the configured motion limits. Existing live poses provide world anchors.
+   and the configured motion limits, including for previously accepted views.
+   Fragments contain at most sixteen views. Live poses provide initial guesses;
+   only the first retained fragment fixes the world coordinate system.
 2. Search for fragment overlap independently of the broken live trajectory.
    Synchronized ORB/PnP matches propose transforms; FPFH descriptors and bounded
    RANSAC also propose transforms using depth alone. RGB-D pairs over 20 ms
    apart cannot provide appearance proposals.
 3. Verify each proposal with reciprocal coarse-to-fine point-to-plane ICP,
    nonplanar normal coverage, bidirectional overlap, and independent held-out
-   samples. Require supporting camera pairs from at least two distinct positions
+   samples. Partially overlapping unions can be verified using their shared
+   camera observations. Require supporting camera pairs from at least two distinct positions
    on each side, separated by over 2 cm or 2°. Stationary duplicate captures and
    single-view fragments cannot authorize a bridge. Reject competing verified
    transforms that disagree by over 5 cm or 5°.
 4. Optimize the anchored fragment pose graph with Open3D's Levenberg–Marquardt
-   optimizer and uncertain bridge edges. Recompute connectivity after edge
+   optimizer. Its measured spanning tree supplies the initial trajectory;
+   additional bridges are uncertain constraints. Recompute connectivity after edge
    pruning, then validate optimized bridges against held-out geometry again.
-   Existing accepted live camera poses remain unchanged; recovered poses extend
-   their connected model. Optional final pose refinement can subsequently refine
+   Re-estimate accepted poses as well as skipped views. Exclude observations
+   without a verified connection to the first fragment. Optional final pose refinement can subsequently refine
    that connected trajectory using its separate validation rules.
-5. Fuse all connected observations into a fresh TSDF volume. Commit poses,
+5. Count the required frustum blocks before allocating and fusing a fresh TSDF volume. Commit poses,
    diagnostics, and tracking state only after native fusion and model extraction
    succeed. A failed allocation, exhausted fusion budget, or invalid proposal
-   preserves the existing reconstruction. The live feedback snapshot is refreshed
+   preserves the existing reconstruction and reports Finish as failed. The full
+   verification report survives a fusion failure. The live feedback snapshot is refreshed
    after Finish, and exports use the resulting connected poses.
 
 The implementation follows Open3D's [global registration](https://www.open3d.org/docs/release/tutorial/pipelines/global_registration.html)
@@ -50,10 +56,11 @@ background when capturing a bridge.
 
 ## Budgets and diagnostics
 
-The pass considers at most 32 fragments and 96 fragment pairs, with up to three
-key views per fragment, 6,000 aggregate cloud points, and two geometric RANSAC
-proposals of at most 12,000 iterations each. Pairs involving a world anchor are
-prioritized when appearance scores are equal. Preparation is bounded by the
+The pass considers at most 32 fragments and 256 fragment pairs, with up to five
+key views per fragment, 12,000 aggregate training points, 30,000 validation points,
+and two geometric RANSAC proposals of at most 12,000 iterations each. Pairs
+involving the world anchor or consecutive fragments are prioritized when
+appearance scores are equal. Preparation is bounded by the
 scanner's raw frame limit. Search time varies with captured geometry; it is not
 a real-time tracking path.
 
@@ -66,7 +73,8 @@ failures remain retryable.
 `reconstruction.json` and `/api/scan/diagnostics` include `fragment_reconnection`:
 local camera poses for every prepared fragment, connected/unconnected fragment
 IDs, geometric bridge evidence and connection status, ambiguous pairs, recovered
-view count, elapsed time, fusion budget, and whether a search cap was reached.
+view count, corrected/excluded accepted views, elapsed time, required fusion blocks,
+fusion budget, and whether a search cap was reached.
 Unassigned indices identify observations beyond the fragment cap. All retained
 raw frames remain in **Save Session…**, including unconnected and unassigned
 views. They are excluded from the world mesh until a connection is verified.
@@ -90,6 +98,17 @@ mesh build may still contain only the trusted portion: read the recovered count
 and unconnected fragment list. `--final-weight` can change extraction confidence;
 it does not relax registration verification.
 
+`--use-pose-seeds` skips repeating live tracking. It reads archived camera guesses,
+then independently revalidates their local motion and all fragment connections
+against the retained raw depth. It never exports a mesh from the guesses alone.
+`--block-budget 10000` permits a larger candidate volume; the command reports the
+measured requirement and fails before fusion if that budget is insufficient.
+
+Live tracking also verifies camera-to-camera geometry after unusually long capture
+gaps or steps over 10 cm / 8°. Slow regular adaptive capture does not create a
+separate fragment for every image. A confident match to the accumulated model
+cannot by itself authorize those transitions.
+
 ## Validation
 
 Actual raycast RGB-D tests separate two overlapping camera runs with a capture
@@ -101,13 +120,50 @@ pruned bridges, search caps, cache invalidation, native fusion failure rollback,
 raw ZIP replay, server counts/progress/snapshot refresh, and GUI preference
 restoration. Physical Kinect and CUDA reconnection remain unverified.
 
-After combining with the current master, the full suite ran 214 tests: 212
-passed and two CUDA tests were skipped. The synthetic HTTP/WebSocket and Qt
-scan workflow passed through capture, Finish, rebuilding, and all exports.
+The regression suite includes synthetic HTTP/WebSocket and Qt scan workflows
+through capture, Finish, rebuilding, and exports. New raycast tests exercise
+confidently accepted but drifted components, exclusion of unverifiable accepted
+views, raw-camera verification after tracking gaps, archived pose seed
+revalidation, and fusion-budget failure before any candidate integration.
 
-## Chest session result, 6 October 2026
+## Chest session repair, 6 October 2026
 
-Replaying `chest_20261005_230320.zip` under the current loss guards accepts the
+The 200-capture session `chest-2scan-session_20261006_090302.zip` originally
+accepted 123 captures, including a displaced returning chest. Its old Finish
+pass retained accepted fragments as fixed roots instead of revalidating their
+alignment. Fresh fusion also exceeded its 5,000-block budget, leaving the live
+volume in use.
+
+Rebuilding with the revised verifier and `--use-pose-seeds --block-budget 16000`
+produced 174 connected captures: all 77 rejected views recovered, 95 accepted
+poses corrected, and 26 unverified accepted captures excluded. There are 16
+connected fragments with 47 surviving measured bridges. The remaining six
+fragments are preserved in local coordinates in the diagnostics. Excluded
+captures are 137–158, 163–164, and 177–178 (one-based).
+
+The returning capture 193 now agrees with early capture 3: bidirectional raw
+depth overlap at 25 mm is 92% / 65%, with approximately 12 mm nearest-neighbour
+RMSE. Its relative camera pose differs from direct raw-depth alignment by
+14 mm / 0.65°, compared with 0.95 m / 41° in the original trajectory. These are
+alignment checks, not absolute dimensional accuracy measurements. Both oblique
+and overhead mesh previews show one chest without the displaced second copy.
+
+At 5 mm voxels, the verified fresh fusion requires 6,541 blocks. The mesh contains
+243,771 vertices and 471,464 triangles. CPU repair took about 19 minutes. Outputs
+are in `export/chest-2-repaired/`: `reconnected.ply`, `reconnected-session.zip`,
+the reconstruction and verification reports, and mesh/alignment previews. All
+400 RGB/depth image CRCs and capture timestamps match the source session. The
+source archive SHA-256 is unchanged.
+
+For this scan size, select a final block budget of at least 6,541; 10,000 gives
+room for additional observations. Keep **Reconnect separated views at Finish**
+enabled. The normal pose-refinement pass still reports no further loop
+constraints on this session; the correction comes from the independently
+measured fragment graph.
+
+## Earlier 50-capture session
+
+An earlier implementation replayed `chest_20261005_230320.zip` and accepted the
 first 14 of 50 captures. The offline pass creates 17 local fragments and tests
 96 of 136 candidate pairs, including every pair involving the trusted anchor.
 It finds one geometrically supported link between later fragments, but no
@@ -123,4 +179,5 @@ surface confidence. Outputs are in
 All 100 RGB/depth PNG CRCs in the new session ZIP match the source archive's
 50 captures. The original ZIP is unchanged. A new capture sequence that overlaps
 both the trusted view and a later fragment, with distinctive corners or texture,
-is still needed to supply an unambiguous bridge for this chest.
+was recommended to supply an unambiguous bridge for that earlier session.
+That historical result has not been rerun under the revised verifier.

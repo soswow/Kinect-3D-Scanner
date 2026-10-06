@@ -106,6 +106,7 @@ class ScanEngine:
         self.original_poses = None
         self._refined_count = None
         self._reconnection_count = None
+        self._pose_seeds_only = False
         self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
         self.model_pcd = None
         self._live_points = np.empty((0, 3), dtype=np.float32)
@@ -537,8 +538,11 @@ class ScanEngine:
             result = self._icp(
                 source, self.model_pcd, init=pose @ forward.transformation
             )
+            correction_m, correction_deg = motion(
+                np.linalg.inv(pose @ forward.transformation) @ result.transformation)
             if (
                 result.fitness >= 0.6
+                and correction_m <= 0.03 and correction_deg <= 3
                 and self._alignment_error(result, self.model_pcd, False) is None
             ):
                 return result
@@ -785,6 +789,33 @@ class ScanEngine:
             return None
         return result
 
+    def _verify_tracking_transition(self, source, result):
+        """A gap or large step needs actual camera-to-camera evidence."""
+        from .fragments import capture_gap_limit
+        from .refinement import _match, _trustworthy, motion
+
+        if self._last_rgbd is None or not self.poses:
+            return None
+        index, last = self.poses[-1]
+        relative = np.linalg.inv(last) @ result.transformation
+        translation, angle = motion(relative)
+        current_stamp = self.frame_metadata[self._processed_count].get("timestamp_s")
+        last_stamp = self.frame_metadata[index].get("timestamp_s")
+        gap = (current_stamp - last_stamp if current_stamp is not None and last_stamp is not None else 0)
+        gap_limit = capture_gap_limit(self.frame_metadata[max(0, index - 8):self._processed_count + 1])
+        if gap <= gap_limit and translation <= 0.1 and angle <= 8:
+            return None
+        target = self._make_reg_pcd(self._last_rgbd)
+        forward = _match(source, target, relative)
+        reverse = _match(target, source, np.linalg.inv(forward.transformation))
+        cycle_m, cycle_deg = motion(reverse.transformation @ forward.transformation)
+        difference_m, difference_deg = motion(np.linalg.inv(relative) @ forward.transformation)
+        if (_trustworthy(forward, target) and _trustworthy(reverse, source)
+                and cycle_m < 0.01 and cycle_deg < 2
+                and difference_m <= 0.03 and difference_deg <= 3):
+            return None
+        return "Unverified tracking transition after a gap or large movement; return to the last good view"
+
     # ── public API: capture (fast) ─────────────────────────────────────
     def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None) -> dict:
         """Store a raw frame for later processing. Very fast — no ICP/TSDF."""
@@ -986,6 +1017,12 @@ class ScanEngine:
                 "message": method,
             }
 
+        if method not in ("anchor+icp", "appearance+icp"):
+            with self._stage("tracking_verification"):
+                error = self._verify_tracking_transition(current_pcd, result)
+            if error is not None:
+                return {"success": False, "frame_count": self.frame_count, "message": error}
+
         # Commit tracking state only after integration succeeds.
         pose = result.transformation
         with self._stage("fusion"):
@@ -1054,16 +1091,27 @@ class ScanEngine:
     def _reconnect_volume(self, progress_cb=None):
         """Commit connected raw fragments only after a complete fresh fusion."""
         if self._reconnection_count == self.stored_count:
-            return
+            return not self.fragment_reconnection.get("failed", False)
         from .fragments import propose_fragment_poses
 
         started = time.monotonic()
+        report = {"applied": False}
         try:
             proposals, report = propose_fragment_poses(self, progress_cb)
             if proposals is not None:
                 candidate = copy.copy(self)
                 candidate._fusion_block_limit = self.settings.final_block_count
-                candidate.vbg = self._create_vbg(block_count=candidate._fusion_block_limit)
+                required = self._required_fusion_blocks(proposals, progress_cb)
+                report.update(fusion_required_blocks=required,
+                              fusion_block_limit=candidate._fusion_block_limit,
+                              fusion_voxel_m=self.voxel_size)
+                if required > candidate._fusion_block_limit:
+                    raise ValueError(
+                        f"Verified reconstruction needs {required} blocks at "
+                        f"{self.voxel_size * 1000:g} mm; increase the final block "
+                        f"budget from {candidate._fusion_block_limit} to at least {required}"
+                    )
+                candidate.vbg = self._create_vbg(block_count=max(1, required))
                 for completed, (index, pose) in enumerate(proposals, 1):
                     rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
                     candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
@@ -1076,9 +1124,19 @@ class ScanEngine:
                 if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
                     raise ValueError("Reconnected volume has insufficient geometry")
                 diagnostics = [dict(result) for result in self.diagnostics]
+                connected = {i for i, _ in proposals}
                 fragment_by_frame = {i: f["id"] for f in report["fragments"] for i in f["frame_indices"]}
+                for result in diagnostics:
+                    if result["success"] and result["index"] not in connected:
+                        result.update(success=False, excluded_offline=True,
+                                      message_before_reconnection=result.get("message"),
+                                      pose_before_reconnection=result.get("pose"),
+                                      message="Excluded: no verified connection to the anchored reconstruction")
+                        result.pop("pose", None)
                 for index, pose in proposals:
                     result = diagnostics[index]
+                    if result.get("pose") is not None:
+                        result["pose_before_reconnection"] = result["pose"]
                     if not result["success"]:
                         result.update(success=True, recovered_offline=True, method="fragment+graph",
                                       message_before_reconnection=result.get("message"),
@@ -1094,7 +1152,8 @@ class ScanEngine:
                                   last_tracked_index=last_tracked)
                 last_index, last_pose = proposals[-1]
                 last_rgbd = self._make_rgbd(*prepare_rgbd(*self.raw_frames[last_index], self.settings))
-                report.update(applied=True, reason=f"Reconnected {report['recovered_frames']} views with fresh fusion",
+                report.update(applied=True, reason=(f"Reconnected {report['recovered_frames']} views; "
+                              f"{report['corrected_frames']} poses corrected, {len(report['excluded_frames'])} excluded"),
                               fusion_blocks=int(candidate.vbg.hashmap().size()),
                               fusion_block_limit=candidate._fusion_block_limit,
                               fusion_voxel_m=self.voxel_size)
@@ -1104,6 +1163,7 @@ class ScanEngine:
                              "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model"):
                     setattr(self, name, getattr(candidate, name))
                 self.poses, self.diagnostics = proposals, diagnostics
+                self._pose_seeds_only = False
                 self.frame_count = len(proposals)
                 self.cumulative_T = last_pose.copy()
                 self._last_rgbd = last_rgbd
@@ -1116,10 +1176,37 @@ class ScanEngine:
             self._reconnection_count = self.stored_count
         except Exception as exc:
             logger.exception("Fragment reconnection failed; original reconstruction retained")
-            self.fragment_reconnection = {"applied": False, "reason": f"Reconnection failed: {exc}"}
+            report.update(applied=False, failed=True, reason=f"Reconnection failed: {exc}")
+            self.fragment_reconnection = report
         elapsed = (time.monotonic() - started) * 1000
         self.fragment_reconnection["elapsed_ms"] = elapsed
         self.stage_totals_ms["fragment_reconnection"] = self.stage_totals_ms.get("fragment_reconnection", 0) + elapsed
+        return not self.fragment_reconnection.get("failed", False)
+
+    def _required_fusion_blocks(self, proposals, progress_cb=None):
+        """Measure allocation before touching a candidate or existing volume.
+
+        A one-block grid computes the exact frustum coordinates without voxel
+        activation. The configured block limit remains a hard memory budget.
+        """
+        scratch = self._create_vbg(block_count=1)
+        blocks = set()
+        for completed, (index, pose) in enumerate(proposals, 1):
+            _, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+            image = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(depth))).to(self.device)
+            coordinates = scratch.compute_unique_block_coordinates(
+                image, self.intrinsic_tensor,
+                o3c.Tensor(np.linalg.inv(pose), dtype=o3c.float64),
+                depth_scale=1000.0, depth_max=self.max_depth_m,
+                trunc_voxel_multiplier=self.sdf_trunc / self.voxel_size,
+            ).cpu().numpy()
+            blocks.update(map(tuple, coordinates))
+            if progress_cb:
+                progress_cb(completed, len(proposals), {
+                    "stage": "fragment_reconnection",
+                    "message": f"Planning verified fusion {completed}/{len(proposals)} views: {len(blocks)} blocks",
+                })
+        return len(blocks)
 
     def _refine_volume(self):
         """Transactional refinement: never rewrite poses in an existing TSDF."""
@@ -1231,7 +1318,10 @@ class ScanEngine:
         if self.frame_count == 0:
             return False, process_result
         if self.settings.reconnect_fragments:
-            self._reconnect_volume(progress_cb)
+            if not self._reconnect_volume(progress_cb):
+                process_result.update(success=False, message=self.fragment_reconnection["reason"],
+                                      fragment_reconnection=self.fragment_reconnection)
+                return False, process_result
         else:
             self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
         process_result.update(frame_count=self.frame_count,

@@ -1,6 +1,7 @@
 """Rebuild an exported session ZIP with verified fragment reconnection.
 
-Uses retained observations and calibration, never the exported pose estimates.
+Uses retained observations and calibration. Optional exported poses are seeds
+that must be revalidated against raw geometry, never accepted graph authority.
 The input ZIP and a running scanner server are left unchanged.
 """
 
@@ -43,12 +44,42 @@ def load_session(engine, path):
                 raise ValueError(f"Cannot load frame {index + 1}: {result['message']}")
 
 
+def load_pose_seeds(engine, path):
+    """Skip redundant live replay; every seeded relationship is revalidated."""
+    from scanner_server.fragments import _rigid
+
+    with zipfile.ZipFile(path) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        report = json.loads(archive.read(manifest.get("reconstruction", "reconstruction.json")))
+    seeds = []
+    seen = set()
+    for item in report.get("poses", []):
+        index, pose = item["index"], np.asarray(item["camera_to_world"], float)
+        if type(index) is not int or not 0 <= index < engine.stored_count or index in seen or not _rigid(pose):
+            raise ValueError("Invalid archived pose seed")
+        seeds.append((index, pose))
+        seen.add(index)
+    if not seeds:
+        raise ValueError("No archived poses available as seeds; omit --use-pose-seeds")
+    engine.poses = sorted(seeds)
+    source_results = {f["index"]: f for f in report.get("frames", [])}
+    engine.diagnostics = [{**source_results.get(i, {}), "index": i, "success": i in seen}
+                          for i in range(engine.stored_count)]
+    engine.frame_count = len(seeds)
+    engine._processed_count = engine.stored_count
+    engine.cumulative_T = engine.poses[-1][1].copy()
+    engine._pose_seeds_only = True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("session", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--save-session", action="store_true", help="Also export a new ZIP with recovery diagnostics")
     parser.add_argument("--final-weight", type=float, help="Override final surface confidence")
+    parser.add_argument("--block-budget", type=int, help="Maximum blocks for verified fresh fusion (1–50000)")
+    parser.add_argument("--use-pose-seeds", action="store_true",
+                        help="Revalidate archived pose guesses instead of repeating live tracking")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     args = parser.parse_args()
     destination = args.output_dir / "reconnected-session.zip"
@@ -56,8 +87,12 @@ def main():
         parser.error("Output session must differ from the source ZIP")
     engine = ScanEngine(device=args.device)
     load_session(engine, args.session)
+    if args.use_pose_seeds:
+        load_pose_seeds(engine, args.session)
     if args.final_weight is not None:
         engine.settings = replace(engine.settings, final_weight=args.final_weight)
+    if args.block_budget is not None:
+        engine.settings = replace(engine.settings, final_block_count=args.block_budget)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     def progress(current, total, result):

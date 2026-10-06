@@ -7,6 +7,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -20,6 +21,35 @@ from tests.test_quality import scene_frames
 
 
 class RecoveryEngineTests(unittest.TestCase):
+    def test_a_confident_model_match_after_a_gap_cannot_bypass_raw_view_verification(self):
+        engine = ScanEngine(device="cpu")
+        rgb, depth, _ = scene_frames(1)[0]
+        engine.store_frame(rgb, depth, {"timestamp_s": 0})
+        engine.process_frames()
+        old_pose = engine.cumulative_T.copy()
+        engine.store_frame(rgb, depth, {"timestamp_s": 12})
+        wrong = np.eye(4)
+        wrong[0, 3] = 0.18
+        result = SimpleNamespace(transformation=wrong, fitness=0.99, inlier_rmse=0.004)
+        with patch.object(engine, "_register", return_value=(result, "icp")), \
+             patch.object(engine, "_integrate_vbg", wraps=engine._integrate_vbg) as fusion:
+            engine.process_frames()
+        fusion.assert_not_called()
+        self.assertFalse(engine.diagnostics[-1]["success"])
+        self.assertIn("Unverified tracking transition", engine.diagnostics[-1]["message"])
+        np.testing.assert_array_equal(old_pose, engine.cumulative_T)
+        self.assertTrue(engine.live_snapshot()["fusion_paused"])
+
+    def test_a_gap_with_verified_geometric_motion_can_continue(self):
+        engine = ScanEngine(device="cpu")
+        frames = scene_frames(11)
+        engine.store_frame(*frames[0][:2], {"timestamp_s": 0})
+        engine.process_frames()
+        engine.store_frame(*frames[10][:2], {"timestamp_s": 12})
+        engine.process_frames()
+        self.assertEqual(2, engine.frame_count, engine.diagnostics)
+        self.assertLess(np.linalg.norm(engine.cumulative_T[:3, 3] - frames[10][2][:3, 3]), 0.02)
+
     def test_bad_depth_freezes_pose_and_fusion_then_matching_view_recovers(self):
         engine = ScanEngine(device="cpu")
         rgb, depth, _ = scene_frames(1)[0]
