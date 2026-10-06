@@ -25,6 +25,7 @@ import sys
 import time
 import zipfile
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,7 +181,7 @@ def geometry_summary(engine, destination, np):
 
 
 def compare_quality(report, baseline_path, np):
-    from scipy.spatial import cKDTree
+    import open3d as o3d
 
     baseline = json.loads(baseline_path.read_text())
     if (
@@ -234,10 +235,12 @@ def compare_quality(report, baseline_path, np):
     previous = np.load(baseline["geometry"]["artifact"])["points"]
     current = np.load(report["geometry"]["artifact"])["points"]
     if len(previous) and len(current):
+        old_cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(previous))
+        new_cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(current))
         distances = np.concatenate(
             (
-                cKDTree(previous).query(current, workers=1)[0],
-                cKDTree(current).query(previous, workers=1)[0],
+                np.asarray(old_cloud.compute_point_cloud_distance(new_cloud)),
+                np.asarray(new_cloud.compute_point_cloud_distance(old_cloud)),
             )
         )
         result["symmetric_vertex_distance_m"] = {
@@ -271,11 +274,18 @@ def main():
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--compare", type=Path)
+    parser.add_argument(
+        "--final-block-count",
+        type=int,
+        help="Explicit common final-volume budget for matched comparisons (1–50000)",
+    )
     args = parser.parse_args()
     if args.stride < 1 or (args.limit is not None and args.limit < 1):
         parser.error("Require positive stride and limit")
     if args.use_pose_seeds and not args.finish:
         parser.error("--use-pose-seeds requires --finish")
+    if args.final_block_count is not None and not 1 <= args.final_block_count <= 50000:
+        parser.error("Final block count must be 1–50000")
     os.environ.setdefault("OMP_NUM_THREADS", "4")
     os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
     sys.path.insert(0, str(ROOT))
@@ -304,6 +314,13 @@ def main():
     with zipfile.ZipFile(args.session) as archive:
         manifest = json.loads(archive.read("manifest.json"))
         settings = ScanSettings.from_dict(manifest["settings"])
+        original_settings_sha256 = hashlib.sha256(
+            json.dumps(settings.to_dict(), sort_keys=True, allow_nan=False).encode()
+        ).hexdigest()
+        overrides = {}
+        if args.final_block_count is not None:
+            overrides["final_block_count"] = args.final_block_count
+            settings = replace(settings, **overrides)
         if args.use_pose_seeds and not settings.reconnect_fragments:
             parser.error(
                 "Archived-pose Finish requires fragment reconnection in the session settings; replay live to populate its volume"
@@ -392,6 +409,8 @@ def main():
         "initial_blocks": os.environ["KINECT_BLOCK_COUNT"],
         "backend": engine.backend,
         "settings": settings.to_dict(),
+        "settings_overrides": overrides,
+        "original_settings_sha256": original_settings_sha256,
         "versions": {
             "python": sys.version.split()[0],
             "open3d": o3d.__version__,
