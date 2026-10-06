@@ -94,6 +94,9 @@ def check_client(port, rgb, depth):
             window._capture_frame()
         wait_until(lambda: window._server_stored == 3)
         wait_until(lambda: window.live_view.snapshot.get("frame_count") == 3)
+        assert window.live_view.snapshot["processing_interval_s"] > 0
+        assert window._capture_pacer.outstanding_count == 0, "Completed captures must release pacing slots"
+        assert window._effective_capture_interval() >= window.auto_capture_spin.interval_seconds
         assert capture_cues, "Accepted captures must request sound confirmation"
         assert len(window.live_view.points) > 0 and not window.live_view.isHidden()
         image = window.live_view.grab().toImage()
@@ -106,7 +109,7 @@ def check_client(port, rgb, depth):
         window._auto_capture_tick()
         assert (
             window.scan_status_label.text()
-            == "Auto capture waiting for reconstruction to catch up"
+            == "Capturing automatically · paced by live reconstruction"
         )
         assert window.server_client.get_status()["stored_count"] == 3
         window.live_view.snapshot = old_snapshot

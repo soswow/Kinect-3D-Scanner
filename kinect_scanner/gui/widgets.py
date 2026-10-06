@@ -107,7 +107,7 @@ class FrameIntervalSpinBox(QSpinBox):
 
     def _update_tooltip(self):
         self.setToolTip(
-            f"Capture every {self.value()} fresh RGB/depth frames "
+            f"Minimum interval: {self.value()} fresh RGB/depth frames "
             f"({self._fps} fps nominal). Intervals round to whole frames. "
-            "Capture waits when frames or reconstruction are delayed."
+            "Capture never runs faster than this interval and slows to match live reconstruction."
         )

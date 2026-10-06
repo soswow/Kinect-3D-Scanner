@@ -243,8 +243,20 @@ it. Build/session reports record final voxel, block count and elapsed time.
 
 Live feedback shows integrated/skipped frames, pending count, server queue age,
 and guidance for weak depth, lost tracking or backlog. Queue age uses only the
-server's monotonic clock and is not end-to-end capture latency. **Pause auto
-capture for backlog**, enabled initially, skips automatic capture ticks at five
-pending server frames, five queued upload tasks or over two seconds server queue age and resumes when the queue catches
-up. Manual capture remains available. It does not estimate whole-object coverage
+server's monotonic clock and is not end-to-end capture latency. Automatic capture
+treats **Minimum capture interval** as the fastest permitted cadence. It learns
+from the mean processing time of the last twelve frames (including model refresh
+and skipped frames) and local capture-to-feedback latency, adds 15% headroom, and
+rounds the resulting delay up to a whole camera frame. Slowdowns adjust promptly;
+speed increases gradually. Captures never occur closer together than the user's
+minimum interval.
+
+The client also limits automatic live capture to two outstanding frames: one
+processing and one waiting. Captures count from queue submission through live
+processing, so delayed uploads or HTTP acknowledgements cannot conceal a backlog.
+The adjusted pace appears below the interval. Feedback disconnects suspend live
+automatic capture; recovery checks still wait for the previous check to finish.
+Only fresh camera frames are selected, with no catch-up bursts. Scans without
+live reconstruction keep the chosen cadence and wait at five queued uploads.
+Manual capture remains available. It does not estimate whole-object coverage
 or choose keyframes by geometric information gain.

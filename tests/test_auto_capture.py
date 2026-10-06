@@ -60,6 +60,9 @@ class AutoCaptureTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        self.now = 100.0
+        self.clock_patch = patch.object(main_window.time, "monotonic", side_effect=lambda: self.now)
+        self.clock_patch.start()
         self.camera_patch = patch.object(main_window, "KinectWorker", NoCamera)
         self.tasks_patch = patch.object(main_window, "ServerTaskWorker", NoTasks)
         self.camera_patch.start()
@@ -71,6 +74,7 @@ class AutoCaptureTests(unittest.TestCase):
         self.window._scanning = True
         self.window.auto_capture_cb.setEnabled(True)
         self.window.auto_capture_spin.setEnabled(True)
+        self.window.live_cb.setChecked(False)
         self.rgb = np.full((2, 2, 3), 42, np.uint8)
         self.depth = np.full((2, 2), 750, np.uint16)
 
@@ -82,10 +86,12 @@ class AutoCaptureTests(unittest.TestCase):
         self.app.processEvents()
         self.camera_patch.stop()
         self.tasks_patch.stop()
+        self.clock_patch.stop()
         self.preferences_dir.cleanup()
 
     def receive(self, count=1, **metadata):
         for _ in range(count):
+            self.now += 1 / main_window.RGB_MODE_FPS[self.window.rgb_mode_combo.currentData()]
             self.window._on_frame(self.rgb, self.depth, metadata)
 
     def ids(self):
@@ -149,6 +155,7 @@ class AutoCaptureTests(unittest.TestCase):
         self.assertEqual([2, 7], self.ids())
 
     def test_backpressure_waits_and_resumes_once_without_catch_up_burst(self):
+        self.window.live_cb.setChecked(True)
         self.window.auto_capture_spin.setValue(2)
         self.window.auto_capture_cb.setChecked(True)
         self.window.adaptive_capture_cb.setChecked(True)
@@ -162,6 +169,90 @@ class AutoCaptureTests(unittest.TestCase):
         self.assertEqual([21], self.ids())
         self.receive()
         self.assertEqual([21, 23], self.ids())
+
+    def test_slow_processing_changes_pace_without_changing_minimum(self):
+        self.window.live_cb.setChecked(True)
+        self.window._session_id = "paced"
+        self.window.auto_capture_spin.set_interval_seconds(1)
+        self.window._on_live_updated({
+            "session_id": "paced", "processed_count": 1,
+            "processing_interval_s": 1.6, "pending_count": 0,
+        })
+        self.window.auto_capture_cb.setChecked(True)
+        self.receive(10)
+        self.assertEqual([10], self.ids())
+        self.receive(18)
+        self.assertEqual([10], self.ids())
+        self.receive()
+        self.assertEqual([10, 29], self.ids())
+        self.assertEqual(1, self.window.auto_capture_spin.interval_seconds)
+        self.assertIn("~1.9 s", self.window.interval_help.text())
+        self.assertIn("adjusted for live reconstruction", self.window.interval_help.text())
+
+    def test_delayed_feedback_and_uploads_allow_only_two_outstanding_captures(self):
+        self.window.live_cb.setChecked(True)
+        self.window._session_id = "paced"
+        self.window.auto_capture_spin.set_interval_seconds(1)
+        self.window.auto_capture_cb.setChecked(True)
+        self.receive(100)
+        self.assertEqual([10, 20], self.ids())
+        # Neither queued_task_count nor the cached server snapshot sees these uploads.
+        self.assertEqual(0, self.window.task_worker.queued_task_count)
+        self.assertEqual(2, self.window._capture_pacer.pending_count)
+        self.assertIn("paced by live reconstruction", self.window.scan_status_label.text())
+        self.window._on_frame_stored({"session_id": "paced", "success": True,
+            "stored_count": 2, "capture_acknowledgements": [
+                {"frame_id": f["metadata"]["frame_id"], "success": True, "index": i}
+                for i, f in enumerate(self.window.task_worker.frames)
+            ]})
+        self.receive(10)
+        self.assertEqual([10, 20], self.ids())  # Stored still means awaiting processing.
+        last_id = self.window.task_worker.frames[-1]["metadata"]["frame_id"]
+        self.window._on_live_updated({"session_id": "paced", "processed_count": 2,
+            "pending_count": 0, "result": {"metadata": {"frame_id": last_id}}})
+        self.receive(100)
+        self.assertEqual(3, len(self.ids()))  # Resume without a catch-up burst.
+
+    def test_camera_burst_cannot_violate_wall_clock_minimum(self):
+        self.window.auto_capture_spin.set_interval_seconds(1)
+        self.window.auto_capture_cb.setChecked(True)
+        self.receive(10)
+        for _ in range(100):
+            self.window._on_frame(self.rgb, self.depth, {})
+        self.assertEqual([10], self.ids())
+        self.receive(10)
+        self.assertEqual([10, 120], self.ids())
+
+    def test_new_session_resets_learned_pace_and_pending_uploads(self):
+        self.window.live_cb.setChecked(True)
+        self.window._capture_pacer.observe({"processed_count": 1, "processing_interval_s": 5}, self.now)
+        self.receive()
+        self.window._capture_frame()
+        self.window._on_reset_done({"session_id": "new", "settings": {"live_reconstruction": True}})
+        self.assertEqual(0, self.window._capture_pacer.pending_count)
+        self.assertEqual(self.window.auto_capture_spin.interval_seconds, self.window._effective_capture_interval())
+
+    def test_preview_progress_drains_slots_even_with_a_stale_live_snapshot(self):
+        self.window.live_cb.setChecked(True)
+        self.window._session_id = "paced"
+        self.window.auto_capture_spin.set_interval_seconds(1)
+        self.window.auto_capture_cb.setChecked(True)
+        self.receive(20)
+        self.window.live_view.snapshot = {
+            "stored_count": 2, "processed_count": 0, "pending_count": 2,
+        }
+        self.window._preview_pending = True
+        self.now += 30
+        for index, frame in enumerate(self.window.task_worker.frames):
+            self.window._on_process_progress(index + 1, 2, {
+                "session_id": "paced", "index": index, "elapsed_ms": 100,
+                "metadata": frame["metadata"],
+            })
+        self.assertEqual(0, self.window._capture_pacer.pending_count)
+        self.assertEqual(1, self.window._effective_capture_interval())
+        self.window._preview_pending = False
+        self.receive(10)
+        self.assertEqual([10, 20, 30], self.ids())
 
     def test_preview_pause_stale_frames_and_rejected_queue_never_get_uploaded(self):
         self.window.auto_capture_spin.setValue(1)

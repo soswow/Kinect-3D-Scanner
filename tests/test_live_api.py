@@ -43,6 +43,28 @@ def scene_frames(count):
 
 
 class LiveApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pacing_average_includes_periodic_work_and_ages_out_old_samples(self):
+        engine = server.engine
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        depth = np.zeros((480, 640), np.uint16)
+        for _ in range(15):
+            engine.store_frame(rgb, depth)
+        clock = [100.0]
+        durations = iter([9, 9, 9] + [0.4, 0.4, 2.8] * 4)
+
+        def process(rgb, depth):
+            clock[0] += next(durations)
+            return {"success": True}
+
+        with patch("scanner_server.engine.time.monotonic", side_effect=lambda: clock[0]), \
+                patch.object(engine, "_process_single_frame", side_effect=process):
+            engine.process_frames()
+            snapshot = engine.live_snapshot()
+        self.assertAlmostEqual(1.2, snapshot["processing_interval_s"])
+        self.assertEqual(15, snapshot["processed_count"])
+        engine.reset()
+        self.assertEqual(0, engine.live_snapshot()["processing_interval_s"])
+
     async def asyncSetUp(self):
         self.original = server.engine
         server.engine = ScanEngine(device="cpu")
@@ -92,6 +114,10 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reset["session_id"], snapshot["session_id"])
         self.assertEqual(2, snapshot["frame_count"])
         self.assertEqual(0, snapshot["pending_count"])
+        self.assertAlmostEqual(
+            sum(r["elapsed_ms"] for r in server.engine.diagnostics) / 2000,
+            snapshot["processing_interval_s"],
+        )
         self.assertGreater(len(snapshot["points"]), 5000)
         self.assertLessEqual(len(snapshot["points"]), LIVE_MAX_POINTS)
         self.assertEqual(len(snapshot["points"]), len(snapshot["colors"]))

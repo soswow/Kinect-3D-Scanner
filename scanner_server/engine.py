@@ -220,6 +220,11 @@ class ScanEngine:
             "stored_count": self.stored_count,
             "frame_count": self.frame_count,
             "processed_count": self._processed_count,
+            "processing_interval_s": (
+                sum(r.get("elapsed_ms", 0) for r in self.diagnostics[-12:])
+                / min(12, len(self.diagnostics)) / 1000
+                if self.diagnostics else 0.0
+            ),
             "pending_count": self.unprocessed_count,
             "pending_age_s": round(max(0, pending_age), 3),
             "skipped_count": sum(not r["success"] for r in self.diagnostics),

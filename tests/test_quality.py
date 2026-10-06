@@ -289,6 +289,7 @@ class QualityTests(unittest.TestCase):
 
         client = Mock()
         client.send_frame.return_value = {"success": True}
+        client.send_frames_batch.return_value = {"success": True}
         worker = ServerTaskWorker(client)
         frame = lambda i: ServerTask(T.SEND_FRAME, {"rgb": i, "depth": i})
         reset = ServerTask(T.RESET)

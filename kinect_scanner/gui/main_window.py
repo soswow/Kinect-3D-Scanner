@@ -36,6 +36,7 @@ from shared.capture import RGB_GAIN_CHOICES, RGB_MODE_FPS
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
+from ..capture_pacing import CapturePacer
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         self._last_frame_time = 0
         self._last_capture_id = None
         self._auto_frames_since_capture = 0
+        self._capture_pacer = CapturePacer()
         self._reset_pending = False
         self._cancel_pending = False
         self._preview_pending = False
@@ -377,12 +379,12 @@ class MainWindow(QMainWindow):
         self.interval_row = QWidget()
         interval_layout = QHBoxLayout(self.interval_row)
         interval_layout.setContentsMargins(0, 0, 0, 0)
-        interval_label = QLabel("Capture interval")
+        interval_label = QLabel("Minimum capture interval")
         interval_label.setBuddy(self.auto_capture_spin)
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.auto_capture_spin)
         layout.addWidget(self.interval_row)
-        self.interval_help = QLabel("Capture slows automatically while processing catches up.")
+        self.interval_help = QLabel("Automatically slows to match live reconstruction.")
         self.interval_help.setWordWrap(True)
         layout.addWidget(self.interval_help)
         self.adaptive_capture_cb = QCheckBox(container)
@@ -690,6 +692,16 @@ class MainWindow(QMainWindow):
         self._refresh_status()
 
     def _refresh_status(self):
+        interval = self._effective_capture_interval()
+        if self._scanning and interval > self.auto_capture_spin.interval_seconds + 1e-9:
+            self.interval_help.setText(
+                f"Capture pace: ~{interval:g} s · adjusted for live reconstruction."
+            )
+        else:
+            self.interval_help.setText(
+                f"Captures no faster than {self.auto_capture_spin.interval_seconds:g} s. "
+                "Automatically slows to match live reconstruction."
+            )
         if self._server_operation:
             state = "Server is still building · waiting for completion" if self._server_operation == "build" else "Server is preparing inspection · waiting"
         elif self._connect_pending:
@@ -1067,6 +1079,7 @@ class MainWindow(QMainWindow):
             result.get("settings", {}).get("live_reconstruction", False)
         )
         self._last_capture_id = None
+        self._capture_pacer.reset()
         self._reset_auto_capture_cadence()
         self._server_stored = 0
         self._server_integrated = 0
@@ -1119,26 +1132,50 @@ class MainWindow(QMainWindow):
         if self._server_operation or self._reset_pending or self._export_pending or self._paused or self._connect_pending or self._restore_on_status:
             return
         snapshot = self.live_view.snapshot
+        now = time.monotonic()
+        self._capture_pacer.observe(snapshot, now)
+        outstanding = max(
+            self._capture_pacer.outstanding_count,
+            self.task_worker.queued_task_count,
+            snapshot.get("pending_count", 0)
+            if snapshot.get("processed_count", 0) >= self._capture_pacer.processed_count else 0,
+        )
         if not self._progress_link_ok and self.live_cb.isChecked():
             self._capture_waiting = "Auto capture waiting for live feedback to reconnect"
             self._refresh_status()
             return
-        if snapshot.get("fusion_paused") and (
-            self.task_worker.queued_task_count or snapshot.get("pending_count", 0)
-        ):
+        if snapshot.get("fusion_paused") and outstanding:
             self._capture_waiting = "Model paused · waiting for recovery check; match the last good image"
             self._refresh_status()
             return
-        if self.adaptive_capture_cb.isChecked() and (
-            self.task_worker.queued_task_count >= 5
-            or snapshot.get("pending_count", 0) >= 5
-            or snapshot.get("pending_age_s", 0) > 2
-        ):
-            self._capture_waiting = "Auto capture waiting for reconstruction to catch up"
+        if self._adaptive_live_capture() and outstanding >= 2:
+            # At most one frame being processed and one waiting, including uploads.
+            self._capture_waiting = "Capturing automatically · paced by live reconstruction"
+            self._refresh_status()
+            return
+        if self.adaptive_capture_cb.isChecked() and self.task_worker.queued_task_count >= 5:
+            self._capture_waiting = "Auto capture waiting for uploads to catch up"
             self._refresh_status()
             return
         self._capture_waiting = ""
+        if not self._capture_pacer.ready(
+            now, self.auto_capture_spin.interval_seconds,
+            RGB_MODE_FPS[self.rgb_mode_combo.currentData()],
+            adaptive=self._adaptive_live_capture(),
+        ):
+            self._refresh_status()
+            return
         self._capture_frame()
+
+    def _adaptive_live_capture(self):
+        return self.adaptive_capture_cb.isChecked() and self.live_cb.isChecked()
+
+    def _effective_capture_interval(self):
+        return self._capture_pacer.interval_seconds(
+            self.auto_capture_spin.interval_seconds,
+            RGB_MODE_FPS[self.rgb_mode_combo.currentData()],
+            adaptive=self._adaptive_live_capture(),
+        )
 
     def _capture_frame(self):
         if (
@@ -1183,6 +1220,7 @@ class MainWindow(QMainWindow):
             self._refresh_status()
         else:
             self._last_capture_id = frame_id
+            self._capture_pacer.captured(frame_id, time.monotonic(), live=self.live_cb.isChecked())
             self._capture_revision += 1
             self._session_dirty = True
             self._operation_error = ""
@@ -1414,6 +1452,10 @@ class MainWindow(QMainWindow):
         self._scanning = self._server_stored > 0 and not self._has_mesh
         self._paused = self._server_stored > 0
         self.auto_capture_cb.setChecked(False)
+        # The connection command is a queue barrier. Use authoritative server
+        # counts, and avoid learning the disconnected time as processing cost.
+        self._capture_pacer.reset()
+        self._capture_pacer.observe(status, time.monotonic())
         if not same_session:
             self._capture_revision = self._server_stored
             self._saved_revision = 0
@@ -1511,6 +1553,10 @@ class MainWindow(QMainWindow):
             or snapshot.get("session_id") != self._session_id
         ):
             return
+        self._capture_pacer.observe(
+            snapshot, time.monotonic(),
+            learn_completion=not (self._preview_pending or self._build_pending),
+        )
         self.live_view.set_snapshot(snapshot)
         self._on_server_status(snapshot)
         if not self._scanning:
@@ -1532,6 +1578,7 @@ class MainWindow(QMainWindow):
     def _on_frame_stored(self, result: dict):
         if result.get("session_id") and result["session_id"] != self._session_id:
             return
+        self._capture_pacer.acknowledge(result.get("capture_acknowledgements", []), time.monotonic())
         if not result.get("success"):
             self._paused = True
             self._operation_error = result.get("message", "Capture rejected; scan retained")
@@ -1550,6 +1597,13 @@ class MainWindow(QMainWindow):
     def _on_process_progress(self, current: int, total: int, result: dict):
         if result.get("session_id") and result["session_id"] != self._session_id:
             return
+        if "index" in result and "elapsed_ms" in result:
+            # Preview/build may process frames before another live snapshot.
+            # Their deliberate operation barriers are not live capture latency.
+            self._capture_pacer.observe(
+                {"processed_count": result["index"] + 1, "result": result},
+                time.monotonic(), learn_completion=False,
+            )
         self.progress_bar.setRange(0, total)
         self.progress_bar.setValue(current)
         self.progress_bar.setVisible(self._build_pending or self._preview_pending)

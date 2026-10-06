@@ -15,6 +15,39 @@ from kinect_scanner.server_task_worker import (
 
 
 class ServerTaskTests(unittest.TestCase):
+    def test_partial_batch_acknowledgements_identify_each_capture(self):
+        client = ServerClient()
+        client.send_frames_batch = Mock(return_value={"success": True, "results": [
+            {"success": True, "index": 0}, {"success": False},
+        ]})
+        worker = ServerTaskWorker(client)
+        worker.submit(ServerTask(ServerTaskType.SEND_FRAME, {
+            "rgb": 2, "depth": 2, "metadata": {"frame_id": "second"},
+        }))
+        result = worker._drain_send_frames(ServerTask(ServerTaskType.SEND_FRAME, {
+            "rgb": 1, "depth": 1, "metadata": {"frame_id": "first"},
+        }))
+        self.assertEqual([
+            {"frame_id": "first", "success": True, "index": 0},
+            {"frame_id": "second", "success": False},
+        ], result["capture_acknowledgements"])
+
+    def test_failed_transport_releases_captures_in_that_batch(self):
+        client = ServerClient()
+        client.session_id = "scan"
+        client.send_frame = Mock(side_effect=RuntimeError("upload failed"))
+        updates = []
+        client.frame_stored.connect(updates.append)
+        worker = ServerTaskWorker(client)
+        with self.assertRaisesRegex(RuntimeError, "upload failed"):
+            worker._drain_send_frames(ServerTask(ServerTaskType.SEND_FRAME, {
+                "rgb": 1, "depth": 1, "metadata": {"frame_id": "failed"},
+            }))
+        self.assertFalse(updates[0]["success"])
+        self.assertEqual("scan", updates[0]["session_id"])
+        self.assertEqual([{"frame_id": "failed", "success": False}],
+                         updates[0]["capture_acknowledgements"])
+
     def test_connection_runs_off_submitting_thread(self):
         client = ServerClient()
         worker = ServerTaskWorker(client)

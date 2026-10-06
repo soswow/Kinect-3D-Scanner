@@ -104,8 +104,11 @@ The point cloud offers visible **Follow**, **Orbit**, **Color**, **Shape**, and
 **Fit View** controls. In Orbit, drag to rotate and scroll to zoom. **Details**
 shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
-crop. Automatic capture waits for backlog or disconnected live feedback, with
-its state shown separately from movement guidance and task notifications.
+crop. **Minimum capture interval** sets the fastest automatic cadence. Live
+capture slows to match recent processing and upload/feedback times, with the
+adjusted pace shown below the interval. It allows one processing frame and one
+waiting capture, including uploads, and waits if live feedback disconnects.
+Move more slowly at longer intervals to preserve overlap between views.
 
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
