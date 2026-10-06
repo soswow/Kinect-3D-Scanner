@@ -1,5 +1,9 @@
 # Chest 3 tracking and final surface investigation
 
+The follow-up [continuous visual tracking trial](CONTINUOUS_VISUAL_TRACKING.md)
+implements and tests changes motivated by this investigation. The description
+below records how the original session was captured.
+
 Investigated 6 October 2026 on local revision `030486c`, using
 `export/chest-3-scan-session_20261006_215208.zip`. The archive is a capture-time
 snapshot: fragment reconnection, pose refinement, and final reconstruction all

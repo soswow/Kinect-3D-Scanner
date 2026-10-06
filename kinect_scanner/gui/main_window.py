@@ -216,6 +216,7 @@ class MainWindow(QMainWindow):
             worker.frame_ready.connect(received)
         self.worker.error_occurred.connect(self._on_error)
         self.worker.start()
+        self._configure_camera_tracking()
 
     def _restart_camera(self):
         self.worker.stop()
@@ -585,7 +586,7 @@ class MainWindow(QMainWindow):
         self.relocalize_cb = QCheckBox("Recover lost tracking")
         self.confidence_cb = QCheckBox("Use sensor confidence")
         for control, help_text in (
-            (self.color_tracking_cb, "Uses synchronized color/depth observations to help initialize tracking."),
+            (self.color_tracking_cb, "Tracks motion between camera frames during live scans and verifies color/depth matches against nearby saved views."),
             (self.refine_cb, "Validates loop matches and rebuilds fusion; needs extra time and memory."),
             (self.relocalize_cb, "Attempts verified recovery after skipped frames; repeated scenes may be ambiguous."),
             (self.confidence_cb, "Weights depth using range, angle and edges; may require more observations."),
@@ -1090,6 +1091,7 @@ class MainWindow(QMainWindow):
         self._final_preview_session = None
         self._operation_error = ""
         self._scanning = not cancelled
+        self._configure_camera_tracking()
         self._paused = False
         self._build_pending = self._build_failed = False
         self._capture_waiting = ""
@@ -1102,6 +1104,17 @@ class MainWindow(QMainWindow):
         self.progress_bar.hide()
         self._refresh_controls()
         self.statusBar().showMessage("Scan cancelled · ready for a new scan" if cancelled else "Scan started", 4000)
+
+    def _configure_camera_tracking(self):
+        self._tracking_session = self._session_id
+        if hasattr(self.worker, "set_tracking_settings"):
+            try:
+                settings = ScanSettings.from_dict(self._session_settings) if self._session_settings else None
+            except (TypeError, ValueError):
+                settings = None
+            if settings is not None and not (self._scanning and settings.live_reconstruction and settings.color_recovery):
+                settings = None
+            self.worker.set_tracking_settings(settings)
 
     def _cancel_scan(self, checked=False, *, protected=False):
         if self._closing or not self.server_client.is_connected:
@@ -1244,6 +1257,7 @@ class MainWindow(QMainWindow):
         self._operation_error = ""
         self._last_preview_path = None
         self._scanning = False
+        self._configure_camera_tracking()
         self.capture_sound.reset_tracking()
         self._reset_auto_capture_cadence()
         self.auto_capture_cb.setChecked(False)
@@ -1473,6 +1487,8 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(1000, self._poll_server_status)
         if self._server_stored or self._has_mesh:
             self._apply_session_settings(self._session_settings)
+        else:
+            self._configure_camera_tracking()
         if self._server_stored or self._has_mesh:
             self._switch_mode(MODE_SCANNER)
         else:
@@ -1487,6 +1503,8 @@ class MainWindow(QMainWindow):
     def _apply_session_settings(self, settings):
         with self.preferences.suspend():
             self._restore_session_settings(settings)
+        if getattr(self, "_tracking_session", None) != self._session_id:
+            self._configure_camera_tracking()
 
     def _restore_session_settings(self, settings):
         if not settings:
@@ -1623,6 +1641,7 @@ class MainWindow(QMainWindow):
         self._has_mesh = success
         self._scanning = False
         self._paused = True
+        self._configure_camera_tracking()
         self.progress_bar.hide()
         self._operation_error = "" if success else detail
         self.statusBar().showMessage(detail, 8000)

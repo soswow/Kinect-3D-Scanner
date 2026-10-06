@@ -92,6 +92,11 @@ class LiveView(QWidget):
         self.status_label.setWordWrap(True)
         self.status_label.setAccessibleName("Reconstruction status")
         layout.addWidget(self.status_label)
+        self.surface_label = QLabel(self.panel)
+        self.surface_label.setWordWrap(True)
+        self.surface_label.setAccessibleName("Preview and final surface coverage")
+        self.surface_label.setStyleSheet("color: #ffcf79;")
+        layout.addWidget(self.surface_label)
         self.color_warning_label = QLabel(self.panel)
         self.color_warning_label.setWordWrap(True)
         self.color_warning_label.setStyleSheet("color: #ffcf79;")
@@ -232,6 +237,8 @@ class LiveView(QWidget):
             f"{s.get('frame_count', 0)} integrated · {s.get('pending_count', 0)} pending"
             + (f" · return to Frame {s['last_tracked_index'] + 1}" if lost and s.get("last_tracked_index") is not None else "")
         )
+        self.surface_label.setText(s.get("surface_description", ""))
+        self.surface_label.setVisible(bool(s.get("surface_description")))
         lag = result.get("metadata", {}).get("rgb_depth_delta_ms")
         sync_warning = (s.get("color_assistance_requested") and lag is not None
                         and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS)

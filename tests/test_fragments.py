@@ -203,7 +203,7 @@ class FragmentTests(unittest.TestCase):
             pose[0, 3] = 0.2 if seed < 10000 else 0.4
             return pose
 
-        def verified(source, target, pose):
+        def verified(source, target, pose, camera=None):
             return {"source": source.index, "target": target.index, "transform": pose,
                     "information": np.eye(6), "support": [(0, 3), (1, 4)], "validation": {}}
 

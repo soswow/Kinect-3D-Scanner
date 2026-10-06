@@ -75,6 +75,13 @@ class LiveViewTests(unittest.TestCase):
         self.view.set_feedback_connected(True)
         self.assertEqual("Move slowly with overlap", self.view.guidance_label.text())
 
+    def test_surface_coverage_notice_remains_visible_without_details(self):
+        text = "Live preview includes tentative surface. Finish may remove weak or unconnected areas."
+        self.snapshot([[0, 0, 1]], surface_description=text)
+        self.assertFalse(self.view.surface_label.isHidden())
+        self.assertEqual(text, self.view.surface_label.text())
+        self.assertTrue(self.view.details_label.isHidden())
+
     def test_render_nearest_splat_and_empty_camera_view(self):
         self.snapshot([[0, 0, 2], [0, 0, 1]], colors=[[1, 0, 0], [0, 1, 0]])
         image = self.view.grab().toImage()
