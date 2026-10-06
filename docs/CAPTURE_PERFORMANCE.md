@@ -75,7 +75,11 @@ regression check, not evidence that the complete chest reconstruction is correct
 - **Feedback:** the client negotiates `xyzrgb-f32le`. Each point carries the same
   six float32 XYZ/RGB values in bounded base64 data. Decoding occurs on the
   listener thread; serialization occurs outside the engine lock and away from
-  the HTTP event loop. Legacy subscribers keep JSON lists, and the new client
+  the HTTP event loop. Live delivery overlaps the next reconstruction frame and
+  holds one in-flight update plus the latest pending snapshot. Old-session updates
+  are invalidated on reset, and manual build/preview drain earlier live feedback.
+  Single-frame decompression also runs away from the HTTP event loop.
+  Legacy subscribers keep JSON lists, and the new client
   accepts legacy servers. Point counts and rendering density are preserved.
 - **Diagnostics:** model refreshes called from tracking/recovery are reported
   under `model_refresh`; nested timing excludes them from the parent tracking
@@ -112,6 +116,51 @@ disable confidence fusion, reduce geometry resolution, or repair missing overlap
 The feedback cloud still uses the cached model refresh schedule. CUDA performance
 and physical Kinect throughput have not been measured for this change.
 
+## CPU parallelism
+
+Acquisition already runs in a separate camera process, supervised by a Qt worker.
+Upload/recording work uses a Qt worker, WebSocket receiving/decoding uses another
+thread, and reconstruction runs in a native worker away from the server's HTTP
+event loop. Feedback encoding/delivery now overlaps reconstruction rather than
+making the frame processor wait for each broadcast. Slow feedback can replace
+intermediate display snapshots; it never drops captured reconstruction frames.
+
+Whole-frame reconstruction remains ordered. Tracking uses the previous accepted
+pose, the latest fused model, and recovery history. Fusion updates overlapping
+voxel attributes in one shared volume. Running independent complete frames
+against that mutable state would change acceptance decisions or race updates.
+
+The strongest remaining parallelism candidates are:
+
+1. A bounded lookahead of one or two frames for RGB-D calibration/filtering and
+   registration-cloud preparation, while the current frame tracks and integrates.
+   These inputs can be prepared independently using immutable session settings;
+   results must be consumed in order and invalidated on reset. Native point-cloud
+   construction/normal-estimation calls need GIL/CPU-budget measurements first.
+2. Confidence fusion over disjoint voxel-block batches, after serial block
+   activation. Read-only observation arrays can be shared; each worker must own
+   non-overlapping attribute indices. This requires numerical parity, bounded
+   scratch memory, and evidence that memory bandwidth does not erase the gain.
+3. Independent offline feature/matching work for final reconstruction, retaining
+   ordered pose decisions and a single owner of the mutable volume.
+
+Open3D operations already use native parallelism. Its Open3D 0.20 legacy ICP
+[Python binding](https://github.com/isl-org/Open3D/blob/v0.20.0/cpp/pybind/pipelines/registration/registration.cpp)
+explicitly releases the GIL, so another Python thread can perform native work
+while ICP runs. Ordinary Python bytecode is subject to the
+[CPython GIL](https://docs.python.org/3/library/threading.html#gil-and-performance-considerations).
+More outer threads do not automatically mean more effective CPU cores.
+
+On the test Mac, there are eight performance and two efficiency cores. The
+launcher defaults to four OpenMP threads, while `python -m scanner_server`
+defaults to fourteen; both respect an explicit `OMP_NUM_THREADS`. OpenCV reports
+ten threads in this environment. Nested pools should share a deliberate CPU
+budget. Replays with 1/4/8/14 OpenMP threads were performed, but substantial
+concurrent host CPU load made those measurements unsuitable for selecting a
+default. No thread-count change or parallel-frame speedup is claimed. The replay
+timings above measure the numerical/transport changes, not overlapped feedback
+delivery; the latter is validated by blocked-encoder/slow-subscriber tests.
+
 ## Validation
 
 Numerical tests compare CPU weighted TSDF, weight, and color attributes with the
@@ -120,9 +169,12 @@ cover VGA/high-resolution level-0 packets, metadata and batch losslessness,
 packed/legacy feedback, bounded malformed-message rejection, and remote/local
 compression selection. Recovery and live API tests cover cached references,
 tracking freeze, cancellation/reset/build barriers, and HTTP responsiveness
-while feedback encoding runs.
+while feedback encoding runs. Additional concurrency tests confirm the next frame
+can finish with feedback encoding blocked, pending snapshots coalesce, terminal
+messages remain ordered, and reset/shutdown invalidate pending delivery.
 
-Full verification: **194 tests passed, 2 CUDA tests skipped**. The synthetic
+After integration with the current local `master`, full verification:
+**257 tests passed, 2 CUDA tests skipped**. The synthetic
 HTTP/WebSocket/Qt scan workflow passed, including live fused feedback, final mesh
 builds, exports, and lossless session download. Changed-file lint passed; the
-engine retains its four pre-existing broad-exception lint findings.
+engine retains its pre-existing broad-exception lint findings.

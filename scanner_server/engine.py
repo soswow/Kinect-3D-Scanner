@@ -1122,6 +1122,8 @@ class ScanEngine:
                 self.frame_count = len(proposals)
                 self.cumulative_T = last_pose.copy()
                 self._last_rgbd = last_rgbd
+                # Offline reconnection can change the last accepted observation.
+                self._last_reg_pcd = None
                 self._tracking_lost_frames = self._processed_count - last_index - 1
                 self._lost_at_index = lost_at
                 self._recovery_preview = None

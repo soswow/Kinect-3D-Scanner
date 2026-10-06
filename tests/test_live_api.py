@@ -6,6 +6,7 @@ os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 
 import asyncio
+import json
 import threading
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -70,7 +71,10 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.original = server.engine
         server.engine = ScanEngine(device="cpu")
         server._build_lock = asyncio.Lock()
+        server._broadcast_lock = asyncio.Lock()
         server._live_task = None
+        server._feedback_task = None
+        server._pending_live = None
         server._latest_live = None
         server._shutting_down = False
         server._exclusive = False
@@ -86,10 +90,17 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
                 await server._live_task
             except asyncio.CancelledError:
                 pass
+        if server._feedback_task is not None:
+            server._feedback_task.cancel()
+            try:
+                await server._feedback_task
+            except asyncio.CancelledError:
+                pass
         await self.http.aclose()
         server.engine = self.original
         server._shutting_down = False
         server._latest_live = None
+        server._pending_live = None
         server._exclusive = False
 
     async def test_live_batch_acknowledgements_and_bounded_snapshot(self):
@@ -237,8 +248,6 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, server.engine.stored_count)
 
     async def test_packed_and_legacy_subscribers_receive_the_same_snapshot(self):
-        import json
-
         class Socket:
             def __init__(self, packed):
                 self.query_params = {"geometry": "xyzrgb-f32le"} if packed else {}
@@ -301,6 +310,164 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
             release.set()
             if task is not None:
                 await task
+            server._ws_clients.discard(socket)
+
+    async def test_next_frame_processes_while_previous_feedback_is_encoding(self):
+        await self.http.post("/api/scan/reset", json={"live_reconstruction": True, "rgb_mode": "rgb_low_res"})
+        entered, release = threading.Event(), threading.Event()
+        messages = []
+        original = server.encode_live_message
+
+        class Socket:
+            def __init__(self):
+                self.query_params = {"geometry": "xyzrgb-f32le"}
+
+            async def send_text(self, data):
+                messages.append(json.loads(data))
+
+        def encode(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError("test release missing")
+            return original(*args, **kwargs)
+
+        def process(max_frames):
+            self.assertEqual(1, max_frames)
+            if server.engine._processed_count == 1:
+                self.assertTrue(entered.wait(5))
+                self.assertFalse(release.is_set())
+            server.engine._processed_count += 1
+            server.engine.frame_count += 1
+
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        depth = np.zeros((480, 640), np.uint16)
+        socket = Socket()
+        server._ws_clients.add(socket)
+        try:
+            with patch.object(server.engine, "process_frames", side_effect=process), \
+                    patch.object(server, "encode_live_message", side_effect=encode):
+                result = (await self.http.post("/api/scan/frames", content=pack_frames([(rgb, depth)] * 2))).json()
+                self.assertEqual(2, result["batch_size"])
+                await asyncio.wait_for(asyncio.shield(server._live_task), 3)
+                self.assertTrue(entered.is_set())
+                self.assertEqual(2, server._latest_live["processed_count"])
+                self.assertEqual(0, server.engine.unprocessed_count)
+                self.assertEqual([], messages)
+                release.set()
+                await server._flush_live_feedback()
+            self.assertEqual([1, 2], [m["processed_count"] for m in messages])
+        finally:
+            release.set()
+            await server._flush_live_feedback()
+            server._ws_clients.discard(socket)
+
+    async def test_slow_feedback_retains_only_the_newest_pending_snapshot_and_build_order(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+        messages = []
+
+        class Socket:
+            async def send_text(self, data):
+                message = json.loads(data)
+                if not messages:
+                    entered.set()
+                    await release.wait()
+                messages.append(message)
+
+        socket = Socket()
+        server._ws_clients.add(socket)
+        task = None
+        try:
+            def snapshot(index):
+                return {"type": "live", "session_id": server.engine.session_id,
+                        "processed_count": index}
+
+            server._queue_live_feedback(snapshot(1))
+            await asyncio.wait_for(entered.wait(), 1)
+            for index in range(2, 101):
+                server._queue_live_feedback(snapshot(index))
+            self.assertEqual(100, server._pending_live["processed_count"])
+
+            async def build():
+                async with server._exclusive_operation("build"):
+                    await server._broadcast({"type": "done"})
+
+            task = asyncio.create_task(build())
+            await asyncio.sleep(0.01)
+            self.assertFalse(task.done())
+            release.set()
+            await asyncio.wait_for(task, 2)
+            self.assertEqual([1, 100, None], [m.get("processed_count") for m in messages])
+            self.assertEqual("done", messages[-1]["type"])
+            self.assertIsNone(server._pending_live)
+            self.assertIsNone(server._feedback_task)
+        finally:
+            release.set()
+            if task is not None:
+                await task
+            await server._flush_live_feedback()
+            server._ws_clients.discard(socket)
+
+    async def test_reset_discards_feedback_being_encoded_and_pending_feedback(self):
+        entered, release = threading.Event(), threading.Event()
+        messages = []
+        original = server.encode_live_message
+
+        class Socket:
+            async def send_text(self, data):
+                messages.append(json.loads(data))
+
+        def encode(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError("test release missing")
+            return original(*args, **kwargs)
+
+        socket = Socket()
+        server._ws_clients.add(socket)
+        try:
+            with patch.object(server, "encode_live_message", side_effect=encode):
+                old = server.engine.live_snapshot(array_geometry=True)
+                server._latest_live = old
+                server._queue_live_feedback(old)
+                for _ in range(100):
+                    if entered.is_set():
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertTrue(entered.is_set())
+                server._queue_live_feedback(old)
+                result = (await asyncio.wait_for(self.http.post("/api/scan/reset", json={}), 2)).json()
+                self.assertNotEqual(old["session_id"], result["session_id"])
+                self.assertIsNone(server._latest_live)
+                self.assertIsNone(server._pending_live)
+                release.set()
+                await server._flush_live_feedback()
+            self.assertEqual([], messages)
+        finally:
+            release.set()
+            await server._flush_live_feedback()
+            server._ws_clients.discard(socket)
+
+    async def test_shutdown_cancels_feedback_delivery(self):
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+
+        class Socket:
+            async def send_text(self, data):
+                entered.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    cancelled.set()
+
+        socket = Socket()
+        server._ws_clients.add(socket)
+        try:
+            async with server.lifespan(server.app):
+                server._queue_live_feedback(server.engine.live_snapshot(array_geometry=True))
+                await asyncio.wait_for(entered.wait(), 1)
+            self.assertTrue(cancelled.is_set())
+            self.assertIsNone(server._feedback_task)
+            self.assertIsNone(server._pending_live)
+        finally:
             server._ws_clients.discard(socket)
 
 

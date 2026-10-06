@@ -87,7 +87,12 @@ little-endian float32 values, XYZ followed by RGB in 0–1. Counts and payload s
 are bounded to 30,000 points; decoding happens on the listener thread. Clients
 without that query parameter receive the existing JSON lists, and the new client
 also accepts older servers. Serialization runs outside the engine lock and away
-from the HTTP event loop. See [capture performance](CAPTURE_PERFORMANCE.md) for
+from the HTTP event loop. A separate delivery worker lets reconstruction continue
+while feedback is encoded and sent. It keeps one update in flight and only the
+newest pending snapshot, preventing slow viewers from creating a stale backlog.
+Reset invalidates queued/encoded updates from the previous session; build and
+preview drain earlier live updates before their progress/final messages.
+See [capture performance](CAPTURE_PERFORMANCE.md) for
 measurements, remaining costs, and the recording profiler.
 Geometry is sampled from the fused cloud before tracking downsamples it, using
 the existing model extraction, refreshed every three accepted integrations.
