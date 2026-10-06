@@ -1,0 +1,79 @@
+{
+  "archive": "chest-3-scan-session_20261006_215208.zip",
+  "archive_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+  "code_commit": "67558af9b3cf4902ed72d653534c9135eb569eb6",
+  "captures": 126,
+  "original": {
+    "live_accepted": 68,
+    "live_loss_episodes": 15,
+    "final_views": 16,
+    "final_vertices": 52722,
+    "final_triangles": 96845,
+    "final_area_m2": 0.82566511063126
+  },
+  "combined_trial": {
+    "live_accepted": 104,
+    "live_loss_episodes": 9,
+    "live_methods": {
+      "reference": 1,
+      "rgbd+icp": 11,
+      "icp": 9,
+      "keyframe+visual": 82,
+      "anchor+icp": 1
+    },
+    "final_views": 120,
+    "final_vertices": 200081,
+    "final_triangles": 389817,
+    "final_area_m2": 3.3152159505108085,
+    "final_missing_captures_1based": [
+      38,
+      57,
+      81,
+      93,
+      104,
+      121
+    ],
+    "recovered_rejected_captures": 19,
+    "corrected_accepted_poses": 100,
+    "excluded_accepted_captures_1based": [
+      81,
+      93,
+      121
+    ],
+    "connected_fragments": 13,
+    "unconnected_fragments": 6,
+    "surviving_bridges": 12,
+    "sequential_bridges": 3,
+    "tested_pairs": 19,
+    "candidate_pairs": 64,
+    "blocks": 7095,
+    "block_limit": 10000,
+    "final_weight": 2.0,
+    "voxel_m": 0.005,
+    "optimization_fallback": null,
+    "elapsed_s": 696.004558833316,
+    "additional_refinement": "No trustworthy loop constraints"
+  },
+  "validation": {
+    "full_tests": 283,
+    "passed": 281,
+    "cuda_skipped": 2,
+    "session_lifetime_checks": 12,
+    "pipeline": "passed",
+    "physical_camera_rate_motion": "unverified; intermediate camera images absent from archive",
+    "absolute_geometry_accuracy": "unverified",
+    "camera_cost": {
+      "scope": "Repeated first native archive pair with artificial 10 fps timestamps; compute cost only, not physical motion validation",
+      "median_ms": 43.05750038474798,
+      "max_ms": 57.591541670262814,
+      "valid_updates": 18,
+      "updates": 18,
+      "rgb_shape": [
+        1024,
+        1280,
+        3
+      ]
+    }
+  },
+  "artifact_directory": "/Users/sasha/hobby/xbox360/chest-3-session-analysis/continuous-tracking"
+}

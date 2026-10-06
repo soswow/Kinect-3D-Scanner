@@ -8,6 +8,17 @@ changes; a running scan is not replaced by this development work.
 
 ## The two tracking speeds
 
+```mermaid
+flowchart LR
+  Camera[Incoming camera frames] --> Motion[Fast local motion estimate]
+  Camera --> Capture[Selected captures]
+  Motion --> Capture
+  Capture --> Verify[Verify against saved views]
+  Verify --> Fusion[Live fused surface]
+  Verify --> Links[Measured camera links]
+  Links --> Finish[Finish: verify graph and rebuild]
+```
+
 The camera thread follows up to 500 image corners with pyramidal optical flow,
 checks forward/backward agreement, and requires measured depth at both ends.
 PnP proposes motion, paired 3D points constrain metric motion, and a small joint
@@ -108,3 +119,37 @@ Final replay outputs and complete raw-evidence reports are preserved outside Git
 in `/Users/sasha/hobby/xbox360/chest-3-session-analysis/continuous-tracking/`.
 The original archive is unchanged. A new physical capture with the running
 client/server changes, and CUDA execution, remain unverified.
+
+## Combined final replay result
+
+The combined tracking and fragment-boundary fixes rebuild the archive with
+**120 of 126 captured views**, compared with sixteen in the earlier final
+replay. Nineteen rejected views are recovered, one hundred live poses corrected,
+and three previously accepted views excluded. Missing captures are 38, 57, 81,
+93, 104, and 121 (one based); the latter three were accepted during live replay.
+All observations remain in the unchanged original ZIP.
+
+| Final result | Earlier replay | Combined trial |
+| --- | ---: | ---: |
+| Retained views | 16 | 120 |
+| Vertices | 52,722 | 200,081 |
+| Triangles | 96,845 | 389,817 |
+| Surface area | 0.826 m² | 3.315 m² |
+| Final confidence threshold | 2.0 | 2.0 |
+| Voxel size | 5 mm | 5 mm |
+
+Thirteen fragments connect through twelve surviving measured bridges, including
+three verified storage-boundary links. The search checks nineteen of sixty-four
+candidate pairs. Global graph optimization passes its final raw-data checks;
+the optimization fallback is not needed in this successful combined replay.
+Additional pose refinement finds no further trustworthy loops. Fresh fragment
+fusion uses 7,095 of the archive's 10,000-block budget and takes about 11.6 minutes
+including verification. No separate finer voxel resolution was requested.
+
+Matched oblique and overhead renders show a single chest with substantially
+better lid and wall coverage. More captured floor also contributes to the
+triangle increase; this is greater verified coverage, not a change in voxel
+resolution or a measurement of absolute accuracy. The fixed-camera comparison
+is `mesh-comparison.jpg`; the reconstructed mesh is `final.ply` in the artifact
+directory above. The compact [benchmark record](benchmarks/chest-3-visual-tracking.json)
+contains counts, exclusions, unchanged source checksum, and verification scope.
