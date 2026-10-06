@@ -1,0 +1,179 @@
+{
+  "date": "2026-10-06",
+  "recording": "chest_20261005_230320",
+  "baseline_commit": "76ca3326e2be147eeebbba1a9c849b5300c2bec6",
+  "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+  "python": "3.13.7",
+  "open3d": "0.20.0",
+  "device": "CPU:0",
+  "omp_threads": 4,
+  "initial_blocks": 5000,
+  "repeats_per_version": 2,
+  "frames_per_run": 50,
+  "accepted_per_run": 14,
+  "method": "Sequential isolated recording replays with preserved settings/timestamp/recovery gates; one live update per processed frame; includes frame packing/unpacking/storage/processing/feedback encoding/decoding; excludes startup, file loading, final mesh/refinement, USB and network transport. Stage summaries are medians of per-run summaries.",
+  "baseline_feedback": "JSON lists",
+  "baseline_compression_level": 1,
+  "optimized_feedback": "xyzrgb-f32le",
+  "optimized_compression_level": 0,
+  "before": {
+    "source_sha256": "798a2e1e61c242e660b4c01978f5a4c5f7e80383a100ea75391c5f6433934086",
+    "source_hash_scope": "scanner_server/*.py and shared/*.py",
+    "all_sources_stable": true,
+    "elapsed_s": {
+      "runs": [
+        76.22808233369142,
+        79.3491505002603
+      ],
+      "median": 77.78861641697586
+    },
+    "accepted_frame_p50_ms": 1345.159062417224,
+    "accepted_frames_total_processing_s": 21.620232521090657,
+    "stages": {
+      "pack": {
+        "p50_ms": 85.57870821096003,
+        "p95_ms": 104.41456157714128,
+        "total_ms": 4397.483374923468
+      },
+      "unpack": {
+        "p50_ms": 11.269208043813705,
+        "p95_ms": 13.097200286574658,
+        "total_ms": 601.7209198325872
+      },
+      "store": {
+        "p50_ms": 0.20404206588864326,
+        "p95_ms": 0.8514176821336141,
+        "total_ms": 16.798606142401695
+      },
+      "process": {
+        "p50_ms": 1281.8761877715588,
+        "p95_ms": 2188.081235345452,
+        "total_ms": 65992.49406112358
+      },
+      "snapshot": {
+        "p50_ms": 4.071500152349472,
+        "p95_ms": 11.219586408697062,
+        "total_ms": 306.14880844950676
+      },
+      "feedback_encode": {
+        "p50_ms": 82.05617731437087,
+        "p95_ms": 114.10289609339085,
+        "total_ms": 4327.962731942534
+      },
+      "feedback_decode": {
+        "p50_ms": 37.492427276447415,
+        "p95_ms": 43.77968846820295,
+        "total_ms": 1947.2869797609746
+      }
+    },
+    "weighted_fusion_p50_ms": 853.8693750742823,
+    "rgbd_preparation_p50_ms": 51.4933958183974,
+    "feedback_p50_bytes": 3511883.25,
+    "upload_p50_bytes": 3688716.5,
+    "peak_rss_bytes": [
+      1019985920,
+      865173504
+    ]
+  },
+  "after": {
+    "source_sha256": "99e6c4e07bf650c5a4258cc472bf985f885f76e40a0d2d87ff29c59fe3d2db06",
+    "source_hash_scope": "scanner_server/*.py and shared/*.py",
+    "all_sources_stable": true,
+    "elapsed_s": {
+      "runs": [
+        51.3946645418182,
+        69.4688502503559
+      ],
+      "median": 60.43175739608705
+    },
+    "accepted_frame_p50_ms": 951.5725099481642,
+    "accepted_frames_total_processing_s": 13.078278770670295,
+    "stages": {
+      "pack": {
+        "p50_ms": 2.2998859640210867,
+        "p95_ms": 6.265084352344269,
+        "total_ms": 145.0216039083898
+      },
+      "unpack": {
+        "p50_ms": 1.003718702122569,
+        "p95_ms": 1.4497031690552826,
+        "total_ms": 52.327562123537064
+      },
+      "store": {
+        "p50_ms": 0.2605831250548363,
+        "p95_ms": 1.1592303868383145,
+        "total_ms": 20.042211282998323
+      },
+      "process": {
+        "p50_ms": 1072.9066040366888,
+        "p95_ms": 2090.478295320644,
+        "total_ms": 59873.97991865873
+      },
+      "snapshot": {
+        "p50_ms": 0.14006253331899643,
+        "p95_ms": 0.30986366327852,
+        "total_ms": 17.489460296928883
+      },
+      "feedback_encode": {
+        "p50_ms": 3.344958182424307,
+        "p95_ms": 3.921331698074937,
+        "total_ms": 171.21470952406526
+      },
+      "feedback_decode": {
+        "p50_ms": 2.875103848055005,
+        "p95_ms": 3.5292138112708926,
+        "total_ms": 147.92402414605021
+      }
+    },
+    "weighted_fusion_p50_ms": 382.6360728126019,
+    "rgbd_preparation_p50_ms": 25.01555229537189,
+    "feedback_p50_bytes": 1036400.5,
+    "upload_p50_bytes": 4547277.0,
+    "peak_rss_bytes": [
+      1060372480,
+      798294016
+    ]
+  },
+  "elapsed_reduction_percent": 22.312852214583167,
+  "accepted_processing_reduction_percent": 39.50907439171913,
+  "quality": {
+    "same_accepted_indices_all_runs": true,
+    "accepted_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "max_pose_translation_change_m": 0.0002774899979568072,
+    "max_pose_rotation_change_deg": 0.016063683844111918,
+    "ground_truth_poses_available": 0,
+    "note": "Matching accepted indices and poses is a regression check, not an accuracy measurement. The saved session predates the conservative recovery gate and records 42 integrations; the current baseline and optimized engine both retain only the first 14."
+  },
+  "limits": [
+    "Only two repetitions; recovery ICP varies considerably with this lost-tracking-heavy recording.",
+    "Actual camera-to-feedback latency, GUI rendering, network throughput, and CUDA not measured by this profiler.",
+    "A local uncompressed zlib packet is larger: roughly 4.55 MB instead of 3.69 MB. Remote client connections retain level 1 compression.",
+    "Detailed replay diagnostics/captures remain ignored in benchmark-output; this summary contains no images or point clouds."
+  ],
+  "validation": {
+    "unittest": {
+      "run": 196,
+      "passed": 194,
+      "skipped": 2,
+      "reason": "CUDA hardware/build unavailable"
+    },
+    "synthetic_http_websocket_qt_pipeline": "passed",
+    "changed_file_lint": "passed; engine checked with its four existing BLE001 findings excluded",
+    "git_diff_check": "passed"
+  }
+}

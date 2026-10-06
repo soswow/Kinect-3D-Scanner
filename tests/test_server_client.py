@@ -23,6 +23,25 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
 
 
 class ServerClientTests(unittest.TestCase):
+    def test_loopback_uploads_use_stored_zlib_and_remote_uploads_use_compression(self):
+        for host, level in (("localhost", 0), ("127.0.0.1", 0), ("127.4.5.6", 0),
+                            ("192.168.1.10", 1), ("scanner.local", 1)):
+            client = ServerClient()
+            http = Mock()
+            http.get.side_effect = [response({"status": "ok"}), response({})]
+            http.post.return_value = response({"success": True})
+            with patch("kinect_scanner.server_client.httpx.Client", return_value=http), \
+                    patch("kinect_scanner.server_client.threading.Thread"), \
+                    patch("kinect_scanner.server_client.pack_frame", return_value=b"frame") as frame, \
+                    patch("kinect_scanner.server_client.pack_frames", return_value=b"batch") as batch:
+                self.assertTrue(client.connect_to_server(host, 8000))
+                client.send_frame(None, None)
+                client.send_frames_batch([])
+                self.assertEqual(level, frame.call_args.kwargs["compression_level"])
+                self.assertEqual(level, batch.call_args.kwargs["compression_level"])
+                self.assertIn("geometry=xyzrgb-f32le", client._ws_url)
+            client.disconnect()
+
     def test_connection_emits_full_session_status_and_uses_bounded_checks(self):
         client = ServerClient()
         status = {"session_id": "existing", "settings": {"voxel_size": .004},

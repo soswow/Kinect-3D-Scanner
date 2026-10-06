@@ -102,6 +102,7 @@ class ScanEngine:
         self.session_id = uuid.uuid4().hex
         self.stage_totals_ms = {}
         self._frame_timings = {}
+        self._stage_children = []
         self.refinement = {"applied": False, "reason": "Not requested"}
         self.original_poses = None
         self._refined_count = None
@@ -112,6 +113,7 @@ class ScanEngine:
         self._live_points = np.empty((0, 3), dtype=np.float32)
         self._live_colors = np.empty((0, 3), dtype=np.float32)
         self._last_rgbd = None
+        self._last_reg_pcd = None
         self._model_fpfh = None
         self._model_feature_cloud = None
         self._model_pyramid = {}
@@ -148,14 +150,18 @@ class ScanEngine:
         if str(self.device).startswith("CUDA"):
             o3c.cuda.synchronize()
         start = time.monotonic()
+        self._stage_children.append(0.0)
         try:
             yield
         finally:
             if str(self.device).startswith("CUDA"):
                 o3c.cuda.synchronize()
             elapsed = (time.monotonic() - start) * 1000
-            self._frame_timings[name] = self._frame_timings.get(name, 0) + elapsed
-            self.stage_totals_ms[name] = self.stage_totals_ms.get(name, 0) + elapsed
+            exclusive = max(0.0, elapsed - self._stage_children.pop())
+            if self._stage_children:
+                self._stage_children[-1] += elapsed
+            self._frame_timings[name] = self._frame_timings.get(name, 0) + exclusive
+            self.stage_totals_ms[name] = self.stage_totals_ms.get(name, 0) + exclusive
 
     def reconstruction_report(self):
         return {
@@ -186,7 +192,7 @@ class ScanEngine:
             },
         }
 
-    def live_snapshot(self, max_points=LIVE_MAX_POINTS):
+    def live_snapshot(self, max_points=LIVE_MAX_POINTS, *, array_geometry=False):
         """Bounded immutable view of cached fused geometry; no extra extraction."""
         if max_points < 1:
             raise ValueError("Live point budget must be positive")
@@ -199,6 +205,8 @@ class ScanEngine:
             else 0.0
         )
         result = self.diagnostics[-1] if self.diagnostics else {}
+        points = points[::step].astype(np.float32)
+        colors = np.clip(colors[::step], 0, 1).astype(np.float32)
         if result and not result.get("success"):
             guidance = (
                 "STOP — model paused. Return to the highlighted camera and match "
@@ -231,8 +239,8 @@ class ScanEngine:
             "skipped_count": sum(not r["success"] for r in self.diagnostics),
             "guidance": guidance,
             "geometry_frame_count": self.frame_count - self._integrations_since_model,
-            "points": points[::step].astype(np.float32).tolist(),
-            "colors": np.clip(colors[::step], 0, 1).astype(np.float32).tolist(),
+            "points": points if array_geometry else points.tolist(),
+            "colors": colors if array_geometry else colors.tolist(),
             "camera_to_world": self.cumulative_T.tolist(),
             **self.tracking_snapshot(),
             "camera": asdict(self.settings.camera),
@@ -296,9 +304,6 @@ class ScanEngine:
         depth_img = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(depth))).to(
             self.device
         )
-        color_img = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(rgb))).to(
-            self.device
-        )
         extrinsic_t = o3c.Tensor(extrinsic, dtype=o3c.float64)
 
         frustum_block_coords = volume.compute_unique_block_coordinates(
@@ -324,6 +329,9 @@ class ScanEngine:
                 self, volume, frustum_block_coords, rgb, depth, extrinsic
             )
             return
+        color_img = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(rgb))).to(
+            self.device
+        )
         volume.integrate(
             frustum_block_coords,
             depth_img,
@@ -706,7 +714,8 @@ class ScanEngine:
         if self.settings.color_recovery:
             try:
                 if self._integrations_since_model:
-                    self._extract_model_pcd()
+                    with self._stage("model_refresh"):
+                        self._extract_model_pcd()
                 recovered = self._color_recovery(source_pcd, rgbd)
                 if recovered is not None:
                     return recovered, "rgbd+icp"
@@ -719,7 +728,8 @@ class ScanEngine:
         # A turning camera can see surfaces from recently accepted frames that
         # are not in the cached model yet. Refresh before attempting recovery.
         if self._integrations_since_model:
-            self._extract_model_pcd()
+            with self._stage("model_refresh"):
+                self._extract_model_pcd()
             result = self._icp(source_pcd, self.model_pcd, init=self.cumulative_T)
             error = self._alignment_error(result, self.model_pcd)
             if error is None:
@@ -757,7 +767,9 @@ class ScanEngine:
 
         if self._last_rgbd is None or not self.poses:
             return None
-        target = self._make_reg_pcd(self._last_rgbd)
+        if self._last_reg_pcd is None:
+            self._last_reg_pcd = self._make_reg_pcd(self._last_rgbd)
+        target = self._last_reg_pcd
         forward = _match(source, target, np.eye(4))
         if not _trustworthy(forward, target):
             return None
@@ -771,7 +783,8 @@ class ScanEngine:
         if not _trustworthy(reverse, source) or translation > 0.01 or angle > 2:
             return None
         if self._integrations_since_model:
-            self._extract_model_pcd()
+            with self._stage("model_refresh"):
+                self._extract_model_pcd()
         result = self._icp(
             source, self.model_pcd, self.poses[-1][1] @ forward.transformation
         )
@@ -989,6 +1002,7 @@ class ScanEngine:
                 self._extract_model_pcd()
             self.frame_count = 1
             self._last_rgbd = rgbd
+            self._last_reg_pcd = current_pcd
             self.poses.append((self._processed_count, self.cumulative_T.copy()))
             elapsed_ms = (time.monotonic() - t0) * 1000
             return {
@@ -1029,6 +1043,7 @@ class ScanEngine:
             self._integrate_vbg(rgb, depth, np.linalg.inv(pose))
         self.cumulative_T = pose
         self._last_rgbd = rgbd
+        self._last_reg_pcd = current_pcd
         self.frame_count += 1
         self._integrations_since_model += 1
         self.poses.append((self._processed_count, pose.copy()))
@@ -1167,6 +1182,8 @@ class ScanEngine:
                 self.frame_count = len(proposals)
                 self.cumulative_T = last_pose.copy()
                 self._last_rgbd = last_rgbd
+                # Offline reconnection can change the last accepted observation.
+                self._last_reg_pcd = None
                 self._tracking_lost_frames = self._processed_count - last_index - 1
                 self._lost_at_index = lost_at
                 self._recovery_preview = None

@@ -70,6 +70,7 @@ class FragmentTests(unittest.TestCase):
         self.assertEqual(0, result["skipped_count"])
         self.assertTrue(result["fragment_reconnection"]["applied"])
         self.assertTrue(engine.diagnostics[-1]["recovered_offline"])
+        self.assertIsNone(engine._last_reg_pcd)
         self.assertFalse(engine.live_snapshot(max_points=10)["fusion_paused"])
         with patch("scanner_server.fragments.propose_fragment_poses", side_effect=AssertionError("repeated search")):
             self.assertTrue(engine.build_mesh()[0])

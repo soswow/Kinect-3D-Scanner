@@ -281,6 +281,7 @@ texel. Experimental quality options remain off until measured scans justify them
 
 See [tested milestone checkpoints and next evidence](docs/IMPLEMENTATION_MILESTONES.md),
 [operation, validation, limits, and remaining implementation work](docs/LIVE_RECONSTRUCTION.md)
+[capture performance measurements and reproduction](docs/CAPTURE_PERFORMANCE.md),
 and [papers and open-source integration roadmap](docs/RESEARCH_ROADMAP.md).
 
 ---
@@ -423,7 +424,7 @@ Frames are serialized using the `shared.protocol` module.
 | Field | Size | Description |
 |-------|------|-------------|
 | `rgb_len` | 4 bytes (big-endian uint32) | Length of compressed RGB data |
-| `rgb_compressed` | variable | zlib level=1 compressed RGB (480x640x3 or 1024x1280x3 uint8) |
+| `rgb_compressed` | variable | Lossless zlib RGB (480x640x3 or 1024x1280x3 uint8); level 0 on loopback, level 1 remotely |
 | `depth_compressed` | remainder | zlib level=1 compressed depth (480x640 uint16; session defines units) |
 
 High-resolution frames prepend `RGB3`, a big-endian uint32 JSON length, and a

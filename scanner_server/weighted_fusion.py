@@ -1,6 +1,7 @@
 """Experimental confidence-weighted projective TSDF using Open3D tensors.
 
-CPU/CUDA voxel math stays on the selected device. Confidence is computed on CPU.
+CPU voxel math uses shared NumPy buffers; CUDA math stays on device tensors.
+Confidence is computed on CPU.
 The ordinary optimized integration remains the default.
 """
 
@@ -11,8 +12,81 @@ from shared.confidence import depth_confidence
 
 
 def integrate_weighted(engine, volume, blocks, rgb, depth, extrinsic):
-    device = engine.device
     confidence = depth_confidence(depth, engine.settings.camera)
+    if str(engine.device) == "CPU:0":
+        _integrate_cpu(engine, volume, blocks, rgb, depth, extrinsic, confidence)
+    else:
+        _integrate_tensor(engine, volume, blocks, rgb, depth, extrinsic, confidence)
+    valid = depth > 0
+    return {
+        "mean_observation_weight": float(confidence[valid].mean())
+        if np.any(valid)
+        else 0,
+        "rejected_confidence_fraction": float(np.mean(confidence[valid] == 0))
+        if np.any(valid)
+        else 0,
+    }
+
+
+def _integrate_cpu(engine, volume, blocks, rgb, depth, extrinsic, confidence):
+    """Update shared CPU attribute buffers in bounded NumPy batches.
+
+    Open3D's general tensor indexing launches many small parallel operations on
+    CPU. NumPy views avoid those launches and copies without changing the
+    projective TSDF equations or the confidence and truncation gates.
+    """
+    hashmap = volume.hashmap()
+    hashmap.activate(blocks)
+    buffers, found = hashmap.find(blocks)
+    buffers = buffers[found]
+    tsdf = volume.attribute("tsdf").numpy().reshape(-1, 1)
+    weight = volume.attribute("weight").numpy().reshape(-1, 1)
+    color = volume.attribute("color").numpy().reshape(-1, 3)
+    transform = np.asarray(extrinsic, dtype=np.float32)
+    depth_m = depth.astype(np.float32) / 1000
+    camera = engine.settings.camera
+    for start in range(0, len(buffers), 128):
+        points, flat = volume.voxel_coordinates_and_flattened_indices(
+            buffers[start : start + 128]
+        )
+        xyz = points.numpy() @ transform[:3, :3].T + transform[:3, 3]
+        z = xyz[:, 2]
+        safe = np.maximum(z, np.float32(1e-6))
+        # Open3D rounds half away from zero; np.rint uses ties to even.
+        projected = xyz[:, :2] * [np.float32(camera.fx), np.float32(camera.fy)]
+        projected /= safe[:, None]
+        projected += [np.float32(camera.cx), np.float32(camera.cy)]
+        pixels = np.copysign(np.floor(np.abs(projected) + 0.5), projected).astype(
+            np.int64
+        )
+        u, v = pixels.T
+        inside = (
+            (z > 0) & (u >= 0) & (v >= 0) & (u < camera.width) & (v < camera.height)
+        )
+        u, v, z = u[inside], v[inside], z[inside]
+        ids = flat.numpy().reshape(-1)[inside]
+        observed, incoming = depth_m[v, u], confidence[v, u]
+        sdf = observed - z
+        valid = (
+            (observed > 0)
+            & (observed <= engine.max_depth_m)
+            & (incoming > 0)
+            & (sdf >= -engine.sdf_trunc)
+        )
+        ids = ids[valid]
+        if not len(ids):
+            continue
+        distances = np.minimum(sdf[valid, None] / engine.sdf_trunc, 1)
+        contribution = incoming[valid, None]
+        old = weight[ids]
+        total = old + contribution
+        tsdf[ids] = (tsdf[ids] * old + distances * contribution) / total
+        color[ids] = (color[ids] * old + rgb[v[valid], u[valid]] * contribution) / total
+        weight[ids] = total
+
+
+def _integrate_tensor(engine, volume, blocks, rgb, depth, extrinsic, confidence):
+    device = engine.device
     weights_image = core.Tensor(confidence, device=device)
     depth_image = core.Tensor(depth.astype(np.float32) / 1000, device=device)
     color_image = core.Tensor(rgb.astype(np.float32), device=device)
@@ -62,11 +136,3 @@ def integrate_weighted(engine, volume, blocks, rgb, depth, extrinsic):
             color[ids] * old + color_image[v[valid], u[valid]] * contribution
         ) / total
         weight[ids] = total
-    return {
-        "mean_observation_weight": float(confidence[depth > 0].mean())
-        if np.any(depth)
-        else 0,
-        "rejected_confidence_fraction": float(np.mean(confidence[depth > 0] == 0))
-        if np.any(depth)
-        else 0,
-    }

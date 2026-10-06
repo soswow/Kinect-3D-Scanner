@@ -25,10 +25,12 @@ def validate_arrays(rgb, depth):
         raise ValueError("Depth must be uint16 480x640")
 
 
-def pack_frame(rgb, depth, metadata=None):
+def pack_frame(rgb, depth, metadata=None, *, compression_level=1):
     validate_arrays(rgb, depth)
-    color = zlib.compress(np.ascontiguousarray(rgb).tobytes(), level=1)
-    metric = zlib.compress(np.ascontiguousarray(depth, dtype="<u2").tobytes(), level=1)
+    if compression_level not in (0, 1):
+        raise ValueError("Use zlib level 0 for loopback or level 1 for network capture")
+    color = zlib.compress(np.ascontiguousarray(rgb).tobytes(), level=compression_level)
+    metric = zlib.compress(np.ascontiguousarray(depth, dtype="<u2").tobytes(), level=compression_level)
     payload = _HEADER.pack(len(color)) + color + metric
     high_res = rgb.shape == (1024, 1280, 3)
     if metadata is not None or high_res:
@@ -92,10 +94,10 @@ def unpack_frame(data):
     return rgb, depth
 
 
-def pack_frames(frames):
+def pack_frames(frames, *, compression_level=1):
     if not 1 <= len(frames) <= _MAX_BATCH:
         raise ValueError("Batch requires 1–100 frames")
-    packed = [pack_frame(*frame) for frame in frames]
+    packed = [pack_frame(*frame, compression_level=compression_level) for frame in frames]
     return b"".join(
         [
             _HEADER.pack(_BATCH_MAGIC),

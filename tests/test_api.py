@@ -19,6 +19,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.original = server.engine
         server._build_lock = asyncio.Lock()
+        server._broadcast_lock = asyncio.Lock()
         self.http = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=server.app), base_url="http://scanner"
         )
@@ -64,6 +65,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         class Fake:
             mesh = None
+            session_id = "fake"
 
             def build_mesh(self, progress_cb=None):
                 events.append("build-start")
@@ -80,8 +82,8 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                 events.append("upload")
                 return {"success": True, "stored_count": 1}
 
-            def live_snapshot(self):
-                return {"type": "live", "frame_count": 0}
+            def live_snapshot(self, **kwargs):
+                return {"type": "live", "session_id": self.session_id, "frame_count": 0}
 
         fake = Fake()
         fake.settings = self.original.settings

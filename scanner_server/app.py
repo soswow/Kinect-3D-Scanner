@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 
+from shared.live import encode_live_message
 from shared.protocol import unpack_frame_with_metadata, unpack_frames
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
@@ -36,13 +37,22 @@ async def lifespan(app):
                 await _live_task
             except asyncio.CancelledError:
                 pass
+        if _feedback_task is not None:
+            _feedback_task.cancel()
+            try:
+                await _feedback_task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="Kinect 3D Scanner Server", lifespan=lifespan)
 engine = ScanEngine()
 engine.reset(settings=ScanSettings(sensor_calibration=load_calibration()))
 _build_lock = asyncio.Lock()
+_broadcast_lock = asyncio.Lock()
 _live_task = None
+_feedback_task = None
+_pending_live = None
 _latest_live = None
 _shutting_down = False
 _exclusive = False
@@ -56,6 +66,8 @@ async def _exclusive_operation(kind):
     _exclusive_kind = kind
     try:
         async with _build_lock:
+            # Finish earlier live updates before manual progress/final messages.
+            await _flush_live_feedback()
             yield
     finally:
         _exclusive = False
@@ -89,11 +101,11 @@ async def _live_worker():
                 snapshot = None
                 now = time.monotonic()
                 if now - last_sent >= 0.5 or not engine.unprocessed_count:
-                    snapshot = await _engine_call(engine.live_snapshot)
+                    snapshot = await _engine_call(engine.live_snapshot, array_geometry=True)
                     _latest_live = snapshot
                     last_sent = now
             if snapshot is not None:
-                await _broadcast(snapshot)
+                _queue_live_feedback(snapshot)
             await asyncio.sleep(0)  # give queued mutations the next lock turn
     except asyncio.CancelledError:
         failed = True
@@ -101,6 +113,7 @@ async def _live_worker():
     except Exception:
         failed = True
         logger.exception("Live processing stopped; manual build can retry")
+        await _flush_live_feedback()
         await _broadcast(
             {"type": "error", "message": "Live processing stopped; use Build to retry"}
         )
@@ -114,19 +127,69 @@ async def _live_worker():
 _ws_clients: set[WebSocket] = set()
 
 
+def _queue_live_feedback(snapshot):
+    """Retain one pending update while the previous update is being sent."""
+    global _pending_live, _feedback_task
+    if _shutting_down or not _ws_clients:
+        return
+    _pending_live = snapshot
+    if _feedback_task is None or _feedback_task.done():
+        _feedback_task = asyncio.create_task(_live_feedback_worker())
+
+
+async def _live_feedback_worker():
+    global _pending_live, _feedback_task
+    try:
+        while _pending_live is not None:
+            snapshot, _pending_live = _pending_live, None
+            await _broadcast(snapshot)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Live feedback delivery stopped")
+    finally:
+        _feedback_task = None
+        _pending_live = None
+
+
+async def _flush_live_feedback():
+    if _feedback_task is not None:
+        await asyncio.shield(_feedback_task)
+
+
 async def _broadcast(msg: dict):
     """Send a JSON message to all connected WebSocket clients."""
-    import json
+    # Serialize sends across live feedback and manual build/preview progress.
+    async with _broadcast_lock:
+        await _broadcast_unlocked(msg)
 
-    data = json.dumps(msg)
+
+async def _broadcast_unlocked(msg):
+    if msg.get("type") == "live" and msg.get("session_id") != engine.session_id:
+        return
+    clients = tuple(_ws_clients)
+    if not clients:
+        return
+    # Build each negotiated representation once, away from the HTTP event loop.
+    modes = {ws: _packed_feedback(ws) for ws in clients}
+    data = {}
+    for mode in set(modes.values()):
+        data[mode] = await asyncio.to_thread(encode_live_message, msg, packed_geometry=mode)
+    # Reset may have completed while the immutable snapshot was being encoded.
+    if msg.get("type") == "live" and msg.get("session_id") != engine.session_id:
+        return
 
     async def send(ws):
         try:
-            await asyncio.wait_for(ws.send_text(data), timeout=1.0)
+            await asyncio.wait_for(ws.send_text(data[modes[ws]]), timeout=1.0)
         except Exception:  # noqa: BLE001 — a failed subscriber must not interrupt scan progress.
             _ws_clients.discard(ws)
 
-    await asyncio.gather(*(send(ws) for ws in tuple(_ws_clients)))
+    await asyncio.gather(*(send(ws) for ws in clients))
+
+
+def _packed_feedback(websocket):
+    return getattr(websocket, "query_params", {}).get("geometry") == "xyzrgb-f32le"
 
 
 async def _engine_call(function, *args, **kwargs):
@@ -195,6 +258,7 @@ async def scan_diagnostics():
 
 @app.post("/api/scan/reset")
 async def scan_reset(request: Request):
+    global _latest_live, _pending_live
     body = await request.body()
     try:
         import json
@@ -209,6 +273,8 @@ async def scan_reset(request: Request):
         raise HTTPException(422, str(exc)) from exc
     async with _build_lock:
         await _engine_call(engine.reset, settings=settings)
+        _latest_live = None
+        _pending_live = None
     logger.info("Scan reset")
     return {
         "success": True,
@@ -225,7 +291,7 @@ async def scan_frame(request: Request):
     if not body:
         return {"success": False, "message": "Empty body"}
     try:
-        rgb, depth, metadata = unpack_frame_with_metadata(body)
+        rgb, depth, metadata = await asyncio.to_thread(unpack_frame_with_metadata, body)
     except Exception as e:  # noqa: BLE001 — report malformed protocol input at the HTTP boundary.
         return {"success": False, "message": f"Unpack error: {e}"}
 
@@ -321,7 +387,7 @@ async def scan_build():
         await _wait_for_processing(build_task, drain_progress)
 
         success, proc_result = build_task.result()
-        _latest_live = await _engine_call(engine.live_snapshot)
+        _latest_live = await _engine_call(engine.live_snapshot, array_geometry=True)
         await _broadcast(_latest_live)
 
         if success:
@@ -563,8 +629,14 @@ async def ws_progress(websocket: WebSocket):
     _ws_clients.add(websocket)
     logger.info("WebSocket client connected (%d total)", len(_ws_clients))
     try:
-        if _latest_live is not None and _latest_live["session_id"] == engine.session_id:
-            await asyncio.wait_for(websocket.send_json(_latest_live), timeout=1.0)
+        async with _broadcast_lock:
+            snapshot = _latest_live
+            if snapshot is not None and snapshot["session_id"] == engine.session_id:
+                data = await asyncio.to_thread(
+                    encode_live_message, snapshot, packed_geometry=_packed_feedback(websocket)
+                )
+                if snapshot["session_id"] == engine.session_id:
+                    await asyncio.wait_for(websocket.send_text(data), timeout=1.0)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
