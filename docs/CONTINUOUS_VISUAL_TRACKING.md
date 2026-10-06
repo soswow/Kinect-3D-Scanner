@@ -59,6 +59,14 @@ a single matching view remain insufficient. Optimized visual bridges must pass
 both checks again before fresh fusion. Geometric bridges keep their existing
 reciprocal and normal-diversity verification.
 
+The combined revision also preserves measured neighboring-camera links across
+the sixteen-view storage limit. A storage boundary no longer creates an
+artificial tracking loss. If global optimization moves verified links beyond
+their raw-data checks, its adjustment is rejected. The measured bridge poses
+are rechecked, inconsistent surviving links are discarded, and connectivity
+is recomputed from the first view. Pruned edges stay pruned. The report records
+this fallback; it does not establish that accumulated drift has been corrected.
+
 The live point cloud still includes low-weight tentative surface. Inspection
 during capture uses weight 0.5; Finish uses the selected final confidence
 threshold (2.0 in the chest archive), cleanup, and verified connectivity. The
@@ -91,9 +99,10 @@ A compute-only test repeats the first archived native 1280 × 1024 pair with
 artificial 10 fps timestamps: 18 measured motion updates take a median 43 ms
 and at most 58 ms. This includes calibration, filtering, flow, and pose fitting;
 it does not validate real acquisition throughput or physical moving-camera
-accuracy. The full suite ran 275 tests (273 passed, two CUDA skips), followed by
-36 affected checks after session-lifetime and timing-guard changes. The separate
-synthetic HTTP/WebSocket and Qt capture/preview/Finish/export workflow passed.
+accuracy. The full suite on the combined revision ran 283 tests (281 passed,
+two CUDA skips), followed by 12 session-lifetime checks after the final client
+reconnection change. The separate synthetic HTTP/WebSocket and Qt
+capture/preview/Finish/export workflow passed.
 
 Final replay outputs and complete raw-evidence reports are preserved outside Git
 in `/Users/sasha/hobby/xbox360/chest-3-session-analysis/continuous-tracking/`.

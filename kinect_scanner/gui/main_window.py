@@ -1106,7 +1106,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Scan cancelled · ready for a new scan" if cancelled else "Scan started", 4000)
 
     def _configure_camera_tracking(self):
-        self._tracking_session = self._session_id
         if hasattr(self.worker, "set_tracking_settings"):
             try:
                 settings = ScanSettings.from_dict(self._session_settings) if self._session_settings else None
@@ -1114,6 +1113,10 @@ class MainWindow(QMainWindow):
                 settings = None
             if settings is not None and not (self._scanning and settings.live_reconstruction and settings.color_recovery):
                 settings = None
+            configuration = (self.worker, self._session_id, settings)
+            if getattr(self, "_tracking_configuration", None) == configuration:
+                return
+            self._tracking_configuration = configuration
             self.worker.set_tracking_settings(settings)
 
     def _cancel_scan(self, checked=False, *, protected=False):
@@ -1503,8 +1506,7 @@ class MainWindow(QMainWindow):
     def _apply_session_settings(self, settings):
         with self.preferences.suspend():
             self._restore_session_settings(settings)
-        if getattr(self, "_tracking_session", None) != self._session_id:
-            self._configure_camera_tracking()
+        self._configure_camera_tracking()
 
     def _restore_session_settings(self, settings):
         if not settings:

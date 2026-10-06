@@ -113,6 +113,9 @@ class AutoCaptureTests(unittest.TestCase):
                          "A periodic status update must not reset the motion chain")
         self.window._on_build_mesh_done(False, "Synthetic failed build")
         self.assertIsNone(self.window.worker.tracking_settings[-1])
+        self.window._restore_server_session({"session_id": "motion-trial", "settings": profile.to_dict(),
+                                            "stored_count": 2, "frame_count": 1, "has_mesh": False})
+        self.assertEqual(profile, self.window.worker.tracking_settings[-1])
         self.window._cancel_pending = True
         self.window._on_reset_done({"session_id": "empty", "settings": profile.to_dict()})
         self.assertIsNone(self.window.worker.tracking_settings[-1])

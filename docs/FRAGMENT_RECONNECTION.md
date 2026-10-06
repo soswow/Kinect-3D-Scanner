@@ -25,7 +25,9 @@ fragment graph optimization described here remains a Finish operation.
    Adjacent registration uses measured visual/depth correspondences or
    reciprocal geometric ICP, held-out points,
    and the configured motion limits, including for previously accepted views.
-   Fragments contain at most sixteen views. Live poses provide initial guesses;
+   Fragments contain at most sixteen views. Verified adjacent motion across that
+   storage boundary supplies a measured sequential edge. A size limit alone
+   does not break a connected track. Live poses provide initial guesses;
    only the first retained fragment fixes the world coordinate system.
 2. Search for fragment overlap independently of the broken live trajectory.
    Synchronized ORB/PnP matches propose transforms; FPFH descriptors and bounded
@@ -45,6 +47,11 @@ fragment graph optimization described here remains a Finish operation.
    additional bridges are uncertain constraints. Recompute connectivity after edge
    pruning, then validate optimized bridges against held-out geometry and any
    supporting visual correspondences again.
+   If the adjustment fails those checks, revalidate the measured spanning-tree
+   poses and retain only still-valid surviving links connected to the first
+   fragment. Optimization-pruned edges remain removed, and diagnostics explicitly
+   record the fallback. This preserves measured connectivity without claiming
+   that global drift was corrected.
    Re-estimate accepted poses as well as skipped views. Exclude observations
    without a verified connection to the first fragment. Optional final pose
    refinement can subsequently refine that connected trajectory using its

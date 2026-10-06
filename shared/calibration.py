@@ -41,14 +41,29 @@ def prepare_rgbd(rgb, depth, settings):
     if any(camera.distortion):
         x, y = rectification_maps(camera)
         rgb = cv2.remap(rgb, x, y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-        depth = cv2.remap(
-            depth, x, y, cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT
-        )
-    if camera.depth_scale != 1:
-        depth = np.clip(
-            np.rint(depth.astype(np.float64) * camera.depth_scale), 0, 65535
-        ).astype(np.uint16)
-    return np.ascontiguousarray(rgb), prepare_depth(depth, settings)
+    return np.ascontiguousarray(rgb), prepare_metric_depth(depth, settings)
+
+
+def _rectified_depth(depth, settings):
+    camera = settings.camera
+    native = settings.sensor_calibration is not None
+    metric = raw_depth_to_mm(depth, settings.sensor_calibration) if native else depth
+    if native or any(camera.distortion):
+        x, y = rectification_maps(camera)
+        metric = cv2.remap(metric, x, y, cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
+    if not native and camera.depth_scale != 1:
+        metric = np.clip(np.rint(metric.astype(np.float64) * camera.depth_scale), 0, 65535)
+    return metric
+
+
+def prepare_metric_depth(depth, settings):
+    """Identical reconstruction depth without projecting an unused RGB image.
+
+    Allocation planning and depth-only evaluation need no color registration,
+    RGB occlusion buffer, or bilinear color sampling. Keep the conversion and
+    nearest-neighbour rectification shared with the full RGB-D path.
+    """
+    return prepare_depth(np.rint(_rectified_depth(depth, settings)).astype(np.uint16), settings)
 
 
 @lru_cache(maxsize=8)
@@ -120,9 +135,7 @@ def prepare_native_rgbd(rgb, raw, settings):
     preserves discontinuities; conversion/rounding and correction happen once.
     """
     calibration = settings.sensor_calibration
-    metric = raw_depth_to_mm(raw, calibration)
-    x, y = rectification_maps(settings.camera)
-    metric = cv2.remap(metric, x, y, cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
+    metric = _rectified_depth(raw, settings)
     depth = prepare_depth(np.rint(metric).astype(np.uint16), settings)
     points = pinhole_rays(settings.camera) * metric[..., None]
     pixels, z = project_rgb(points, calibration, settings.rgb_camera)

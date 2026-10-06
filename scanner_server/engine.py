@@ -27,7 +27,7 @@ import open3d as o3d
 import open3d.core as o3c
 import trimesh
 
-from shared.calibration import prepare_rgbd
+from shared.calibration import prepare_metric_depth, prepare_rgbd
 from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS, RGB_DEPTH_CAPTURE_LIMIT_MS
 from shared.config import LIVE_MAX_POINTS, PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
@@ -1340,7 +1340,7 @@ class ScanEngine:
         scratch = self._create_vbg(block_count=1)
         blocks = set()
         for completed, (index, pose) in enumerate(proposals, 1):
-            _, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+            depth = prepare_metric_depth(self.raw_frames[index][1], self.settings)
             image = o3d.t.geometry.Image(o3c.Tensor(np.ascontiguousarray(depth))).to(self.device)
             coordinates = scratch.compute_unique_block_coordinates(
                 image, self.intrinsic_tensor,

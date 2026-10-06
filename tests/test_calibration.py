@@ -2,16 +2,44 @@ import os
 
 os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
 
-from shared.calibration import camera_matrix, prepare_rgbd, rectification_maps
+from shared.calibration import (
+    camera_matrix,
+    prepare_metric_depth,
+    prepare_rgbd,
+    rectification_maps,
+)
 from shared.device_evidence import board_points, calibrate_corners, plane_evidence
 from shared.settings import CameraCalibration, ScanSettings
 
 
 class CalibrationTests(unittest.TestCase):
+    def test_depth_only_path_is_exact_for_native_and_registered_observations(self):
+        from dataclasses import replace
+
+        from shared.sensor_calibration import load_calibration
+
+        rng = np.random.default_rng(36)
+        native = ScanSettings(sensor_calibration=load_calibration())
+        registered = ScanSettings(camera=CameraCalibration(
+            distortion=(-0.1, 0.01, 0.001, 0, 0), depth_scale=1.02))
+        for settings in (native, registered, ScanSettings()):
+            raw = rng.integers(650, 1000, (480, 640), dtype=np.uint16)
+            raw[180:230, 280:320] = 2047 if settings.sensor_calibration else 0
+            rgb = rng.integers(0, 255, (settings.rgb_camera.height, settings.rgb_camera.width, 3), dtype=np.uint8)
+            for filtered in (False, True):
+                configured = replace(settings, filter_depth=filtered, roi=(50, 40, 590, 440))
+                expected = prepare_rgbd(rgb, raw, configured)[1]
+                with patch("shared.calibration.project_rgb", side_effect=AssertionError("unused RGB projection")):
+                    actual = prepare_metric_depth(raw, configured)
+                np.testing.assert_array_equal(expected, actual)
+                self.assertEqual(np.uint16, actual.dtype)
+                self.assertTrue(actual.flags.c_contiguous)
+
     def test_engine_applies_scale_but_keeps_sensor_recording_raw(self):
         from scanner_server.engine import ScanEngine
         engine = ScanEngine()
