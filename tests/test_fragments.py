@@ -185,6 +185,56 @@ class FragmentTests(unittest.TestCase):
         self.assertEqual([], report["excluded_frames"])
         self.assertEqual(12.0, report["capture_gap_limit_s"])
 
+    def test_size_boundary_preserves_measured_continuity_without_global_matching(self):
+        engine = ScanEngine(device="cpu")
+        # Shorten only the storage boundary; all registration and validation
+        # use noisy, raycast measurements. Only the first world pose is supplied.
+        for i, (rgb, depth, _) in enumerate(self.scene[:8]):
+            engine.store_frame(rgb, depth, {"timestamp_s": i * 0.2})
+        engine.poses = [(0, np.eye(4))]
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4), \
+             patch("scanner_server.fragments._global_seed", side_effect=AssertionError("unnecessary global search")):
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual(1, report["sequential_bridges"], report)
+        self.assertEqual(8, len(poses), report)
+        self.assertEqual(0, report["tested_pairs"])
+        self.assertEqual([], report["unconnected_fragments"])
+        for index, pose in poses:
+            truth = self.scene[index][2]
+            self.assertLess(np.linalg.norm(pose[:3, 3] - truth[:3, 3]), 0.015)
+        self.assertEqual("sequential camera pair", report["verified_bridges"][0]["validation_scope"])
+
+    def test_size_boundary_does_not_bridge_a_real_tracking_failure(self):
+        engine = ScanEngine(device="cpu")
+        engine.reset(settings=ScanSettings(max_translation_m=0.05))
+        for i, source in enumerate([0, 1, 2, 10, 11, 12]):
+            engine.store_frame(*self.scene[source][:2], {"timestamp_s": i * 0.2})
+        engine.poses = [(0, np.eye(4))]
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 3), \
+             patch("scanner_server.fragments._verify_bridge", return_value=None):
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual(0, report["sequential_bridges"], report)
+        self.assertEqual([1], report["unconnected_fragments"])
+        self.assertEqual([0, 1, 2], [i for i, _ in poses])
+
+    def test_optimized_boundary_still_requires_heldout_measurements(self):
+        engine = ScanEngine(device="cpu")
+        for i, (rgb, depth, _) in enumerate(self.scene[:8]):
+            engine.store_frame(rgb, depth, {"timestamp_s": i * 0.2})
+        engine.poses = [(0, np.eye(4))]
+
+        def corrupt(graph, *args):
+            pose = graph.nodes[1].pose.copy()
+            pose[0, 3] += 0.2
+            graph.nodes[1].pose = pose
+
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4), \
+             patch("scanner_server.fragments.REG.global_optimization", side_effect=corrupt):
+            poses, report = propose_fragment_poses(engine)
+        self.assertIsNone(poses)
+        self.assertTrue(report["failed"])
+        self.assertIn("failed independent validation", report["reason"])
+
     def test_pruned_bridge_does_not_authorize_disconnected_fusion(self):
         engine, _ = self.disconnected()
         with patch("scanner_server.fragments.REG.global_optimization", side_effect=lambda graph, *args: graph.edges.clear()) as optimizer:
