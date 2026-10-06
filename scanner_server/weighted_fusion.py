@@ -1,6 +1,7 @@
 """Experimental confidence-weighted projective TSDF using Open3D tensors.
 
-CPU voxel math uses shared NumPy buffers; CUDA math stays on device tensors.
+CPU voxel math uses shared NumPy buffers, with optional fused C++ updates;
+CUDA math stays on device tensors.
 Confidence is computed on CPU.
 The ordinary optimized integration remains the default.
 """
@@ -9,6 +10,7 @@ import numpy as np
 from open3d import core
 
 from shared.confidence import depth_confidence
+from shared.native import kernels
 
 
 def integrate_weighted(engine, volume, blocks, rgb, depth, extrinsic):
@@ -45,11 +47,30 @@ def _integrate_cpu(engine, volume, blocks, rgb, depth, extrinsic, confidence):
     transform = np.asarray(extrinsic, dtype=np.float32)
     depth_m = depth.astype(np.float32) / 1000
     camera = engine.settings.camera
+    native = kernels()
     for start in range(0, len(buffers), 128):
         points, flat = volume.voxel_coordinates_and_flattened_indices(
             buffers[start : start + 128]
         )
         xyz = points.numpy() @ transform[:3, :3].T + transform[:3, 3]
+        if native is not None:
+            native.integrate_weighted_cpu(
+                xyz,
+                flat.numpy().reshape(-1),
+                depth_m,
+                confidence,
+                rgb,
+                tsdf,
+                weight,
+                color,
+                camera.fx,
+                camera.fy,
+                camera.cx,
+                camera.cy,
+                engine.max_depth_m,
+                engine.sdf_trunc,
+            )
+            continue
         z = xyz[:, 2]
         safe = np.maximum(z, np.float32(1e-6))
         # Open3D rounds half away from zero; np.rint uses ties to even.

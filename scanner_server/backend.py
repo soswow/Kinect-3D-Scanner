@@ -4,6 +4,8 @@ import os
 
 import open3d as o3d
 
+from shared.native import native_status
+
 
 def select_backend(requested=None, tracking=None):
     requested = (requested or os.environ.get("KINECT_DEVICE", "auto")).lower()
@@ -41,6 +43,7 @@ def select_backend(requested=None, tracking=None):
             "texturing": "CPU:0",
         },
         "open3d_version": o3d.__version__,
+        "native_kernels": native_status(),
         "fallback_reason": "CUDA unavailable; using CPU"
         if requested == "auto" and not available
         else None,

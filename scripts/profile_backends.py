@@ -19,10 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def source_hash():
     source = hashlib.sha256()
-    for folder in (ROOT / "scanner_server", ROOT / "shared"):
-        for path in sorted(folder.glob("*.py")):
-            source.update(path.name.encode())
-            source.update(path.read_bytes())
+    for folder in (ROOT / "scanner_server", ROOT / "shared", ROOT / "native"):
+        for path in sorted(folder.iterdir()):
+            if path.suffix in (".py", ".cpp", ".h", ".toml"):
+                source.update(str(path.relative_to(ROOT)).encode())
+                source.update(path.read_bytes())
     return source.hexdigest()
 
 
@@ -128,6 +129,7 @@ def main():
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     timeout=3600,
+                    check=False,
                 )
             if result.returncode:
                 detail = path.with_suffix(".log").read_text()[-4000:]

@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from .depth import prepare_depth
+from .native import kernels
 
 
 def camera_matrix(camera):
@@ -50,9 +51,13 @@ def _rectified_depth(depth, settings):
     metric = raw_depth_to_mm(depth, settings.sensor_calibration) if native else depth
     if native or any(camera.distortion):
         x, y = rectification_maps(camera)
-        metric = cv2.remap(metric, x, y, cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
+        metric = cv2.remap(
+            metric, x, y, cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT
+        )
     if not native and camera.depth_scale != 1:
-        metric = np.clip(np.rint(metric.astype(np.float64) * camera.depth_scale), 0, 65535)
+        metric = np.clip(
+            np.rint(metric.astype(np.float64) * camera.depth_scale), 0, 65535
+        )
     return metric
 
 
@@ -63,7 +68,9 @@ def prepare_metric_depth(depth, settings):
     RGB occlusion buffer, or bilinear color sampling. Keep the conversion and
     nearest-neighbour rectification shared with the full RGB-D path.
     """
-    return prepare_depth(np.rint(_rectified_depth(depth, settings)).astype(np.uint16), settings)
+    return prepare_depth(
+        np.rint(_rectified_depth(depth, settings)).astype(np.uint16), settings
+    )
 
 
 @lru_cache(maxsize=8)
@@ -137,29 +144,53 @@ def prepare_native_rgbd(rgb, raw, settings):
     calibration = settings.sensor_calibration
     metric = _rectified_depth(raw, settings)
     depth = prepare_depth(np.rint(metric).astype(np.uint16), settings)
-    points = pinhole_rays(settings.camera) * metric[..., None]
-    pixels, z = project_rgb(points, calibration, settings.rgb_camera)
-    visible = (
-        (depth > 0)
-        & (z > 0)
-        & (pixels[..., 0] >= 0)
-        & (pixels[..., 0] < rgb.shape[1] - 1)
-        & (pixels[..., 1] >= 0)
-        & (pixels[..., 1] < rgb.shape[0] - 1)
-    )
-    # RGB occlusion check: a farther depth point projecting onto the same RGB
-    # pixel must not borrow the foreground's colour across a parallax boundary.
-    px = np.clip(np.rint(pixels[..., 0]), 0, rgb.shape[1] - 1).astype(int)
-    py = np.clip(np.rint(pixels[..., 1]), 0, rgb.shape[0] - 1).astype(int)
-    nearest = np.full(rgb.shape[:2], np.inf)
-    np.minimum.at(nearest, (py[visible], px[visible]), z[visible])
-    visible &= z <= nearest[py, px] + np.maximum(15, z * 0.01)
+    native = kernels()
+    if native is None:
+        map_x, map_y, visible = _color_maps_numpy(metric, depth, settings, rgb.shape)
+    else:
+        c = settings.rgb_camera
+        # Keep BLAS's rotation accumulation order: a last-bit difference can
+        # cross an OpenCV interpolation bin at a half-pixel boundary.
+        points = pinhole_rays(settings.camera) * metric[..., None]
+        points_rgb = (
+            points.reshape(-1, 3) @ np.asarray(calibration.rotation).T
+            + calibration.translation_mm
+        ).reshape(*metric.shape, 3)
+        map_x, map_y, visible = native.project_native(
+            points_rgb,
+            depth,
+            np.array([c.fx, c.fy, c.cx, c.cy, *c.distortion], dtype=np.float64),
+            rgb.shape[0],
+            rgb.shape[1],
+        )
     colors = cv2.remap(
         rgb,
-        pixels[..., 0].astype(np.float32),
-        pixels[..., 1].astype(np.float32),
+        map_x,
+        map_y,
         cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT,
     )
     colors[~visible] = 0
     return np.ascontiguousarray(colors), depth
+
+
+def _color_maps_numpy(metric, depth, settings, rgb_shape):
+    """Reference projection/occlusion, sharing OpenCV color sampling with C++."""
+    points = pinhole_rays(settings.camera) * metric[..., None]
+    pixels, z = project_rgb(points, settings.sensor_calibration, settings.rgb_camera)
+    visible = (
+        (depth > 0)
+        & (z > 0)
+        & (pixels[..., 0] >= 0)
+        & (pixels[..., 0] < rgb_shape[1] - 1)
+        & (pixels[..., 1] >= 0)
+        & (pixels[..., 1] < rgb_shape[0] - 1)
+    )
+    # RGB occlusion check: a farther depth point projecting onto the same RGB
+    # pixel must not borrow the foreground's colour across a parallax boundary.
+    px = np.clip(np.rint(pixels[..., 0]), 0, rgb_shape[1] - 1).astype(int)
+    py = np.clip(np.rint(pixels[..., 1]), 0, rgb_shape[0] - 1).astype(int)
+    nearest = np.full(rgb_shape[:2], np.inf)
+    np.minimum.at(nearest, (py[visible], px[visible]), z[visible])
+    visible &= z <= nearest[py, px] + np.maximum(15, z * 0.01)
+    return pixels[..., 0].astype(np.float32), pixels[..., 1].astype(np.float32), visible

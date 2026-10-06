@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from .native import kernels
+
 
 def prepare_depth(depth, settings):
     """Clip both tracking and fusion; remove isolated samples without filling holes.
@@ -9,6 +11,28 @@ def prepare_depth(depth, settings):
     A pixel needs two neighbours within a depth-dependent tolerance. This drops
     flying pixels while retaining sharp boundaries and thin observed surfaces.
     """
+    native = kernels()
+    if native is not None:
+        source = np.require(depth, dtype=np.uint16, requirements=["C", "A"])
+        h, w = source.shape
+        x0, y0, x1, y1 = settings.roi or (0, 0, w, h)
+        x0, x1, _ = slice(x0, x1).indices(w)
+        y0, y1, _ = slice(y0, y1).indices(h)
+        return native.prepare_depth(
+            source,
+            settings.near_m * 1000,
+            settings.far_m * 1000,
+            settings.filter_depth,
+            x0,
+            y0,
+            x1,
+            y1,
+        )
+    return _prepare_depth_numpy(depth, settings)
+
+
+def _prepare_depth_numpy(depth, settings):
+    """Reference implementation kept for portability and exact parity checks."""
     result = np.array(depth, dtype=np.uint16, copy=True)
     valid = (
         (result > 0)
