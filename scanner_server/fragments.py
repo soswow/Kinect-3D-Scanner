@@ -135,17 +135,17 @@ def _matches(source, target):
     entry. Context views share this cache, but never cache pose-dependent checks.
     """
     cached = source.match_cache.get(target.index)
-    if cached is not None and cached[0] is target.features:
+    if cached is not None and cached[0] is source.features and cached[1] is target.features:
         source.match_cache.pop(target.index)
         source.match_cache[target.index] = cached
-        return cached[1]
+        return cached[2]
     matches = correspondences(source.features, target.features)
     reverse = matches[:, ::-1].copy()
     reverse = reverse[np.argsort(reverse[:, 0], kind="stable")]
     matches.flags.writeable = reverse.flags.writeable = False
     for view, other, value in ((source, target, matches), (target, source, reverse)):
         view.match_cache.pop(other.index, None)
-        view.match_cache[other.index] = (other.features, value)
+        view.match_cache[other.index] = (view.features, other.features, value)
         if len(view.match_cache) > MAX_MATCH_CACHE:
             view.match_cache.pop(next(iter(view.match_cache)))
     return matches

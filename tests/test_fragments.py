@@ -404,6 +404,14 @@ class FragmentTests(unittest.TestCase):
             fresh = _view(engine, 1)
             np.testing.assert_array_equal(expected, _matches(a, fresh))
             self.assertEqual(2, matcher.call_count)
+            # Dataclass copies share a context cache. Replacing either side's
+            # feature object must invalidate it even if the frame ID is reused.
+            empty = replace(a.features, descriptors=None)
+            replaced_source = replace(a, features=empty)
+            self.assertEqual(0, len(_matches(replaced_source, fresh)))
+            self.assertEqual(3, matcher.call_count)
+            np.testing.assert_array_equal(expected, _matches(a, fresh))
+            self.assertEqual(4, matcher.call_count)
             with patch("scanner_server.fragments.MAX_MATCH_CACHE", 2):
                 for index in range(10, 14):
                     np.testing.assert_array_equal(expected, _matches(a, replace(b, index=index, match_cache={})))
