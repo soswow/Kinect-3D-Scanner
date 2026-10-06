@@ -267,6 +267,9 @@ python scripts/reconnect_session.py export/your-session.zip \
 ```
 
 See [fragment reconnection and its limits](docs/FRAGMENT_RECONNECTION.md).
+The [algorithm review and recorded-session results](docs/ALGORITHM_REVIEW.md)
+describe the tracking, reconstruction, and performance changes measured on
+three saved scans, including their remaining limitations.
 
 **Final pose refinement** is experimental and off by default: it validates loop
 constraints, optimizes a bounded keyframe graph, and reintegrates into a fresh

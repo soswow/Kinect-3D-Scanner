@@ -28,7 +28,9 @@ fragment graph optimization described here remains a Finish operation.
    Fragments contain at most sixteen views. Verified adjacent motion across that
    storage boundary supplies a measured sequential edge. A size limit alone
    does not break a connected track. Live poses provide initial guesses;
-   only the first retained fragment fixes the world coordinate system.
+   only the first retained fragment fixes the world coordinate system. A size
+   boundary also retains the two preceding cameras as local overlap witnesses;
+   those context captures are not owned or fused a second time.
 2. Search for fragment overlap independently of the broken live trajectory.
    Synchronized ORB/PnP matches propose transforms; FPFH descriptors and bounded
    RANSAC also propose transforms using depth alone. RGB-D pairs over 20 ms
@@ -40,7 +42,8 @@ fragment graph optimization described here remains a Finish operation.
    distinct positions on each side, separated by over 2 cm or 2°. Distributed
    measured visual correspondences can constrain planar overlap when those same
    independent camera pairs also pass held-out depth verification. Stationary duplicate captures and
-   single-view fragments cannot authorize a bridge. Reject competing verified
+   fragments with only one measured viewpoint cannot authorize a global bridge.
+   A short fragment can use its measured overlap context. Reject competing verified
    transforms that disagree by over 5 cm or 5°.
 4. Optimize the anchored fragment pose graph with Open3D's Levenberg–Marquardt
    optimizer. Its measured spanning tree supplies the initial trajectory;
@@ -73,10 +76,14 @@ background when capturing a bridge.
 ## Budgets and diagnostics
 
 The pass considers at most 32 fragments and 256 fragment pairs, with up to five
-key views per fragment, 12,000 aggregate training points, 30,000 validation points,
+owned key views plus two overlap witnesses per fragment, 12,000 aggregate training points, 30,000 validation points,
 and two geometric RANSAC proposals of at most 12,000 iterations each. Pairs
-involving the world anchor or consecutive fragments are prioritized when
-appearance scores are equal. Preparation is bounded by the
+crossing from the anchored reconstruction to an unconnected fragment are tested
+first. Once no crossing pair can connect a remaining component, pairs entirely
+inside that unreachable component are skipped. Original evidence ranking still
+determines graph initialization and which loop candidates precede early completion.
+Exact mutual descriptor matches are cached for at most sixteen target views per
+prepared camera; pose-dependent verification is never cached. Preparation is bounded by the
 scanner's raw frame limit. Search time varies with captured geometry; it is not
 a real-time tracking path.
 
@@ -143,8 +150,8 @@ through capture, Finish, rebuilding, and exports. New raycast tests exercise
 confidently accepted but drifted components, exclusion of unverifiable accepted
 views, raw-camera verification after tracking gaps, archived pose seed
 revalidation, and fusion-budget failure before any candidate integration.
-After integration with the current capture-performance changes, the full suite
-ran 266 tests: 264 passed and two CUDA tests were skipped. The separate synthetic
+After integration with continuous visual tracking and the algorithm review, the
+full suite ran 285 tests: 283 passed and two CUDA tests were skipped. The separate synthetic
 HTTP/WebSocket and Qt workflow passed capture, Finish, rebuilding, and all exports.
 
 ## Chest session repair, 6 October 2026
@@ -201,4 +208,8 @@ All 100 RGB/depth PNG CRCs in the new session ZIP match the source archive's
 50 captures. The original ZIP is unchanged. A new capture sequence that overlaps
 both the trusted view and a later fragment, with distinctive corners or texture,
 was recommended to supply an unambiguous bridge for that earlier session.
-That historical result has not been rerun under the revised verifier.
+The 6–7 October [algorithm review](ALGORITHM_REVIEW.md) reran this archive with
+the current verifier and its archived pose seeds. It retains 16 of 50 views,
+including two previously rejected captures, and excludes 28 unverified accepted
+poses. Fresh fusion produces 82,058 triangles, but the reconstruction remains
+partial. That initialization differs from the earlier live replay above.
