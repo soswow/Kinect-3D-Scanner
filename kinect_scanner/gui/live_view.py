@@ -206,11 +206,14 @@ class LiveView(QWidget):
         self.panel.adjustSize()
         self.panel.move(0, 0)
         available = max(0, self.height() - self.panel.height())
+        has_reference = self.snapshot.get("fusion_paused", False) and not self.overview.reference.isNull()
+        map_fraction = 0.6 if has_reference else 1
+        side = min(360, available, int(self.width() * map_fraction))
+        width = min(self.width(), round(side / map_fraction))
         self.overview.setGeometry(
-            max(0, self.width() - 360), self.height() - min(180, available),
-            min(360, self.width()), min(180, available),
+            self.width() - width, self.height() - side, width, side,
         )
-        self.overview.setVisible(bool(self.snapshot.get("trajectory")) and available >= 140)
+        self.overview.setVisible(bool(self.snapshot.get("trajectory")) and side >= 140)
 
     def resizeEvent(self, event):
         self._layout_panel()
