@@ -13,7 +13,8 @@ class TrackingOverview(QWidget):
         super().__init__(parent)
         self.setMinimumSize(140, 140)
         self.setAccessibleName("Overhead camera trajectory and recovery reference")
-        self.setToolTip("Dots are accepted camera positions. The red camera is the last good view. "
+        self.setToolTip("Dots are accepted camera positions; triangles widen in the viewing direction. "
+                        "The red camera is the last good view. "
                         "While tracking is lost, your current position is unknown. Up is estimated from a plane.")
         self.snapshot = {}
         self.reference = QImage()
@@ -100,8 +101,9 @@ class TrackingOverview(QWidget):
             if length > 1e-6:
                 direction /= length
                 side = np.array([-direction[1], direction[0]])
-                triangle = [xy[n] + direction * 10, xy[n] - direction * 3 + side * 2,
-                            xy[n] - direction * 3 - side * 2]
+                # The camera is the apex; the wide edge faces the observed scene.
+                triangle = [xy[n], xy[n] + direction * 10 + side * 2,
+                            xy[n] + direction * 10 - side * 2]
                 painter.drawPolyline(QPolygonF([QPointF(*p) for p in triangle + triangle[:1]]))
             if is_anchor:
                 painter.drawEllipse(QPointF(*xy[n]), 8, 8)
