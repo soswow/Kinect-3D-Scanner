@@ -15,6 +15,7 @@ import open3d as o3d
 
 from shared.calibration import prepare_rgbd
 from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
+from shared.visual_tracking import feature_agreement
 
 from .appearance import Features, correspondences, extract_features, propose_transform
 from .refinement import _match, motion
@@ -154,13 +155,33 @@ def _local_match(source, target, camera, settings, initial=None):
     proposal = propose_transform(source.features, target.features, camera, _matches(source, target))
     seed = proposal if proposal is not None else np.eye(4) if initial is None else initial
     result = _pair(source.train, target.train, seed, 0.45)
-    if result is None:
+    relative = result.transformation if result is not None else None
+    if proposal is not None:
+        matches = _matches(source, target)
+        if relative is None or not _visual_witness(source, target, relative, camera, matches)[0]:
+            # A textured plane can constrain motion even when its normals do
+            # not. Keep feature identities and validate on held-out depth.
+            relative = proposal if _visual_witness(source, target, proposal, camera, matches)[0] else None
+    if relative is None:
         return None
-    translation, angle = motion(result.transformation)
+    translation, angle = motion(relative)
     if translation > settings.max_translation_m or angle > settings.max_rotation_deg:
         return None
-    valid, _ = _heldout(source.heldout, target.heldout, result.transformation, 0.4)
-    return result.transformation if valid else None
+    valid, _ = _heldout(source.heldout, target.heldout, relative, 0.4)
+    return relative if valid else None
+
+
+def _visual_witness(source, target, pose, camera, matches=None):
+    matches = _matches(source, target) if matches is None else matches
+    if len(matches) < 40 or not _rigid(pose):
+        return False, {}
+    a, b = matches.T
+    valid, features = feature_agreement(source.features.points[a], target.features.points[b],
+                                       target.features.pixels[b], pose, camera)
+    if not valid:
+        return False, {}
+    valid, geometry = _heldout(source.heldout, target.heldout, pose, 0.45)
+    return valid, {"features": features, **geometry}
 
 
 def _aggregate(fragment, name):
@@ -204,7 +225,7 @@ def _global_seed(source, target, seed):
     return result.transformation if result.fitness >= 0.25 and _rigid(result.transformation) else None
 
 
-def _verify_bridge(source, target, initial):
+def _verify_bridge(source, target, initial, camera=None):
     result = _pair(source.train, target.train, initial)
     pose = initial if result is None else result.transformation
     valid, stats = _heldout(source.heldout, target.heldout, pose)
@@ -212,7 +233,9 @@ def _verify_bridge(source, target, initial):
         # Two fragment unions need not overlap by half: each can contain large
         # surfaces unseen by the other. Verify their shared camera observations
         # instead, without weakening reciprocal or held-out thresholds.
-        return _verify_partial_bridge(source, target, initial)
+        geometric = _verify_partial_bridge(source, target, initial)
+        return geometric if geometric is not None or camera is None else _verify_visual_bridge(
+            source, target, initial, camera)
     # Independent cameras must support the same fragment transform. A single
     # cube/floor coincidence cannot authorize an entire disconnected segment.
     support = []
@@ -243,7 +266,7 @@ def _verify_bridge(source, target, initial):
         and _disagrees(target_poses[b], target_poses[d], 0.02, 2)
         for c, d in support)]
     if len(independent) < 2:
-        return None
+        return _verify_visual_bridge(source, target, initial, camera) if camera is not None else None
     information = REG.get_information_matrix_from_point_clouds(source.train, target.train, 0.03, pose)
     if not np.isfinite(information).all():
         return None
@@ -312,6 +335,56 @@ def _verify_partial_bridge(source, target, initial):
     return {"source": source.index, "target": target.index, "transform": pose,
             "information": information, "support": support,
             "validation": {"camera_pairs": validation}, "validation_scope": "independent camera pairs"}
+
+
+def _verify_visual_bridge(source, target, initial, camera):
+    """Two independent RGB-D witnesses can constrain otherwise planar overlap."""
+    if not _rigid(initial):
+        return None
+    support = []
+    witnesses = {}
+    for a in source.keys:
+        for b in target.keys:
+            pose = np.linalg.inv(b.pose) @ initial @ a.pose
+            valid, stats = _visual_witness(a, b, pose, camera)
+            if valid:
+                support.append((a.index, b.index))
+                witnesses[(a.index, b.index)] = stats
+    support = _independent_pairs(support, source, target)
+    if len(support) < 2:
+        return None
+    information = REG.get_information_matrix_from_point_clouds(source.train, target.train, 0.03, initial)
+    if not np.isfinite(information).all():
+        return None
+    return {"source": source.index, "target": target.index, "transform": initial,
+            "information": information, "support": support,
+            "validation": {"camera_pairs": [witnesses[p] for p in support]},
+            "validation_scope": "visual and held-out camera pairs"}
+
+
+def _validate_bridge_pose(edge, poses, fragments, camera):
+    """Recheck a bridge in a proposed world map, including its visual identity."""
+    a, b = edge["source"], edge["target"]
+    if a not in poses or b not in poses or not (_rigid(poses[a]) and _rigid(poses[b])):
+        return False
+    transform = np.linalg.inv(poses[b]) @ poses[a]
+    translation, angle = motion(np.linalg.inv(edge["transform"]) @ transform)
+    if translation > 0.03 or angle > 3:
+        return False
+    scope = edge.get("validation_scope")
+    if scope in ("independent camera pairs", "sequential camera pair", "visual and held-out camera pairs"):
+        a_views = {v.index: v for v in fragments[a].context + fragments[a].views}
+        b_views = {v.index: v for v in fragments[b].context + fragments[b].views}
+        minimum = 0.4 if scope == "sequential camera pair" else 0.5
+        for i, j in edge["support"]:
+            relative = np.linalg.inv(b_views[j].pose) @ transform @ a_views[i].pose
+            if not _heldout(a_views[i].heldout, b_views[j].heldout, relative, minimum)[0]:
+                return False
+            if (scope == "visual and held-out camera pairs" or edge.get("visual_constraint")) and not (
+                    _visual_witness(a_views[i], b_views[j], relative, camera)[0]):
+                return False
+        return True
+    return _heldout(fragments[a].heldout, fragments[b].heldout, transform)[0]
 
 
 def _reachable(count, edges, roots):
@@ -424,7 +497,8 @@ def propose_fragment_poses(engine, progress_cb=None):
         if valid and np.isfinite(information).all():
             edges.append({"source": source, "target": target, "transform": transform,
                           "information": information, "support": [(a.index, b.index)],
-                          "validation": stats, "validation_scope": "sequential camera pair"})
+                          "validation": stats, "validation_scope": "sequential camera pair",
+                          "visual_constraint": _visual_witness(b, a, relative, engine.settings.camera)[0]})
     report["sequential_bridges"] = len(edges)
     sequential_pairs = {(e["source"], e["target"]) for e in edges}
     candidates = []
@@ -486,7 +560,7 @@ def propose_fragment_poses(engine, progress_cb=None):
             if any(not _disagrees(proposal, previous, 0.01, 1) for previous in unique):
                 continue
             unique.append(proposal)
-            bridge = _verify_bridge(source, target, proposal)
+            bridge = _verify_bridge(source, target, proposal, engine.settings.camera)
             if bridge is not None:
                 verified.append(bridge)
         if not verified:
@@ -545,25 +619,30 @@ def propose_fragment_poses(engine, progress_cb=None):
     surviving_pairs = {(e["source"], e["target"]) for e in surviving}
     optimized = {i: graph.nodes[nodes[i]].pose.copy() for i in connected}
     valid_graph = all(_rigid(p) for p in optimized.values())
+    rejected = []
     for edge in edges:
         a, b = edge["source"], edge["target"]
         if a not in connected or b not in connected or (a, b) not in surviving_pairs:
             continue
-        transform = np.linalg.inv(optimized[b]) @ optimized[a]
-        translation, angle = motion(np.linalg.inv(edge["transform"]) @ transform)
-        if edge.get("validation_scope") in ("independent camera pairs", "sequential camera pair"):
-            a_views = {v.index: v for v in fragments[a].context + fragments[a].views}
-            b_views = {v.index: v for v in fragments[b].context + fragments[b].views}
-            minimum = 0.4 if edge["validation_scope"] == "sequential camera pair" else 0.5
-            valid = all(_heldout(a_views[i].heldout, b_views[j].heldout,
-                np.linalg.inv(b_views[j].pose) @ transform @ a_views[i].pose, minimum)[0]
-                for i, j in edge["support"])
-        else:
-            valid, _ = _heldout(fragments[a].heldout, fragments[b].heldout, transform)
-        valid_graph &= valid and translation <= 0.03 and angle <= 3
+        valid = _validate_bridge_pose(edge, optimized, fragments, engine.settings.camera)
+        if not valid:
+            rejected.append([a, b])
+        valid_graph &= valid
     if not valid_graph:
-        report["reason"] = "Optimized bridges failed independent validation"
-        connected, optimized = set(roots), {i: fragments[i].seed for i in roots}
+        # Optimization is optional. Restore measured spanning-tree poses and
+        # revalidate every surviving bridge in those coordinates. Pruned edges
+        # stay pruned; inconsistent loops cannot authorize disconnected views.
+        report["optimization_fallback"] = "Revalidated measured bridge poses"
+        report["rejected_optimized_bridges"] = rejected
+        retained = [e for e in edges if (e["source"], e["target"]) in surviving_pairs
+                    and _validate_bridge_pose(e, world, fragments, engine.settings.camera)]
+        surviving_pairs = {(e["source"], e["target"]) for e in retained}
+        connected = _reachable(len(fragments), retained, roots)
+        optimized = {i: world[i].copy() for i in connected}
+        valid_graph = all(_rigid(p) for p in optimized.values())
+        if not valid_graph:
+            report["reason"] = "Measured bridge poses failed independent validation"
+            connected, optimized = set(roots), {i: fragments[i].seed for i in roots}
     proposals = {}
     for fragment in fragments:
         transform = optimized.get(fragment.index)

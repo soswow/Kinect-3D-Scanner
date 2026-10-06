@@ -135,6 +135,9 @@ class ScanEngine:
         self._frame_ids = set()
         self._stored_monotonic = []
         self._appearance_cache = {}
+        self._visual_cache = {}
+        self._visual_evidence = None
+        self.tracking_edges = []
         self._tracking_lost_frames = 0
         self._lost_at_index = None
         self._recovery_preview = None
@@ -185,6 +188,7 @@ class ScanEngine:
             "refinement": self.refinement,
             "final_reconstruction": self.final_reconstruction,
             "fragment_reconnection": self.fragment_reconnection,
+            "tracking_edges": list(self.tracking_edges),
             "tracking": {
                 "state": "recovering" if self._tracking_lost_frames else "tracking" if self.poses else "waiting",
                 "last_tracked_index": self.poses[-1][0] if self.poses else None,
@@ -207,7 +211,13 @@ class ScanEngine:
         result = self.diagnostics[-1] if self.diagnostics else {}
         points = points[::step].astype(np.float32)
         colors = np.clip(colors[::step], 0, 1).astype(np.float32)
-        if result and not result.get("success"):
+        if self.mesh is not None:
+            excluded = len(self.fragment_reconnection.get("excluded_frames", []))
+            guidance = f"Final model retains {self.frame_count} of {self.stored_count} captures."
+            if excluded:
+                guidance += f" {excluded} previously fused views were removed because their positions could not be verified."
+            guidance += " Save Session preserves all captured views."
+        elif result and not result.get("success"):
             guidance = (
                 "STOP — model paused. Return to the highlighted camera and match "
                 "the last good image. Recovery frames are checked without adding geometry."
@@ -245,6 +255,11 @@ class ScanEngine:
             **self.tracking_snapshot(),
             "camera": asdict(self.settings.camera),
             "color_assistance_requested": self.settings.color_recovery or self.settings.relocalize,
+            "surface_description": (
+                "Fused preview includes tentative surface. Inspect shows the final mesh."
+                if self.mesh is not None else
+                "Live preview includes tentative surface. Finish may remove weak or unconnected areas."
+            ),
             "backend": self.backend,
             "result": self.diagnostics[-1] if self.diagnostics else {},
         }
@@ -601,6 +616,9 @@ class ScanEngine:
 
     def _tracking_initial_guess(self):
         """Predict smooth camera motion; bound extrapolation when frames are skipped."""
+        continuous = self._continuous_motion_guess()
+        if continuous is not None:
+            return continuous
         if len(self.poses) < 2:
             return self.cumulative_T
         previous_index, previous = self.poses[-2]
@@ -642,6 +660,108 @@ class ScanEngine:
         if np.linalg.norm(extrapolation[:3, 3]) > self.settings.max_translation_m:
             return last
         return last @ extrapolation
+
+    def _continuous_motion_guess(self):
+        """Camera-side short-baseline motion is a seed, never fusion authority."""
+        from .fragments import _rigid
+
+        if not self.settings.color_recovery or not self.poses:
+            return None
+        if not 0 <= self._processed_count < len(self.frame_metadata):
+            return None
+        if any(self.frame_metadata[i].get("rgb_depth_delta_ms") is not None
+               and abs(self.frame_metadata[i]["rgb_depth_delta_ms"]) > RGB_DEPTH_ASSISTANCE_LIMIT_MS
+               for i in (self._processed_count, self.poses[-1][0])):
+            return None
+        current = self.frame_metadata[self._processed_count].get("visual_tracking", {})
+        last = self.frame_metadata[self.poses[-1][0]].get("visual_tracking", {})
+        if not (isinstance(current, dict) and isinstance(last, dict)
+                and current.get("valid") and last.get("valid")
+                and current.get("segment") and current.get("segment") == last.get("segment")):
+            return None
+        try:
+            a, b = np.asarray(last.get("camera_to_local"), float), np.asarray(current.get("camera_to_local"), float)
+            if not (_rigid(a) and _rigid(b)):
+                return None
+            from .refinement import motion
+
+            relative = np.linalg.inv(a) @ b
+            translation, angle = motion(relative)
+            if translation > self.settings.max_translation_m or angle > self.settings.max_rotation_deg:
+                return None
+            return self.cumulative_T @ relative
+        except (TypeError, ValueError, np.linalg.LinAlgError):
+            return None
+
+    def _visual_register(self, source, rgbd):
+        """Use measured keyframes and retain their visual constraint after ICP."""
+        from shared.visual_tracking import feature_agreement
+
+        from .appearance import correspondences, extract_features, propose_transform
+        from .refinement import motion
+
+        if not self.settings.color_recovery or rgbd is None or not self.poses:
+            return None
+        index = self._processed_count
+        lag = self.frame_metadata[index].get("rgb_depth_delta_ms")
+        if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
+            return None
+        features = extract_features(np.asarray(rgbd.color),
+                                    np.rint(np.asarray(rgbd.depth) * 1000).astype(np.uint16),
+                                    self.settings.camera)
+        recent = self.poses[-8:]
+        historical = [self.poses[j] for j in np.unique(np.linspace(
+            0, len(self.poses) - 1, min(4, len(self.poses)), dtype=int))]
+        candidates = {i: pose for i, pose in historical + recent}
+        self._visual_cache = {i: value for i, value in self._visual_cache.items() if i in candidates}
+        for target_index in sorted(candidates, reverse=True):
+            target_pose = candidates[target_index]
+            lag = self.frame_metadata[target_index].get("rgb_depth_delta_ms")
+            if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
+                continue
+            if target_index not in self._visual_cache:
+                rgb, depth = prepare_rgbd(*self.raw_frames[target_index], self.settings)
+                target_rgbd = self._make_rgbd(rgb, depth)
+                self._visual_cache[target_index] = (
+                    extract_features(rgb, depth, self.settings.camera),
+                    self._make_reg_pcd(target_rgbd))
+            target_features, target = self._visual_cache[target_index]
+            matches = correspondences(features, target_features)
+            proposal = propose_transform(features, target_features, self.settings.camera, matches)
+            if proposal is None:
+                continue
+            a, b = matches.T
+            # Feature identities survive refinement: anonymous geometric overlap
+            # cannot move a textured surface to another plausible model location.
+            pose = target_pose @ proposal
+            translation, angle = motion(np.linalg.inv(self.cumulative_T) @ pose)
+            if not self._tracking_lost_frames and (
+                    translation > self.settings.max_translation_m or angle > self.settings.max_rotation_deg):
+                continue
+            native = self._icp(source, target, proposal)
+            correction, correction_angle = motion(np.linalg.inv(proposal) @ native.transformation)
+            good, stats = feature_agreement(features.points[a], target_features.points[b],
+                                           target_features.pixels[b], native.transformation,
+                                           self.settings.camera)
+            if not good or correction > 0.03 or correction_angle > 3:
+                # Retain the observed proposal if geometry independently agrees.
+                native = _REG.evaluate_registration(source, target, 0.0225, proposal)
+                good, stats = feature_agreement(features.points[a], target_features.points[b],
+                                               target_features.pixels[b], proposal, self.settings.camera)
+            if not good or native.fitness < 0.6 or native.inlier_rmse > 0.015:
+                continue
+            moved = copy.deepcopy(source).transform(native.transformation)
+            reverse = _REG.evaluate_registration(target, moved, 0.0225, np.eye(4))
+            if reverse.fitness < 0.45 or reverse.inlier_rmse > 0.015:
+                continue
+            self._visual_evidence = {"target_index": target_index, "feature_support": stats,
+                                     "forward_overlap": float(native.fitness),
+                                     "reverse_overlap": float(reverse.fitness),
+                                     "relative_pose": native.transformation.tolist()}
+            return SimpleNamespace(transformation=target_pose @ native.transformation,
+                                   fitness=native.fitness, inlier_rmse=native.inlier_rmse,
+                                   correspondence_set=native.correspondence_set)
+        return None
 
     def _color_recovery(self, source_pcd, rgbd):
         """Use synchronized RGB-D motion to seed geometry; never bypass its gates."""
@@ -687,7 +807,10 @@ class ScanEngine:
             return None
         pose = self.cumulative_T @ relative
         refined = self._icp(source_pcd, self.model_pcd, init=pose)
-        if self._alignment_error(refined, self.model_pcd) is None:
+        from .refinement import motion
+
+        correction, angle = motion(np.linalg.inv(pose) @ refined.transformation)
+        if correction <= 0.03 and angle <= 3 and self._alignment_error(refined, self.model_pcd) is None:
             return refined
         return None
 
@@ -697,6 +820,10 @@ class ScanEngine:
         Uses cumulative_T as initial guess so ICP starts near the true pose.
         Returns (result, method_str) or (None, error_str).
         """
+        self._visual_evidence = None
+        visual = self._visual_register(source_pcd, rgbd)
+        if visual is not None:
+            return visual, "keyframe+visual"
         if self._tracking_lost_frames:
             # ICP against a large accumulated model can snap onto another side
             # of a box. Resume only after verification against the last actual
@@ -713,9 +840,6 @@ class ScanEngine:
             return None, "Tracking lost; match the last good view to resume fusion"
         if self.settings.color_recovery:
             try:
-                if self._integrations_since_model:
-                    with self._stage("model_refresh"):
-                        self._extract_model_pcd()
                 recovered = self._color_recovery(source_pcd, rgbd)
                 if recovered is not None:
                     return recovered, "rgbd+icp"
@@ -1033,7 +1157,8 @@ class ScanEngine:
                 "message": method,
             }
 
-        if method not in ("anchor+icp", "appearance+icp"):
+        independently_verified = method == "keyframe+visual" and self._visual_evidence is not None
+        if method not in ("anchor+icp", "appearance+icp") and not independently_verified:
             with self._stage("tracking_verification"):
                 error = self._verify_tracking_transition(current_pcd, result)
             if error is not None:
@@ -1049,6 +1174,9 @@ class ScanEngine:
         self.frame_count += 1
         self._integrations_since_model += 1
         self.poses.append((self._processed_count, pose.copy()))
+        if self._visual_evidence is not None:
+            self.tracking_edges.append({"source_index": self._processed_count,
+                                        **self._visual_evidence})
 
         # Refresh model periodically
         should_extract = (
@@ -1082,6 +1210,7 @@ class ScanEngine:
             "valid_depth_fraction": valid_fraction,
             "pose": self.cumulative_T.tolist(),
             "method": method,
+            "visual_evidence": self._visual_evidence,
         }
 
     def extract_preview(self, progress_cb=None):

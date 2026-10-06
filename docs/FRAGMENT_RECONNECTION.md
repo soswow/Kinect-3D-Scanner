@@ -12,15 +12,22 @@ you to return to the last tracked image and highlighted camera position.
 Continue capturing overlapping recovery views or retrace your path; those raw
 observations can also help the Finish pass.
 
+[Continuous visual tracking](CONTINUOUS_VISUAL_TRACKING.md) now associates
+selected captures with nearby measured keyframes while scanning. The full
+fragment graph optimization described here remains a Finish operation.
+
 ## What the algorithm does
 
 1. Reconstruct calibrated, filtered point clouds from retained raw observations.
    Split sequences at timestamp gaps over three times the typical capture interval
    (at least two seconds), missing geometry, and failed adjacent registration.
    Each fragment gets its own local coordinates.
-   Adjacent registration uses measured geometry, reciprocal ICP, held-out points,
+   Adjacent registration uses measured visual/depth correspondences or
+   reciprocal geometric ICP, held-out points,
    and the configured motion limits, including for previously accepted views.
-   Fragments contain at most sixteen views. Live poses provide initial guesses;
+   Fragments contain at most sixteen views. Verified adjacent motion across that
+   storage boundary supplies a measured sequential edge. A size limit alone
+   does not break a connected track. Live poses provide initial guesses;
    only the first retained fragment fixes the world coordinate system.
 2. Search for fragment overlap independently of the broken live trajectory.
    Synchronized ORB/PnP matches propose transforms; FPFH descriptors and bounded
@@ -30,13 +37,21 @@ observations can also help the Finish pass.
    nonplanar normal coverage, bidirectional overlap, and independent held-out
    samples. Partially overlapping unions can be verified using their shared
    camera observations. Require supporting camera pairs from at least two
-   distinct positions on each side, separated by over 2 cm or 2°. Stationary duplicate captures and
+   distinct positions on each side, separated by over 2 cm or 2°. Distributed
+   measured visual correspondences can constrain planar overlap when those same
+   independent camera pairs also pass held-out depth verification. Stationary duplicate captures and
    single-view fragments cannot authorize a bridge. Reject competing verified
    transforms that disagree by over 5 cm or 5°.
 4. Optimize the anchored fragment pose graph with Open3D's Levenberg–Marquardt
    optimizer. Its measured spanning tree supplies the initial trajectory;
    additional bridges are uncertain constraints. Recompute connectivity after edge
-   pruning, then validate optimized bridges against held-out geometry again.
+   pruning, then validate optimized bridges against held-out geometry and any
+   supporting visual correspondences again.
+   If the adjustment fails those checks, revalidate the measured spanning-tree
+   poses and retain only still-valid surviving links connected to the first
+   fragment. Optimization-pruned edges remain removed, and diagnostics explicitly
+   record the fallback. This preserves measured connectivity without claiming
+   that global drift was corrected.
    Re-estimate accepted poses as well as skipped views. Exclude observations
    without a verified connection to the first fragment. Optional final pose
    refinement can subsequently refine that connected trajectory using its

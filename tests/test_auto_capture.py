@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QApplication
 from kinect_scanner.gui import main_window
 from kinect_scanner.gui.preferences import ScannerPreferences
 from kinect_scanner.server_task_worker import ServerTaskType
+from shared.settings import ScanSettings
 
 
 class NoCamera(QThread):
@@ -24,12 +25,16 @@ class NoCamera(QThread):
 
     def __init__(self, **kwargs):
         super().__init__()
+        self.tracking_settings = []
 
     def run(self):
         pass
 
     def stop(self):
         pass
+
+    def set_tracking_settings(self, settings):
+        self.tracking_settings.append(settings)
 
 
 class NoTasks(QThread):
@@ -96,6 +101,24 @@ class AutoCaptureTests(unittest.TestCase):
 
     def ids(self):
         return [int(f["metadata"]["frame_id"].rsplit(":", 1)[-1]) for f in self.window.task_worker.frames]
+
+    def test_session_tracking_uses_frozen_settings_and_survives_status_updates(self):
+        self.window.rgb_mode_combo.setCurrentIndex(1)
+        profile = ScanSettings(color_recovery=True, live_reconstruction=True)
+        self.window._on_reset_done({"session_id": "motion-trial", "settings": profile.to_dict()})
+        self.assertEqual(profile, self.window.worker.tracking_settings[-1])
+        requests = len(self.window.worker.tracking_settings)
+        self.window._apply_session_settings(profile.to_dict())
+        self.assertEqual(requests, len(self.window.worker.tracking_settings),
+                         "A periodic status update must not reset the motion chain")
+        self.window._on_build_mesh_done(False, "Synthetic failed build")
+        self.assertIsNone(self.window.worker.tracking_settings[-1])
+        self.window._restore_server_session({"session_id": "motion-trial", "settings": profile.to_dict(),
+                                            "stored_count": 2, "frame_count": 1, "has_mesh": False})
+        self.assertEqual(profile, self.window.worker.tracking_settings[-1])
+        self.window._cancel_pending = True
+        self.window._on_reset_done({"session_id": "empty", "settings": profile.to_dict()})
+        self.assertIsNone(self.window.worker.tracking_settings[-1])
 
     def test_interval_editor_caps_frequency_and_steps_whole_frames(self):
         spin = self.window.auto_capture_spin

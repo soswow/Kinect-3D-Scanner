@@ -244,7 +244,7 @@ class FragmentTests(unittest.TestCase):
         for index, pose in poses:
             self.assertLess(np.linalg.norm(pose[:3, 3] - self.scene[chosen[index]][2][:3, 3]), 0.02)
 
-    def test_optimized_boundary_still_requires_heldout_measurements(self):
+    def test_corrupt_optimization_restores_revalidated_measured_boundary(self):
         engine = ScanEngine(device="cpu")
         for i, (rgb, depth, _) in enumerate(self.scene[:8]):
             engine.store_frame(rgb, depth, {"timestamp_s": i * 0.2})
@@ -258,9 +258,35 @@ class FragmentTests(unittest.TestCase):
         with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4), \
              patch("scanner_server.fragments.REG.global_optimization", side_effect=corrupt):
             poses, report = propose_fragment_poses(engine)
-        self.assertIsNone(poses)
-        self.assertTrue(report["failed"])
-        self.assertIn("failed independent validation", report["reason"])
+        self.assertEqual(8, len(poses), report)
+        self.assertEqual([[0, 1]], report["rejected_optimized_bridges"])
+        self.assertIn("Revalidated", report["optimization_fallback"])
+        for index, pose in poses:
+            self.assertLess(np.linalg.norm(pose[:3, 3] - self.scene[index][2][:3, 3]), 0.015)
+
+    def test_fallback_cannot_restore_an_unverified_bridge(self):
+        engine = ScanEngine(device="cpu")
+        for i, (rgb, depth, _) in enumerate(self.scene[:8]):
+            engine.store_frame(rgb, depth, {"timestamp_s": i * 0.2})
+        engine.poses = [(0, np.eye(4))]
+        from scanner_server.fragments import _heldout
+
+        changed = False
+
+        def corrupt(graph, *args):
+            nonlocal changed
+            changed = True
+
+        def heldout(*args, **kwargs):
+            return (False, {}) if changed else _heldout(*args, **kwargs)
+
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4), \
+             patch("scanner_server.fragments.REG.global_optimization", side_effect=corrupt), \
+             patch("scanner_server.fragments._heldout", side_effect=heldout):
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual([0, 1, 2, 3], [i for i, _ in poses], report)
+        self.assertEqual([1], report["unconnected_fragments"])
+        self.assertFalse(report["verified_bridges"][0]["connected_to_scan"])
 
     def test_search_does_not_spend_budget_on_unreachable_fragment_pairs(self):
         engine = ScanEngine(device="cpu")
@@ -283,11 +309,10 @@ class FragmentTests(unittest.TestCase):
         engine.poses = [(0, np.eye(4))]
         original = _verify_bridge
 
-        def chain_only(source, target, proposal, *args):
+        def chain_only(source, target, proposal, camera=None):
             if target.index != source.index + 1:
                 return None
-            return original(source, target, proposal, *args)
-
+            return original(source, target, proposal, camera)
 
         with patch("scanner_server.fragments._verify_bridge", side_effect=chain_only):
             poses, report = propose_fragment_poses(engine)
@@ -313,7 +338,7 @@ class FragmentTests(unittest.TestCase):
             pose[0, 3] = 0.2 if seed < 10000 else 0.4
             return pose
 
-        def verified(source, target, pose):
+        def verified(source, target, pose, camera=None):
             return {"source": source.index, "target": target.index, "transform": pose,
                     "information": np.eye(6), "support": [(0, 3), (1, 4)], "validation": {}}
 

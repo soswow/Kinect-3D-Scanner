@@ -3,12 +3,15 @@
 import signal
 import time
 import unittest
+from unittest.mock import patch
 
+import cv2
 import numpy as np
 from PyQt6.QtCore import Qt
 
 from kinect_scanner.capture_process import DEPTH_SHAPE, RGB_SHAPE
 from kinect_scanner.worker import KinectWorker
+from shared.settings import ScanSettings
 
 
 def stalled_capture(connection, stop_event, rgb_buffer, depth_buffer):
@@ -108,3 +111,20 @@ class CaptureWorkerTests(unittest.TestCase):
         worker.stop()
         worker.start()
         self.assertTrue(worker.wait(1000))
+
+    def test_visual_failure_does_not_restart_or_discard_camera_stream(self):
+        frames, errors = [], []
+        worker = KinectWorker(capture_target=one_frame_capture, rgb_mode="rgb_low_res")
+        self.addCleanup(self.stop_worker, worker)
+        worker.set_tracking_settings(ScanSettings(color_recovery=True, live_reconstruction=True))
+        worker.frame_pair_ready.connect(lambda *args: frames.append(args), Qt.ConnectionType.DirectConnection)
+        worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
+        with patch("kinect_scanner.worker.VisualTracker") as factory:
+            factory.return_value.update.side_effect = cv2.error("No usable optical flow")
+            worker.start()
+            self.assertTrue(wait_for(lambda: bool(frames)))
+            self.stop_worker(worker)
+            factory.return_value.reset.assert_called_once()
+        self.assertFalse(frames[0][2]["visual_tracking"]["valid"])
+        self.assertTrue(np.all(frames[0][0] == 42))
+        self.assertFalse(errors)

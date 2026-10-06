@@ -5,10 +5,12 @@ import multiprocessing
 import threading
 import time
 
+import cv2
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from shared.capture import validate_rgb_exposure
+from shared.visual_tracking import VisualTracker
 
 from .capture_process import DEPTH_SHAPE, RGB_SHAPE, capture_frames
 
@@ -49,6 +51,13 @@ class KinectWorker(QThread):
         self._rgb_shutter_speed = rgb_shutter_speed
         self._rgb_gain = rgb_gain
         self._rgb_shape = (1024, 1280, 3) if self._high_res else RGB_SHAPE
+        self._tracking_lock = threading.Lock()
+        self._tracking_request = (0, None)
+
+    def set_tracking_settings(self, settings):
+        """Hand immutable session settings to the camera thread; never run in Qt."""
+        with self._tracking_lock:
+            self._tracking_request = (self._tracking_request[0] + 1, settings)
 
     def stop(self):
         self._stop_event.set()
@@ -71,6 +80,7 @@ class KinectWorker(QThread):
         context = multiprocessing.get_context("spawn")
         sequence = 0
         while not self._stop_event.is_set():
+            tracker, tracking_generation = None, -1
             parent, child = context.Pipe()
             stop_event = context.Event()
             rgb_buffer = context.RawArray("B", int(np.prod(self._rgb_shape)))
@@ -112,6 +122,21 @@ class KinectWorker(QThread):
                         parent.send("copied")
                         sequence += 1
                         metadata = dict(payload, frame_id=sequence)
+                        with self._tracking_lock:
+                            generation, settings = self._tracking_request
+                        if generation != tracking_generation:
+                            tracker = VisualTracker(settings) if settings is not None else None
+                            tracking_generation = generation
+                        if tracker is not None:
+                            # The driver already owns the next shared buffer.
+                            # Tracking uses our copies, independently of HTTP/fusion.
+                            try:
+                                metadata["visual_tracking"] = tracker.update(rgb, depth, metadata)
+                            except (cv2.error, ValueError, np.linalg.LinAlgError) as exc:
+                                logger.warning("Visual motion estimate failed: %s", exc)
+                                tracker.reset()
+                                metadata["visual_tracking"] = {
+                                    "valid": False, "reason": "Visual estimate unavailable; chain reset"}
                         if not streaming:
                             logger.info(
                                 "Kinect %s RGB/raw-depth stream ready",
