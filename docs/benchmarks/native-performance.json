@@ -1,0 +1,1118 @@
+{
+  "date": "2026-10-07",
+  "implementation_commit": "603c432",
+  "measurement_harness_commit": "93baae6",
+  "hardware": "Apple M1 Pro, 10 cores, 32 GiB RAM",
+  "extension_version": "0.2.0",
+  "api_version": 2,
+  "versions": {
+    "python": "3.13.7",
+    "numpy": "2.5.3",
+    "open3d": "0.20.0",
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O"
+  },
+  "opencv": "5.0.0",
+  "omp_threads": "4",
+  "initial_blocks": 5000,
+  "compiler": "Apple Clang 21; C++17; -O3; -ffp-contract=off",
+  "validation": {
+    "tests_run": 317,
+    "passed": 315,
+    "cuda_skipped": 2,
+    "test_duration_s": 134.745,
+    "rgbd_parity_frames": 376,
+    "accumulated_fusion_observations": 308,
+    "accumulated_fusion_observations_with_prior_weights": 305,
+    "kernel_results_bit_exact": true
+  },
+  "rgbd_helper": {
+    "valid": true,
+    "method": "Warmed alternating-order paired RGB-D helper calls; GC disabled only while timing",
+    "scope": "No I/O, tracking, fusion, transport, final mesh, or ground-truth accuracy measurement",
+    "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+    "extension_sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8"
+  },
+  "fusion_helper": {
+    "valid": true,
+    "method": "Warmed alternating-order paired full confidence-weighted CPU fusion calls; identical zero attributes and preactivated blocks; GC disabled only while timing",
+    "scope": "Includes confidence, block discovery, voxel coordinates, NumPy transform, and attribute update; excludes I/O, RGB-D preparation, attribute reset, first block allocation, tracking, extraction, and mesh work",
+    "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+    "extension_sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8"
+  },
+  "accumulated_fusion_validation": {
+    "valid": true,
+    "method": "Per-view paired NumPy/native confidence-weighted fusion at completed baseline final trajectories; restore exact touched pre-state between implementations; retain native post-state for next observation",
+    "scope": "Accumulated multi-view CPU TSDF, weight, color, and observation statistics; no tracking, mesh construction, or performance measurement",
+    "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+    "extension_sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+    "script_sha256": "48925e8432eb4a93027bdd62eae16f67fd20e2a9f3f22db7dd8955557bb3cf66",
+    "helper_sha256": {
+      "scripts/benchmark_native_fusion.py": "1c9eb3fac58532be249bbe6a1dab2b2a183cdd7ada5289aec13a69e390abf529",
+      "scripts/benchmark_native_kernels.py": "46c05490888ff7fdac7787938a3a0ff04f54b88ade063fc934a66c7e4ba87b6a",
+      "scripts/profile_backends.py": "4da56b60723b7dd84e84ed15b4b74f83cb0eedb1a42c572773d599cbc9ceb959"
+    },
+    "source_changed_during_run": false,
+    "extension_changed_during_run": false,
+    "script_changed_during_run": false,
+    "helpers_changed_during_run": false,
+    "sessions": [
+      {
+        "archive": "chest_20261005_230320.zip",
+        "input_sha256": "ade7f340aa8759233a50509431768732d2836fbb50b77d922e34d50ac99a63b0",
+        "input_changed_during_run": false,
+        "baseline_report": "chest-off-full.json",
+        "baseline_report_sha256": "da1ce8568e6d67e8f674468812d48059d924552c67e6c37ba92fd300f0f4ce49",
+        "baseline_report_changed_during_run": false,
+        "settings_sha256": "3b4f7da67145c4f85d4479bbc967506e28a55b14febbfe5280a5fb64f0bea83f",
+        "settings_preserved": true,
+        "trajectory_sha256": "d5df0da076d4c8bcc8503aa3dfac12103c560a4bf3c24f2144399182b3d2fe96",
+        "final_poses_used": 14,
+        "observations_checked": 14,
+        "views_with_nonzero_prior_weights": 13,
+        "bit_exact_accumulated_attributes_and_statistics": true,
+        "all_pair_block_ids_and_capacity_stable": true,
+        "all_raw_and_prepared_inputs_unchanged": true,
+        "final_active_blocks": 2481,
+        "final_allocated_block_capacity": 10000,
+        "final_active_ids_sha256": "fcf752ad6cdaa800065704151fd04ef9eee1a5590b13e9ae27c1706206449f25",
+        "final_block_coordinates_sha256": "14a5e7ded3a8f80c9848e7944fd6349b208d9cf4ee9784ecd017cc0c9a4f5a3d",
+        "final_all_active_attribute_sha256": {
+          "tsdf": "93f44df2dd2a80776469875ef668587eef20d3251e63ee7c9f3f61134a333d6c",
+          "weight": "624eea99c316b1515b466e8442a694ce224a26561609859e2d9ad94b0feb1412",
+          "color": "3e1535ca704911e4c72ffb1e5b7c9ffdc61b99e7899a71bad9540907f9231e2f"
+        }
+      },
+      {
+        "archive": "chest-3-scan-session_20261006_215208.zip",
+        "input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+        "input_changed_during_run": false,
+        "baseline_report": "chest3-off-full.json",
+        "baseline_report_sha256": "cbb45dcc115785eb66aa28d7890000ead4571b43317794c9a592f30a9696effe",
+        "baseline_report_changed_during_run": false,
+        "settings_sha256": "c2b09c2719976dcfcb62c659a94643bdd3fd33d13cbaa988c87d48e343678740",
+        "settings_preserved": true,
+        "trajectory_sha256": "90490a455a92dec08293ed9b69e5f6254254b3efe979b6fddef79e992a53359a",
+        "final_poses_used": 120,
+        "observations_checked": 120,
+        "views_with_nonzero_prior_weights": 119,
+        "bit_exact_accumulated_attributes_and_statistics": true,
+        "all_pair_block_ids_and_capacity_stable": true,
+        "all_raw_and_prepared_inputs_unchanged": true,
+        "final_active_blocks": 7112,
+        "final_allocated_block_capacity": 10000,
+        "final_active_ids_sha256": "0d0a3b720d9f2f2e4c8fefa3ebaf8eb9643e757235683fe2149507166a4c6682",
+        "final_block_coordinates_sha256": "807824f4ef58f1e148580f86ced415605656a778cfabba1f43d990951e2c7e11",
+        "final_all_active_attribute_sha256": {
+          "tsdf": "098400a856cafa6e4d94a4a81adb24590282ab329495c6be55f322715895fc78",
+          "weight": "ebf4f75a9290a5ff18c1348475093f81c090346e006a100a860bdea393081648",
+          "color": "4e16014f1caf225a8fd02294c64822c625a697caa9c3a617fd1501ff536b7f56"
+        }
+      },
+      {
+        "archive": "chest-2scan-session_20261006_090302.zip",
+        "input_sha256": "3e419b154522e58c1ff1cc9d87983b86dd2cbaf9821ce3993b60c286836762f2",
+        "input_changed_during_run": false,
+        "baseline_report": "chest2-off-budget10000.json",
+        "baseline_report_sha256": "4aca5ae711b4f4cf88d2dbc105360cbf533084229a97ada91cd06185e90f67ee",
+        "baseline_report_changed_during_run": false,
+        "settings_sha256": "d6401324187acc24585e9f11c73e4d0c21f8c95db08ed8647040bdf9d25026fe",
+        "settings_preserved": true,
+        "trajectory_sha256": "2dc2ba10cc71985a25b751b3ba2876cf03f8b698421da8dbcb8f680053aa2e47",
+        "final_poses_used": 174,
+        "observations_checked": 174,
+        "views_with_nonzero_prior_weights": 173,
+        "bit_exact_accumulated_attributes_and_statistics": true,
+        "all_pair_block_ids_and_capacity_stable": true,
+        "all_raw_and_prepared_inputs_unchanged": true,
+        "final_active_blocks": 6551,
+        "final_allocated_block_capacity": 10000,
+        "final_active_ids_sha256": "1affe2763d87c0f91a578b631c3ddfae0fce54555f4f25457fa4d4d25be5acce",
+        "final_block_coordinates_sha256": "181a812b98d8871af9184c06a899b24484b5b8609e81ea72df3b97cdac41b120",
+        "final_all_active_attribute_sha256": {
+          "tsdf": "f75b8a07eed520142643d93c2ed6fdfa8be578efad1a373ff94a070ab02a7e8a",
+          "weight": "e4e2701b87971721bd0ed961168e75d669a92fcbe097cceaa994de26159c60ad",
+          "color": "60069d9675704d04cff68b221498fb720815ffbdeba5fbb05d09101043a522a5"
+        }
+      }
+    ]
+  },
+  "cases": {
+    "chest": {
+      "archive": "chest_20261005_230320.zip",
+      "input_sha256": "ade7f340aa8759233a50509431768732d2836fbb50b77d922e34d50ac99a63b0",
+      "frames": 50,
+      "rgbd": {
+        "numpy": {
+          "measurements": 25,
+          "median_ms": 22.1799174323678,
+          "p95_ms": 23.37766643613577
+        },
+        "native": {
+          "measurements": 25,
+          "median_ms": 11.421125382184982,
+          "p95_ms": 12.517233565449713
+        },
+        "median_paired_speedup": 1.9518204512757853
+      },
+      "fusion": {
+        "numpy": {
+          "measurements": 15,
+          "median_ms": 456.8147910758853,
+          "p95_ms": 498.6378875561058
+        },
+        "native": {
+          "measurements": 15,
+          "median_ms": 143.3544596657157,
+          "p95_ms": 148.04738368839025
+        },
+        "median_paired_speedup": 3.1843012702660283
+      },
+      "runs": {
+        "off": {
+          "live_s": 50.483826249837875,
+          "finish_s": 1.1660446673631668,
+          "processing_s": 51.64987091720104,
+          "accepted_before_finish": 14,
+          "accepted": 14,
+          "mesh_built": true,
+          "peak_process_rss_bytes": 1011679232,
+          "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+          "source_changed_during_profile": false,
+          "input_changed_during_profile": false,
+          "native_extension": {
+            "sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+            "changed_during_profile": false
+          },
+          "live_stages": {
+            "depth_filter": {
+              "total_ms": 1204.9975898116827,
+              "frames": 50,
+              "p50_ms": 22.960937581956387,
+              "p95_ms": 27.825620723888274
+            },
+            "registration_cloud": {
+              "total_ms": 2510.1922433823347,
+              "frames": 50,
+              "p50_ms": 49.99722866341472,
+              "p95_ms": 73.38317669928074
+            },
+            "fusion": {
+              "total_ms": 5224.946290254593,
+              "frames": 14,
+              "p50_ms": 358.9055617339909,
+              "p95_ms": 480.93617013655603
+            },
+            "model_refresh": {
+              "total_ms": 1949.7091248631477,
+              "frames": 6,
+              "p50_ms": 334.49922874569893,
+              "p95_ms": 437.00189609080553
+            },
+            "tracking": {
+              "total_ms": 36946.0526201874,
+              "frames": 49,
+              "p50_ms": 684.0495001524687,
+              "p95_ms": 1580.8543493971226
+            },
+            "tracking_verification": {
+              "total_ms": 2519.6153735741973,
+              "frames": 13,
+              "p50_ms": 1.1852504685521126,
+              "p95_ms": 615.6380916014313
+            }
+          },
+          "all_stages": {
+            "depth_filter": {
+              "total_ms": 1204.9975898116827,
+              "frames": 50,
+              "p50_ms": 22.960937581956387,
+              "p95_ms": 27.825620723888274
+            },
+            "registration_cloud": {
+              "total_ms": 2510.1922433823347,
+              "frames": 50,
+              "p50_ms": 49.99722866341472,
+              "p95_ms": 73.38317669928074
+            },
+            "fusion": {
+              "total_ms": 5224.946290254593,
+              "frames": 14,
+              "p50_ms": 358.9055617339909,
+              "p95_ms": 480.93617013655603
+            },
+            "model_refresh": {
+              "total_ms": 1949.7091248631477,
+              "frames": 6,
+              "p50_ms": 334.49922874569893,
+              "p95_ms": 437.00189609080553
+            },
+            "tracking": {
+              "total_ms": 36946.0526201874,
+              "frames": 49,
+              "p50_ms": 684.0495001524687,
+              "p95_ms": 1580.8543493971226
+            },
+            "tracking_verification": {
+              "total_ms": 2519.6153735741973,
+              "frames": 13,
+              "p50_ms": 1.1852504685521126,
+              "p95_ms": 615.6380916014313
+            },
+            "final_refinement": {
+              "total_ms": 977.4757083505392,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            }
+          },
+          "geometry": {
+            "vertices": 39779,
+            "triangles": 74215,
+            "surface_positions_1um_sha256": "d1253277756479faa2b47a301601c31839028c542732cbb4802809fd4d4535ba"
+          },
+          "fragment_reconnection": {
+            "applied": false
+          }
+        },
+        "on": {
+          "live_s": 52.16828520782292,
+          "finish_s": 0.9460537917912006,
+          "processing_s": 53.11433899961412,
+          "accepted_before_finish": 14,
+          "accepted": 14,
+          "mesh_built": true,
+          "peak_process_rss_bytes": 1237565440,
+          "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+          "source_changed_during_profile": false,
+          "input_changed_during_profile": false,
+          "native_extension": {
+            "sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+            "changed_during_profile": false
+          },
+          "live_stages": {
+            "depth_filter": {
+              "total_ms": 657.3563339188695,
+              "frames": 50,
+              "p50_ms": 12.238437309861183,
+              "p95_ms": 15.809197630733252
+            },
+            "registration_cloud": {
+              "total_ms": 2601.0384960100055,
+              "frames": 50,
+              "p50_ms": 52.7176670730114,
+              "p95_ms": 78.73927550390361
+            },
+            "fusion": {
+              "total_ms": 1768.2061241939664,
+              "frames": 14,
+              "p50_ms": 125.81714615225792,
+              "p95_ms": 161.70655586756766
+            },
+            "model_refresh": {
+              "total_ms": 1988.6117912828922,
+              "frames": 6,
+              "p50_ms": 353.3559376373887,
+              "p95_ms": 419.79146911762655
+            },
+            "tracking": {
+              "total_ms": 42169.35128811747,
+              "frames": 49,
+              "p50_ms": 723.2852904126048,
+              "p95_ms": 1854.4273413717744
+            },
+            "tracking_verification": {
+              "total_ms": 2876.0303733870387,
+              "frames": 13,
+              "p50_ms": 0.1055002212524414,
+              "p95_ms": 737.5094668939707
+            }
+          },
+          "all_stages": {
+            "depth_filter": {
+              "total_ms": 657.3563339188695,
+              "frames": 50,
+              "p50_ms": 12.238437309861183,
+              "p95_ms": 15.809197630733252
+            },
+            "registration_cloud": {
+              "total_ms": 2601.0384960100055,
+              "frames": 50,
+              "p50_ms": 52.7176670730114,
+              "p95_ms": 78.73927550390361
+            },
+            "fusion": {
+              "total_ms": 1768.2061241939664,
+              "frames": 14,
+              "p50_ms": 125.81714615225792,
+              "p95_ms": 161.70655586756766
+            },
+            "model_refresh": {
+              "total_ms": 1988.6117912828922,
+              "frames": 6,
+              "p50_ms": 353.3559376373887,
+              "p95_ms": 419.79146911762655
+            },
+            "tracking": {
+              "total_ms": 42169.35128811747,
+              "frames": 49,
+              "p50_ms": 723.2852904126048,
+              "p95_ms": 1854.4273413717744
+            },
+            "tracking_verification": {
+              "total_ms": 2876.0303733870387,
+              "frames": 13,
+              "p50_ms": 0.1055002212524414,
+              "p95_ms": 737.5094668939707
+            },
+            "final_refinement": {
+              "total_ms": 777.8788348659873,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            }
+          },
+          "geometry": {
+            "vertices": 39883,
+            "triangles": 74402,
+            "surface_positions_1um_sha256": "dbbee53506afafff7e703256f8668cee163ade025f7cee23d391895d963f4ddd"
+          },
+          "fragment_reconnection": {
+            "applied": false
+          }
+        }
+      },
+      "settings_overrides": {},
+      "final_block_count": 5000,
+      "comparison": {
+        "baseline": "chest-off-full.json",
+        "same_accepted_indices": true,
+        "same_mesh_success": true,
+        "same_vertex_count": false,
+        "same_triangle_count": false,
+        "common_poses": 14,
+        "max_pose_translation_delta_m": 0.00042315983478006814,
+        "max_pose_rotation_delta_deg": 0.024254798671970168,
+        "same_surface_positions_1um": false,
+        "symmetric_vertex_distance_m": {
+          "rms": 0.0012949498840610033,
+          "p95": 0.0004070408048498616,
+          "max": 0.06894784406523544
+        }
+      },
+      "same_live_accepted_indices": true,
+      "processing_speedup": 0.972428008895607,
+      "processing_time_reduction": -0.028353760743385692,
+      "repeatability": {
+        "runs": {
+          "off": [
+            {
+              "live_s": 50.483826249837875,
+              "finish_s": 1.1660446673631668,
+              "processing_s": 51.64987091720104,
+              "accepted": 14
+            },
+            {
+              "live_s": 50.15826804097742,
+              "finish_s": 1.0627964166924357,
+              "processing_s": 51.221064457669854,
+              "accepted": 14
+            },
+            {
+              "live_s": 49.25009133294225,
+              "finish_s": 1.0228524170815945,
+              "processing_s": 50.27294375002384,
+              "accepted": 14
+            }
+          ],
+          "on": [
+            {
+              "live_s": 52.16828520782292,
+              "finish_s": 0.9460537917912006,
+              "processing_s": 53.11433899961412,
+              "accepted": 14
+            },
+            {
+              "live_s": 44.14040729217231,
+              "finish_s": 0.8947410834953189,
+              "processing_s": 45.03514837566763,
+              "accepted": 14
+            },
+            {
+              "live_s": 44.940225165337324,
+              "finish_s": 0.8337387498468161,
+              "processing_s": 45.77396391518414,
+              "accepted": 14
+            }
+          ]
+        },
+        "comparisons": {
+          "off-2": {
+            "baseline": "chest-off-full.json",
+            "same_accepted_indices": true,
+            "same_mesh_success": true,
+            "same_vertex_count": false,
+            "same_triangle_count": false,
+            "common_poses": 14,
+            "max_pose_translation_delta_m": 0.000324419392918329,
+            "max_pose_rotation_delta_deg": 0.014494467028000368,
+            "same_surface_positions_1um": false,
+            "symmetric_vertex_distance_m": {
+              "rms": 0.0027807077833287854,
+              "p95": 0.00032227709889411896,
+              "max": 0.14020982066133697
+            }
+          },
+          "off-3": {
+            "baseline": "chest-off-full.json",
+            "same_accepted_indices": true,
+            "same_mesh_success": true,
+            "same_vertex_count": false,
+            "same_triangle_count": false,
+            "common_poses": 14,
+            "max_pose_translation_delta_m": 0.0001538304967868907,
+            "max_pose_rotation_delta_deg": 0.005827713320712417,
+            "same_surface_positions_1um": false,
+            "symmetric_vertex_distance_m": {
+              "rms": 0.002772143446063655,
+              "p95": 0.0003249645233154297,
+              "max": 0.14020958019868807
+            }
+          },
+          "on-2": {
+            "baseline": "chest-off-full.json",
+            "same_accepted_indices": true,
+            "same_mesh_success": true,
+            "same_vertex_count": false,
+            "same_triangle_count": false,
+            "common_poses": 14,
+            "max_pose_translation_delta_m": 0.000211441228494503,
+            "max_pose_rotation_delta_deg": 0.00915311849297622,
+            "same_surface_positions_1um": false,
+            "symmetric_vertex_distance_m": {
+              "rms": 0.00047289465037154467,
+              "p95": 0.00032863542437553306,
+              "max": 0.02525674925734548
+            }
+          },
+          "on-3": {
+            "baseline": "chest-off-full.json",
+            "same_accepted_indices": true,
+            "same_mesh_success": true,
+            "same_vertex_count": false,
+            "same_triangle_count": false,
+            "common_poses": 14,
+            "max_pose_translation_delta_m": 0.0002113450491362774,
+            "max_pose_rotation_delta_deg": 0.009142067086470263,
+            "same_surface_positions_1um": false,
+            "symmetric_vertex_distance_m": {
+              "rms": 0.0008027465074775584,
+              "p95": 0.00032276176913142047,
+              "max": 0.04921460981976049
+            }
+          }
+        },
+        "median_processing_s": {
+          "off": 51.221064457669854,
+          "on": 45.77396391518414
+        },
+        "median_time_reduction": 0.1063449305507368
+      }
+    },
+    "chest3": {
+      "archive": "chest-3-scan-session_20261006_215208.zip",
+      "input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+      "frames": 126,
+      "rgbd": {
+        "numpy": {
+          "measurements": 25,
+          "median_ms": 22.46629074215889,
+          "p95_ms": 23.32516722381115
+        },
+        "native": {
+          "measurements": 25,
+          "median_ms": 11.411791667342186,
+          "p95_ms": 12.063149735331535
+        },
+        "median_paired_speedup": 1.97642872342464
+      },
+      "fusion": {
+        "numpy": {
+          "measurements": 15,
+          "median_ms": 295.633708126843,
+          "p95_ms": 364.73900424316525
+        },
+        "native": {
+          "measurements": 15,
+          "median_ms": 94.75199971348047,
+          "p95_ms": 115.79562956467271
+        },
+        "median_paired_speedup": 3.0810908546576
+      },
+      "runs": {
+        "off": {
+          "live_s": 223.93126179184765,
+          "finish_s": 208.50551758427173,
+          "processing_s": 432.4367793761194,
+          "accepted_before_finish": 104,
+          "accepted": 120,
+          "mesh_built": true,
+          "peak_process_rss_bytes": 1704116224,
+          "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+          "source_changed_during_profile": false,
+          "input_changed_during_profile": false,
+          "native_extension": {
+            "sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+            "changed_during_profile": false
+          },
+          "live_stages": {
+            "depth_filter": {
+              "total_ms": 3388.4717524051666,
+              "frames": 126,
+              "p50_ms": 24.480687454342842,
+              "p95_ms": 39.77978159673512
+            },
+            "registration_cloud": {
+              "total_ms": 7847.846208140254,
+              "frames": 126,
+              "p50_ms": 60.84712501615286,
+              "p95_ms": 87.61448971927166
+            },
+            "fusion": {
+              "total_ms": 40789.00391701609,
+              "frames": 104,
+              "p50_ms": 367.8292706608772,
+              "p95_ms": 598.4222877305
+            },
+            "model_refresh": {
+              "total_ms": 55620.566789992154,
+              "frames": 37,
+              "p50_ms": 1744.6057088673115,
+              "p95_ms": 2367.3860412091017
+            },
+            "tracking": {
+              "total_ms": 97719.55467294902,
+              "frames": 125,
+              "p50_ms": 419.7661252692342,
+              "p95_ms": 2740.126192383468
+            },
+            "tracking_verification": {
+              "total_ms": 18240.010377019644,
+              "frames": 27,
+              "p50_ms": 552.6684168726206,
+              "p95_ms": 1579.0634922683237
+            }
+          },
+          "all_stages": {
+            "depth_filter": {
+              "total_ms": 3388.4717524051666,
+              "frames": 126,
+              "p50_ms": 24.480687454342842,
+              "p95_ms": 39.77978159673512
+            },
+            "registration_cloud": {
+              "total_ms": 7847.846208140254,
+              "frames": 126,
+              "p50_ms": 60.84712501615286,
+              "p95_ms": 87.61448971927166
+            },
+            "fusion": {
+              "total_ms": 40789.00391701609,
+              "frames": 104,
+              "p50_ms": 367.8292706608772,
+              "p95_ms": 598.4222877305
+            },
+            "model_refresh": {
+              "total_ms": 55620.566789992154,
+              "frames": 37,
+              "p50_ms": 1744.6057088673115,
+              "p95_ms": 2367.3860412091017
+            },
+            "tracking": {
+              "total_ms": 97719.55467294902,
+              "frames": 125,
+              "p50_ms": 419.7661252692342,
+              "p95_ms": 2740.126192383468
+            },
+            "tracking_verification": {
+              "total_ms": 18240.010377019644,
+              "frames": 27,
+              "p50_ms": 552.6684168726206,
+              "p95_ms": 1579.0634922683237
+            },
+            "fragment_reconnection": {
+              "total_ms": 204249.79341682047,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            },
+            "final_refinement": {
+              "total_ms": 3496.71124946326,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            }
+          },
+          "geometry": {
+            "vertices": 200138,
+            "triangles": 389956,
+            "surface_positions_1um_sha256": "efec9db26375ec398ab904cebc67115403e8b04e758f64ebeccbce5dc3f068d1"
+          },
+          "fragment_reconnection": {
+            "applied": true,
+            "recovered_frames": 19,
+            "corrected_frames": 100,
+            "fusion_required_blocks": 7112,
+            "fusion_block_limit": 10000
+          }
+        },
+        "on": {
+          "live_s": 190.83194158319384,
+          "finish_s": 177.04308220837265,
+          "processing_s": 367.8750237915665,
+          "accepted_before_finish": 104,
+          "accepted": 120,
+          "mesh_built": true,
+          "peak_process_rss_bytes": 1916583936,
+          "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+          "source_changed_during_profile": false,
+          "input_changed_during_profile": false,
+          "native_extension": {
+            "sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+            "changed_during_profile": false
+          },
+          "live_stages": {
+            "depth_filter": {
+              "total_ms": 1619.679044932127,
+              "frames": 126,
+              "p50_ms": 11.955395806580782,
+              "p95_ms": 17.305302433669567
+            },
+            "registration_cloud": {
+              "total_ms": 7460.979373194277,
+              "frames": 126,
+              "p50_ms": 57.30393761768937,
+              "p95_ms": 83.77062389627099
+            },
+            "fusion": {
+              "total_ms": 13421.589299105108,
+              "frames": 104,
+              "p50_ms": 115.50668766722083,
+              "p95_ms": 183.46478501334784
+            },
+            "model_refresh": {
+              "total_ms": 54347.07950707525,
+              "frames": 37,
+              "p50_ms": 1731.892542913556,
+              "p95_ms": 2317.1346332877874
+            },
+            "tracking": {
+              "total_ms": 95390.97459241748,
+              "frames": 125,
+              "p50_ms": 427.5200003758073,
+              "p95_ms": 2743.1645911186915
+            },
+            "tracking_verification": {
+              "total_ms": 18374.36258327216,
+              "frames": 27,
+              "p50_ms": 515.6388748437166,
+              "p95_ms": 1726.7923795618115
+            }
+          },
+          "all_stages": {
+            "depth_filter": {
+              "total_ms": 1619.679044932127,
+              "frames": 126,
+              "p50_ms": 11.955395806580782,
+              "p95_ms": 17.305302433669567
+            },
+            "registration_cloud": {
+              "total_ms": 7460.979373194277,
+              "frames": 126,
+              "p50_ms": 57.30393761768937,
+              "p95_ms": 83.77062389627099
+            },
+            "fusion": {
+              "total_ms": 13421.589299105108,
+              "frames": 104,
+              "p50_ms": 115.50668766722083,
+              "p95_ms": 183.46478501334784
+            },
+            "model_refresh": {
+              "total_ms": 54347.07950707525,
+              "frames": 37,
+              "p50_ms": 1731.892542913556,
+              "p95_ms": 2317.1346332877874
+            },
+            "tracking": {
+              "total_ms": 95390.97459241748,
+              "frames": 125,
+              "p50_ms": 427.5200003758073,
+              "p95_ms": 2743.1645911186915
+            },
+            "tracking_verification": {
+              "total_ms": 18374.36258327216,
+              "frames": 27,
+              "p50_ms": 515.6388748437166,
+              "p95_ms": 1726.7923795618115
+            },
+            "fragment_reconnection": {
+              "total_ms": 173144.39975004643,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            },
+            "final_refinement": {
+              "total_ms": 3148.2760831713676,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            }
+          },
+          "geometry": {
+            "vertices": 199694,
+            "triangles": 389156,
+            "surface_positions_1um_sha256": "42bd61c97f91aa5b8ba0257999710110cdbfa3ca8e977fac6e453867bcda1e41"
+          },
+          "fragment_reconnection": {
+            "applied": true,
+            "recovered_frames": 19,
+            "corrected_frames": 100,
+            "fusion_required_blocks": 7112,
+            "fusion_block_limit": 10000
+          }
+        }
+      },
+      "settings_overrides": {},
+      "final_block_count": 10000,
+      "comparison": {
+        "baseline": "chest3-off-full.json",
+        "same_accepted_indices": true,
+        "same_mesh_success": true,
+        "same_vertex_count": false,
+        "same_triangle_count": false,
+        "common_poses": 120,
+        "max_pose_translation_delta_m": 0.006116164661842211,
+        "max_pose_rotation_delta_deg": 0.15514661780291006,
+        "same_surface_positions_1um": false,
+        "symmetric_vertex_distance_m": {
+          "rms": 0.001298608346909107,
+          "p95": 0.0016754988898596062,
+          "max": 0.10089440307983762
+        }
+      },
+      "same_live_accepted_indices": true,
+      "processing_speedup": 1.1754991543571949,
+      "processing_time_reduction": 0.14929755900433983
+    },
+    "chest2": {
+      "archive": "chest-2scan-session_20261006_090302.zip",
+      "input_sha256": "3e419b154522e58c1ff1cc9d87983b86dd2cbaf9821ce3993b60c286836762f2",
+      "frames": 200,
+      "rgbd": {
+        "numpy": {
+          "measurements": 25,
+          "median_ms": 22.127792239189148,
+          "p95_ms": 22.463657706975937
+        },
+        "native": {
+          "measurements": 25,
+          "median_ms": 11.316499672830105,
+          "p95_ms": 11.57470066100359
+        },
+        "median_paired_speedup": 1.9580889897950748
+      },
+      "fusion": {
+        "numpy": {
+          "measurements": 15,
+          "median_ms": 333.3453331142664,
+          "p95_ms": 485.6876750476658
+        },
+        "native": {
+          "measurements": 15,
+          "median_ms": 106.94891680032015,
+          "p95_ms": 145.51930474117398
+        },
+        "median_paired_speedup": 3.144872120365192
+      },
+      "runs": {
+        "off": {
+          "live_s": 239.02938387542963,
+          "finish_s": 857.2016422916204,
+          "processing_s": 1096.23102616705,
+          "accepted_before_finish": 53,
+          "accepted": 174,
+          "mesh_built": true,
+          "peak_process_rss_bytes": 1790869504,
+          "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+          "source_changed_during_profile": false,
+          "input_changed_during_profile": false,
+          "native_extension": {
+            "sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+            "changed_during_profile": false
+          },
+          "live_stages": {
+            "depth_filter": {
+              "total_ms": 5026.6749281436205,
+              "frames": 200,
+              "p50_ms": 23.98056350648403,
+              "p95_ms": 31.43977494910358
+            },
+            "registration_cloud": {
+              "total_ms": 11408.724078908563,
+              "frames": 200,
+              "p50_ms": 54.75947866216302,
+              "p95_ms": 74.2953396402299
+            },
+            "fusion": {
+              "total_ms": 20087.707532569766,
+              "frames": 53,
+              "p50_ms": 349.0226659923792,
+              "p95_ms": 498.7304247915745
+            },
+            "model_refresh": {
+              "total_ms": 12050.6676658988,
+              "frames": 20,
+              "p50_ms": 573.6572705209255,
+              "p95_ms": 909.5754868816585
+            },
+            "tracking": {
+              "total_ms": 176667.52266231924,
+              "frames": 199,
+              "p50_ms": 836.0010832548141,
+              "p95_ms": 1811.327054351568
+            },
+            "tracking_verification": {
+              "total_ms": 13432.90778901428,
+              "frames": 50,
+              "p50_ms": 0.11485395953059196,
+              "p95_ms": 1221.7939812224356
+            }
+          },
+          "all_stages": {
+            "depth_filter": {
+              "total_ms": 5026.6749281436205,
+              "frames": 200,
+              "p50_ms": 23.98056350648403,
+              "p95_ms": 31.43977494910358
+            },
+            "registration_cloud": {
+              "total_ms": 11408.724078908563,
+              "frames": 200,
+              "p50_ms": 54.75947866216302,
+              "p95_ms": 74.2953396402299
+            },
+            "fusion": {
+              "total_ms": 20087.707532569766,
+              "frames": 53,
+              "p50_ms": 349.0226659923792,
+              "p95_ms": 498.7304247915745
+            },
+            "model_refresh": {
+              "total_ms": 12050.6676658988,
+              "frames": 20,
+              "p50_ms": 573.6572705209255,
+              "p95_ms": 909.5754868816585
+            },
+            "tracking": {
+              "total_ms": 176667.52266231924,
+              "frames": 199,
+              "p50_ms": 836.0010832548141,
+              "p95_ms": 1811.327054351568
+            },
+            "tracking_verification": {
+              "total_ms": 13432.90778901428,
+              "frames": 50,
+              "p50_ms": 0.11485395953059196,
+              "p95_ms": 1221.7939812224356
+            },
+            "fragment_reconnection": {
+              "total_ms": 853797.3296251148,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            },
+            "final_refinement": {
+              "total_ms": 2613.094124943018,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            }
+          },
+          "geometry": {
+            "vertices": 244837,
+            "triangles": 473723,
+            "surface_positions_1um_sha256": "4e01ba4615681c46ec08d9764ba2ca2c31c4293edc8a01c4ac91cceb98f09023"
+          },
+          "fragment_reconnection": {
+            "applied": true,
+            "recovered_frames": 121,
+            "corrected_frames": 52,
+            "fusion_required_blocks": 6551,
+            "fusion_block_limit": 10000
+          }
+        },
+        "on": {
+          "live_s": 185.0338240833953,
+          "finish_s": 792.978172250092,
+          "processing_s": 978.0119963334873,
+          "accepted_before_finish": 53,
+          "accepted": 174,
+          "mesh_built": true,
+          "peak_process_rss_bytes": 2057175040,
+          "source_sha256": "9f05619e56084887f9a951e6369083eeb3193566e86afed8f8345331cb84b161",
+          "source_changed_during_profile": false,
+          "input_changed_during_profile": false,
+          "native_extension": {
+            "sha256": "bdeb0cd3d3715f01ab74fc715f9f00a96fbea10ae52ac6bbd96e11c588a83be8",
+            "changed_during_profile": false
+          },
+          "live_stages": {
+            "depth_filter": {
+              "total_ms": 2540.6313380226493,
+              "frames": 200,
+              "p50_ms": 11.878271121531725,
+              "p95_ms": 16.839106893166893
+            },
+            "registration_cloud": {
+              "total_ms": 11311.557202599943,
+              "frames": 200,
+              "p50_ms": 54.856250528246164,
+              "p95_ms": 73.15087891183792
+            },
+            "fusion": {
+              "total_ms": 6814.277206547558,
+              "frames": 53,
+              "p50_ms": 114.20658230781555,
+              "p95_ms": 154.847008921206
+            },
+            "model_refresh": {
+              "total_ms": 11594.598792493343,
+              "frames": 20,
+              "p50_ms": 534.4093749299645,
+              "p95_ms": 917.7267821971328
+            },
+            "tracking": {
+              "total_ms": 142158.94792415202,
+              "frames": 199,
+              "p50_ms": 644.6700831875205,
+              "p95_ms": 1545.4316127113998
+            },
+            "tracking_verification": {
+              "total_ms": 10226.888662204146,
+              "frames": 50,
+              "p50_ms": 0.08514570072293282,
+              "p95_ms": 906.013883696869
+            }
+          },
+          "all_stages": {
+            "depth_filter": {
+              "total_ms": 2540.6313380226493,
+              "frames": 200,
+              "p50_ms": 11.878271121531725,
+              "p95_ms": 16.839106893166893
+            },
+            "registration_cloud": {
+              "total_ms": 11311.557202599943,
+              "frames": 200,
+              "p50_ms": 54.856250528246164,
+              "p95_ms": 73.15087891183792
+            },
+            "fusion": {
+              "total_ms": 6814.277206547558,
+              "frames": 53,
+              "p50_ms": 114.20658230781555,
+              "p95_ms": 154.847008921206
+            },
+            "model_refresh": {
+              "total_ms": 11594.598792493343,
+              "frames": 20,
+              "p50_ms": 534.4093749299645,
+              "p95_ms": 917.7267821971328
+            },
+            "tracking": {
+              "total_ms": 142158.94792415202,
+              "frames": 199,
+              "p50_ms": 644.6700831875205,
+              "p95_ms": 1545.4316127113998
+            },
+            "tracking_verification": {
+              "total_ms": 10226.888662204146,
+              "frames": 50,
+              "p50_ms": 0.08514570072293282,
+              "p95_ms": 906.013883696869
+            },
+            "fragment_reconnection": {
+              "total_ms": 790088.8941250741,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            },
+            "final_refinement": {
+              "total_ms": 2153.180541470647,
+              "frames": 0,
+              "p50_ms": null,
+              "p95_ms": null
+            }
+          },
+          "geometry": {
+            "vertices": 243130,
+            "triangles": 470386,
+            "surface_positions_1um_sha256": "a61a51accb0f0fe0bda7e7588cb78577868ebdc095d3edb8949e040301df649c"
+          },
+          "fragment_reconnection": {
+            "applied": true,
+            "recovered_frames": 121,
+            "corrected_frames": 52,
+            "fusion_required_blocks": 6548,
+            "fusion_block_limit": 10000
+          }
+        }
+      },
+      "settings_overrides": {
+        "final_block_count": 10000
+      },
+      "final_block_count": 10000,
+      "comparison": {
+        "baseline": "chest2-off-budget10000.json",
+        "same_accepted_indices": true,
+        "same_mesh_success": true,
+        "same_vertex_count": false,
+        "same_triangle_count": false,
+        "common_poses": 174,
+        "max_pose_translation_delta_m": 0.014570274286630543,
+        "max_pose_rotation_delta_deg": 0.2515218108495894,
+        "same_surface_positions_1um": false,
+        "symmetric_vertex_distance_m": {
+          "rms": 0.002634091405892168,
+          "p95": 0.004999995818206396,
+          "max": 0.07629798680769691
+        }
+      },
+      "same_live_accepted_indices": true,
+      "processing_speedup": 1.1208768709144257,
+      "processing_time_reduction": 0.10784134640570531
+    }
+  },
+  "artifact_directory": "benchmark-output/native-performance-20261007",
+  "portable_reports_directory": "benchmark-output/native-performance-20261007/portable",
+  "limits": [
+    "Replays exclude capture, network, image decoding, startup, hashing, comparison and export.",
+    "Full chest-3/chest-2 timings are one sequential pair per session; timing varies on the desktop host.",
+    "The 50-frame case has three runs per mode to assess runtime and geometry variability.",
+    "Helper medians use warmed alternating pairs with exact same input arrays and preactivated fusion blocks.",
+    "Original session settings are preserved except the explicitly reported common final block budget for chest-2 (10000 instead of 5000); acceptance/verification thresholds are unchanged.",
+    "Recorded poses are estimated, not independent ground truth. Vertex proximity does not certify topology or absolute accuracy.",
+    "cProfile diagnostic timings are excluded from performance comparisons.",
+    "Peak process RSS includes loaded recordings, library startup, allocators and reconstruction volumes.",
+    "Native extension tested on Apple Silicon macOS; CUDA and physical capture not measured."
+  ],
+  "chest2_original_budget_failure": {
+    "native_mode": "on",
+    "final_block_count": 5000,
+    "mesh_built": false,
+    "required_blocks": 6557,
+    "reason": "Reconnection failed: Verified reconstruction needs 6557 blocks at 5 mm; increase the final block budget from 5000 to at least 6557",
+    "included_in_speed_comparison": false,
+    "matching_off_run": "Canceled after confirming the known insufficient budget; no complete paired timing is claimed."
+  }
+}

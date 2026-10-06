@@ -60,6 +60,7 @@ blocks. These environment variables can override its defaults:
 | `KINECT_BLOCK_COUNT` | `5000` | Initial TSDF block budget |
 | `KINECT_MAX_FRAMES` | `500` | Stored-frame limit per session |
 | `OMP_NUM_THREADS` | `4` | CPU processing threads |
+| `KINECT_NATIVE` | `auto` | Use installed C++ kernels; `off` selects NumPy, `on` requires native |
 
 ```bash
 KINECT_SERVER_PORT=8001 KINECT_BLOCK_COUNT=10000 python scripts/start_scanner.py
@@ -341,6 +342,28 @@ Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> I
 ```bash
 pip install -r requirements-server.txt
 ```
+
+For faster calibrated RGB-D preparation and CPU confidence-weighted fusion,
+install the optional C++ extension using the same Python environment as the
+server (requires a C++17 compiler and Python development headers):
+
+```bash
+python -m pip install ./native
+```
+
+`KINECT_NATIVE=auto` uses a compatible installed extension and otherwise keeps
+the NumPy implementation. `KINECT_NATIVE=on` fails at startup if the extension
+is unavailable, making performance comparisons explicit; `off` selects the
+reference implementation. Health/status and exported reconstruction reports
+include `backend.native_kernels`. Reinstall `./native` after editing its C++
+sources or changing Python environments. Installation builds the extension;
+the scanner never compiles it during startup.
+
+The C++ kernels preserve clipping, filtering, RGB projection/occlusion, and
+confidence-weighted voxel-update rules. OpenCV still samples color, and Open3D
+still performs tracking, volume allocation, extraction, and CUDA integration.
+See [native backend measurements](docs/NATIVE_PERFORMANCE.md) for recorded-session
+comparisons and reproduction commands.
 
 ### Run
 
