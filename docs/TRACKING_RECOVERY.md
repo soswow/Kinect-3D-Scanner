@@ -1,5 +1,10 @@
 # Tracking loss and the chest session
 
+The [Chest 3 investigation](CHEST_3_INVESTIGATION.md) examines the later
+6 October scan with working RGB/depth timing: widely spaced live observations,
+model/raw-camera pose disagreements, and the difference between live coverage
+and the final mesh.
+
 The session `chest_20261005_230320.zip` retains the raw observations needed for another reconstruction attempt. It contains 50 captures, 42 accepted poses, and 8 rejected observations. Frame numbers below are one based; reconstruction JSON indices are zero based.
 
 ## What happened
