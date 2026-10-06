@@ -71,6 +71,9 @@ The client reports missing hardware and retries automatically. Camera acquisitio
 runs in an isolated process: a stalled USB driver times out and restarts, and
 cannot prevent the window from closing. RGB/depth pairing uses the Kinect v1's
 60 MHz device clock, with wraparound handled before conversion to milliseconds.
+Acquisition retains a short depth history and pairs each RGB frame with the
+nearest unused depth timestamp, including RGB callbacks delivered late. These
+driver timestamps mark packet completion, rather than measured exposure times.
 
 With the scanner closed, check your connected camera and window shutdown:
 
@@ -101,8 +104,11 @@ The point cloud offers visible **Follow**, **Orbit**, **Color**, **Shape**, and
 **Fit View** controls. In Orbit, drag to rotate and scroll to zoom. **Details**
 shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
-crop. Automatic capture waits for backlog or disconnected live feedback, with
-its state shown separately from movement guidance and task notifications.
+crop. **Minimum capture interval** sets the fastest automatic cadence. Live
+capture slows to match recent processing and upload/feedback times, with the
+adjusted pace shown below the interval. It allows one processing frame and one
+waiting capture, including uploads, and waits if live feedback disconnects.
+Move more slowly at longer intervals to preserve overlap between views.
 
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
@@ -151,17 +157,52 @@ A 0.5-second interval selects every five high-resolution pairs or fifteen VGA
 pairs. Capture waits for fresh input and reconstruction capacity; delays extend
 the interval without creating duplicate captures or catch-up bursts.
 
+Expand **RGB camera** in scan setup to choose **Auto exposure** (default) or
+**Manual exposure**. Manual accepts reciprocal seconds, such as **1/125 s** or
+**1/250 s**: a larger denominator gives a faster shutter and less motion blur.
+The slowest choice is 1/10 s at 10 fps or 1/30 s at 30 fps. Changing exposure
+restarts the camera preview; wait for fresh frames before starting a scan.
+Set exposure before capture, as with the other scan settings. The camera's
+reported exposure time appears in the section; hardware quantizes the request.
+The **Sensitivity (gain)** dropdown selects 1×, 2×, 4×, or 8× analog gain.
+Higher gain brightens the image and increases noise. Both controls are remembered
+and included in scan settings, recordings, and frame metadata.
+
+Kinect v1's [libfreenect exposure API](https://github.com/OpenKinect/libfreenect/blob/master/include/libfreenect.h)
+supports automatic exposure or a fixed shutter time. The sensor does not provide
+an independent automatic-gain mode with a fixed shutter. Manual exposure uses
+the MT9M112 sensor's gain registers; gain multipliers have no calibrated ISO
+mapping. RGB white balance settles before manual mode freezes its colour ratios.
+Manual then disables AE, AWB, and flicker, clears automatic digital gain and fine
+shutter delay, and applies shutter and analog gain. Controls are checked again
+after new frames arrive and periodically during capture. Camera reconnects reapply
+them. See the manufacturer's [MT9M112 datasheet, Tables 15 and 16](https://dlscorp.com/wp-content/uploads/2019/03/MT9M112_DS_full.pdf).
+
+The client uses the public C exposure functions from the same libfreenect library
+already loaded by the Python extension when its Python bindings omit them. This
+requires OpenKinect's `DevPtr` representation. Manual gain also requires exported
+`read_cmos_register`/`write_cmos_register` functions (available in the tested macOS
+bindings) or Python wrappers for them, and checks the sensor ID before writing.
+Unsupported bindings retain automatic operation; manual requests fail visibly.
+With the scanner closed, test a manual shutter and gain directly:
+
+```bash
+python scripts/check_camera.py --exposure manual --shutter-speed 250 --gain 2
+```
+
 **Scan sounds** in the toolbar plays a short confirmation when captured
 frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
 do not overlap. Skipped, rejected or failed uploads stay silent. Tracking loss
-plays a distinct descending double tone once per loss episode. It takes priority
-over capture confirmations, which resume after tracking recovers. The same mute
-control applies to both sounds.
+plays a distinct descending double tone once per loss episode; verified recovery
+plays its rising reverse once. Both take priority over capture confirmations,
+which resume after the recovery tone finishes. Starting, cancelling, or restoring
+another session stays silent. The same mute control applies to all scan sounds.
 
 Your choices save automatically as you edit them and restore on the next launch:
 capture mode and interval, clipping and crop, recording, reconstruction and
-experimental options, camera resolution, calibration, server host/port, sound,
+experimental options, camera resolution and exposure, shutter speed and gain, calibration,
+server host/port, sound,
 and the last accepted export format and texture options. Calibration is saved
 as a complete snapshot, so its original JSON file can be moved afterward.
 Preferences use Qt's per-user settings store. `KINECT_SERVER_HOST` and
@@ -188,7 +229,8 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
 On tracking loss, fusion pauses until the last good camera view is verified.
 The red notice, overhead trajectory, and saved reference image guide recovery;
 RGB/depth timing warnings explain when color recovery is unavailable. See
-[tracking recovery and the chest-session analysis](docs/TRACKING_RECOVERY.md).
+[tracking recovery](docs/TRACKING_RECOVERY.md) and the
+[RGB/depth timing explanation and second chest-session analysis](docs/RGB_DEPTH_TIMING.md).
 
 New scans enable live feedback in the GUI; API clients opt in with
 `live_reconstruction: true` in reset settings. CPU remains supported on Apple
@@ -212,6 +254,20 @@ They preserve the full final mesh for PLY/plain OBJ export.
 
 **Save full RGB-D session** downloads lossless images, calibration, settings,
 estimated poses, diagnostics, and timings. Unzip it for recording replay.
+**Reconnect separated views at Finish** is enabled for new GUI scans. Finish
+reconstructs local fragments from retained raw frames, verifies overlapping
+fragments, optimizes their pose graph, and rebuilds a fresh volume from the
+connected views. Unconnected fragments remain in the saved session and are
+reported explicitly. This runs offline at Finish and may leave a partial model
+when there is insufficient overlap or repeated geometry. For an older ZIP, run:
+
+```bash
+python scripts/reconnect_session.py export/your-session.zip \
+  --output-dir export/reconnected --save-session
+```
+
+See [fragment reconnection and its limits](docs/FRAGMENT_RECONNECTION.md).
+
 **Final pose refinement** is experimental and off by default: it validates loop
 constraints, optimizes a bounded keyframe graph, and reintegrates into a fresh
 volume only after separate geometry samples improve. It can retain the original

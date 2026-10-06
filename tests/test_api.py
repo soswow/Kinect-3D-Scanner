@@ -80,6 +80,9 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                 events.append("upload")
                 return {"success": True, "stored_count": 1}
 
+            def live_snapshot(self):
+                return {"type": "live", "frame_count": 0}
+
         fake = Fake()
         fake.settings = self.original.settings
         server.engine = fake

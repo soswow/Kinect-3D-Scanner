@@ -11,9 +11,10 @@ from PyQt6.QtWidgets import QWidget
 class TrackingOverview(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(200, 140)
+        self.setMinimumSize(140, 140)
         self.setAccessibleName("Overhead camera trajectory and recovery reference")
-        self.setToolTip("Dots are accepted camera positions. The red camera is the last good view. "
+        self.setToolTip("Dots are accepted camera positions; triangles widen in the viewing direction. "
+                        "The red camera is the last good view. "
                         "While tracking is lost, your current position is unknown. Up is estimated from a plane.")
         self.snapshot = {}
         self.reference = QImage()
@@ -53,8 +54,10 @@ class TrackingOverview(QWidget):
         lost = self.snapshot.get("fusion_paused", False)
         painter.drawText(8, 17, "Overhead" if self.snapshot.get("up_estimated") else "Overview · camera up")
         anchor_index = self.snapshot.get("last_tracked_index")
-        if lost and not self.reference.isNull():
-            painter.drawText(int(self.width() * 0.55) + 4, 17, "Last good view")
+        has_reference = lost and not self.reference.isNull()
+        width = self.width() * (0.6 if has_reference else 1)
+        if has_reference:
+            painter.drawText(int(width) + 4, 17, "Last good view")
         poses = self.accepted_poses()
         if not poses:
             painter.drawText(8, 42, "Waiting for first tracked view")
@@ -64,12 +67,12 @@ class TrackingOverview(QWidget):
         points = points[np.isfinite(points).all(axis=1)][::5]
         cameras = np.array([pose[:3, 3] @ basis for _, pose in poses])
         cloud = points @ basis
-        # Cap distant depth points for a useful subject-and-path overview.
-        bounds = cameras if not len(cloud) else np.vstack((cameras, np.percentile(cloud, [5, 95], axis=0)))
-        lo, hi = bounds.min(axis=0), bounds.max(axis=0)
-        width = self.width() * (0.55 if lost and not self.reference.isNull() else 1)
+        # Fit the accepted camera path; distant scene points must not zoom it out.
+        lo, hi = cameras.min(axis=0), cameras.max(axis=0)
         area = QRectF(12, 30, max(30, width - 24), max(30, self.height() - 58))
-        scale = min(area.width(), area.height()) / max(float(np.max(hi - lo)), 0.3) * 0.85
+        extent = np.maximum(hi - lo, 0.3)
+        # Leave room for the fixed-size camera arrows, including in small insets.
+        scale = min((area.width() - 24) / extent[0], (area.height() - 24) / extent[1]) * 0.95
         center = (lo + hi) / 2
 
         def project(xy):
@@ -81,7 +84,7 @@ class TrackingOverview(QWidget):
         for xy in project(cloud):
             painter.drawPoint(QPointF(*xy))
         xy = project(cameras)
-        painter.setPen(QPen(QColor("#6dcbe8"), 1.5))
+        painter.setPen(QPen(QColor("#6dcbe8"), 0.75))
         # Never draw an odometry edge across skipped frames.
         for n in range(1, len(poses)):
             if poses[n][0] == poses[n - 1][0] + 1:
@@ -89,26 +92,30 @@ class TrackingOverview(QWidget):
         for n, (index, pose) in enumerate(poses):
             is_anchor = index == anchor_index
             color = QColor("#ff625b" if lost and is_anchor else "#6dcbe8")
-            painter.setPen(QPen(color, 2))
+            painter.setPen(QPen(color, 0.8))
             painter.setBrush(color)
-            painter.drawEllipse(QPointF(*xy[n]), 2, 2)
+            painter.drawEllipse(QPointF(*xy[n]), 1, 1)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             direction = pose[:3, 2] @ basis * [1, -1]
             length = np.linalg.norm(direction)
             if length > 1e-6:
                 direction /= length
                 side = np.array([-direction[1], direction[0]])
-                triangle = [xy[n] + direction * 10, xy[n] - direction * 4 + side * 4,
-                            xy[n] - direction * 4 - side * 4]
+                # The camera is the apex; the wide edge faces the observed scene.
+                triangle = [xy[n], xy[n] + direction * 10 + side * 2,
+                            xy[n] + direction * 10 - side * 2]
                 painter.drawPolyline(QPolygonF([QPointF(*p) for p in triangle + triangle[:1]]))
             if is_anchor:
                 painter.drawEllipse(QPointF(*xy[n]), 8, 8)
         painter.restore()
-        if lost and not self.reference.isNull():
+        if has_reference:
             rect = QRectF(width + 4, 30, self.width() - width - 12, self.height() - 57)
             size = self.reference.size().scaled(int(rect.width()), int(rect.height()), Qt.AspectRatioMode.KeepAspectRatio)
             target = QRectF(rect.x(), rect.y(), size.width(), size.height())
             painter.drawImage(target, self.reference)
         painter.setPen(QColor("#ff8a83" if lost else "#b4c9d6"))
         frame = "none" if anchor_index is None else str(anchor_index + 1)
-        painter.drawText(8, self.height() - 8, f"Return to Frame {frame} · current pose unknown" if lost
-                         else f"Last tracked Frame {frame} · accepted cameras")
+        caption = (f"Return to Frame {frame} · current pose unknown" if lost
+                   else f"Last tracked Frame {frame} · accepted cameras")
+        painter.drawText(8, self.height() - 8,
+                         painter.fontMetrics().elidedText(caption, Qt.TextElideMode.ElideRight, self.width() - 16))

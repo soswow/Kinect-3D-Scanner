@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 from shared.config import LIVE_MAX_POINTS
 from shared.settings import CameraCalibration
 
@@ -95,6 +96,11 @@ class LiveView(QWidget):
         self.color_warning_label.setWordWrap(True)
         self.color_warning_label.setStyleSheet("color: #ffcf79;")
         self.color_warning_label.setAccessibleName("Color recovery synchronization warning")
+        self.color_warning_label.setToolTip(
+            "RGB is still recorded and used for fused model color. Color-assisted "
+            "tracking needs closer RGB/depth timing to avoid mismatched features "
+            "during motion. If this persists, try 640×480 RGB at 30 fps."
+        )
         layout.addWidget(self.color_warning_label)
         self.color_warning_label.hide()
         self.details_label = QLabel(self.panel)
@@ -200,11 +206,14 @@ class LiveView(QWidget):
         self.panel.adjustSize()
         self.panel.move(0, 0)
         available = max(0, self.height() - self.panel.height())
+        has_reference = self.snapshot.get("fusion_paused", False) and not self.overview.reference.isNull()
+        map_fraction = 0.6 if has_reference else 1
+        side = min(360, available, int(self.width() * map_fraction))
+        width = min(self.width(), round(side / map_fraction))
         self.overview.setGeometry(
-            max(0, self.width() - 360), self.height() - min(180, available),
-            min(360, self.width()), min(180, available),
+            self.width() - width, self.height() - side, width, side,
         )
-        self.overview.setVisible(bool(self.snapshot.get("trajectory")) and available >= 140)
+        self.overview.setVisible(bool(self.snapshot.get("trajectory")) and side >= 140)
 
     def resizeEvent(self, event):
         self._layout_panel()
@@ -224,11 +233,13 @@ class LiveView(QWidget):
             + (f" · return to Frame {s['last_tracked_index'] + 1}" if lost and s.get("last_tracked_index") is not None else "")
         )
         lag = result.get("metadata", {}).get("rgb_depth_delta_ms")
-        sync_warning = s.get("color_assistance_requested") and lag is not None and abs(lag) > 20
+        sync_warning = (s.get("color_assistance_requested") and lag is not None
+                        and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS)
         self.color_warning_label.setVisible(bool(sync_warning))
         if sync_warning:
             self.color_warning_label.setText(
-                f"Color recovery unavailable · RGB/depth {abs(lag):.0f} ms apart (limit 20 ms)"
+                f"Color-assisted tracking unavailable · RGB/depth {abs(lag):.0f} ms apart "
+                f"(limit {RGB_DEPTH_ASSISTANCE_LIMIT_MS} ms)"
             )
         state = ("tracking accepted" if result.get("success") else "tracking skipped") if result else "waiting"
         age = "waiting for frames" if self._received is None else f"last update {time.monotonic() - self._received:.1f}s ago"

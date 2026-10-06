@@ -4,6 +4,8 @@ import math
 from dataclasses import asdict, dataclass, field, fields
 from typing import TYPE_CHECKING
 
+from .capture import validate_rgb_exposure
+
 if TYPE_CHECKING:
     from .sensor_calibration import SensorCalibration
 
@@ -80,6 +82,7 @@ class ScanSettings:
     color_recovery: bool = False
     live_reconstruction: bool = False
     refine_poses: bool = False
+    reconnect_fragments: bool = False
     relocalize: bool = False
     confidence_fusion: bool = False
     final_voxel_m: float | None = None
@@ -87,6 +90,10 @@ class ScanSettings:
 
     sensor_calibration: "SensorCalibration | None" = None
     rgb_mode: str = "rgb_high_res"
+    rgb_exposure_mode: str = "auto"
+    # Reciprocal seconds: 125 means a fixed 1/125 s exposure in manual mode.
+    rgb_shutter_speed: int = 125
+    rgb_gain: int = 1
 
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
@@ -105,11 +112,13 @@ class ScanSettings:
             )
         else:
             object.__setattr__(self, "rgb_mode", "rgb_low_res")
+        validate_rgb_exposure(self.rgb_exposure_mode, self.rgb_shutter_speed, self.rgb_mode, self.rgb_gain)
         if (
             type(self.filter_depth) is not bool
             or type(self.color_recovery) is not bool
             or type(self.live_reconstruction) is not bool
             or type(self.refine_poses) is not bool
+            or type(self.reconnect_fragments) is not bool
             or type(self.relocalize) is not bool
             or type(self.confidence_fusion) is not bool
             or type(self.min_component_triangles) is not int

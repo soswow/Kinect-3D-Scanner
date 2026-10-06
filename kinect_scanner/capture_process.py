@@ -4,13 +4,16 @@ import time
 
 import numpy as np
 
-from shared.capture import RGB_MODE_FPS, timestamp_delta_ms
+from shared.capture import RGB_MODE_FPS, RGBDepthPairer, timestamp_delta_ms, validate_rgb_exposure
+
+from .rgb_exposure import ExposureControlUnavailable, RGBExposureControl
 
 RGB_SHAPE = (480, 640, 3)
 DEPTH_SHAPE = (480, 640)
 
 
-def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True):
+def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True,
+                   rgb_exposure_mode="auto", rgb_shutter_speed=125, rgb_gain=1):
     """Publish one shared-memory pair at a time, awaiting a copy acknowledgement.
 
     Only small messages cross the pipe. The child never overwrites a published
@@ -21,6 +24,9 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
     depth_started = video_started = False
     try:
         import freenect
+
+        validate_rgb_exposure(rgb_exposure_mode, rgb_shutter_speed,
+                              "rgb_high_res" if high_res else "rgb_low_res", rgb_gain)
 
         ctx = freenect.init()
         if ctx is None:
@@ -46,7 +52,7 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
         ):
             if result < 0:
                 raise RuntimeError("Cannot configure Kinect video/depth streams")
-        latest = {}
+        pairer = RGBDepthPairer()
         warming = True
         warmup_frames = 30
         settling = 0
@@ -55,9 +61,13 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
         rgb_resolution = (
             freenect.RESOLUTION_HIGH if high_res else freenect.RESOLUTION_MEDIUM
         )
+        exposure_metadata = {}
+        exposure_controls = None
+        exposure_phase = "ready"
+        exposure_checked = 0
 
         def switch_video(ir=False):
-            nonlocal video_started, settling
+            nonlocal video_started, settling, exposure_metadata, exposure_controls, exposure_phase
             if freenect.stop_video(dev) < 0:
                 raise RuntimeError("Cannot stop video for IR/RGB switch")
             video_started = False
@@ -74,11 +84,27 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                 raise RuntimeError("Cannot restart video after mode switch")
             video_started = True
             settling = 2
-            latest.clear()
+            if not ir:
+                # Let RGB firmware startup and white balance finish before locking
+                # shutter/gain. Register readback accesses pending frame values.
+                try:
+                    exposure_controls = RGBExposureControl(freenect, dev)
+                except ExposureControlUnavailable:
+                    if rgb_exposure_mode == "manual":
+                        raise
+                    exposure_controls = None
+                exposure_metadata = {"rgb_exposure_mode": "auto", "rgb_exposure_controls": False}
+                if exposure_controls is not None:
+                    exposure_controls.apply("auto", rgb_shutter_speed, rgb_gain)
+                    exposure_metadata = exposure_controls.verify()
+                exposure_phase = "auto_settling" if rgb_exposure_mode == "manual" else "ready"
+                if rgb_exposure_mode == "manual":
+                    settling = RGB_MODE_FPS["rgb_high_res" if high_res else "rgb_low_res"]
+            pairer.clear()
             connection.send(("phase", "warming IR" if ir else "waiting for RGB"))
 
         def depth_callback(device, array, stamp):
-            latest["depth"] = (array.copy(), int(stamp))
+            pairer.add_depth(array, stamp)
 
         def video_callback(device, array, stamp):
             nonlocal warmup_frames, rgb_deadline, settling
@@ -89,7 +115,7 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             if settling:
                 settling -= 1
                 return
-            latest["rgb"] = (array.copy(), int(stamp))
+            pairer.add_rgb(array, stamp)
 
         freenect.set_depth_callback(dev, depth_callback)
         freenect.set_video_callback(dev, video_callback)
@@ -127,23 +153,34 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                 warming = True
                 warmup_frames = 30
                 continue
+            if exposure_phase != "ready":
+                if settling:
+                    continue
+                pairer.clear()
+                if exposure_phase == "auto_settling":
+                    exposure_controls.apply("manual", rgb_shutter_speed, rgb_gain)
+                    settling = 2
+                    exposure_phase = "manual_settling"
+                else:
+                    exposure_metadata = exposure_controls.verify()
+                    exposure_checked = time.monotonic()
+                    exposure_phase = "ready"
+                continue
             if awaiting_copy:
                 if not connection.poll():
                     continue
                 connection.recv()
                 awaiting_copy = False
-            if "rgb" not in latest or "depth" not in latest:
+            pair = pairer.pop_pair()
+            if pair is None:
                 continue
-            rgb, rgb_stamp = latest["rgb"]
-            depth, depth_stamp = latest["depth"]
+            if rgb_exposure_mode == "manual" and time.monotonic() - exposure_checked >= 0.5:
+                exposure_metadata = exposure_controls.verify()
+                exposure_checked = time.monotonic()
+            rgb, depth, rgb_stamp, depth_stamp = pair
             delta = timestamp_delta_ms(rgb_stamp, depth_stamp)
-            if abs(delta) > 50:
-                # Keep the newer frame and wait for its matching stream.
-                latest.pop("depth" if delta > 0 else "rgb")
-                continue
             rgb_out[:] = rgb
             depth_out[:] = depth
-            latest.clear()
             connection.send(
                 (
                     "frame",
@@ -154,11 +191,14 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                         "rgb_timestamp_ticks": rgb_stamp,
                         "device_timestamp_hz": 60_000_000,
                         "rgb_depth_delta_ms": delta,
+                        "rgb_depth_pairing": "nearest_depth",
+                        "device_timestamp_reference": "packet_end",
                         "rgb_mode": "rgb_high_res" if high_res else "rgb_low_res",
                         "rgb_fps": RGB_MODE_FPS[
                             "rgb_high_res" if high_res else "rgb_low_res"
                         ],
                         "depth_encoding": "raw_11bit",
+                        **exposure_metadata,
                     },
                 )
             )

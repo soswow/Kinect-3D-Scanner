@@ -106,6 +106,11 @@ class RecoveryViewTests(unittest.TestCase):
         self.assertTrue(view.overview.isVisible())
         self.assertTrue(view.color_warning_label.isVisible())
         self.assertIn("43 ms", view.color_warning_label.text())
+        self.assertIn("Color-assisted tracking", view.color_warning_label.text())
+        self.assertIn("still recorded", view.color_warning_label.toolTip())
+        view.set_snapshot({"color_assistance_requested": True,
+                           "result": {"metadata": {"rgb_depth_delta_ms": 20}}})
+        self.assertFalse(view.color_warning_label.isVisible())
         view.set_snapshot({"fusion_paused": False, "trajectory": []})
         self.assertFalse(view.recovery_label.isVisible())
         self.assertFalse(view.overview.isVisible())

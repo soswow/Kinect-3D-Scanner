@@ -14,6 +14,7 @@ import trimesh
 from PIL import Image
 
 from shared.calibration import prepare_rgbd, project_rgb
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 
 def _winding_cuts(faces):
@@ -159,7 +160,7 @@ def _views(engine, max_views):
     candidates = [
         p
         for p in engine.poses
-        if abs(engine.frame_metadata[p[0]].get("rgb_depth_delta_ms") or 0) <= 20
+        if abs(engine.frame_metadata[p[0]].get("rgb_depth_delta_ms") or 0) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS
     ]
     selected = []
     for group in np.array_split(

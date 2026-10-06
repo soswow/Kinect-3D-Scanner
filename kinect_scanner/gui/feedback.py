@@ -1,4 +1,4 @@
-"""Nonblocking capture and tracking-loss feedback with a remembered mute."""
+"""Nonblocking capture and tracking feedback with a remembered mute."""
 
 import logging
 from pathlib import Path
@@ -18,6 +18,8 @@ class CaptureSound(QObject):
         self._pending = False
         self._loss_effect = None
         self._loss_pending = False
+        self._recovery_effect = None
+        self._recovery_pending = False
         self._tracking_lost = False
 
     def set_enabled(self, enabled):
@@ -28,7 +30,10 @@ class CaptureSound(QObject):
             self.stop()
 
     def play(self):
-        if not self.enabled or self._tracking_lost:
+        if (
+            not self.enabled or self._tracking_lost or self._recovery_pending
+            or (self._recovery_effect is not None and self._recovery_effect.isPlaying())
+        ):
             return
         if self._effect is None:
             self._effect = QSoundEffect(self)
@@ -52,7 +57,7 @@ class CaptureSound(QObject):
             logger.warning("Capture sound unavailable; check audio output and capture.wav")
 
     def set_tracking_lost(self, lost):
-        """Alert once per loss episode; recovery rearms the next alert."""
+        """Alert once on loss and once when that lost track is reacquired."""
         lost = bool(lost)
         if lost == self._tracking_lost:
             return
@@ -61,7 +66,12 @@ class CaptureSound(QObject):
             self._loss_pending = False
             if self._loss_effect is not None:
                 self._loss_effect.stop()
+            if self.enabled:
+                self._play_recovery()
             return
+        self._recovery_pending = False
+        if self._recovery_effect is not None:
+            self._recovery_effect.stop()
         # The warning takes priority over capture confirmations and probes.
         self._pending = False
         if self._effect is not None:
@@ -88,10 +98,42 @@ class CaptureSound(QObject):
             self._loss_pending = False
             logger.warning("Tracking-loss sound unavailable; check audio output and tracking_lost.wav")
 
+    def _play_recovery(self):
+        self._pending = False
+        if self._effect is not None:
+            self._effect.stop()
+        self._recovery_pending = True
+        if self._recovery_effect is None:
+            self._recovery_effect = QSoundEffect(self)
+            self._recovery_effect.setVolume(0.7)
+            self._recovery_effect.setLoopCount(1)
+            self._recovery_effect.statusChanged.connect(self._on_recovery_status_changed)
+            source = Path(__file__).with_name("assets") / "tracking_reacquired.wav"
+            self._recovery_effect.setSource(QUrl.fromLocalFile(str(source)))
+        self._on_recovery_status_changed()
+
+    def _on_recovery_status_changed(self):
+        status = self._recovery_effect.status()
+        if status == QSoundEffect.Status.Ready and self._recovery_pending:
+            self._recovery_pending = False
+            if self.enabled and not self._tracking_lost:
+                self._recovery_effect.play()
+        elif status == QSoundEffect.Status.Error:
+            self._recovery_pending = False
+            logger.warning("Tracking-recovery sound unavailable; check audio output and tracking_reacquired.wav")
+
+    def reset_tracking(self):
+        """Silently clear an abandoned or replaced session, without a recovery cue."""
+        self.stop()
+        self._tracking_lost = False
+
     def stop(self):
         self._pending = False
         self._loss_pending = False
+        self._recovery_pending = False
         if self._effect is not None:
             self._effect.stop()
         if self._loss_effect is not None:
             self._loss_effect.stop()
+        if self._recovery_effect is not None:
+            self._recovery_effect.stop()

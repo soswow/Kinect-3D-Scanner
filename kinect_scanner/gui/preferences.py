@@ -77,7 +77,8 @@ class ScannerPreferences:
         if isinstance(widget, FrameIntervalSpinBox):
             return numeric and 0 < value <= 30
         if isinstance(widget, QComboBox):
-            return isinstance(value, str) and widget.findData(value) >= 0
+            return any(type(value) is type(widget.itemData(index))
+                       and value == widget.itemData(index) for index in range(widget.count()))
         if isinstance(widget, QCheckBox):
             return type(value) is bool
         if isinstance(widget, QSpinBox):

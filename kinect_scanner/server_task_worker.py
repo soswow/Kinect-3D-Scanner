@@ -109,15 +109,34 @@ class ServerTaskWorker(QThread):
                 self._pending = task
                 break
             frames.append(frame(task))
-        if len(frames) == 1:
-            result = self._client.send_frame(*frames[0])
-        else:
-            result = self._client.send_frames_batch(frames)
+        try:
+            if len(frames) == 1:
+                result = self._client.send_frame(*frames[0])
+            else:
+                result = self._client.send_frames_batch(frames)
+        except Exception as exc:
+            # Release precisely these captures on a failed transport, before
+            # the task failure pauses scanning. A later retry must not wedge.
+            self._client.frame_stored.emit({
+                "success": False, "message": str(exc),
+                "session_id": self._client.session_id,
+                "capture_acknowledgements": [
+                    {"frame_id": metadata.get("frame_id"), "success": False}
+                    for _, _, metadata in frames
+                ],
+            })
+            raise
+        acknowledgements = result.get("results", [result] if len(frames) == 1 else [])
+        capture_acks = acknowledgements or [{"success": result.get("success", False)}] * len(frames)
+        result = {
+            **result,
+            "capture_acknowledgements": [
+                {**ack, "frame_id": metadata.get("frame_id")}
+                for (_, _, metadata), ack in zip(frames, capture_acks)
+            ],
+        }
         if result.get("success") and self._recording:
             try:
-                acknowledgements = result.get(
-                    "results", [result] if len(frames) == 1 else []
-                )
                 if not acknowledgements:
                     # Older servers cannot identify partial-batch acceptance.
                     # Preserve captures, but do not claim an index mapping.

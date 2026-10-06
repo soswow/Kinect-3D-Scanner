@@ -296,6 +296,7 @@ async def scan_frames_batch(request: Request):
 @app.post("/api/scan/build")
 async def scan_build():
     """Process all frames and build the final mesh."""
+    global _latest_live
     if _exclusive:
         return {"success": False, "message": "Build already in progress"}
 
@@ -330,6 +331,8 @@ async def scan_build():
         await _wait_for_processing(build_task, drain_progress)
 
         success, proc_result = build_task.result()
+        _latest_live = await _engine_call(engine.live_snapshot)
+        await _broadcast(_latest_live)
 
         if success:
             nv = len(engine.mesh.vertices) if engine.mesh else 0
@@ -340,6 +343,14 @@ async def scan_build():
                 f"{proc_result['skipped_count']} skipped)"
             )
             refinement = proc_result.get("refinement", {})
+            recovery = proc_result.get("fragment_reconnection", {})
+            if engine.settings.reconnect_fragments:
+                detail += "; " + recovery.get("reason", "Fragment reconnection finished")
+                remaining = len(recovery.get("unconnected_fragments", []))
+                if remaining:
+                    detail += f"; {remaining} unconnected fragments retained in session"
+                if recovery.get("budget_limited"):
+                    detail += "; reconnection search budget reached"
             if engine.settings.refine_poses:
                 detail += "; " + refinement.get("reason", "Refinement finished")
             if engine.settings.final_voxel_m is not None:

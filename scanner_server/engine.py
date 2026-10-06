@@ -28,6 +28,7 @@ import open3d.core as o3c
 import trimesh
 
 from shared.calibration import prepare_rgbd
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS, RGB_DEPTH_CAPTURE_LIMIT_MS
 from shared.config import LIVE_MAX_POINTS, PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
 
@@ -105,6 +106,8 @@ class ScanEngine:
         self.refinement = {"applied": False, "reason": "Not requested"}
         self.original_poses = None
         self._refined_count = None
+        self._reconnection_count = None
+        self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
         self.model_pcd = None
         self._live_points = np.empty((0, 3), dtype=np.float32)
         self._live_colors = np.empty((0, 3), dtype=np.float32)
@@ -180,6 +183,7 @@ class ScanEngine:
             "stage_totals_ms": dict(self.stage_totals_ms),
             "refinement": self.refinement,
             "final_reconstruction": self.final_reconstruction,
+            "fragment_reconnection": self.fragment_reconnection,
             "tracking": {
                 "state": "recovering" if self._tracking_lost_frames else "tracking" if self.poses else "waiting",
                 "last_tracked_index": self.poses[-1][0] if self.poses else None,
@@ -224,6 +228,11 @@ class ScanEngine:
             "stored_count": self.stored_count,
             "frame_count": self.frame_count,
             "processed_count": self._processed_count,
+            "processing_interval_s": (
+                sum(r.get("elapsed_ms", 0) for r in self.diagnostics[-12:])
+                / min(12, len(self.diagnostics)) / 1000
+                if self.diagnostics else 0.0
+            ),
             "pending_count": self.unprocessed_count,
             "pending_age_s": round(max(0, pending_age), 3),
             "skipped_count": sum(not r["success"] for r in self.diagnostics),
@@ -487,7 +496,7 @@ class ScanEngine:
         from .refinement import _match, _trustworthy, motion
 
         lag = self.frame_metadata[self._processed_count].get("rgb_depth_delta_ms")
-        if lag is not None and abs(lag) > 20:
+        if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
             return None
         features = extract_features(
             np.asarray(rgbd.color),
@@ -505,7 +514,7 @@ class ScanEngine:
         for j in selected:
             index, pose = self.poses[j]
             lag = self.frame_metadata[index].get("rgb_depth_delta_ms")
-            if lag is not None and abs(lag) > 20:
+            if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
                 continue
             if index not in self._appearance_cache:
                 rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
@@ -636,7 +645,8 @@ class ScanEngine:
             return None
         lag = self.frame_metadata[self._processed_count].get("rgb_depth_delta_ms")
         previous_lag = self.frame_metadata[self.poses[-1][0]].get("rgb_depth_delta_ms")
-        if any(value is not None and abs(value) > 20 for value in (lag, previous_lag)):
+        if any(value is not None and abs(value) > RGB_DEPTH_ASSISTANCE_LIMIT_MS
+               for value in (lag, previous_lag)):
             return None
 
         def intensity(frame):
@@ -817,11 +827,11 @@ class ScanEngine:
                     "message": "Duplicate capture skipped",
                 }
         lag = metadata.get("rgb_depth_delta_ms")
-        if lag is not None and (not np.isfinite(lag) or abs(lag) > 50):
+        if lag is not None and (not np.isfinite(lag) or abs(lag) > RGB_DEPTH_CAPTURE_LIMIT_MS):
             return {
                 "success": False,
                 "stored_count": self.stored_count,
-                "message": "RGB/depth timestamps differ by more than 50 ms",
+                "message": f"RGB/depth timestamps differ by more than {RGB_DEPTH_CAPTURE_LIMIT_MS} ms",
             }
         if self.stored_count >= self.MAX_FRAMES:
             return {
@@ -837,6 +847,8 @@ class ScanEngine:
         self.mesh = None
         self.point_cloud = None
         self._refined_count = None
+        self._reconnection_count = None
+        self.fragment_reconnection = {"applied": False, "reason": "Awaiting final build"}
         self.refinement = {"applied": False, "reason": "Awaiting final build"}
         self.original_poses = None
         self.frame_metadata.append(metadata)
@@ -1054,6 +1066,76 @@ class ScanEngine:
             traceback.print_exc()
             return None, None, process_result
 
+    def _reconnect_volume(self, progress_cb=None):
+        """Commit connected raw fragments only after a complete fresh fusion."""
+        if self._reconnection_count == self.stored_count:
+            return
+        from .fragments import propose_fragment_poses
+
+        started = time.monotonic()
+        try:
+            proposals, report = propose_fragment_poses(self, progress_cb)
+            if proposals is not None:
+                candidate = copy.copy(self)
+                candidate._fusion_block_limit = self.settings.final_block_count
+                candidate.vbg = self._create_vbg(block_count=candidate._fusion_block_limit)
+                for completed, (index, pose) in enumerate(proposals, 1):
+                    rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                    candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
+                    if progress_cb:
+                        progress_cb(completed, len(proposals), {
+                            "stage": "fragment_reconnection",
+                            "message": f"Fusing connected fragments {completed}/{len(proposals)} views",
+                        })
+                candidate._extract_model_pcd()
+                if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
+                    raise ValueError("Reconnected volume has insufficient geometry")
+                diagnostics = [dict(result) for result in self.diagnostics]
+                fragment_by_frame = {i: f["id"] for f in report["fragments"] for i in f["frame_indices"]}
+                for index, pose in proposals:
+                    result = diagnostics[index]
+                    if not result["success"]:
+                        result.update(success=True, recovered_offline=True, method="fragment+graph",
+                                      message_before_reconnection=result.get("message"),
+                                      message="Recovered through verified fragment registration")
+                    result.update(pose=pose.tolist(), fragment_id=fragment_by_frame.get(index))
+                count, lost_at, last_tracked = 0, None, None
+                for result in diagnostics:
+                    count += bool(result["success"])
+                    if result["success"]:
+                        last_tracked = result["index"]
+                    lost_at = None if result["success"] else result["index"] if lost_at is None else lost_at
+                    result.update(frame_count=count, fusion_paused=not result["success"],
+                                  last_tracked_index=last_tracked)
+                last_index, last_pose = proposals[-1]
+                last_rgbd = self._make_rgbd(*prepare_rgbd(*self.raw_frames[last_index], self.settings))
+                report.update(applied=True, reason=f"Reconnected {report['recovered_frames']} views with fresh fusion",
+                              fusion_blocks=int(candidate.vbg.hashmap().size()),
+                              fusion_block_limit=candidate._fusion_block_limit,
+                              fusion_voxel_m=self.voxel_size)
+                # Native work has succeeded; commit the candidate as one state.
+                self.original_poses = [(i, p.copy()) for i, p in self.poses]
+                for name in ("vbg", "model_pcd", "_live_points", "_live_colors", "_model_feature_cloud",
+                             "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model"):
+                    setattr(self, name, getattr(candidate, name))
+                self.poses, self.diagnostics = proposals, diagnostics
+                self.frame_count = len(proposals)
+                self.cumulative_T = last_pose.copy()
+                self._last_rgbd = last_rgbd
+                self._tracking_lost_frames = self._processed_count - last_index - 1
+                self._lost_at_index = lost_at
+                self._recovery_preview = None
+                self._refined_count = None
+                self._final_vbg = None
+            self.fragment_reconnection = report
+            self._reconnection_count = self.stored_count
+        except Exception as exc:
+            logger.exception("Fragment reconnection failed; original reconstruction retained")
+            self.fragment_reconnection = {"applied": False, "reason": f"Reconnection failed: {exc}"}
+        elapsed = (time.monotonic() - started) * 1000
+        self.fragment_reconnection["elapsed_ms"] = elapsed
+        self.stage_totals_ms["fragment_reconnection"] = self.stage_totals_ms.get("fragment_reconnection", 0) + elapsed
+
     def _refine_volume(self):
         """Transactional refinement: never rewrite poses in an existing TSDF."""
         if self._refined_count == self.stored_count:
@@ -1087,7 +1169,8 @@ class ScanEngine:
                 )
                 # All native work and report preparation succeeded. Commit.
                 self._final_vbg = None
-                self.original_poses = original_poses
+                if self.original_poses is None:
+                    self.original_poses = original_poses
                 for name in (
                     "vbg",
                     "model_pcd",
@@ -1162,6 +1245,13 @@ class ScanEngine:
         process_result = self.process_frames(progress_cb=progress_cb)
         if self.frame_count == 0:
             return False, process_result
+        if self.settings.reconnect_fragments:
+            self._reconnect_volume(progress_cb)
+        else:
+            self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
+        process_result.update(frame_count=self.frame_count,
+                              skipped_count=sum(not d["success"] for d in self.diagnostics),
+                              fragment_reconnection=self.fragment_reconnection)
         if self.settings.refine_poses:
             self._refine_volume()
         else:

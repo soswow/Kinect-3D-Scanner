@@ -11,6 +11,7 @@ import numpy as np
 import open3d as o3d
 
 from shared.calibration import prepare_rgbd
+from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 from .appearance import extract_features, propose_transform, retrieve_pairs
 
@@ -106,7 +107,7 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
         features.append(
             extract_features(
                 rgb,
-                depth if lag is None or abs(lag) <= 20 else np.zeros_like(depth),
+                depth if lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS else np.zeros_like(depth),
                 engine.settings.camera,
             )
         )

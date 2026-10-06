@@ -28,6 +28,14 @@ A partial colored point cloud and mesh were reconstructed from **Frames 1–14 o
 
 Local outputs are in `/Users/sasha/hobby/xbox360/chest-session-analysis/`: `summary.json`, `contact-sheet.jpg`, `prefix-frames-0-13.ply`, `prefix-frames-0-13-mesh.ply`, recovery UI screenshots, and the experiment reports.
 
+The implemented offline fragment pass was subsequently tested on the archive.
+Current loss guards retain only the first 14 live poses; 17 local fragments are
+prepared and 96 candidate pairs tested. No verified bridge connects the remaining
+views to the trusted first fragment, so no additional views are fused. The new
+partial mesh and session ZIP retain all 50 raw observations in
+`chest-session-analysis/fragment-reconnection/`. See the
+[full result and verification limits](FRAGMENT_RECONNECTION.md#chest-session-result-6-october-2026).
+
 ## Live recovery behavior
 
 Tracking loss now freezes fusion and preserves the last accepted camera pose. Automatic capture keeps supplying bounded recovery probes, with only one new probe queued after the existing processing queue drains. Rejected probes remain available in the raw session; they do not seed a new model. Manual Pause still stops capture completely.
@@ -40,7 +48,7 @@ To recover, stop moving forward around the subject, retrace to the highlighted c
 
 Existing implementations already include coarse-to-fine ICP, optional hybrid RGB-D odometry, FPFH/Fast Global Registration, ORB/PnP appearance relocalization, and bounded pose-graph refinement followed by fresh TSDF fusion. See the primary Open3D documentation on [global registration](https://www.open3d.org/docs/release/tutorial/pipelines/global_registration.html), [multiway pose-graph registration](https://www.open3d.org/docs/latest/tutorial/pipelines/multiway_registration.html), and [fragment registration](https://www.open3d.org/docs/latest/tutorial/reconstruction_system/register_fragments.html).
 
-Useful next improvements are better sensor pairing for the selected RGB mode; a persistent warning when requested color recovery is unavailable; separate fragment storage with explicit connection status; independent fragment-to-fragment feature retrieval with reciprocal geometry verification; and robust global optimization followed by complete reintegration. A background recovery worker would need bounded work and session-version checks before committing any proposal. It cannot create overlap that was never captured, and a single ambiguous cube/floor match should not connect entire fragments.
+The scanner now implements an offline [fragment reconnection pass at Finish](FRAGMENT_RECONNECTION.md): local fragment coordinates, explicit connection status, independent fragment matching, reciprocal geometry verification, robust pose-graph optimization, and fresh fusion of the anchored component. Better sensor pairing remains useful. A background recovery worker would need bounded work and session-version checks before committing any proposal. It cannot create overlap that was never captured, and a single ambiguous cube/floor match should not connect entire fragments.
 
 For this particular scan, manually selected distinct correspondences across the gaps, or a new bridging scan that overlaps both neighboring segments, may provide the missing constraints. Merely increasing motion or overlap tolerance risks authorizing more wrong-side matches.
 

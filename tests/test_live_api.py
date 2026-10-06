@@ -8,7 +8,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "4")
 import asyncio
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import numpy as np
@@ -19,6 +19,7 @@ from shared.config import LIVE_MAX_POINTS
 from shared.live import decode_live_geometry
 from shared.protocol import pack_frame, pack_frames
 from shared.sensor_calibration import load_calibration
+from shared.settings import ScanSettings
 from tests.test_quality import scene_frames as metric_scene_frames
 
 
@@ -43,6 +44,28 @@ def scene_frames(count):
 
 
 class LiveApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pacing_average_includes_periodic_work_and_ages_out_old_samples(self):
+        engine = server.engine
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        depth = np.zeros((480, 640), np.uint16)
+        for _ in range(15):
+            engine.store_frame(rgb, depth)
+        clock = [100.0]
+        durations = iter([9, 9, 9] + [0.4, 0.4, 2.8] * 4)
+
+        def process(rgb, depth):
+            clock[0] += next(durations)
+            return {"success": True}
+
+        with patch("scanner_server.engine.time.monotonic", side_effect=lambda: clock[0]), \
+                patch.object(engine, "_process_single_frame", side_effect=process):
+            engine.process_frames()
+            snapshot = engine.live_snapshot()
+        self.assertAlmostEqual(1.2, snapshot["processing_interval_s"])
+        self.assertEqual(15, snapshot["processed_count"])
+        engine.reset()
+        self.assertEqual(0, engine.live_snapshot()["processing_interval_s"])
+
     async def asyncSetUp(self):
         self.original = server.engine
         server.engine = ScanEngine(device="cpu")
@@ -92,6 +115,10 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reset["session_id"], snapshot["session_id"])
         self.assertEqual(2, snapshot["frame_count"])
         self.assertEqual(0, snapshot["pending_count"])
+        self.assertAlmostEqual(
+            sum(r["elapsed_ms"] for r in server.engine.diagnostics) / 2000,
+            snapshot["processing_interval_s"],
+        )
         self.assertGreater(len(snapshot["points"]), 5000)
         self.assertLessEqual(len(snapshot["points"]), LIVE_MAX_POINTS)
         self.assertEqual(len(snapshot["points"]), len(snapshot["colors"]))
@@ -117,6 +144,31 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(skipped["result"]["success"])
         self.assertEqual(2, skipped["frame_count"])
         np.testing.assert_array_equal(skipped["camera_to_world"], tracked_pose)
+
+    async def test_build_reports_reconnected_counts_and_refreshes_live_feedback(self):
+        frames = await asyncio.to_thread(metric_scene_frames, 13)
+        server.engine.reset(settings=ScanSettings(reconnect_fragments=True, final_weight=0.5,
+                                                  max_translation_m=0.05))
+        for index, source in enumerate((0, 1, 2, 10, 11, 12)):
+            rgb, depth, _ = frames[source]
+            server.engine.store_frame(rgb, depth, {"timestamp_s": index if index < 3 else index + 10})
+        await asyncio.to_thread(server.engine.process_frames)
+        self.assertEqual(3, server.engine.frame_count)
+        server._latest_live = server.engine.live_snapshot(max_points=10)
+        self.assertTrue(server._latest_live["fusion_paused"])
+        with patch.object(server, "_broadcast", new_callable=AsyncMock) as broadcast:
+            result = (await self.http.post("/api/scan/build")).json()
+        self.assertTrue(result["success"], result)
+        self.assertEqual(6, result["frame_count"])
+        self.assertEqual(0, result["skipped_count"])
+        self.assertIn("Reconnected 3 views", result["detail"])
+        self.assertEqual(6, server._latest_live["frame_count"])
+        self.assertFalse(server._latest_live["fusion_paused"])
+        messages = [call.args[0] for call in broadcast.await_args_list]
+        self.assertTrue(any(m.get("result", {}).get("stage") == "fragment_reconnection" for m in messages))
+        self.assertEqual("done", messages[-1]["type"])
+        report = (await self.http.get("/api/scan/diagnostics")).json()
+        self.assertTrue(report["fragment_reconnection"]["applied"])
 
     async def test_build_waits_for_live_frame_instead_of_rejecting(self):
         await self.http.post("/api/scan/reset", json={"live_reconstruction": True, "rgb_mode": "rgb_low_res"})

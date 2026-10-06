@@ -65,6 +65,23 @@ class ScannerWorkflowTests(unittest.TestCase):
     def task_types(self):
         return [task.task_type for task in self.window.task_worker.tasks]
 
+    def test_manual_rgb_exposure_is_in_scan_settings_and_locked_during_scan(self):
+        self.window.rgb_exposure_combo.setCurrentIndex(self.window.rgb_exposure_combo.findData("manual"))
+        self.window.rgb_shutter_spin.setValue(250)
+        self.window.rgb_gain_combo.setCurrentIndex(self.window.rgb_gain_combo.findData(4))
+        self.fresh_frame()
+        self.window._start_scan()
+        task = self.window.task_worker.tasks[-1]
+        self.assertEqual(ServerTaskType.RESET, task.task_type)
+        self.assertEqual("manual", task.kwargs["settings"]["rgb_exposure_mode"])
+        self.assertEqual(250, task.kwargs["settings"]["rgb_shutter_speed"])
+        self.assertEqual(4, task.kwargs["settings"]["rgb_gain"])
+        self.assertFalse(self.window.rgb_exposure_combo.isEnabled())
+        self.window._on_reset_done({"session_id": "manual-shutter", "settings": task.kwargs["settings"]})
+        self.assertFalse(self.window.rgb_exposure_combo.isEnabled())
+        self.window._on_frame(self.rgb, self.depth, {"rgb_exposure_mode": "manual", "rgb_exposure_us": 3957})
+        self.assertIn("3.96 ms", self.window.rgb_exposure_status_label.text())
+
     def protection(self, choice, path="/tmp/workflow-session.zip"):
         dialog_patch = patch.object(dialogs, "SessionProtectionDialog")
         mocked = dialog_patch.start()
@@ -414,15 +431,28 @@ class ScannerWorkflowTests(unittest.TestCase):
             cue.assert_called_once_with(True)
             self.window._on_live_updated({"session_id": "retained", "fusion_paused": False})
             cue.assert_called_with(False)
+            cue.reset_mock()
+            self.window._on_live_updated({"session_id": "retained"})
+            cue.assert_not_called()
             self.window._scanning = False
-            self.window._on_live_updated({"session_id": "retained", "fusion_paused": True})
-            cue.assert_called_with(False)
+            with patch.object(self.window.capture_sound, "reset_tracking") as reset:
+                self.window._on_live_updated({"session_id": "retained", "fusion_paused": True})
+                reset.assert_called_once()
+            cue.assert_not_called()
 
     def test_new_scan_rearms_tracking_loss_sound(self):
         self.retain_scan()
-        with patch.object(self.window.capture_sound, "set_tracking_lost") as cue:
+        with patch.object(self.window.capture_sound, "reset_tracking") as reset:
             self.window._on_reset_done({"session_id": "new", "settings": {}})
-            cue.assert_called_once_with(False)
+            reset.assert_called_once()
+
+    def test_finishing_lost_scan_clears_sound_state_without_recovery_cue(self):
+        self.retain_scan()
+        self.window.capture_sound._tracking_lost = True
+        with patch.object(self.window.capture_sound, "_play_recovery") as recovery:
+            self.window._stop_and_build()
+        recovery.assert_not_called()
+        self.assertFalse(self.window.capture_sound._tracking_lost)
 
     def test_capture_sound_confirms_successful_single_and_batch_uploads(self):
         self.retain_scan()
