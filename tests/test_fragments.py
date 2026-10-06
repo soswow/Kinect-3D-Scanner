@@ -20,6 +20,7 @@ import open3d as o3d
 from scanner_server.engine import ScanEngine
 from scanner_server.fragments import (
     Fragment,
+    _matches,
     _prepare_fragment,
     _verify_bridge,
     _view,
@@ -359,6 +360,29 @@ class FragmentTests(unittest.TestCase):
         _prepare_fragment(source)
         _prepare_fragment(target)
         self.assertIsNone(_verify_bridge(source, target, np.eye(4)))
+
+    def test_matching_cache_preserves_mutual_match_order_and_invalidates_new_features(self):
+        from scanner_server.appearance import correspondences
+
+        engine = ScanEngine(device="cpu")
+        for frame in self.scene[:2]:
+            engine.store_frame(*frame[:2])
+        a, b = _view(engine, 0), _view(engine, 1)
+        expected = correspondences(a.features, b.features)
+        reverse = correspondences(b.features, a.features)
+        self.assertGreater(len(expected), 40)
+        with patch("scanner_server.fragments.correspondences", wraps=correspondences) as matcher:
+            np.testing.assert_array_equal(expected, _matches(a, b))
+            np.testing.assert_array_equal(reverse, _matches(b, a))
+            np.testing.assert_array_equal(expected, _matches(replace(a, pose=np.eye(4)), b))
+            self.assertEqual(1, matcher.call_count)
+            fresh = _view(engine, 1)
+            np.testing.assert_array_equal(expected, _matches(a, fresh))
+            self.assertEqual(2, matcher.call_count)
+            with patch("scanner_server.fragments.MAX_MATCH_CACHE", 2):
+                for index in range(10, 14):
+                    np.testing.assert_array_equal(expected, _matches(a, replace(b, index=index, match_cache={})))
+                    self.assertLessEqual(len(a.match_cache), 2)
 
     def test_connected_scan_skips_fragment_search_and_invalid_setting_rejected(self):
         engine = ScanEngine(device="cpu")

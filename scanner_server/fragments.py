@@ -25,6 +25,7 @@ MAX_PAIRS = 256
 MAX_CLOUD_POINTS = 12000
 MAX_VALIDATION_POINTS = 30000
 MAX_FRAGMENT_VIEWS = 16
+MAX_MATCH_CACHE = 16
 
 
 @dataclass
@@ -34,6 +35,7 @@ class View:
     heldout: object
     features: Features
     pose: np.ndarray = field(default_factory=lambda: np.eye(4))
+    match_cache: dict = field(default_factory=dict, repr=False, compare=False)
 
 
 @dataclass
@@ -124,8 +126,32 @@ def _view(engine, index):
     return View(index, train, heldout, features)
 
 
+def _matches(source, target):
+    """Reuse exact descriptor matches across proposals and overlapping maps.
+
+    Features are immutable for a prepared view. Keep the actual feature object
+    in each entry so reusing a frame index with new features cannot hit a stale
+    entry. Context views share this cache, but never cache pose-dependent checks.
+    """
+    cached = source.match_cache.get(target.index)
+    if cached is not None and cached[0] is target.features:
+        source.match_cache.pop(target.index)
+        source.match_cache[target.index] = cached
+        return cached[1]
+    matches = correspondences(source.features, target.features)
+    reverse = matches[:, ::-1].copy()
+    reverse = reverse[np.argsort(reverse[:, 0], kind="stable")]
+    matches.flags.writeable = reverse.flags.writeable = False
+    for view, other, value in ((source, target, matches), (target, source, reverse)):
+        view.match_cache.pop(other.index, None)
+        view.match_cache[other.index] = (other.features, value)
+        if len(view.match_cache) > MAX_MATCH_CACHE:
+            view.match_cache.pop(next(iter(view.match_cache)))
+    return matches
+
+
 def _local_match(source, target, camera, settings, initial=None):
-    proposal = propose_transform(source.features, target.features, camera)
+    proposal = propose_transform(source.features, target.features, camera, _matches(source, target))
     seed = proposal if proposal is not None else np.eye(4) if initial is None else initial
     result = _pair(source.train, target.train, seed, 0.45)
     if result is None:
@@ -417,7 +443,7 @@ def propose_fragment_poses(engine, progress_cb=None):
             proposals.append((0, np.eye(4)))
             for a in source.keys:
                 for b in target.keys:
-                    matches = correspondences(a.features, b.features)
+                    matches = _matches(a, b)
                     proposal = propose_transform(a.features, b.features, engine.settings.camera, matches)
                     if proposal is not None:
                         proposals.append((len(matches), b.pose @ proposal @ np.linalg.inv(a.pose)))
@@ -427,6 +453,7 @@ def propose_fragment_poses(engine, progress_cb=None):
                                    and target.index != source.index + 1),
                                distance, source, target, proposals))
     candidates.sort(key=lambda row: (row[0], row[1], row[2], row[3].index, row[4].index))
+    priority = {(row[3].index, row[4].index): i for i, row in enumerate(candidates)}
     report["candidate_pairs"] = len(candidates)
     report["tested_pairs"] = 0
     pending = list(candidates)
@@ -472,12 +499,17 @@ def propose_fragment_poses(engine, progress_cb=None):
         # Once every eligible map is joined and a redundant cycle has been
         # measured, finish with full optimized-geometry validation. Each tested
         # pair has already exhausted its competing independent proposals.
-        if eligible.issubset(_reachable(len(fragments), edges, roots)) and len(edges) >= len(eligible):
+        last_rank = max((priority.get((e["source"], e["target"]), -1) for e in edges), default=-1)
+        if (eligible.issubset(_reachable(len(fragments), edges, roots)) and len(edges) >= len(eligible)
+                and not any(priority[(row[3].index, row[4].index)] < last_rank for row in pending)):
             report["search_stopped_connected"] = True
             break
     connected_now = _reachable(len(fragments), edges, roots)
     report["budget_limited"] |= report["tested_pairs"] == MAX_PAIRS and any(
         row[3].index in connected_now or row[4].index in connected_now for row in pending)
+    # Search order is a compute policy, not graph authority. Initialize from
+    # the original evidence ranking, with measured sequential edges first.
+    edges.sort(key=lambda e: (priority.get((e["source"], e["target"]), -1), e["source"], e["target"]))
     connected = _reachable(len(fragments), edges, roots)
     # Initialize from measured bridges, independently of the drifted live poses.
     primary = roots[0]
