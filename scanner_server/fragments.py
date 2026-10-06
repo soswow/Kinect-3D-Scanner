@@ -420,7 +420,22 @@ def propose_fragment_poses(engine, progress_cb=None):
     candidates.sort(key=lambda row: (row[0], row[1], row[2], row[3].index, row[4].index))
     report["candidate_pairs"] = len(candidates)
     report["tested_pairs"] = 0
-    for number, (_, _, _, source, target, appearances) in enumerate(candidates[:MAX_PAIRS], 1):
+    pending = list(candidates)
+    while pending and report["tested_pairs"] < MAX_PAIRS:
+        connected_now = _reachable(len(fragments), edges, roots)
+        # Expand the anchored map first. A detached-to-detached match cannot
+        # connect to it after every crossing pair has failed. Avoid spending the
+        # bounded search on components that will never enter the reconstruction.
+        frontier = next((i for i, row in enumerate(pending)
+                         if (row[3].index in connected_now) != (row[4].index in connected_now)), None)
+        if frontier is None:
+            frontier = next((i for i, row in enumerate(pending)
+                             if row[3].index in connected_now and row[4].index in connected_now), None)
+        if frontier is None:
+            report["unreachable_candidate_pairs"] = len(pending)
+            break
+        _, _, _, source, target, appearances = pending.pop(frontier)
+        number = report["tested_pairs"] + 1
         report["tested_pairs"] = number
         _notify(progress_cb, number, min(len(candidates), MAX_PAIRS),
                 f"Verifying fragment links {number}/{min(len(candidates), MAX_PAIRS)}")
@@ -451,7 +466,9 @@ def propose_fragment_poses(engine, progress_cb=None):
         if eligible.issubset(_reachable(len(fragments), edges, roots)) and len(edges) >= len(eligible):
             report["search_stopped_connected"] = True
             break
-    report["budget_limited"] |= report["tested_pairs"] == MAX_PAIRS and len(candidates) > MAX_PAIRS
+    connected_now = _reachable(len(fragments), edges, roots)
+    report["budget_limited"] |= report["tested_pairs"] == MAX_PAIRS and any(
+        row[3].index in connected_now or row[4].index in connected_now for row in pending)
     connected = _reachable(len(fragments), edges, roots)
     # Initialize from measured bridges, independently of the drifted live poses.
     primary = roots[0]

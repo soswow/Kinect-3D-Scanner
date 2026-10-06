@@ -235,6 +235,38 @@ class FragmentTests(unittest.TestCase):
         self.assertTrue(report["failed"])
         self.assertIn("failed independent validation", report["reason"])
 
+    def test_search_does_not_spend_budget_on_unreachable_fragment_pairs(self):
+        engine = ScanEngine(device="cpu")
+        for i, source in enumerate([0, 1, 2, 5, 6, 7, 10, 11, 12]):
+            engine.store_frame(*self.scene[source][:2], {"timestamp_s": i * 0.2 + (i // 3) * 10})
+        engine.poses = [(0, np.eye(4))]
+        with patch("scanner_server.fragments._global_seed", return_value=None), \
+             patch("scanner_server.fragments._verify_bridge", return_value=None) as verify:
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual([0, 1, 2], [i for i, _ in poses])
+        self.assertEqual(3, report["candidate_pairs"])
+        self.assertEqual(2, report["tested_pairs"])
+        self.assertEqual(1, report["unreachable_candidate_pairs"])
+        self.assertTrue(all(call.args[0].index == 0 for call in verify.call_args_list))
+
+    def test_search_expands_through_newly_connected_fragments(self):
+        engine = ScanEngine(device="cpu")
+        for i, source in enumerate([0, 1, 2, 5, 6, 7, 10, 11, 12]):
+            engine.store_frame(*self.scene[source][:2], {"timestamp_s": i * 0.2 + (i // 3) * 10})
+        engine.poses = [(0, np.eye(4))]
+        original = _verify_bridge
+
+        def chain_only(source, target, proposal):
+            if target.index != source.index + 1:
+                return None
+            return original(source, target, proposal)
+
+        with patch("scanner_server.fragments._verify_bridge", side_effect=chain_only):
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual(9, len(poses), report)
+        self.assertEqual([], report["unconnected_fragments"])
+        self.assertTrue(any(e["source"] == 1 and e["target"] == 2 for e in report["verified_bridges"]))
+
     def test_pruned_bridge_does_not_authorize_disconnected_fusion(self):
         engine, _ = self.disconnected()
         with patch("scanner_server.fragments.REG.global_optimization", side_effect=lambda graph, *args: graph.edges.clear()) as optimizer:
