@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-from .calibration import prepare_rgbd
+from .calibration import prepare_metric_depth
 from .settings import CameraCalibration
 
 
@@ -135,7 +135,7 @@ def recording_evidence(frames, metadata, settings, roi=None, expected_z_m=None):
     ]
     planes, valid = [], []
     for rgb, depth in frames:
-        _, metric = prepare_rgbd(rgb, depth, settings)
+        metric = prepare_metric_depth(depth, settings)
         valid.append(float(np.count_nonzero(metric) / metric.size))
         if roi is not None:
             planes.append(plane_evidence(metric, settings.camera, roi, expected_z_m))

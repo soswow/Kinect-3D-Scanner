@@ -9,7 +9,7 @@ from dataclasses import replace
 import numpy as np
 import open3d as o3d
 
-from shared.calibration import camera_matrix, prepare_rgbd
+from shared.calibration import camera_matrix, prepare_metric_depth
 
 
 def heldout_view_metrics(
@@ -40,7 +40,7 @@ def heldout_view_metrics(
     for rgb, depth, stamp, reference_pose in frames:
         if reference_pose is None:
             continue
-        _, observed = prepare_rgbd(rgb, depth, observed_settings)
+        observed = prepare_metric_depth(depth, observed_settings)
         observed = observed[::pixel_stride, ::pixel_stride].astype(np.float32) / 1000
         rays = scene.create_rays_pinhole(
             camera_matrix(c),
