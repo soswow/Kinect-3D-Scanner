@@ -7,7 +7,7 @@ agreement across two different views on each side of a bridge.
 """
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
 import numpy as np
@@ -40,6 +40,7 @@ class View:
 class Fragment:
     index: int
     views: list = field(default_factory=list)
+    context: list = field(default_factory=list)
     seed: np.ndarray | None = None
     keys: list = field(default_factory=list)
     train: object = None
@@ -153,7 +154,7 @@ def _prepare_fragment(fragment):
     # alone can miss the small shared arc between consecutive camera runs.
     chosen = np.unique(np.r_[np.linspace(0, last, min(3, len(fragment.views)), dtype=int),
                              min(2, last), max(0, last - 2)])
-    fragment.keys = [fragment.views[i] for i in chosen]
+    fragment.keys = fragment.context + [fragment.views[i] for i in chosen]
     fragment.train = _aggregate(fragment, "train")
     fragment.heldout = _aggregate(fragment, "heldout")
     fragment.train.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=0.06, max_nn=30))
@@ -355,13 +356,21 @@ def propose_fragment_poses(engine, progress_cb=None):
                 report["unassigned_indices"].append(index)
                 current, previous = None, None
                 continue
+            context = []
             if not gap and relative is not None:
                 # A size limit is not a tracking loss. Preserve the same raw
                 # frame-to-frame measurement that would join these observations
                 # inside a fragment. Live/world pose guesses never create edges.
+                local_pose = previous.pose @ relative
                 sequential.append((current.index, len(fragments), previous, view,
-                                   previous.pose @ relative, relative))
-            current = Fragment(len(fragments))
+                                   local_pose, relative))
+                # Retain nearby measured witnesses across a storage boundary.
+                # They provide overlap for later bridge verification, but do
+                # not become owned views or get fused a second time.
+                to_next = np.linalg.inv(local_pose)
+                context = [replace(v, pose=to_next @ v.pose)
+                           for v in current.views[-2:]]
+            current = Fragment(len(fragments), context=context)
             fragments.append(current)
         else:
             view.pose = previous.pose @ relative
@@ -511,8 +520,8 @@ def propose_fragment_poses(engine, progress_cb=None):
         transform = np.linalg.inv(optimized[b]) @ optimized[a]
         translation, angle = motion(np.linalg.inv(edge["transform"]) @ transform)
         if edge.get("validation_scope") in ("independent camera pairs", "sequential camera pair"):
-            a_views = {v.index: v for v in fragments[a].views}
-            b_views = {v.index: v for v in fragments[b].views}
+            a_views = {v.index: v for v in fragments[a].context + fragments[a].views}
+            b_views = {v.index: v for v in fragments[b].context + fragments[b].views}
             minimum = 0.4 if edge["validation_scope"] == "sequential camera pair" else 0.5
             valid = all(_heldout(a_views[i].heldout, b_views[j].heldout,
                 np.linalg.inv(b_views[j].pose) @ transform @ a_views[i].pose, minimum)[0]
@@ -532,6 +541,8 @@ def propose_fragment_poses(engine, progress_cb=None):
         report["fragments"].append({
             "id": fragment.index, "connected": fragment.index in connected,
             "frame_indices": [v.index for v in fragment.views],
+            "context_frame_indices": [v.index for v in fragment.context],
+            "context_camera_to_fragment": [{"index": v.index, "pose": v.pose.tolist()} for v in fragment.context],
             "camera_to_fragment": [{"index": v.index, "pose": v.pose.tolist()} for v in fragment.views],
             "fragment_to_world": transform.tolist() if transform is not None else None,
         })

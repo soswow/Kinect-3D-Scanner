@@ -203,6 +203,9 @@ class FragmentTests(unittest.TestCase):
             truth = self.scene[index][2]
             self.assertLess(np.linalg.norm(pose[:3, 3] - truth[:3, 3]), 0.015)
         self.assertEqual("sequential camera pair", report["verified_bridges"][0]["validation_scope"])
+        self.assertEqual([2, 3], report["fragments"][1]["context_frame_indices"])
+        self.assertEqual([4, 5, 6, 7], report["fragments"][1]["frame_indices"])
+        self.assertEqual(8, len({i for i, _ in poses}), "Context must not duplicate fusion")
 
     def test_size_boundary_does_not_bridge_a_real_tracking_failure(self):
         engine = ScanEngine(device="cpu")
@@ -216,6 +219,29 @@ class FragmentTests(unittest.TestCase):
         self.assertEqual(0, report["sequential_bridges"], report)
         self.assertEqual([1], report["unconnected_fragments"])
         self.assertEqual([0, 1, 2], [i for i, _ in poses])
+        self.assertEqual([], report["fragments"][1]["context_frame_indices"])
+
+    def test_short_boundary_fragment_keeps_witnesses_for_later_reconnection(self):
+        engine = ScanEngine(device="cpu")
+        chosen = [0, 1, 2, 3, 4, 10, 11, 12]
+        for i, source in enumerate(chosen):
+            engine.store_frame(*self.scene[source][:2], {"timestamp_s": i * 0.2 + (10 if i >= 5 else 0)})
+        engine.poses = [(0, np.eye(4))]
+
+        def boundary_overlap_only(source, target, proposal, *args):
+            if (source.index, target.index) != (1, 2):
+                return None
+            return _verify_bridge(source, target, proposal, *args)
+
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4), \
+             patch("scanner_server.fragments._verify_bridge", side_effect=boundary_overlap_only):
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual([4], report["fragments"][1]["frame_indices"])
+        self.assertEqual([2, 3], report["fragments"][1]["context_frame_indices"])
+        self.assertEqual([], report["unconnected_fragments"], report)
+        self.assertEqual(list(range(8)), [i for i, _ in poses])
+        for index, pose in poses:
+            self.assertLess(np.linalg.norm(pose[:3, 3] - self.scene[chosen[index]][2][:3, 3]), 0.02)
 
     def test_optimized_boundary_still_requires_heldout_measurements(self):
         engine = ScanEngine(device="cpu")
@@ -256,10 +282,11 @@ class FragmentTests(unittest.TestCase):
         engine.poses = [(0, np.eye(4))]
         original = _verify_bridge
 
-        def chain_only(source, target, proposal):
+        def chain_only(source, target, proposal, *args):
             if target.index != source.index + 1:
                 return None
-            return original(source, target, proposal)
+            return original(source, target, proposal, *args)
+
 
         with patch("scanner_server.fragments._verify_bridge", side_effect=chain_only):
             poses, report = propose_fragment_poses(engine)
