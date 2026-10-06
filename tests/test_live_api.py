@@ -16,6 +16,7 @@ import numpy as np
 from scanner_server import app as server
 from scanner_server.engine import ScanEngine
 from shared.config import LIVE_MAX_POINTS
+from shared.live import decode_live_geometry
 from shared.protocol import pack_frame, pack_frames
 from shared.sensor_calibration import load_calibration
 from tests.test_quality import scene_frames as metric_scene_frames
@@ -78,7 +79,7 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         ]
         payload.append(payload[0])  # duplicate must not create a recording/pose index
         result = (
-            await self.http.post("/api/scan/frames", content=pack_frames(payload))
+            await self.http.post("/api/scan/frames", content=pack_frames(payload, compression_level=0))
         ).json()
         self.assertEqual([True, True, False], [r["success"] for r in result["results"]])
         self.assertEqual(
@@ -182,6 +183,73 @@ class LiveApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(old_session, new_session)
         self.assertEqual(0, server.engine.frame_count)
         self.assertEqual(0, server.engine.stored_count)
+
+    async def test_packed_and_legacy_subscribers_receive_the_same_snapshot(self):
+        import json
+
+        class Socket:
+            def __init__(self, packed):
+                self.query_params = {"geometry": "xyzrgb-f32le"} if packed else {}
+                self.messages = []
+
+            async def send_text(self, data):
+                self.messages.append(json.loads(data))
+
+        packed, legacy = Socket(True), Socket(False)
+        snapshot = server.engine.live_snapshot(array_geometry=True)
+        snapshot["points"] = np.array([[0.12345, 0, 1]], np.float32)
+        snapshot["colors"] = np.array([[1, 0.5, 0]], np.float32)
+        server._ws_clients.update((packed, legacy))
+        try:
+            await server._broadcast(snapshot)
+        finally:
+            server._ws_clients.difference_update((packed, legacy))
+        self.assertIn("geometry", packed.messages[0])
+        self.assertIn("points", legacy.messages[0])
+        for socket in (packed, legacy):
+            decoded = decode_live_geometry(socket.messages[0])
+            np.testing.assert_array_equal(snapshot["points"], decoded["points"])
+            np.testing.assert_array_equal(snapshot["colors"], decoded["colors"])
+            self.assertEqual(snapshot["session_id"], decoded["session_id"])
+
+    async def test_feedback_serialization_leaves_http_event_loop_responsive(self):
+        class Socket:
+            def __init__(self):
+                self.query_params = {"geometry": "xyzrgb-f32le"}
+
+            async def send_text(self, data):
+                pass
+
+        entered, release = threading.Event(), threading.Event()
+        original = server.encode_live_message
+
+        def encode(*args, **kwargs):
+            entered.set()
+            release.wait(5)
+            return original(*args, **kwargs)
+
+        socket = Socket()
+        server._ws_clients.add(socket)
+        task = None
+        try:
+            with patch.object(server, "encode_live_message", side_effect=encode):
+                task = asyncio.create_task(server._broadcast(server.engine.live_snapshot(array_geometry=True)))
+                for _ in range(100):
+                    if entered.is_set():
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertTrue(entered.is_set())
+                self.assertFalse(task.done())
+                status = await asyncio.wait_for(self.http.get("/api/scan/status"), 1)
+                self.assertEqual(200, status.status_code)
+                self.assertFalse(task.done())
+                release.set()
+                await task
+        finally:
+            release.set()
+            if task is not None:
+                await task
+            server._ws_clients.discard(socket)
 
 
 if __name__ == "__main__":

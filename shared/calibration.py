@@ -91,12 +91,23 @@ def project_rgb(points_ir_mm, calibration, rgb_camera):
         points_ir_mm.reshape(-1, 3) @ np.asarray(calibration.rotation).T
         + calibration.translation_mm
     )
-    pixels, _ = cv2.projectPoints(
-        points,
-        np.zeros(3),
-        np.zeros(3),
-        camera_matrix(rgb_camera),
-        np.array(rgb_camera.distortion),
+    # projectPoints also allocates a 2N x 15 Jacobian that dense RGB-D sampling
+    # never uses. Evaluate the same five-coefficient lens model directly.
+    z = points[:, 2]
+    inverse_z = np.ones_like(z)
+    np.divide(1.0, z, out=inverse_z, where=z != 0)
+    x, y = (points[:, :2] * inverse_z[:, None]).T
+    k1, k2, p1, p2, k3 = rgb_camera.distortion
+    xx, yy, xy = x * x, y * y, x * y
+    r2 = xx + yy
+    radial = 1 + r2 * (k1 + r2 * (k2 + r2 * k3))
+    pixels = np.column_stack(
+        (
+            (x * radial + 2 * p1 * xy + p2 * (r2 + 2 * xx)) * rgb_camera.fx
+            + rgb_camera.cx,
+            (y * radial + p1 * (r2 + 2 * yy) + 2 * p2 * xy) * rgb_camera.fy
+            + rgb_camera.cy,
+        )
     )
     return pixels.reshape(*shape, 2), points[:, 2].reshape(shape)
 

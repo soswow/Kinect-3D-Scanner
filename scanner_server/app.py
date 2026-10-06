@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 
+from shared.live import encode_live_message
 from shared.protocol import unpack_frame_with_metadata, unpack_frames
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
@@ -89,7 +90,7 @@ async def _live_worker():
                 snapshot = None
                 now = time.monotonic()
                 if now - last_sent >= 0.5 or not engine.unprocessed_count:
-                    snapshot = await _engine_call(engine.live_snapshot)
+                    snapshot = await _engine_call(engine.live_snapshot, array_geometry=True)
                     _latest_live = snapshot
                     last_sent = now
             if snapshot is not None:
@@ -116,17 +117,26 @@ _ws_clients: set[WebSocket] = set()
 
 async def _broadcast(msg: dict):
     """Send a JSON message to all connected WebSocket clients."""
-    import json
-
-    data = json.dumps(msg)
+    clients = tuple(_ws_clients)
+    if not clients:
+        return
+    # Build each negotiated representation once, away from the HTTP event loop.
+    modes = {ws: _packed_feedback(ws) for ws in clients}
+    data = {}
+    for mode in set(modes.values()):
+        data[mode] = await asyncio.to_thread(encode_live_message, msg, packed_geometry=mode)
 
     async def send(ws):
         try:
-            await asyncio.wait_for(ws.send_text(data), timeout=1.0)
+            await asyncio.wait_for(ws.send_text(data[modes[ws]]), timeout=1.0)
         except Exception:  # noqa: BLE001 — a failed subscriber must not interrupt scan progress.
             _ws_clients.discard(ws)
 
-    await asyncio.gather(*(send(ws) for ws in tuple(_ws_clients)))
+    await asyncio.gather(*(send(ws) for ws in clients))
+
+
+def _packed_feedback(websocket):
+    return getattr(websocket, "query_params", {}).get("geometry") == "xyzrgb-f32le"
 
 
 async def _engine_call(function, *args, **kwargs):
@@ -553,7 +563,10 @@ async def ws_progress(websocket: WebSocket):
     logger.info("WebSocket client connected (%d total)", len(_ws_clients))
     try:
         if _latest_live is not None and _latest_live["session_id"] == engine.session_id:
-            await asyncio.wait_for(websocket.send_json(_latest_live), timeout=1.0)
+            data = await asyncio.to_thread(
+                encode_live_message, _latest_live, packed_geometry=_packed_feedback(websocket)
+            )
+            await asyncio.wait_for(websocket.send_text(data), timeout=1.0)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:

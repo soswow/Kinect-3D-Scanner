@@ -47,8 +47,9 @@ KINECT_DEVICE=cuda KINECT_TRACKING=tensor KINECT_BLOCK_COUNT=5000 \
 
 Frame reports include wall times for filtering, cloud creation, tracking, fusion,
 and model refresh. CUDA timings synchronize at stage boundaries, which adds
-profiling overhead. Model refreshes performed during recovery are included in
-tracking time. Final refinement has a separate total. On one CPU tensor XYZ
+profiling overhead. Model refreshes requested inside tracking or recovery now
+have their own `model_refresh` timing; the parent tracking stage excludes that
+time so totals do not count it twice. Final refinement has a separate total. On one CPU tensor XYZ
 replay, fusion took 1.7 s, tracking 40.8 s, and scheduled model refreshes 50.2 s.
 Accelerating fusion alone would therefore leave most of that run's cost intact.
 
@@ -78,6 +79,16 @@ frames the whole cloud; **Color** and **Shape** select its display. The view ign
 and needs no OpenGL context or screen capture.
 
 This is responsive reconstruction feedback, not a guaranteed camera-rate mesh.
+
+The desktop client requests `?geometry=xyzrgb-f32le` on the progress WebSocket.
+Those live messages replace the `points`/`colors` lists with a `geometry` object:
+`encoding: "xyzrgb-f32le"`, `count`, and base64 `data`. Each point contains six
+little-endian float32 values, XYZ followed by RGB in 0–1. Counts and payload sizes
+are bounded to 30,000 points; decoding happens on the listener thread. Clients
+without that query parameter receive the existing JSON lists, and the new client
+also accepts older servers. Serialization runs outside the engine lock and away
+from the HTTP event loop. See [capture performance](CAPTURE_PERFORMANCE.md) for
+measurements, remaining costs, and the recording profiler.
 Geometry is sampled from the fused cloud before tracking downsamples it, using
 the existing model extraction, refreshed every three accepted integrations.
 The client draws 3×3 dots with depth ordering; **Inspect Scan** opens the mesh.

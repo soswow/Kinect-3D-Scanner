@@ -1,5 +1,6 @@
 """HTTP + WebSocket client for communicating with the scanner server."""
 
+import ipaddress
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import threading
 import httpx
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from shared.live import GEOMETRY_ENCODING, decode_live_geometry
 from shared.protocol import pack_frame, pack_frames
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ class ServerClient(QObject):
         self._ws_socket = None
         self.session_id = None
         self.last_status = {}
+        self._compression_level = 1
 
     @property
     def is_connected(self) -> bool:
@@ -61,7 +64,14 @@ class ServerClient(QObject):
         """Connect synchronously; the GUI invokes this through ServerTaskWorker."""
         self.disconnect(notify=False)
         self._base_url = f"http://{host}:{port}"
-        self._ws_url = f"ws://{host}:{port}/ws/progress"
+        try:
+            loopback = ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            loopback = host.lower() == "localhost"
+        # Level 0 retains the existing lossless zlib wire format. On loopback,
+        # copying a few MB is much cheaper than compressing high-resolution RGB.
+        self._compression_level = 0 if loopback else 1
+        self._ws_url = f"ws://{host}:{port}/ws/progress?geometry={GEOMETRY_ENCODING}"
         try:
             self._http = httpx.Client(base_url=self._base_url, timeout=30.0)
             resp = self._http.get("/api/health", timeout=5.0)
@@ -177,7 +187,7 @@ class ServerClient(QObject):
                 msg.get("result", {"message": msg.get("message", "")}),
             )
         elif msg_type == "live":
-            self.live_updated.emit(msg)
+            self.live_updated.emit(decode_live_geometry(msg))
         elif msg_type == "done":
             # Both preview and final build broadcast "done". Their HTTP
             # responses are handled by ServerTaskWorker with the correct signal.
@@ -190,7 +200,7 @@ class ServerClient(QObject):
 
     def send_frame(self, rgb, depth, metadata=None) -> dict:
         """Pack and upload a frame. Returns the server response dict."""
-        data = pack_frame(rgb, depth, metadata)
+        data = pack_frame(rgb, depth, metadata, compression_level=self._compression_level)
         resp = self._http.post(
             "/api/scan/frame",
             content=data,
@@ -201,7 +211,7 @@ class ServerClient(QObject):
 
     def send_frames_batch(self, frames: list[tuple]) -> dict:
         """Pack and upload multiple frames as a single batch."""
-        data = pack_frames(frames)
+        data = pack_frames(frames, compression_level=self._compression_level)
         resp = self._http.post(
             "/api/scan/frames",
             content=data,
