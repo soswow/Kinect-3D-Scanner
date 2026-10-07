@@ -15,6 +15,7 @@
     "portrait_tracking_diagnostic_overlay": "PASS"
   },
   "synthetic_recording": {
+    "recording_mode": "All camera frames; optional and off by default in the current implementation",
     "source": "Seeded random native arrays; no Kinect USB input",
     "rgb_shape": [1024, 1280, 3],
     "depth_shape": [480, 640],

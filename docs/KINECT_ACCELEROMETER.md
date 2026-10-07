@@ -8,6 +8,12 @@ No simultaneous USB capture rate, physical orientation accuracy, or tracking
 improvement has been measured on this device. The joint statistical solver
 discussed later remains a research proposal.
 
+Normal recording keeps selected RGB-D captures and the continuous accelerometer
+log. **Record all camera frames (large files)** is off by default; the multi-GB/min
+stream cost below applies only when explicitly enabled. **Use accelerometer to
+assist tracking** is also off by default, while portrait orientation defaults
+to **Auto** independently.
+
 ## Implemented behavior
 
 - The existing USB child polls acceleration at a trial maximum of 20 Hz using
@@ -45,9 +51,9 @@ calibration**. Physically check upright, both portrait directions, upside down,
 and optical-axis tilt on this device. Tilt-mechanism position may require a
 different measured relationship. Factory-profile data are saved as unverified.
 
-## Full sensor sessions and later reanalysis
+## Compact sessions and optional full camera recording
 
-Full recording starts with a GUI scan, runs independently of selected captures
+Accelerometer recording starts with a GUI scan, runs independently of selected captures
 and image-consumer backpressure, continues during ordinary Pause, and stops at
 Finish/cancel. Save Session stops and drains recording at a fixed boundary,
 downloads the server's selected frames/report, and atomically adds the local
@@ -57,6 +63,16 @@ The journal remains locally available under `recordings/sensors-<session hash>/`
 it is not deleted automatically. A server-only API export contains its selected
 frames, because the independent streams belong to the client.
 
+Selected lossless RGB-D images remain in the server's normal session archive.
+The default local journal retains every accelerometer read and orientation event
+without copying, queuing, or writing camera arrays. The checkbox **Record all
+camera frames (large files)** adds independent RGB/depth streams for research.
+Live camera-side visual tracking continues processing intermediate pairs when
+full recording is off; only their storage changes. The compact default cannot
+reproduce that exact intermediate visual chain offline, but retains selected
+images, their computed motion/decision metadata, and the raw acceleration series
+for future reanalysis.
+
 The augmented ZIP uses manifest version 2. Existing `frames`, `settings`, and
 `reconstruction.json` remain compatible with selected-frame replay. The additional
 `sensor_archive` names its root, ordered segments, and aggregate `complete` flag.
@@ -65,22 +81,23 @@ Each `sensors/<segment>/` contains:
 | File | Retained evidence |
 | --- | --- |
 | `configuration.json` | Settings, effective accelerometer calibration/evidence, units, encodings, start times, hardware connection generation, clock semantics. |
-| `rgb.jsonl`, `depth.jsonl` | Every recorded image callback: stream sequence, native/unwrapped device time, estimated host time, receipt time, mapping spread, wall time, array path/shape/type. RGB also retains exposure/mode/settling state. |
-| `rgb/*.npy`, `depth/*.npy` | Exact uint8 RGB and uint16 native raw disparity arrays, with pickle disabled. |
+| `rgb.jsonl`, `depth.jsonl` | Empty by default. With full camera recording enabled: every image callback's sequence, native/unwrapped device time, host times, mapping spread, array path/shape/type, and RGB exposure/mode/settling state. |
+| `rgb/*.npy`, `depth/*.npy` | Only with full camera recording enabled: exact uint8 RGB and uint16 native raw disparity arrays, with pickle disabled. |
 | `accelerometer.jsonl` | Every completed read attempt, including errors, raw and converted vectors, host interval, sequence, and versioned derived gravity. |
 | `events.jsonl` | Orientation controls, capability status, and read-start attempts. |
 | `status.json` | Written/dropped counts, errors, checkpoint prefix lengths, close/completeness state. |
 
-Independent streams include images discarded during RGB exposure settling and
+Optional full camera streams include images discarded during RGB exposure settling and
 depth during startup. IR warmup images and audio are outside the scan's RGB-D
 recording scope. Acceleration is a polled read series, not a hardware-timestamped
 stream. Reconnection creates a new hardware clock generation; every save/resume
-creates a new segment. Histories and raw observations are retained for rejected
-and unselected frames as well as accepted captures. Existing selected-frame
+creates a new segment. Raw acceleration is retained even for intervals with rejected
+or unselected images. Optional full recording also retains those camera images. Existing selected-frame
 metadata retains the live gravity/orientation decision and initializer report.
 
-A bounded background writer copies borrowed callback arrays immediately and
-writes NPY without compression. At nominal rates the default high-resolution
+A bounded background writer always retains acceleration and events. When full
+camera recording is explicitly enabled, it copies borrowed callback arrays
+immediately and writes NPY without compression. At nominal rates high-resolution
 mode produces 57.75 MB/s of image payload (~3.47 GB/min); VGA produces 46.08 MB/s
 (~2.76 GB/min), plus small indices. ZIP storage preserves these streams without
 extra compression overhead. Queue overflow or disk errors keep capture responsive
@@ -89,8 +106,14 @@ surviving prefixes exportable after a crash; an unclean segment remains incomple
 A resumed remote session contains full streams only for intervals this client
 actually recorded, not earlier clients' unrecorded observations.
 
-After unzipping, replay selected captures as before, or rebuild pairs and gravity
-from the independent streams:
+After unzipping a normal compact session, replay selected captures as before:
+
+```bash
+OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset recording --path /path/to/session
+```
+
+For a session recorded with all camera frames enabled, rebuild pairs and gravity
+from the optional independent camera streams:
 
 ```bash
 OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset recording --path /path/to/session \
@@ -104,8 +127,9 @@ Full replay recomputes gravity from raw reads, applies recorded orientation-cont
 events, and optionally recomputes visual motion on **every intermediate pair before
 stride selection**. It never treats old estimated poses as ground truth. This
 supports improving tracking and comparing versions from the same measurements.
-Old ZIPs without full streams retain selected-frame replay; they cannot recreate
-acceleration or discarded images. Record independent reference motion for accuracy
+Compact sessions retain selected-frame replay and raw acceleration, but cannot
+recreate discarded camera images. Old ZIPs without sensor logs cannot recreate
+acceleration either. Record independent reference motion for accuracy
 evaluation; accepted-frame counts alone do not demonstrate improvement.
 
 ## Accelerometer calibration

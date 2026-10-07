@@ -85,9 +85,15 @@ def simulated_child(*args):
 
 class CaptureLoopTests(unittest.TestCase):
     def test_supervisor_save_barrier_drains_real_child_journal(self):
+        self.check_supervisor_save_barrier(full=True)
+
+    def test_default_child_keeps_live_images_and_acceleration_without_recording_camera_arrays(self):
+        self.check_supervisor_save_barrier(full=False)
+
+    def check_supervisor_save_barrier(self, full):
         with tempfile.TemporaryDirectory() as folder, patch("kinect_scanner.worker.capture_frames", simulated_child):
             worker = KinectWorker(capture_target=simulated_child, rgb_mode="rgb_low_res", retry_delay=10)
-            worker.set_sensor_recording(folder, ScanSettings().to_dict())
+            worker.set_sensor_recording(folder, ScanSettings(record_full_camera_streams=full).to_dict())
             frames, errors = [], []
             worker.frame_pair_ready.connect(lambda *args: frames.append(args), Qt.ConnectionType.DirectConnection)
             worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
@@ -102,7 +108,12 @@ class CaptureLoopTests(unittest.TestCase):
                 self.assertTrue(snapshot["complete"], snapshot)
                 status = snapshot["segments"][0]["status"]
                 self.assertTrue(status["closed"])
-                self.assertGreater(status["counts"]["rgb"], 0)
+                if full:
+                    self.assertGreater(status["counts"]["rgb"], 0)
+                else:
+                    self.assertEqual(status["counts"]["rgb"], 0)
+                    self.assertEqual(status["counts"]["depth"], 0)
+                    self.assertEqual(list(Path(folder).rglob("*.npy")), [])
                 self.assertGreater(status["counts"]["accelerometer"], 0)
                 time.sleep(.1)
                 self.assertEqual(journal_snapshot(folder)["segments"][0]["status"]["index_bytes"], status["index_bytes"])
@@ -116,7 +127,7 @@ class CaptureLoopTests(unittest.TestCase):
             stop = threading.Event()
             driver = SimulatedDriver(stop)
             controls = queue.Queue()
-            controls.put(("record", {"path": folder, "settings": ScanSettings().to_dict()}))
+            controls.put(("record", {"path": folder, "settings": ScanSettings(record_full_camera_streams=True).to_dict()}))
 
             class Connection:
                 def __init__(self): self.messages = []

@@ -40,6 +40,9 @@ def load_sensor_observations(path, settings):
     archive = manifest.get("sensor_archive")
     if archive is None:
         raise ValueError("This session has no full sensor streams; replay its selected frames instead")
+    if not any(segment.get("status", {}).get("counts", {}).get("rgb", 0)
+               and segment.get("status", {}).get("counts", {}).get("depth", 0) for segment in archive["segments"]):
+        raise ValueError("This session contains selected images and an accelerometer log; full camera recording was not enabled. Replay its selected frames without --sensor-streams.")
     orientation = OrientationTracker()
     for segment in archive["segments"]:
         directory = (path / archive["root"] / segment["generation"]).resolve()

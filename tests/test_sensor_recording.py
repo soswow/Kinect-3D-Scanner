@@ -56,11 +56,40 @@ class SensorRecordingTests(unittest.TestCase):
         self.rgb = np.full((480, 640, 3), [24, 54, 94], np.uint8)
         self.depth = (np.arange(480 * 640).reshape(480, 640) % 2048).astype(np.uint16)
 
-    def journal(self, generation="segment", capacity=32):
-        journal = SensorJournal(self.root / "raw", generation, ScanSettings().to_dict(), capacity=capacity,
+    def journal(self, generation="segment", capacity=32, full=True):
+        journal = SensorJournal(self.root / "raw", generation, ScanSettings(record_full_camera_streams=full).to_dict(), capacity=capacity,
                                 capture_generation="connection")
         self.addCleanup(journal.close, 3)
         return journal
+
+    def test_default_recording_archives_motion_without_copying_camera_arrays(self):
+        journal = self.journal(full=False)
+        borrowed = Mock()
+        borrowed.copy.side_effect = AssertionError("Default journal must not copy camera arrays")
+        with patch("shared.sensor_recording.np.save") as save:
+            for i in range(10):
+                journal.submit("rgb", frame_metadata(i, 1 + i / 10), borrowed)
+                journal.submit("depth", frame_metadata(i, 1 + i / 10), borrowed)
+                journal.submit("accelerometer", acceleration(i, 1 + i * .05, valid=i != 3))
+            snapshot = journal_snapshot(journal.path.parent, checkpoint(journal))
+        save.assert_not_called()
+        self.assertTrue(snapshot["complete"])
+        self.assertEqual(snapshot["segments"][0]["status"]["counts"]["rgb"], 0)
+        path = self.server_zip()
+        augment_session_archive(path, snapshot)
+        with zipfile.ZipFile(path) as archive:
+            rows = archive.read("sensors/segment/accelerometer.jsonl").splitlines()
+            self.assertEqual(len(rows), 10)
+            self.assertFalse(json.loads(rows[3])["valid"])
+            self.assertFalse(any(name.endswith(".npy") for name in archive.namelist()))
+            self.assertIn("rgb/000000.png", archive.namelist())
+            self.assertIn("depth/000000.png", archive.namelist())
+            archive.extractall(self.root / "normal")
+        from scripts.replay_scan import load_dataset
+        _, frames = load_dataset("recording", self.root / "normal")
+        self.assertEqual(len(frames), 1)
+        with self.assertRaisesRegex(ValueError, "full camera recording was not enabled"):
+            list(load_sensor_observations(self.root / "normal", ScanSettings()))
 
     def server_zip(self, destination=None):
         destination = destination or self.root / "session.zip"

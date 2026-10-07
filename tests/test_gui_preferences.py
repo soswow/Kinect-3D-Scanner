@@ -64,6 +64,38 @@ class GuiPreferencesTests(unittest.TestCase):
         document["raw_depth_to_mm"]["scale"] = 1.01
         return SensorCalibration.from_dict(document)
 
+    def test_motion_defaults_keep_auto_orientation_independent_of_tracking_assistance(self):
+        from tests.test_inertial import metadata
+        window = self.window()
+        self.assertFalse(window.gravity_tracking_cb.isChecked())
+        self.assertFalse(window.full_camera_recording_cb.isChecked())
+        self.assertEqual(window.orientation_combo.currentData(), "auto")
+        self.assertFalse(ScanSettings().gravity_assistance)
+        self.assertFalse(ScanSettings().record_full_camera_streams)
+        rgb = np.full((480, 640, 3), 42, np.uint8)
+        depth = np.full((480, 640), 512, np.uint16)
+        for stamp in (10, 10.4):
+            window._on_frame(rgb, depth, {**metadata((-1, 0, 0)), "depth_host_monotonic_s": stamp})
+        self.assertEqual(window._last_frame_metadata["orientation"]["rotation_cw_degrees"], 90)
+        self.assertFalse(window.gravity_tracking_cb.isChecked())
+        window.gravity_tracking_cb.setChecked(True)
+        window.full_camera_recording_cb.setChecked(True)
+        second = self.window()
+        self.assertTrue(second.gravity_tracking_cb.isChecked())
+        self.assertTrue(second.full_camera_recording_cb.isChecked())
+
+    def test_new_scan_sends_explicit_recording_and_accelerometer_options(self):
+        window = self.window()
+        window.server_client._connected = True
+        window.gravity_tracking_cb.setChecked(True)
+        window.full_camera_recording_cb.setChecked(True)
+        window._on_frame(np.zeros((480, 640, 3), np.uint8), np.full((480, 640), 512, np.uint16))
+        window._start_scan(protected=True)
+        settings = window.task_worker.tasks[-1].kwargs["settings"]
+        self.assertTrue(settings["gravity_assistance"])
+        self.assertTrue(settings["record_full_camera_streams"])
+        self.assertEqual(settings["orientation_mode"], "auto")
+
     def test_portrait_changes_preview_and_metadata_without_rotating_measurements(self):
         window = self.window()
         window.orientation_combo.setCurrentIndex(window.orientation_combo.findData("portrait_left"))
@@ -106,6 +138,7 @@ class GuiPreferencesTests(unittest.TestCase):
             "crop_cb": True, "record_cb": True, "live_cb": False,
             "color_tracking_cb": True, "refine_cb": True,
             "bundle_cb": True,
+            "gravity_tracking_cb": True, "full_camera_recording_cb": True,
             "relocalize_cb": True, "confidence_cb": True,
             "reconnect_fragments_cb": False,
         }

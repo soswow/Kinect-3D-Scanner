@@ -145,10 +145,10 @@ synthetic input and an offscreen Qt platform; it does not open a 3D viewer.
 Configure near/far clipping, voxel size, final surface confidence, optional central
 crop, RGB capture mode, and calibration **before starting a scan**. These settings
 now affect reconstruction. Capture fresh overlapping views while moving the
-Kinect around a stationary subject. Full RGB, depth, and accelerometer read streams
-are recorded locally during scans and included in **Save full RGB-D session** for
-later reanalysis. “Also keep selected captures locally” creates the smaller legacy
-recording too. Recordings stay outside Git.
+Kinect around a stationary subject. **Save Session** keeps selected RGB-D images
+and a continuous accelerometer/timing log for later reanalysis. Full camera-stream
+recording is optional and off by default. “Also keep selected captures locally”
+creates a separate local recording too. Recordings stay outside Git.
 
 The GUI now loads the [complete measured Kinect calibration](calibration/default.json)
 by default: independent RGB profiles at both resolutions, IR/depth intrinsics
@@ -266,11 +266,17 @@ texture. PLY preserves vertex colors. Textured exports use a separately simplifi
 mesh, defaulting to 50,000 triangles, a 1024-pixel atlas, and up to 24 RGB views.
 They preserve the full final mesh for PLY/plain OBJ export.
 
-**Save full RGB-D session** packages lossless selected images, calibration, settings,
-estimated poses, diagnostics, and the client's independent RGB/depth/accelerometer
-streams, including unused frames and failed sensor reads. Native full streams use
-lossless NPY arrays and timestamped JSONL indices; expect about **3.5 GB/minute**
-at high-resolution RGB, or **2.8 GB/minute** at VGA. The UI reports dropped data
+**Save Session** packages lossless selected images, calibration, settings,
+estimated poses, diagnostics, and the client's continuous accelerometer log,
+including failed reads. Camera images are saved only for selected captures by
+default. Live visual tracking can process intermediate images without retaining
+them all on disk. Normal archive size depends on the selected captures; the motion
+log adds a small amount of text data.
+
+**Record all camera frames (large files)** is an explicit, off-by-default option
+for research requiring exact intermediate-frame replay. Only this option adds
+lossless NPY streams at about **3.5 GB/minute** for high-resolution RGB or
+**2.8 GB/minute** for VGA. The UI reports dropped data
 or recording errors, and the archive carries an explicit completeness report.
 Recording pauses at the save boundary and resumes afterward; data before a
 reconnect is kept in separate clock epochs. Existing local recordings remain
@@ -278,14 +284,19 @@ after saving. Unzip the session for replay:
 
 ```bash
 OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset recording --path /path/to/unzipped-session \
-  --sensor-streams --recompute-motion --stride 5
+  --stride 1
 ```
+
+For a session captured with all camera frames enabled, add
+`--sensor-streams --recompute-motion --stride 5` to reconstruct intermediate motion.
 
 The toolbar offers **Auto / Landscape / Portrait left / Portrait right**. Auto
 uses filtered acceleration with hysteresis; manual locks work without a sensor.
 RGB and depth previews rotate together. Selected portrait captures include
 ordinary rotated PNG copies under `display/`, alongside native images and
-calibration. **Gravity-assisted tracking** adds a bounded roll/pitch correction
+calibration. Auto orientation is the default and works independently of the
+off-by-default **Use accelerometer to assist tracking** checkbox in scan settings.
+Enabling this checkbox adds a bounded roll/pitch correction
 to the existing RGB-D initializer and retains the normal acceptance checks.
 The factory sensor axes are provisional; load a measured accelerometer profile
 for stronger assistance. Hardware orientation/performance and tracking gains

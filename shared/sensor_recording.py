@@ -23,6 +23,7 @@ class SensorJournal:
         self.path = Path(root) / generation
         self.path.mkdir(parents=True, exist_ok=False)
         self.settings = settings
+        self.record_images = settings.get("record_full_camera_streams", False)
         self.generation = capture_generation or generation
         self.queue = queue.Queue(maxsize=capacity)
         self.notifications = queue.SimpleQueue()
@@ -38,8 +39,8 @@ class SensorJournal:
             "started_timestamp_s": time.time(), "started_monotonic_s": time.monotonic(),
             "clock": {"image_device_hz": 60_000_000, "image_reference": "packet_end",
                       "accelerometer_reference": "host_read_interval", "host_clock": "monotonic"},
-            "streams": {"rgb": {"units": "uint8 RGB", "encoding": "NPY, no pickle"},
-                        "depth": {"units": "raw_11bit_disparity", "encoding": "uint16 NPY, no pickle"},
+            "streams": {"rgb": {"units": "uint8 RGB", "encoding": "NPY, no pickle", "recorded": self.record_images},
+                        "depth": {"units": "raw_11bit_disparity", "encoding": "uint16 NPY, no pickle", "recorded": self.record_images},
                         "accelerometer": {"units": "m/s^2", "raw_units": "driver_counts", "encoding": "JSONL"},
                         "events": {"encoding": "JSONL", "scope": "orientation and recording controls"}},
         }, indent=2, allow_nan=False) + "\n")
@@ -49,6 +50,8 @@ class SensorJournal:
     def submit(self, stream, metadata, array=None):
         if stream not in STREAMS:
             raise ValueError("Unknown sensor stream")
+        if stream in ("rgb", "depth") and not self.record_images:
+            return True  # Intentionally omitted; never copy or queue image arrays.
         with self.lock:
             failed = self.error is not None or self.closing.is_set()
         if failed:
@@ -79,6 +82,7 @@ class SensorJournal:
         with self.lock:
             return {"version": 1, "capture_generation": self.generation,
                     "recording_segment": self.path.name, "root": str(self.path.parent),
+                    "record_full_camera_streams": self.record_images,
                     "counts": self.counts.copy(), "dropped": self.dropped.copy(),
                     "error": self.error, "closed": self.closed,
                     "complete": self.error is None and not any(self.dropped.values())}
@@ -227,7 +231,7 @@ def augment_session_archive(path, snapshot, portrait=True):
                         frame["display_" + stream] = relative
             manifest.update(version=2, sensor_archive={
                 "version": 1, "root": "sensors", "segments": snapshot["segments"],
-                "complete": snapshot["complete"], "scope": "RGB, raw depth, and all accelerometer read attempts during this client's scan",
+                "complete": snapshot["complete"], "scope": "All accelerometer read attempts and orientation events; full RGB/depth streams only in explicitly enabled recording segments",
                 "control_error": snapshot.get("control_error"),
             })
             target.writestr("manifest.json", json.dumps(manifest, indent=2, allow_nan=False))

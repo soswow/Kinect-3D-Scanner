@@ -95,7 +95,8 @@ class ScanSettings:
     # Reciprocal seconds: 125 means a fixed 1/125 s exposure in manual mode.
     rgb_shutter_speed: int = 125
     rgb_gain: int = 1
-    gravity_assistance: bool = True
+    gravity_assistance: bool = False
+    record_full_camera_streams: bool = False
     accelerometer_calibration: dict | None = None
     orientation_mode: str = "auto"
 
@@ -119,6 +120,8 @@ class ScanSettings:
         validate_rgb_exposure(self.rgb_exposure_mode, self.rgb_shutter_speed, self.rgb_mode, self.rgb_gain)
         if type(self.gravity_assistance) is not bool:
             raise ValueError("Gravity assistance must be a boolean")
+        if type(self.record_full_camera_streams) is not bool:
+            raise ValueError("Full camera-stream recording must be a boolean")
         if self.orientation_mode not in ("auto", "landscape", "portrait_left", "portrait_right"):
             raise ValueError("Invalid camera orientation mode")
         if self.accelerometer_calibration is not None:

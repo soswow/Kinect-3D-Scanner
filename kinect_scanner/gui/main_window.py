@@ -190,6 +190,7 @@ class MainWindow(QMainWindow):
                 (self.crop_cb, "scan/crop_enabled"),
                 (self.crop_spin, "scan/crop_percent"),
                 (self.record_cb, "scan/record"),
+                (self.full_camera_recording_cb, "scan/record_full_camera_streams"),
                 (self.orientation_combo, "camera/orientation"),
                 (self.gravity_tracking_cb, "scan/gravity_assistance"),
                 (self.final_voxel_spin, "scan/final_voxel_mm"),
@@ -526,8 +527,14 @@ class MainWindow(QMainWindow):
         vg.addWidget(self.crop_cb)
         vg.addWidget(self.crop_spin)
         self.record_cb = QCheckBox("Also keep selected captures locally")
-        self.record_cb.setToolTip("All RGB, depth, and acceleration streams are recorded for Save Session. This also keeps a separate local recording of selected reconstruction captures.")
+        self.record_cb.setToolTip("Save Session keeps selected reconstruction images and the accelerometer log. This also keeps a separate local copy of the selected images.")
         vg.addWidget(self.record_cb)
+        self.full_camera_recording_cb = QCheckBox("Record all camera frames (large files)")
+        self.full_camera_recording_cb.setToolTip("Optional research recording of every RGB/depth frame: about 3.5 GB/min at high resolution, or 2.8 GB/min at VGA. Leave off for selected images plus the small accelerometer log.")
+        vg.addWidget(self.full_camera_recording_cb)
+        self.gravity_tracking_cb = QCheckBox("Use accelerometer to assist tracking")
+        self.gravity_tracking_cb.setToolTip("Optional gravity assistance for the RGB-D motion prediction. Auto portrait orientation works independently of this setting.")
+        vg.addWidget(self.gravity_tracking_cb)
         self.settings_error_label = QLabel()
         self.settings_error_label.setWordWrap(True)
         vg.addWidget(self.settings_error_label)
@@ -627,15 +634,12 @@ class MainWindow(QMainWindow):
         self.bundle_cb = QCheckBox("Joint RGB-D refinement at Finish")
         self.relocalize_cb = QCheckBox("Recover lost tracking")
         self.confidence_cb = QCheckBox("Use sensor confidence")
-        self.gravity_tracking_cb = QCheckBox("Gravity-assisted tracking")
-        self.gravity_tracking_cb.setChecked(True)
         for control, help_text in (
             (self.color_tracking_cb, "Tracks motion between camera frames during live scans and verifies color/depth matches against nearby saved views."),
             (self.refine_cb, "Validates loop matches and rebuilds fusion; needs extra time and memory."),
             (self.bundle_cb, "Refines camera positions and shared surface features together using color and measured depth. Adds processing time and memory; retains the current reconstruction if evidence is insufficient."),
             (self.relocalize_cb, "Attempts verified recovery after skipped frames; repeated scenes may be ambiguous."),
             (self.confidence_cb, "Weights depth using range, angle and edges; may require more observations."),
-            (self.gravity_tracking_cb, "Blends reliable acceleration with the camera motion prediction before visual/depth verification. Factory axes use a weak prior; measured calibration increases its weight."),
         ):
             control.setToolTip(help_text)
             ev.addWidget(control)
@@ -1131,7 +1135,11 @@ class MainWindow(QMainWindow):
             self.sensor_recording_label.setStyleSheet("color: #ffb45b;")
         elif self._scanning:
             counts = status.get("counts", {})
-            self.sensor_recording_label.setText(f"Recording full sensors · {counts.get('rgb', 0)} RGB / {counts.get('depth', 0)} depth / {counts.get('accelerometer', 0)} acceleration")
+            if status.get("record_full_camera_streams"):
+                message = f"Recording all camera frames · {counts.get('rgb', 0)} RGB / {counts.get('depth', 0)} depth / {counts.get('accelerometer', 0)} acceleration"
+            else:
+                message = f"Recording accelerometer log · {counts.get('accelerometer', 0)} readings · selected images saved with session"
+            self.sensor_recording_label.setText(message)
             self.sensor_recording_label.setStyleSheet("")
         self._refresh_controls()
 
@@ -1194,6 +1202,7 @@ class MainWindow(QMainWindow):
                 rgb_shutter_speed=self.rgb_shutter_spin.value(),
                 rgb_gain=self.rgb_gain_combo.currentData(),
                 gravity_assistance=self.gravity_tracking_cb.isChecked(),
+                record_full_camera_streams=self.full_camera_recording_cb.isChecked(),
                 accelerometer_calibration=self._accelerometer_calibration,
                 orientation_mode=self.orientation_combo.currentData(),
                 near_m=self.depth_near_spin.value() / 1000,
@@ -1245,7 +1254,7 @@ class MainWindow(QMainWindow):
         self._session_dirty = False
         self._capture_revision = self._saved_revision = 0
         self._sensor_counts_seen = {}
-        self.sensor_recording_label.setText("" if cancelled else "Starting full sensor recording…")
+        self.sensor_recording_label.setText("" if cancelled else "Starting sensor recording…")
         self._pending_action = None
         self._has_mesh = False
         self.live_view.reset()
@@ -1717,7 +1726,7 @@ class MainWindow(QMainWindow):
                     self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
-                    self.orientation_combo, self.gravity_tracking_cb,
+                    self.orientation_combo, self.gravity_tracking_cb, self.full_camera_recording_cb,
                     self.color_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
@@ -1747,6 +1756,7 @@ class MainWindow(QMainWindow):
             self.relocalize_cb.setChecked(profile.relocalize)
             self.confidence_cb.setChecked(profile.confidence_fusion)
             self.gravity_tracking_cb.setChecked(profile.gravity_assistance)
+            self.full_camera_recording_cb.setChecked(profile.record_full_camera_streams)
             self.orientation_combo.setCurrentIndex(self.orientation_combo.findData(profile.orientation_mode))
             self._accelerometer_calibration = profile.accelerometer_calibration
             self.crop_cb.setChecked(profile.roi is not None)
