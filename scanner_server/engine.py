@@ -33,6 +33,7 @@ from shared.config import LIVE_MAX_POINTS, PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
 
 from .backend import select_backend
+from .tracking_cache import reuse_icp_source
 
 _REG = o3d.pipelines.registration
 logger = logging.getLogger("scanner_server")
@@ -420,9 +421,13 @@ class ScanEngine:
     def _icp(self, source, target, init=None):
         """Coarse-to-fine robust point-to-plane tracking in camera-to-world space."""
         pose = self.cumulative_T if init is None else init
+        pyramid = getattr(self, "_icp_source_pyramid", None)
+        if pyramid is not None and pyramid.source is not source:
+            pyramid = None
         for scale, iterations in ((4, 40), (2, 30), (1, 20)):
             voxel = self.reg_voxel * scale
-            src = source.voxel_down_sample(voxel)
+            src = (source.voxel_down_sample(voxel) if pyramid is None
+                   else pyramid.level(voxel))
             if target is self.model_pcd:
                 tgt = self._model_pyramid[scale]
             else:
@@ -431,9 +436,12 @@ class ScanEngine:
                     o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 3, max_nn=30)
                 )
             if self.backend["tracking"] == "tensor":
-                source_tensor = o3d.t.geometry.PointCloud.from_legacy(
-                    src, dtype=o3c.float32, device=self.device
-                )
+                def source_tensor_level(level):
+                    return o3d.t.geometry.PointCloud.from_legacy(
+                        level, dtype=o3c.float32, device=self.device)
+
+                source_tensor = (source_tensor_level(src) if pyramid is None
+                                 else pyramid.tensor(voxel, source_tensor_level))
                 target_tensor = (
                     self._tensor_model_pyramid[scale]
                     if target is self.model_pcd
@@ -841,6 +849,7 @@ class ScanEngine:
             return refined
         return None
 
+    @reuse_icp_source
     def _register(self, source_pcd, rgbd=None):
         """Register source (camera coords) against model_pcd (world coords).
 

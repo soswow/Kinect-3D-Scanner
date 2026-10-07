@@ -147,18 +147,25 @@ class VisualTracker:
         self._match_debug = None
 
     def _match_reference(self, reference, gray, depth, stamp):
-        old_gray, old_depth, old_corners, old_stamp, old_pose = reference
+        old_gray, _, old_corners, old_stamp, old_pose, points_a = reference
         if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
             return None, {}
         self._match_debug = None
+        if len(points_a) < 40:
+            return None, {}
+        # Only features with stable measured source depth can constrain a pose.
+        # Request the already computed eigenvalue instead of the unused patch
+        # score; forward/backward and measured-depth checks still decide support.
         new, forward, _ = cv2.calcOpticalFlowPyrLK(
             old_gray, gray, old_corners, None,
-            winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL)
+            winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL,
+            flags=cv2.OPTFLOW_LK_GET_MIN_EIGENVALS)
         if new is None or forward is None:
             return None, {}
         back, reverse, _ = cv2.calcOpticalFlowPyrLK(
             gray, old_gray, new, None,
-            winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL)
+            winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL,
+            flags=cv2.OPTFLOW_LK_GET_MIN_EIGENVALS)
         if back is None or reverse is None:
             return None, {}
         a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
@@ -174,9 +181,8 @@ class VisualTracker:
         supported &= np.linalg.norm(a - back.reshape(-1, 2), axis=1) < 0.8
         if self.debug_enabled:
             status[supported] = self.DEPTH_REJECTED
-        points_a, measured_a = sampled_points(old_depth, a, self.settings.camera)
         points_b, measured_b = sampled_points(depth, b, self.settings.camera)
-        supported &= measured_a & measured_b
+        supported &= measured_b
         if self.debug_enabled:
             status[supported] = self.GEOMETRY_REJECTED
         pa, pb, pixels = points_a[supported], points_b[supported], b[supported]
@@ -251,7 +257,9 @@ class VisualTracker:
         # expired chain starts a fresh origin, which is explicitly unverified.
         seeded = valid or (usable and not self.history)
         if seeded:
-            self.history.append((gray, depth, corners, stamp, self.pose.copy()))
+            points, measured = sampled_points(depth, corners, self.settings.camera)
+            self.history.append((gray, depth, corners[measured], stamp,
+                                 self.pose.copy(), points[measured]))
             self.previous = self.history[-1][:4]
         if self.debug_enabled:
             self.debug_snapshot = {
