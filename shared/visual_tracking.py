@@ -125,9 +125,16 @@ def refine_measured_motion(source, target, pixels, pose, camera):
 
 class VisualTracker:
     MAX_GAP_S = 0.75
+    MAX_CORNERS = 500
+    WINDOW_SIZE = 21
+    PYRAMID_LEVEL = 3
+
+    # Debug classifications follow the existing rejection gates, in order.
+    FLOW_LOST, ROUNDTRIP_REJECTED, DEPTH_REJECTED, GEOMETRY_REJECTED, VERIFIED = range(5)
 
     def __init__(self, settings):
         self.settings = settings
+        self.debug_enabled = False
         self.reset()
 
     def reset(self):
@@ -136,21 +143,42 @@ class VisualTracker:
         self.previous = None
         self.history = deque(maxlen=5)
         self.steps = 0
+        self.debug_snapshot = None
+        self._match_debug = None
 
     def _match_reference(self, reference, gray, depth, stamp):
         old_gray, old_depth, old_corners, old_stamp, old_pose = reference
         if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
             return None, {}
+        self._match_debug = None
         new, forward, _ = cv2.calcOpticalFlowPyrLK(
-            old_gray, gray, old_corners, None, winSize=(21, 21), maxLevel=3)
+            old_gray, gray, old_corners, None,
+            winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL)
+        if new is None or forward is None:
+            return None, {}
         back, reverse, _ = cv2.calcOpticalFlowPyrLK(
-            gray, old_gray, new, None, winSize=(21, 21), maxLevel=3)
+            gray, old_gray, new, None,
+            winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL)
+        if back is None or reverse is None:
+            return None, {}
         a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
         supported = (forward.ravel() > 0) & (reverse.ravel() > 0)
+        if self.debug_enabled:
+            status = np.full(len(a), self.FLOW_LOST, np.uint8)
+            status[supported] = self.ROUNDTRIP_REJECTED
+            self._match_debug = {
+                "source": a, "target": b, "status": status,
+                "reference_age_ms": (stamp - old_stamp) * 1000,
+                "reason": "Insufficient depth-supported tracks",
+            }
         supported &= np.linalg.norm(a - back.reshape(-1, 2), axis=1) < 0.8
+        if self.debug_enabled:
+            status[supported] = self.DEPTH_REJECTED
         points_a, measured_a = sampled_points(old_depth, a, self.settings.camera)
         points_b, measured_b = sampled_points(depth, b, self.settings.camera)
         supported &= measured_a & measured_b
+        if self.debug_enabled:
+            status[supported] = self.GEOMETRY_REJECTED
         pa, pb, pixels = points_a[supported], points_b[supported], b[supported]
         if len(pa) < 40:
             return None, {}
@@ -159,6 +187,8 @@ class VisualTracker:
             iterationsCount=80, reprojectionError=2.0, confidence=0.999,
             flags=cv2.SOLVEPNP_EPNP)
         if not ok or inliers is None or len(inliers) < 35:
+            if self.debug_enabled:
+                self._match_debug["reason"] = "Pose RANSAC rejected"
             return None, {}
         delta = np.eye(4)
         delta[:3, :3] = cv2.Rodrigues(rotation)[0]
@@ -167,14 +197,32 @@ class VisualTracker:
         if delta is not None:
             delta = refine_measured_motion(pa, pb, pixels, delta, self.settings.camera)
         if delta is None:
+            if self.debug_enabled:
+                self._match_debug["reason"] = "Metric motion fit rejected"
             return None, {}
         valid, stats = feature_agreement(pa, pb, pixels, delta, self.settings.camera)
         angle = np.degrees(np.arccos(np.clip((np.trace(delta[:3, :3]) - 1) / 2, -1, 1)))
         if not valid or np.linalg.norm(delta[:3, 3]) > 0.15 or angle > 15:
+            if self.debug_enabled:
+                self._match_debug["reason"] = (
+                    "Measured motion lacks distributed support" if not valid else
+                    "Motion exceeds step budget")
             return None, stats
+        if self.debug_enabled:
+            moved = pa @ delta[:3, :3].T + delta[:3, 3]
+            projected = moved[:, :2] / np.maximum(moved[:, 2:3], 1e-6)
+            projected = projected * [self.settings.camera.fx, self.settings.camera.fy]
+            projected += [self.settings.camera.cx, self.settings.camera.cy]
+            agreed = (moved[:, 2] > 0) & (np.linalg.norm(projected - pixels, axis=1) <= 3)
+            agreed &= np.linalg.norm(moved - pb, axis=1) <= 0.03
+            status[np.flatnonzero(supported)[agreed]] = self.VERIFIED
+            self._match_debug["reason"] = "Verified camera motion"
         return old_pose @ np.linalg.inv(delta), stats
 
     def update(self, rgb, raw_depth, metadata):
+        # Snapshots are local preview data, never part of the pose report.
+        self.debug_snapshot = None
+        self._match_debug = None
         started = time.monotonic()
         stamp = metadata.get("timestamp_s", started)
         lag = metadata.get("rgb_depth_delta_ms")
@@ -183,7 +231,7 @@ class VisualTracker:
                     "segment": self.segment, "camera_to_local": self.pose.tolist(), "steps": self.steps}
         rgb, depth = prepare_rgbd(rgb, raw_depth, self.settings)
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        corners = cv2.goodFeaturesToTrack(gray, 500, 0.015, 9, mask=(depth > 0).astype(np.uint8))
+        corners = cv2.goodFeaturesToTrack(gray, self.MAX_CORNERS, 0.015, 9, mask=(depth > 0).astype(np.uint8))
         usable = corners is not None and len(corners) >= 60
         had_history = bool(self.history)
         if self.history and not 0 < stamp - self.history[-1][3] <= self.MAX_GAP_S:
@@ -201,9 +249,21 @@ class VisualTracker:
                     break
         # A failed image never replaces the last trustworthy reference. An
         # expired chain starts a fresh origin, which is explicitly unverified.
-        if valid or (usable and not self.history):
+        seeded = valid or (usable and not self.history)
+        if seeded:
             self.history.append((gray, depth, corners, stamp, self.pose.copy()))
             self.previous = self.history[-1][:4]
+        if self.debug_enabled:
+            self.debug_snapshot = {
+                "image": rgb, "corners": corners if seeded else None,
+                "detected": len(corners) if corners is not None else 0,
+                "window_size": self.WINDOW_SIZE, "pyramid_level": self.PYRAMID_LEVEL,
+                "elapsed_ms": (time.monotonic() - started) * 1000,
+                "reason": "Seeded reference; no motion measured yet" if seeded else
+                    "Fewer than 60 usable corners; retaining references" if not usable else
+                    "No eligible reference produced flow; retaining references",
+                **(self._match_debug or {}),
+            }
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
                 "steps": self.steps, "elapsed_ms": (time.monotonic() - started) * 1000,
                 "reason": "Measured RGB-D motion" if valid else

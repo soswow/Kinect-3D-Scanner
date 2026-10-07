@@ -65,6 +65,50 @@ use scale-tolerant SIFT features; ordinary live matching keeps the cheaper ORB
 features. Descriptor similarity proposes a connection, which still needs the
 existing measured color/depth and reciprocal geometry checks.
 
+## Capture flow diagnostics
+
+Open **Tracking diagnostics** in the Scan sidebar and enable **Show tracking
+flow**. This preference defaults off, is saved locally, and can be toggled
+during capture. The scan must have **Show live reconstruction** and
+**Color-assisted tracking** enabled. The diagnostic preview uses the actual
+calibrated RGB image on the 640 × 480 depth grid; native RGB has a different
+resolution, lens model, and parallax, so scaling these coordinates onto it
+would misplace the arrows. Color and Scan views show the overlay; the Depth
+view keeps its depth display.
+
+Arrows run from the reference location to the current image location. Green
+marks correspondences consistent with verified camera motion; cyan marks
+fresh corners in a newly retained reference. Red crosses mark failed optical
+flow, orange marks forward/backward disagreement, purple marks unavailable or
+unstable measured depth, and yellow marks geometry/pose rejection. A seeded
+reference explicitly says that no motion has been measured yet. This local
+verification still does not authorize server fusion.
+
+The status shows the rejection counts, detected corner count, camera tracking
+time, and reference age. The reference may be an earlier good image from the
+five-view history, so arrows are not necessarily adjacent-frame motion. When
+all attempts fail, the overlay describes the last attempted eligible reference.
+Timing failures clear the overlay and display the failure reason.
+**Show LK patch windows** outlines up to 24 evenly sampled feature windows to
+keep the display readable. These are 21 × 21 pixel windows at pyramid level
+zero, not a fixed search boundary.
+
+The current tracker detects up to 500 corners with quality threshold 0.015
+and minimum spacing 9 pixels. Lucas–Kanade uses a 21 × 21 window at each of
+pyramid levels 0–3. It detects fresh corners on every image and retains them
+only when a new reference is accepted (or a new origin is seeded). It does
+not yet preserve long-lived feature IDs or use a periodic replenishment
+schedule. These tracking parameters remain the existing defaults; the new
+settings control visualization only.
+
+Debug arrays and the calibrated preview travel only with their matching
+camera pair to the UI and are removed before manual/automatic capture
+selection, upload, or recording. Drawing works on a copy. Toggling diagnostics
+does not reset the motion chain, change acceptance thresholds, or restart the
+camera. The cost of snapshot collection and overlay drawing applies only
+while diagnostics are enabled. Physical Kinect capture with this overlay
+still requires validation.
+
 ## Sharp capture selection and recovery pacing
 
 Automatic capture chooses from the last five incoming RGB-D pairs, limited to

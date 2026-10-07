@@ -53,11 +53,17 @@ class KinectWorker(QThread):
         self._rgb_shape = (1024, 1280, 3) if self._high_res else RGB_SHAPE
         self._tracking_lock = threading.Lock()
         self._tracking_request = (0, None)
+        self._tracking_debug = False
 
     def set_tracking_settings(self, settings):
         """Hand immutable session settings to the camera thread; never run in Qt."""
         with self._tracking_lock:
             self._tracking_request = (self._tracking_request[0] + 1, settings)
+
+    def set_tracking_debug(self, enabled):
+        """Toggle preview diagnostics without restarting the motion chain."""
+        with self._tracking_lock:
+            self._tracking_debug = bool(enabled)
 
     def stop(self):
         self._stop_event.set()
@@ -124,6 +130,7 @@ class KinectWorker(QThread):
                         metadata = dict(payload, frame_id=sequence)
                         with self._tracking_lock:
                             generation, settings = self._tracking_request
+                            tracking_debug = self._tracking_debug
                         if generation != tracking_generation:
                             tracker = VisualTracker(settings) if settings is not None else None
                             tracking_generation = generation
@@ -131,7 +138,10 @@ class KinectWorker(QThread):
                             # The driver already owns the next shared buffer.
                             # Tracking uses our copies, independently of HTTP/fusion.
                             try:
+                                tracker.debug_enabled = tracking_debug
                                 metadata["visual_tracking"] = tracker.update(rgb, depth, metadata)
+                                if tracking_debug and tracker.debug_snapshot is not None:
+                                    metadata["_tracking_debug"] = tracker.debug_snapshot
                             except (cv2.error, ValueError, np.linalg.LinAlgError) as exc:
                                 logger.warning("Visual motion estimate failed: %s", exc)
                                 tracker.reset()
