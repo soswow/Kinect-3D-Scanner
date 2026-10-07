@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+import numpy as np
 from pathlib import Path
 from unittest.mock import patch
 
@@ -62,6 +63,20 @@ class GuiPreferencesTests(unittest.TestCase):
         document["camera_serial"] = "preferences-test-device"
         document["raw_depth_to_mm"]["scale"] = 1.01
         return SensorCalibration.from_dict(document)
+
+    def test_portrait_changes_preview_and_metadata_without_rotating_measurements(self):
+        window = self.window()
+        window.orientation_combo.setCurrentIndex(window.orientation_combo.findData("portrait_left"))
+        rgb = np.full((480, 640, 3), 42, np.uint8)
+        depth = np.full((480, 640), 512, np.uint16)
+        with patch.object(window, "_set_pixmap") as render:
+            window._on_frame(rgb, depth, {"timestamp_s": 1})
+        image = render.call_args.args[0]
+        self.assertEqual((image.width(), image.height()), (480, 640))
+        self.assertEqual(window._last_rgb.shape, (480, 640, 3))
+        self.assertEqual(window._last_depth.shape, (480, 640))
+        self.assertEqual(window._last_frame_metadata["orientation"]["rotation_cw_degrees"], 90)
+        self.assertEqual(self.new_store().read("camera/orientation", "auto"), "portrait_left")
 
     def test_bind_saves_immediately_and_suspend_preserves_user_value(self):
         self.store.write("test/count", 8)

@@ -73,7 +73,8 @@ def check_client(port, rgb, depth):
         app.processEvents()
 
     try:
-        wait_until(lambda: window.server_client.is_connected)
+        wait_until(lambda: window.server_client.is_connected and not window._connect_pending
+                   and not window._restore_on_status)
         window.capture_mode_combo.setCurrentIndex(window.capture_mode_combo.findData("manual"))
         window._on_frame(rgb, depth)
         window.depth_near_spin.setValue(750)

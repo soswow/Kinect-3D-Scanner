@@ -3,6 +3,8 @@
 import os
 import time
 import uuid
+import hashlib
+import json
 from datetime import datetime, timezone
 
 import numpy as np
@@ -35,6 +37,7 @@ from shared.calibration import raw_depth_to_mm
 from shared.capture import RGB_GAIN_CHOICES, RGB_MODE_FPS
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
+from shared.inertial import OrientationTracker, calibration_profile, rotate_display
 
 from ..capture_pacing import CapturePacer
 from ..capture_selection import CaptureSelector
@@ -105,6 +108,15 @@ class MainWindow(QMainWindow):
         self._camera = self._sensor_calibration.depth
         self._frame_sequence = 0
         self._last_frame_metadata = {}
+        self._orientation = OrientationTracker()
+        self._display_rotation = 0
+        self._sensor_recording_path = None
+        self._sensor_counts_seen = {}
+        try:
+            saved_motion_calibration = self.preferences.read("camera/accelerometer_calibration", None)
+            self._accelerometer_calibration = calibration_profile(saved_motion_calibration) if saved_motion_calibration else None
+        except (ValueError, TypeError, KeyError):
+            self._accelerometer_calibration = None
         self._last_frame_time = 0
         self._last_capture_id = None
         self._auto_frames_since_capture = 0
@@ -176,6 +188,8 @@ class MainWindow(QMainWindow):
                 (self.crop_cb, "scan/crop_enabled"),
                 (self.crop_spin, "scan/crop_percent"),
                 (self.record_cb, "scan/record"),
+                (self.orientation_combo, "camera/orientation"),
+                (self.gravity_tracking_cb, "scan/gravity_assistance"),
                 (self.final_voxel_spin, "scan/final_voxel_mm"),
                 (self.final_blocks_spin, "scan/final_blocks"),
                 (self.weight_spin, "scan/final_weight"),
@@ -205,6 +219,7 @@ class MainWindow(QMainWindow):
             rgb_exposure_mode=self.rgb_exposure_combo.currentData(),
             rgb_shutter_speed=self.rgb_shutter_spin.value(),
             rgb_gain=self.rgb_gain_combo.currentData(),
+            accelerometer_calibration=self._accelerometer_calibration,
         )
         self._camera_configuration = self._selected_camera_configuration()
         worker = self.worker
@@ -217,6 +232,9 @@ class MainWindow(QMainWindow):
         else:
             worker.frame_ready.connect(received)
         self.worker.error_occurred.connect(self._on_error)
+        if hasattr(self.worker, "sensor_recording_status"):
+            self.worker.sensor_recording_status.connect(
+                lambda status: self._on_sensor_recording_status(status) if worker is self.worker else None)
         self.worker.start()
         self._configure_camera_tracking()
 
@@ -288,6 +306,12 @@ class MainWindow(QMainWindow):
         camera_layout.setContentsMargins(0, 0, 0, 0)
         self.camera_title = QLabel("Live camera · Color")
         camera_layout.addWidget(self.camera_title)
+        self.sensor_status_label = QLabel("Orientation: waiting for acceleration")
+        self.sensor_status_label.setWordWrap(True)
+        camera_layout.addWidget(self.sensor_status_label)
+        self.sensor_recording_label = QLabel()
+        self.sensor_recording_label.setWordWrap(True)
+        camera_layout.addWidget(self.sensor_recording_label)
         self.view_label = CameraPreview()
         camera_layout.addWidget(self.view_label, stretch=1)
         self.scan_depth_panel = QWidget()
@@ -327,6 +351,14 @@ class MainWindow(QMainWindow):
             group.addAction(action)
             toolbar.addAction(action)
             self._mode_actions.append(action)
+        toolbar.addSeparator()
+        self.orientation_combo = QComboBox()
+        for label, mode in (("Orientation: Auto", "auto"), ("Landscape lock", "landscape"),
+                            ("Portrait left lock", "portrait_left"), ("Portrait right lock", "portrait_right")):
+            self.orientation_combo.addItem(label, mode)
+        self.orientation_combo.setToolTip("Auto follows gravity. Lock portrait when looking up/down or while recording.")
+        self.orientation_combo.currentIndexChanged.connect(self._change_orientation)
+        toolbar.addWidget(self.orientation_combo)
         toolbar.addSeparator()
         open_action = QAction("Open Model…", self)
         open_action.setShortcut(QKeySequence.StandardKey.Open)
@@ -486,8 +518,8 @@ class MainWindow(QMainWindow):
         self.crop_cb.toggled.connect(self.crop_spin.setEnabled)
         vg.addWidget(self.crop_cb)
         vg.addWidget(self.crop_spin)
-        self.record_cb = QCheckBox("Record captures locally")
-        self.record_cb.setToolTip("Lossless RGB/depth captures are saved in the recordings folder for later replay.")
+        self.record_cb = QCheckBox("Also keep selected captures locally")
+        self.record_cb.setToolTip("All RGB, depth, and acceleration streams are recorded for Save Session. This also keeps a separate local recording of selected reconstruction captures.")
         vg.addWidget(self.record_cb)
         self.settings_error_label = QLabel()
         self.settings_error_label.setWordWrap(True)
@@ -587,15 +619,21 @@ class MainWindow(QMainWindow):
         self.refine_cb = QCheckBox("Refine final camera poses")
         self.relocalize_cb = QCheckBox("Recover lost tracking")
         self.confidence_cb = QCheckBox("Use sensor confidence")
+        self.gravity_tracking_cb = QCheckBox("Gravity-assisted tracking")
+        self.gravity_tracking_cb.setChecked(True)
         for control, help_text in (
             (self.color_tracking_cb, "Tracks motion between camera frames during live scans and verifies color/depth matches against nearby saved views."),
             (self.refine_cb, "Validates loop matches and rebuilds fusion; needs extra time and memory."),
             (self.relocalize_cb, "Attempts verified recovery after skipped frames; repeated scenes may be ambiguous."),
             (self.confidence_cb, "Weights depth using range, angle and edges; may require more observations."),
+            (self.gravity_tracking_cb, "Blends reliable acceleration with the camera motion prediction before visual/depth verification. Factory axes use a weak prior; measured calibration increases its weight."),
         ):
             control.setToolTip(help_text)
             ev.addWidget(control)
         vg.addWidget(experimental)
+        motion_calibration_btn = QPushButton("Load Accelerometer Calibration…")
+        motion_calibration_btn.clicked.connect(self._load_accelerometer_calibration)
+        ev.addWidget(motion_calibration_btn)
         settings_layout.addWidget(self.settings_group)
         connection = CollapsibleSection("Connection details")
         self.connection_section = connection
@@ -671,7 +709,7 @@ class MainWindow(QMainWindow):
         self.btn_cancel_scan.setEnabled(connected and not busy and (active or (frames and not self._has_mesh)))
         self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
         self.btn_export.setEnabled(connected and self._has_mesh and not busy)
-        self.btn_export_session.setEnabled(connected and frames and not busy)
+        self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy)
         for button in (self.btn_export_ply, self.btn_export_obj, self.btn_export_glb,
                        self.btn_export_texture_obj, self.btn_save_mesh):
             button.setEnabled(connected and self._has_mesh and not busy)
@@ -802,7 +840,7 @@ class MainWindow(QMainWindow):
             if self._mode == MODE_DEPTH:
                 self._show_depth(self._last_depth)
             elif self._mode == MODE_SCANNER:
-                self.scan_depth_view.set_image(numpy_to_qimage(self._depth_display(self._last_depth)))
+                self.scan_depth_view.set_image(numpy_to_qimage(rotate_display(self._depth_display(self._last_depth), self._display_rotation)))
             if not self._camera_ready():
                 self._set_camera_stale("Camera delayed · last image")
 
@@ -918,6 +956,7 @@ class MainWindow(QMainWindow):
         self._last_depth = depth
         self._frame_sequence += 1
         self._last_frame_metadata = dict(metadata or {})
+        self._update_orientation()
         if self._last_frame_metadata.get("rgb_exposure_controls") is False:
             self.rgb_exposure_status_label.setText("Default auto exposure · manual controls unavailable in this driver")
         elif self._last_frame_metadata.get("rgb_exposure_mode") == "manual":
@@ -957,7 +996,7 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _show_rgb(self, rgb):
-        self._set_pixmap(numpy_to_qimage(rgb))
+        self._set_pixmap(numpy_to_qimage(rotate_display(rgb, self._display_rotation)))
 
     def _selected_roi(self):
         if not self.crop_cb.isChecked():
@@ -981,11 +1020,62 @@ class MainWindow(QMainWindow):
         )
 
     def _show_depth(self, depth):
-        self._set_pixmap(numpy_to_qimage(self._depth_display(depth)))
+        self._set_pixmap(numpy_to_qimage(rotate_display(self._depth_display(depth), self._display_rotation)))
 
     def _show_scanner(self, rgb, depth):
         self._show_rgb(rgb)
-        self.scan_depth_view.set_image(numpy_to_qimage(self._depth_display(depth)))
+        self.scan_depth_view.set_image(numpy_to_qimage(rotate_display(self._depth_display(depth), self._display_rotation)))
+
+    def _update_orientation(self):
+        metadata = self._last_frame_metadata
+        decision = self._orientation.update(metadata.get("accelerometer", {}),
+                                            metadata.get("depth_host_monotonic_s", metadata.get("captured_monotonic_s", time.monotonic())),
+                                            self.orientation_combo.currentData())
+        metadata["orientation"] = decision
+        self._display_rotation = decision["rotation_cw_degrees"]
+        self.sensor_status_label.setText(f"{decision['reason']} · {self._display_rotation}°")
+
+    def _change_orientation(self):
+        self._update_orientation()
+        if hasattr(self, "worker") and hasattr(self.worker, "record_sensor_event"):
+            self.worker.record_sensor_event({"type": "orientation_mode", "value": self.orientation_combo.currentData(),
+                                             "host_monotonic_s": time.monotonic(), "timestamp_s": time.time()})
+        self._switch_mode(self._mode)
+
+    def _on_sensor_recording_status(self, status):
+        if status.get("root") and status["root"] != self._sensor_recording_path:
+            return
+        if self._session_id and status.get("root") == self._sensor_recording_path:
+            segment = status.get("recording_segment")
+            count = sum(status.get("counts", {}).values()) + sum(status.get("dropped", {}).values())
+            if count > self._sensor_counts_seen.get(segment, 0):
+                self._sensor_counts_seen[segment] = count
+                if not (self._export_pending and self._export_pending["kind"] == "session"):
+                    self._capture_revision += 1
+                    self._session_dirty = True
+        if not status.get("complete", True):
+            drops = sum(status.get("dropped", {}).values())
+            self.sensor_recording_label.setText(f"Sensor recording incomplete · {status.get('error') or str(drops) + ' dropped observations'}")
+            self.sensor_recording_label.setStyleSheet("color: #ffb45b;")
+        elif self._scanning:
+            counts = status.get("counts", {})
+            self.sensor_recording_label.setText(f"Recording full sensors · {counts.get('rgb', 0)} RGB / {counts.get('depth', 0)} depth / {counts.get('accelerometer', 0)} acceleration")
+            self.sensor_recording_label.setStyleSheet("")
+        self._refresh_controls()
+
+    def _load_accelerometer_calibration(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Load accelerometer calibration", "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            from pathlib import Path
+            profile = calibration_profile(json.loads(Path(path).read_text()))
+            self._accelerometer_calibration = profile
+            self.preferences.write("camera/accelerometer_calibration", profile)
+            self._restart_camera()
+            self.sensor_status_label.setText(f"Motion calibration loaded: {profile['id']}")
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError) as exc:
+            self.sensor_status_label.setText(f"Invalid motion calibration: {exc}")
 
     def _set_camera_stale(self, message):
         for view in (self.view_label, self.scan_depth_view):
@@ -1031,6 +1121,9 @@ class MainWindow(QMainWindow):
                 rgb_exposure_mode=self.rgb_exposure_combo.currentData(),
                 rgb_shutter_speed=self.rgb_shutter_spin.value(),
                 rgb_gain=self.rgb_gain_combo.currentData(),
+                gravity_assistance=self.gravity_tracking_cb.isChecked(),
+                accelerometer_calibration=self._accelerometer_calibration,
+                orientation_mode=self.orientation_combo.currentData(),
                 near_m=self.depth_near_spin.value() / 1000,
                 far_m=self.depth_far_spin.value() / 1000,
                 voxel_m=voxel,
@@ -1078,6 +1171,8 @@ class MainWindow(QMainWindow):
         self._session_settings = None if cancelled else result.get("settings")
         self._session_dirty = False
         self._capture_revision = self._saved_revision = 0
+        self._sensor_counts_seen = {}
+        self.sensor_recording_label.setText("" if cancelled else "Starting full sensor recording…")
         self._pending_action = None
         self._has_mesh = False
         self.live_view.reset()
@@ -1113,6 +1208,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Scan cancelled · ready for a new scan" if cancelled else "Scan started", 4000)
 
     def _configure_camera_tracking(self):
+        self._configure_sensor_recording()
         if hasattr(self.worker, "set_tracking_settings"):
             try:
                 settings = ScanSettings.from_dict(self._session_settings) if self._session_settings else None
@@ -1125,6 +1221,19 @@ class MainWindow(QMainWindow):
                 return
             self._tracking_configuration = configuration
             self.worker.set_tracking_settings(settings)
+
+    def _configure_sensor_recording(self):
+        if not hasattr(self.worker, "set_sensor_recording"):
+            return
+        if self._session_id:
+            identity = hashlib.sha256(str(self._session_id).encode()).hexdigest()[:20]
+            self._sensor_recording_path = os.path.join(_PROJECT_ROOT, "recordings", "sensors-" + identity)
+        else:
+            self._sensor_recording_path = None
+        recording = self._scanning and not (self._export_pending and self._export_pending["kind"] == "session")
+        settings = {**self._session_settings, "orientation_mode": self.orientation_combo.currentData()} if self._session_settings else None
+        self.worker.set_sensor_recording(self._sensor_recording_path if recording else None,
+                                         settings)
 
     def _cancel_scan(self, checked=False, *, protected=False):
         if self._closing or not self.server_client.is_connected:
@@ -1360,7 +1469,10 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return False
-        return self._begin_export("session", path, ServerTask(ServerTaskType.EXPORT_SESSION, {"path": path}))
+        options = {"path": path}
+        if self._sensor_recording_path and hasattr(self.worker, "flush_sensor_recording"):
+            options.update(sensor_recorder=self.worker, sensor_path=self._sensor_recording_path)
+        return self._begin_export("session", path, ServerTask(ServerTaskType.EXPORT_SESSION, options))
 
     def _begin_export(self, kind, path, task):
         restore_capture = (self._scanning, self._paused)
@@ -1369,6 +1481,7 @@ class MainWindow(QMainWindow):
             "kind": kind, "path": path, "revision": self._capture_revision,
             "restore_capture": restore_capture,
         }
+        self._configure_sensor_recording()
         self._operation_error = ""
         self.progress_bar.setRange(0, 0)
         self.progress_bar.show()
@@ -1530,6 +1643,7 @@ class MainWindow(QMainWindow):
                     self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
+                    self.orientation_combo, self.gravity_tracking_cb,
                     self.color_tracking_cb, self.refine_cb, self.reconnect_fragments_cb, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
@@ -1537,6 +1651,7 @@ class MainWindow(QMainWindow):
                             or self.rgb_shutter_spin.value() != profile.rgb_shutter_speed
                             or self.rgb_gain_combo.currentData() != profile.rgb_gain)
         calibration_changed = profile.sensor_calibration is not None and profile.sensor_calibration != self._sensor_calibration
+        motion_calibration_changed = profile.accelerometer_calibration != self._accelerometer_calibration
         try:
             self.depth_near_spin.setValue(round(profile.near_m * 1000))
             self.depth_far_spin.setValue(round(profile.far_m * 1000))
@@ -1556,6 +1671,9 @@ class MainWindow(QMainWindow):
             self.reconnect_fragments_cb.setChecked(profile.reconnect_fragments)
             self.relocalize_cb.setChecked(profile.relocalize)
             self.confidence_cb.setChecked(profile.confidence_fusion)
+            self.gravity_tracking_cb.setChecked(profile.gravity_assistance)
+            self.orientation_combo.setCurrentIndex(self.orientation_combo.findData(profile.orientation_mode))
+            self._accelerometer_calibration = profile.accelerometer_calibration
             self.crop_cb.setChecked(profile.roi is not None)
             if profile.roi:
                 self.crop_spin.setValue(round((profile.roi[2] - profile.roi[0]) / profile.camera.width * 100))
@@ -1569,7 +1687,7 @@ class MainWindow(QMainWindow):
         self.crop_spin.setEnabled(self.crop_cb.isChecked())
         self._update_exposure_controls()
         self.auto_capture_spin.set_fps(RGB_MODE_FPS[profile.rgb_mode])
-        if rgb_changed or calibration_changed or exposure_changed:
+        if rgb_changed or calibration_changed or exposure_changed or motion_calibration_changed:
             try:
                 self._restart_camera()
             except RuntimeError as exc:
@@ -1730,6 +1848,7 @@ class MainWindow(QMainWindow):
         if pending and (not action or not success):
             self._scanning, self._paused = pending["restore_capture"]
             self._reset_auto_capture_cadence()
+            self._configure_sensor_recording()
         self._refresh_controls()
         if success and action == "new_scan":
             self._start_scan(protected=True)
@@ -1749,6 +1868,9 @@ class MainWindow(QMainWindow):
     def _on_task_error(self, msg: str):
         # Recording/report warnings are independent of build or inspection success.
         self.statusBar().showMessage(msg, 10000)
+        if "incomplete sensor recording" in msg:
+            self.sensor_recording_label.setText("Saved session has incomplete sensor recording · see its recording report")
+            self.sensor_recording_label.setStyleSheet("color: #ffb45b;")
 
     def _on_task_failed(self, task_type, message):
         self.progress_bar.hide()

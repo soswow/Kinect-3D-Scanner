@@ -276,6 +276,10 @@ class ScanEngine:
             import cv2
 
             rgb = self.raw_frames[anchor[0]][0]
+            from shared.inertial import rotate_display
+            rotation = self.frame_metadata[anchor[0]].get("orientation", {}).get("rotation_cw_degrees", 0)
+            if rotation in (90, 180, 270):
+                rgb = rotate_display(rgb, rotation)
             height = max(1, round(rgb.shape[0] * 240 / rgb.shape[1]))
             preview = cv2.resize(rgb, (240, height), interpolation=cv2.INTER_AREA)
             ok, encoded = cv2.imencode(".png", cv2.cvtColor(preview, cv2.COLOR_RGB2BGR))
@@ -617,6 +621,17 @@ class ScanEngine:
         return refined
 
     def _tracking_initial_guess(self):
+        from shared.inertial import gravity_seed
+
+        seed = self._motion_initial_guess()
+        if self.settings.gravity_assistance and self.poses and 0 <= self._processed_count < len(self.frame_metadata):
+            seed, report = gravity_seed(seed, self.cumulative_T,
+                                        self.frame_metadata[self.poses[-1][0]],
+                                        self.frame_metadata[self._processed_count])
+            self.frame_metadata[self._processed_count]["gravity_tracking"] = report
+        return seed
+
+    def _motion_initial_guess(self):
         """Predict smooth camera motion; bound extrapolation when frames are skipped."""
         continuous = self._continuous_motion_guess()
         if continuous is not None:
@@ -1132,6 +1147,13 @@ class ScanEngine:
             if len(inliers) >= 100 and abs(normal[1]) > 0.3:
                 self._world_up = normal * (-1 if normal[1] > 0 else 1)
                 self._up_estimated = True
+            acceleration = self.frame_metadata[self._processed_count].get("accelerometer", {})
+            gravity = acceleration.get("gravity", {})
+            if acceleration.get("valid") and gravity.get("valid") and gravity.get("calibration_verified") and gravity.get("confidence", 0) >= 0.7:
+                up = np.asarray(gravity.get("up_camera"), float)
+                if up.shape == (3,) and np.isfinite(up).all() and .99 <= np.linalg.norm(up) <= 1.01:
+                    self._world_up = self.cumulative_T[:3, :3] @ up
+                    self._up_estimated = True
             extrinsic = np.linalg.inv(self.cumulative_T)
             with self._stage("fusion"):
                 self._integrate_vbg(rgb, depth, extrinsic)

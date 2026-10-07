@@ -27,6 +27,12 @@ def silent_capture(connection, stop_event, rgb_buffer, depth_buffer):
         time.sleep(0.1)
 
 
+def sensor_only_capture(connection, stop_event, rgb_buffer, depth_buffer):
+    connection.send(("accelerometer_poll", True))
+    while not stop_event.wait(.01):
+        connection.send(("sensor_status", {"complete": True}))
+
+
 def one_frame_capture(connection, stop_event, rgb_buffer, depth_buffer):
     rgb = np.frombuffer(rgb_buffer, np.uint8).reshape(RGB_SHAPE)
     depth = np.frombuffer(depth_buffer, np.uint16).reshape(DEPTH_SHAPE)
@@ -83,6 +89,15 @@ class CaptureWorkerTests(unittest.TestCase):
         worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
         worker.start()
         self.assertTrue(wait_for(lambda: len(errors) >= 2))
+        self.assertIn("stopped delivering", errors[0])
+
+    def test_sensor_traffic_cannot_hide_image_stall_and_disables_hung_poll(self):
+        errors = []
+        worker = KinectWorker(capture_target=sensor_only_capture, startup_timeout=.6, retry_delay=10)
+        self.addCleanup(self.stop_worker, worker)
+        worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
+        worker.start()
+        self.assertTrue(wait_for(lambda: bool(errors) and not worker._accelerometer_enabled))
         self.assertIn("stopped delivering", errors[0])
 
     def test_copy_frame_before_child_reuses_buffer_and_detect_stream_stall(self):

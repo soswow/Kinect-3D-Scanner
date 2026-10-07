@@ -2,8 +2,10 @@
 
 import logging
 import multiprocessing
+import queue
 import threading
 import time
+import uuid
 
 import cv2
 import numpy as np
@@ -11,6 +13,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from shared.capture import validate_rgb_exposure
 from shared.visual_tracking import VisualTracker
+from shared.sensor_recording import journal_snapshot
 
 from .capture_process import DEPTH_SHAPE, RGB_SHAPE, capture_frames
 
@@ -23,6 +26,8 @@ class KinectWorker(QThread):
     frame_ready = pyqtSignal(np.ndarray, np.ndarray)
     frame_pair_ready = pyqtSignal(np.ndarray, np.ndarray, dict)
     error_occurred = pyqtSignal(str)
+    accelerometer_ready = pyqtSignal(dict)
+    sensor_recording_status = pyqtSignal(dict)
 
     def __init__(
         self,
@@ -36,6 +41,7 @@ class KinectWorker(QThread):
         rgb_exposure_mode="auto",
         rgb_shutter_speed=125,
         rgb_gain=1,
+        accelerometer_calibration=None,
     ):
         super().__init__(parent)
         self._stop_event = threading.Event()
@@ -50,9 +56,65 @@ class KinectWorker(QThread):
         self._rgb_exposure_mode = rgb_exposure_mode
         self._rgb_shutter_speed = rgb_shutter_speed
         self._rgb_gain = rgb_gain
+        from shared.inertial import calibration_profile
+        self._accelerometer_calibration = calibration_profile(accelerometer_calibration)
         self._rgb_shape = (1024, 1280, 3) if self._high_res else RGB_SHAPE
         self._tracking_lock = threading.Lock()
         self._tracking_request = (0, None)
+        self._recording_request = (0, None)
+        self._control_queue = None
+        self._flush_condition = threading.Condition()
+        self._flush_results = {}
+        self._recording_control_errors = {}
+        self._accelerometer_enabled = True
+
+    def set_sensor_recording(self, path, settings=None):
+        configuration = {"path": str(path), "settings": settings} if path else None
+        with self._tracking_lock:
+            if configuration != self._recording_request[1]:
+                self._recording_request = (self._recording_request[0] + 1, configuration)
+
+    def record_sensor_event(self, event):
+        with self._tracking_lock:
+            controls = self._control_queue
+            configuration = self._recording_request[1]
+        if controls is not None:
+            try:
+                controls.put(("event", event), timeout=0.2)
+            except (queue.Full, OSError, ValueError):
+                if configuration:
+                    with self._tracking_lock:
+                        self._recording_control_errors[configuration["path"]] = "Sensor control event could not be recorded"
+                self.sensor_recording_status.emit({"complete": False, "error": "Sensor control event could not be recorded"})
+
+    def flush_sensor_recording(self, path=None, timeout=8, stop=False):
+        """Called by the task thread; the USB child checkpoints a FIFO barrier."""
+        with self._tracking_lock:
+            configuration = self._recording_request[1]
+            controls = self._control_queue
+        root = str(path) if path is not None else configuration["path"] if configuration else None
+        if root is None:
+            return None
+        def snapshot(active=None):
+            result = journal_snapshot(root, active)
+            with self._tracking_lock:
+                error = self._recording_control_errors.get(root)
+            if error:
+                result.update(complete=False, control_error=error)
+            return result
+        if controls is None:
+            return snapshot()
+        token = uuid.uuid4().hex
+        if stop:
+            controls.put(("stop_recording", root), timeout=0.2)
+        controls.put(("flush", {"id": token, "root": root}), timeout=0.2)
+        with self._flush_condition:
+            ready = self._flush_condition.wait_for(
+                lambda: token in self._flush_results or self._stop_event.is_set(), timeout)
+            result = self._flush_results.pop(token, None)
+        if not ready or result is None:
+            raise RuntimeError("Sensor recording did not acknowledge its checkpoint")
+        return snapshot(result)
 
     def set_tracking_settings(self, settings):
         """Hand immutable session settings to the camera thread; never run in Qt."""
@@ -81,14 +143,20 @@ class KinectWorker(QThread):
         sequence = 0
         while not self._stop_event.is_set():
             tracker, tracking_generation = None, -1
+            recording_generation = -1
+            acceleration_call = False
             parent, child = context.Pipe()
             stop_event = context.Event()
+            controls = context.Queue(maxsize=16)
+            with self._tracking_lock:
+                self._control_queue = controls if self._capture_target is capture_frames else None
             rgb_buffer = context.RawArray("B", int(np.prod(self._rgb_shape)))
             depth_buffer = context.RawArray("H", int(np.prod(DEPTH_SHAPE)))
             process = context.Process(
                 target=self._capture_target,
                 args=(child, stop_event, rgb_buffer, depth_buffer)
-                + ((self._high_res, self._rgb_exposure_mode, self._rgb_shutter_speed, self._rgb_gain)
+                + ((self._high_res, self._rgb_exposure_mode, self._rgb_shutter_speed, self._rgb_gain,
+                    controls, self._accelerometer_enabled, self._accelerometer_calibration)
                    if self._capture_target is capture_frames else ()),
                 daemon=True,
                 name="Kinect capture",
@@ -101,12 +169,36 @@ class KinectWorker(QThread):
                 deadline = time.monotonic() + self._startup_timeout
                 streaming = False
                 while not self._stop_event.is_set():
+                    with self._tracking_lock:
+                        requested_generation, configuration = self._recording_request
+                    if self._capture_target is capture_frames and requested_generation != recording_generation:
+                        controls.put(("record", configuration), timeout=0.2)
+                        recording_generation = requested_generation
+                    # Acceleration/status traffic cannot keep a stalled image
+                    # stream alive indefinitely.
+                    if time.monotonic() > deadline:
+                        raise RuntimeError("Kinect stopped delivering RGB/depth frames. Retrying camera; check USB connection and external power.")
                     if parent.poll(0.1):
                         kind, payload = parent.recv()
                         if kind == "phase":
                             continue
                         if kind == "error":
                             raise RuntimeError(payload)
+                        if kind == "accelerometer_poll":
+                            acceleration_call = True
+                            continue
+                        if kind == "accelerometer":
+                            acceleration_call = False
+                            self.accelerometer_ready.emit(payload)
+                            continue
+                        if kind == "sensor_status":
+                            self.sensor_recording_status.emit(payload)
+                            continue
+                        if kind == "sensor_flush":
+                            with self._flush_condition:
+                                self._flush_results[payload["request_id"]] = payload
+                                self._flush_condition.notify_all()
+                            continue
                         if kind != "frame":
                             raise RuntimeError("Invalid camera process message")
                         rgb = (
@@ -160,8 +252,15 @@ class KinectWorker(QThread):
                     logger.warning("Camera acquisition failed: %s", message)
                     self.error_occurred.emit(message)
             finally:
+                if acceleration_call:
+                    self._accelerometer_enabled = False
+                    logger.warning("Disabling acceleration after a stalled native sensor read")
                 if started:
                     self._stop_capture(process, stop_event)
                 parent.close()
                 child.close()
+                with self._tracking_lock:
+                    self._control_queue = None
+                controls.cancel_join_thread()
+                controls.close()
             self._stop_event.wait(self._retry_delay)

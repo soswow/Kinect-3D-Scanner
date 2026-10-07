@@ -15,7 +15,7 @@ class TrackingOverview(QWidget):
         self.setAccessibleName("Overhead camera trajectory and recovery reference")
         self.setToolTip("Dots are accepted camera positions; triangles widen in the viewing direction. "
                         "The red camera is the last good view. "
-                        "While tracking is lost, your current position is unknown. Up is estimated from a plane.")
+                        "While tracking is lost, your current position is unknown. Up comes from verified gravity or an estimated plane.")
         self.snapshot = {}
         self.reference = QImage()
 

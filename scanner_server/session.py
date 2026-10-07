@@ -23,10 +23,18 @@ def export_session(engine, path):
             zip(engine.raw_frames, engine.frame_metadata)
         ):
             paths = {"rgb": f"rgb/{index:06d}.png", "depth": f"depth/{index:06d}.png"}
+            rotation = metadata.get("orientation", {}).get("rotation_cw_degrees", 0)
             for name, array in (("rgb", rgb), ("depth", depth)):
                 buffer = io.BytesIO()
                 Image.fromarray(array).save(buffer, format="PNG")
                 archive.writestr(paths[name], buffer.getvalue())
+                if rotation in (90, 180, 270):
+                    transpose = {90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180,
+                                 270: Image.Transpose.ROTATE_90}[rotation]
+                    display = io.BytesIO()
+                    Image.fromarray(array).transpose(transpose).save(display, format="PNG")
+                    paths["display_" + name] = "display/" + paths[name]
+                    archive.writestr(paths["display_" + name], display.getvalue())
             manifest["frames"].append(
                 {
                     **paths,

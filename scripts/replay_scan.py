@@ -79,10 +79,36 @@ def tum_pose(values):
     return pose
 
 
-def load_dataset(kind, path=None, stride=1, limit=None, offset=0):
+def load_dataset(kind, path=None, stride=1, limit=None, offset=0, *, sensor_streams=False, recompute_motion=False):
     if type(stride) is not int or stride < 1 or not 0 <= offset < stride:
         raise ValueError("Require positive stride and 0 <= offset < stride")
     metadata_by_path = {}
+    if sensor_streams:
+        if kind != "recording":
+            raise ValueError("Full sensor replay requires a saved recording")
+        from shared.sensor_replay import load_sensor_observations
+        from shared.visual_tracking import VisualTracker
+
+        path = Path(path)
+        manifest = json.loads((path / "manifest.json").read_text())
+        settings = ScanSettings.from_dict(manifest["settings"])
+        tracker = VisualTracker(settings) if recompute_motion else None
+        generation = None
+        frames = []
+        for index, (rgb, depth, metadata) in enumerate(load_sensor_observations(path, settings)):
+            if tracker is not None:
+                current = metadata["sensor_recording_segment"]
+                if current != generation:
+                    tracker.reset()
+                    generation = current
+                metadata["visual_tracking"] = tracker.update(rgb, depth, metadata)
+            if index % stride == offset:
+                frames.append(ReplayFrame(rgb, depth, metadata["timestamp_s"], None, metadata))
+                if limit is not None and len(frames) >= limit:
+                    break
+        return settings, frames
+    if recompute_motion:
+        raise ValueError("Recomputing intermediate motion requires --sensor-streams")
     if kind == "redwood":
         sample = o3d.data.SampleRedwoodRGBDImages(
             data_root=str(ROOT / "datasets/redwood")
@@ -297,6 +323,10 @@ def main():
         help="Enable experimental final pose graph and reintegration",
     )
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    parser.add_argument("--sensor-streams", action="store_true", help="Rebuild pairs from all recorded RGB/depth and raw acceleration")
+    parser.add_argument("--recompute-motion", action="store_true", help="Recompute camera-rate tracking before selecting stride frames (requires --sensor-streams)")
+    parser.add_argument("--gravity-assistance", action=argparse.BooleanOptionalAction, default=None,
+                        help="Enable/disable gravity seed fusion for comparison on identical sensor recordings")
     parser.add_argument(
         "--confidence-fusion", action="store_true", help="Experimental weighted TSDF"
     )
@@ -311,7 +341,10 @@ def main():
     args = parser.parse_args()
     if args.stride < 1 or (args.limit is not None and args.limit < 1):
         parser.error("Stride and limit must be positive")
-    settings, frames = load_dataset(args.dataset, args.path, args.stride, args.limit)
+    settings, frames = load_dataset(args.dataset, args.path, args.stride, args.limit,
+                                   sensor_streams=args.sensor_streams, recompute_motion=args.recompute_motion)
+    if args.gravity_assistance is not None:
+        settings = replace(settings, gravity_assistance=args.gravity_assistance)
     settings = replace(
         settings,
         final_voxel_m=settings.final_voxel_m

@@ -25,10 +25,11 @@ def main():
     parser.add_argument("--shutter-speed", type=int, default=125,
                         help="Reciprocal seconds: 250 selects 1/250 s in manual mode")
     parser.add_argument("--gain", type=int, choices=(1, 2, 4, 8), default=1)
+    parser.add_argument("--no-accelerometer", action="store_true", help="Disable accelerometer reads for an acquisition comparison")
     args = parser.parse_args()
     if args.window and (args.exposure != "auto" or args.shutter_speed != 125
-                        or args.rgb_mode != "rgb_high_res" or args.gain != 1):
-        parser.error("Exposure/resolution overrides require running without --window")
+                        or args.rgb_mode != "rgb_high_res" or args.gain != 1 or args.no_accelerometer):
+        parser.error("Exposure/resolution/accelerometer overrides require running without --window")
     if args.offscreen:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
     from PyQt6.QtCore import QCoreApplication, QTimer
@@ -51,6 +52,9 @@ def main():
         worker = KinectWorker(rgb_mode=args.rgb_mode, rgb_exposure_mode=args.exposure,
                               rgb_shutter_speed=args.shutter_speed, rgb_gain=args.gain)
     frames, deltas, errors, exposures, brightness, clipped = [], [], [], [], [], []
+    acceleration_samples = []
+    worker._accelerometer_enabled = not args.no_accelerometer
+    worker.accelerometer_ready.connect(acceleration_samples.append)
     started = time.monotonic()
     close_started = None
     capture_timer = QTimer()
@@ -114,6 +118,9 @@ def main():
         "exposure": exposures[-1] if exposures else None,
         "mean_rgb": round(sum(brightness) / len(brightness), 2) if brightness else None,
         "clipped_channel_fraction": round(sum(clipped) / len(clipped), 4) if clipped else None,
+        "accelerometer_reads": len(acceleration_samples),
+        "accelerometer_errors": sum(not sample.get("valid") for sample in acceleration_samples),
+        "accelerometer_last": acceleration_samples[-1] if acceleration_samples else None,
     }
     print(json.dumps(report, indent=2))
     success = (

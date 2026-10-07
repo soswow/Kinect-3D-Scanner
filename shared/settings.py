@@ -94,6 +94,9 @@ class ScanSettings:
     # Reciprocal seconds: 125 means a fixed 1/125 s exposure in manual mode.
     rgb_shutter_speed: int = 125
     rgb_gain: int = 1
+    gravity_assistance: bool = True
+    accelerometer_calibration: dict | None = None
+    orientation_mode: str = "auto"
 
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
@@ -113,6 +116,13 @@ class ScanSettings:
         else:
             object.__setattr__(self, "rgb_mode", "rgb_low_res")
         validate_rgb_exposure(self.rgb_exposure_mode, self.rgb_shutter_speed, self.rgb_mode, self.rgb_gain)
+        if type(self.gravity_assistance) is not bool:
+            raise ValueError("Gravity assistance must be a boolean")
+        if self.orientation_mode not in ("auto", "landscape", "portrait_left", "portrait_right"):
+            raise ValueError("Invalid camera orientation mode")
+        if self.accelerometer_calibration is not None:
+            from .inertial import calibration_profile
+            object.__setattr__(self, "accelerometer_calibration", calibration_profile(self.accelerometer_calibration))
         if (
             type(self.filter_depth) is not bool
             or type(self.color_recovery) is not bool

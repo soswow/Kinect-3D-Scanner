@@ -1,10 +1,14 @@
 """Isolated libfreenect acquisition; native USB calls may never return."""
 
 import time
+import queue
+import uuid
 
 import numpy as np
 
-from shared.capture import RGB_MODE_FPS, RGBDepthPairer, timestamp_delta_ms, validate_rgb_exposure
+from shared.capture import DeviceClockMapper, RGB_MODE_FPS, RGBDepthPairer, timestamp_delta_ms, validate_rgb_exposure
+from shared.inertial import AccelerometerPoller, GravityEstimator
+from shared.sensor_recording import SensorJournal
 
 from .rgb_exposure import ExposureControlUnavailable, RGBExposureControl
 
@@ -13,7 +17,8 @@ DEPTH_SHAPE = (480, 640)
 
 
 def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=True,
-                   rgb_exposure_mode="auto", rgb_shutter_speed=125, rgb_gain=1):
+                   rgb_exposure_mode="auto", rgb_shutter_speed=125, rgb_gain=1,
+                   controls=None, accelerometer_enabled=True, accelerometer_calibration=None):
     """Publish one shared-memory pair at a time, awaiting a copy acknowledgement.
 
     Only small messages cross the pipe. The child never overwrites a published
@@ -22,6 +27,8 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
     """
     ctx = dev = None
     depth_started = video_started = False
+    journal = None
+    retired_journals = []
     try:
         import freenect
 
@@ -40,6 +47,13 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             raise RuntimeError(
                 "Cannot open Kinect camera. Close other camera applications."
             )
+        generation = uuid.uuid4().hex
+        acceleration = AccelerometerPoller(freenect, dev, generation, calibration=accelerometer_calibration, enabled=accelerometer_enabled)
+        clock = DeviceClockMapper()
+        image_info = {"rgb": {}, "depth": {}}
+        image_sequence = {"rgb": 0, "depth": 0}
+        pending_flushes = []
+        recording_status_sent = 0
         for result in (
             freenect.set_depth_mode(
                 dev,
@@ -103,7 +117,20 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             pairer.clear()
             connection.send(("phase", "warming IR" if ir else "waiting for RGB"))
 
+        def image_metadata(stream, stamp):
+            image_sequence[stream] += 1
+            info = {"sequence": image_sequence[stream], "device_timestamp_ticks": int(stamp),
+                    "capture_generation": generation, "timestamp_s": time.time(),
+                    **clock.observe(stamp, time.monotonic())}
+            image_info[stream][int(stamp)] = info
+            if len(image_info[stream]) > 64:
+                del image_info[stream][next(iter(image_info[stream]))]
+            return info
+
         def depth_callback(device, array, stamp):
+            info = image_metadata("depth", stamp)
+            if journal is not None:
+                journal.submit("depth", info, array)
             pairer.add_depth(array, stamp)
 
         def video_callback(device, array, stamp):
@@ -111,6 +138,12 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             if warming:
                 warmup_frames -= 1
                 return
+            info = image_metadata("rgb", stamp)
+            if journal is not None:
+                mode = "rgb_high_res" if high_res else "rgb_low_res"
+                journal.submit("rgb", {**info, **exposure_metadata, "rgb_mode": mode,
+                                       "rgb_fps": RGB_MODE_FPS[mode], "exposure_phase": exposure_phase,
+                                       "settling_frames_remaining": settling}, array)
             rgb_deadline = None
             if settling:
                 settling -= 1
@@ -137,6 +170,66 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             )
             if process_events(ctx) < 0:
                 raise RuntimeError("Kinect USB stream disconnected or failed")
+            # Recording commands use a separate bounded queue; image ACKs keep
+            # their original pipe ownership protocol and cannot consume commands.
+            if controls is not None:
+                for _ in range(8):
+                    try:
+                        command, payload = controls.get_nowait()
+                    except queue.Empty:
+                        break
+                    if command == "record":
+                        if journal is not None:
+                            retired_journals.append(journal)
+                            journal.close()
+                            journal = None
+                        if payload is not None:
+                            try:
+                                requested_settings = payload.get("settings") or {}
+                                acceleration.estimator = GravityEstimator(requested_settings.get("accelerometer_calibration", accelerometer_calibration))
+                                effective_settings = {**requested_settings, "accelerometer_calibration": acceleration.estimator.calibration}
+                                journal = SensorJournal(payload["path"], generation + "-" + uuid.uuid4().hex[:8], effective_settings, capture_generation=generation)
+                                journal.submit("events", {"type": "accelerometer_capability", "enabled": acceleration.enabled,
+                                                          "reason": acceleration.reason, "host_monotonic_s": time.monotonic()})
+                                acceleration.samples.clear()
+                                pairer.clear()  # First pair must belong to this recording.
+                            except (OSError, ValueError, TypeError) as exc:
+                                connection.send(("sensor_status", {"complete": False, "error": str(exc)}))
+                    elif command == "flush":
+                        pending_flushes.append(payload)
+                    elif command == "event" and journal is not None:
+                        journal.submit("events", payload)
+                    elif command == "stop_recording" and journal is not None and str(journal.path.parent) == payload:
+                        retired_journals.append(journal)
+                        journal.close()
+                        journal = None
+            for token in pending_flushes[:]:
+                root = token["root"]
+                if any(str(old.path.parent) == root and old.thread.is_alive() for old in retired_journals):
+                    continue
+                if journal is None or str(journal.path.parent) != root:
+                    connection.send(("sensor_flush", {"request_id": token["id"], "path": None}))
+                    pending_flushes.remove(token)
+                elif journal.request_flush(token["id"]):
+                    pending_flushes.remove(token)
+            if journal is not None:
+                while not journal.notifications.empty():
+                    connection.send(("sensor_flush", journal.notifications.get()))
+                if time.monotonic() - recording_status_sent > 1:
+                    connection.send(("sensor_status", journal.status()))
+                    recording_status_sent = time.monotonic()
+            if acceleration.enabled and time.monotonic() >= acceleration.next_poll:
+                # The supervisor disables acceleration on the next connection if
+                # this native call hangs, instead of entering a restart loop.
+                connection.send(("accelerometer_poll", True))
+                if journal is not None:
+                    journal.submit("events", {"type": "accelerometer_read_started", "sequence": acceleration.sequence + 1,
+                                              "host_monotonic_s": time.monotonic()})
+                sample = acceleration.poll()
+                if sample is not None:
+                    if journal is not None:
+                        journal.submit("accelerometer", sample)
+                    connection.send(("accelerometer", sample))
             if warming:
                 if warmup_frames <= 0:
                     switch_video()
@@ -178,6 +271,8 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                 exposure_metadata = exposure_controls.verify()
                 exposure_checked = time.monotonic()
             rgb, depth, rgb_stamp, depth_stamp = pair
+            depth_observation = image_info["depth"][depth_stamp]
+            rgb_observation = image_info["rgb"][rgb_stamp]
             delta = timestamp_delta_ms(rgb_stamp, depth_stamp)
             rgb_out[:] = rgb
             depth_out[:] = depth
@@ -198,6 +293,14 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                             "rgb_high_res" if high_res else "rgb_low_res"
                         ],
                         "depth_encoding": "raw_11bit",
+                        "capture_generation": generation,
+                        "sensor_recording_segment": journal.path.name if journal is not None else None,
+                        "depth_host_monotonic_s": depth_observation["estimated_host_monotonic_s"],
+                        "rgb_host_monotonic_s": rgb_observation["estimated_host_monotonic_s"],
+                        "host_mapping_uncertainty_s": depth_observation["host_mapping_uncertainty_s"],
+                        "sensor_frame_sequences": {"rgb": rgb_observation["sequence"], "depth": depth_observation["sequence"]},
+                        "accelerometer": acceleration.associate(depth_observation["estimated_host_monotonic_s"],
+                                                                depth_observation["host_mapping_uncertainty_s"]),
                         **exposure_metadata,
                     },
                 )
@@ -209,6 +312,8 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
         except (BrokenPipeError, EOFError, OSError):
             pass
     finally:
+        if journal is not None:
+            journal.close()
         # Cleanup may itself hang after USB failure. The parent bounds it too.
         if dev is not None:
             if video_started:

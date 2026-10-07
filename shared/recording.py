@@ -49,12 +49,26 @@ class RecordingWriter:
         if not cv2.imwrite(str(self.path / depth_path), depth):
             raise OSError("Could not save depth recording")
         metadata = dict(metadata or {})
+        display_paths = {}
+        rotation = metadata.get("orientation", {}).get("rotation_cw_degrees", 0)
+        if rotation in (90, 180, 270):
+            from .inertial import rotate_display
+            for stream, array, relative in (("rgb", rgb, color_path), ("depth", depth, depth_path)):
+                destination = self.path / "display" / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shown = rotate_display(array, rotation)
+                if stream == "rgb":
+                    shown = cv2.cvtColor(shown, cv2.COLOR_RGB2BGR)
+                if not cv2.imwrite(str(destination), shown):
+                    raise OSError("Could not save portrait recording")
+                display_paths["display_" + stream] = "display/" + relative
         self.manifest["frames"].append(
             {
                 "rgb": color_path,
                 "depth": depth_path,
                 "timestamp_s": metadata.get("timestamp_s", time.time()),
                 "metadata": metadata,
+                **display_paths,
             }
         )
         self._save_manifest()

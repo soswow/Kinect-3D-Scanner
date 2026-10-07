@@ -1,9 +1,152 @@
 # Kinect v1 accelerometer: acquisition, tracking, and portrait capture
 
-Feasibility study, 7 October 2026. This is a proposed design, not an implemented
-scanner feature. Driver support and the installed Python API were checked;
-the hardware probe found no connected Kinect. No simultaneous-capture rate,
-orientation accuracy, or tracking improvement has been measured on this device.
+Implementation and research notes, 7 October 2026. Concurrent acceleration reads,
+full sensor recording/replay, portrait presentation/export, and a conservative
+gravity-assisted initializer are implemented. Driver support and the installed
+Python API were checked; hardware enumeration still found no connected Kinect.
+No simultaneous USB capture rate, physical orientation accuracy, or tracking
+improvement has been measured on this device. The joint statistical solver
+discussed later remains a research proposal.
+
+## Implemented behavior
+
+- The existing USB child polls acceleration at a trial maximum of 20 Hz using
+  the same device as RGB/depth. Each completed read retains counts, m/s²,
+  return code, read start/end, host midpoint, wall time, and available tilt
+  angle/status. Every failure is retained. The event log also records attempts
+  before entering the native call, so an interrupted read is visible.
+- Missing APIs, implausible values, three consecutive failures, or a read over
+  50 ms disable acceleration without disabling RGB-D. An image timeout during
+  a native sensor call causes a bounded child restart with acceleration disabled
+  for the next connection. Sensor traffic cannot conceal a stalled image stream.
+- Gravity uses a short robust median and exponential filter. Norm deviation,
+  scatter, read latency, and sample age reduce reliability. Image timing uses an
+  unwrapped 60 MHz packet clock and the least-delayed host receipts. A host mapping
+  spread over 30 ms disables association; read latency must be at most 30 ms and
+  paired acceleration age at most 150 ms. These bounds are trial heuristics, and
+  host receipt spread does not measure absolute exposure/sample-time error.
+- The server blends minimal gravity alignment into its existing motion seed.
+  It preserves translation, requires consistent connection/calibration and
+  reliable observations, rejects disagreements over 25°, and caps correction at
+  3°. Unverified profiles receive one quarter of the verified weight. RGB-D
+  registration and acceptance still determine whether a frame is integrated.
+  A verified first gravity observation can supply overview up.
+- Auto orientation uses a 60° switch threshold, 0.3 s dwell, and holds the last
+  quarter turn when gravity is unreliable or nearly along the optical axis.
+  Manual landscape/left/right locks persist in preferences and are usable during
+  scans. RGB, colorized depth, crop outlines, and recovery references rotate as
+  presentation copies. Selected local/server exports include rotated PNGs at
+  `display/rgb/` and `display/depth/`; source arrays/intrinsics remain native.
+
+The provisional sensor-to-camera rotation is `diag(-1, -1, +1)`. Its XY roll
+signs are inferred from the upstream viewer's Y-up OpenGL projection and rotation
+formula; Z merely completes a proper rotation. This is **not measured extrinsic
+calibration**. Physically check upright, both portrait directions, upside down,
+and optical-axis tilt on this device. Tilt-mechanism position may require a
+different measured relationship. Factory-profile data are saved as unverified.
+
+## Full sensor sessions and later reanalysis
+
+Full recording starts with a GUI scan, runs independently of selected captures
+and image-consumer backpressure, continues during ordinary Pause, and stops at
+Finish/cancel. Save Session stops and drains recording at a fixed boundary,
+downloads the server's selected frames/report, and atomically adds the local
+sensor journal before replacing the destination. Ordinary saves resume recording
+in a new segment afterward. Failed saves preserve an existing destination.
+The journal remains locally available under `recordings/sensors-<session hash>/`;
+it is not deleted automatically. A server-only API export contains its selected
+frames, because the independent streams belong to the client.
+
+The augmented ZIP uses manifest version 2. Existing `frames`, `settings`, and
+`reconstruction.json` remain compatible with selected-frame replay. The additional
+`sensor_archive` names its root, ordered segments, and aggregate `complete` flag.
+Each `sensors/<segment>/` contains:
+
+| File | Retained evidence |
+| --- | --- |
+| `configuration.json` | Settings, effective accelerometer calibration/evidence, units, encodings, start times, hardware connection generation, clock semantics. |
+| `rgb.jsonl`, `depth.jsonl` | Every recorded image callback: stream sequence, native/unwrapped device time, estimated host time, receipt time, mapping spread, wall time, array path/shape/type. RGB also retains exposure/mode/settling state. |
+| `rgb/*.npy`, `depth/*.npy` | Exact uint8 RGB and uint16 native raw disparity arrays, with pickle disabled. |
+| `accelerometer.jsonl` | Every completed read attempt, including errors, raw and converted vectors, host interval, sequence, and versioned derived gravity. |
+| `events.jsonl` | Orientation controls, capability status, and read-start attempts. |
+| `status.json` | Written/dropped counts, errors, checkpoint prefix lengths, close/completeness state. |
+
+Independent streams include images discarded during RGB exposure settling and
+depth during startup. IR warmup images and audio are outside the scan's RGB-D
+recording scope. Acceleration is a polled read series, not a hardware-timestamped
+stream. Reconnection creates a new hardware clock generation; every save/resume
+creates a new segment. Histories and raw observations are retained for rejected
+and unselected frames as well as accepted captures. Existing selected-frame
+metadata retains the live gravity/orientation decision and initializer report.
+
+A bounded background writer copies borrowed callback arrays immediately and
+writes NPY without compression. At nominal rates the default high-resolution
+mode produces 57.75 MB/s of image payload (~3.47 GB/min); VGA produces 46.08 MB/s
+(~2.76 GB/min), plus small indices. ZIP storage preserves these streams without
+extra compression overhead. Queue overflow or disk errors keep capture responsive
+and mark data incomplete explicitly. Periodic immutable index checkpoints make
+surviving prefixes exportable after a crash; an unclean segment remains incomplete.
+A resumed remote session contains full streams only for intervals this client
+actually recorded, not earlier clients' unrecorded observations.
+
+After unzipping, replay selected captures as before, or rebuild pairs and gravity
+from the independent streams:
+
+```bash
+OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset recording --path /path/to/session \
+  --sensor-streams --recompute-motion --stride 5 --gravity-assistance
+# Repeat against the identical raw session for an initializer ablation:
+OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset recording --path /path/to/session \
+  --sensor-streams --recompute-motion --stride 5 --no-gravity-assistance
+```
+
+Full replay recomputes gravity from raw reads, applies recorded orientation-control
+events, and optionally recomputes visual motion on **every intermediate pair before
+stride selection**. It never treats old estimated poses as ground truth. This
+supports improving tracking and comparing versions from the same measurements.
+Old ZIPs without full streams retain selected-frame replay; they cannot recreate
+acceleration or discarded images. Record independent reference motion for accuracy
+evaluation; accepted-frame counts alone do not demonstrate improvement.
+
+## Accelerometer calibration
+
+`scripts/calibrate_accelerometer.py` fits bias, diagonal scale, and a proper
+sensor-to-camera rotation from at least six stationary orientations spanning all
+axes. Each input supplies the measured `acceleration_m_s2` vector and an
+**independently known** unit `up_camera` vector. Use a levelled fixture or separate
+reference; deriving the reference from this same accelerometer would be circular.
+The fitter rejects poorly conditioned orientations or residuals above 0.25 m/s²
+or 2°. At least three held-out reference poses passing these checks are required
+to mark the profile verified. Without them it remains unverified.
+
+```json
+{"observations": [{"acceleration_m_s2": [0.01, 9.79, 0.04], "up_camera": [0, -1, 0]}],
+ "validation": []}
+```
+
+This abbreviated structure example is deliberately insufficient to fit. Supply
+the full pose sets, then run:
+
+```bash
+python scripts/calibrate_accelerometer.py stationary-poses.json measured-accelerometer.json --id my-kinect-fixed-tilt
+```
+
+Load the resulting profile with **Load accelerometer calibration…** in the
+experimental scan settings before capture. Profiles preserve their calibration
+observations, validation, fit algorithm, and residual report in saved sessions.
+Physical data collection is still required; no synthetic fit is shipped as a
+verified device calibration.
+
+## Validation checkpoint
+
+The prior full suite passed 341 tests with two skips. Additional regression
+checks cover raw retention under image backpressure, read failures, timing
+rejection, orientation/native-array separation, exact uint16 portrait exports,
+intermediate-motion replay, and atomic save failure. A three-second synthetic
+native-array workload wrote 30 high-resolution RGB frames, 90 depth frames, and
+60 acceleration records (~173 MB, ~57 MB/s) with zero drops on the local SSD.
+This checks storage throughput only. USB latency, fresh accelerometer frequency,
+physical signs/extrinsics, and tracking accuracy still require a connected Kinect.
 
 ## Findings
 
@@ -292,7 +435,7 @@ conventions. Rotating presentation/export copies gives the requested portrait
 view and saved images while retaining replayable measurement geometry. It must
 also avoid double rotation when a portrait derivative is opened again.
 
-## Suggested implementation order and acceptance
+## Hardware acceptance and future extensions
 
 1. **Acquire and characterize acceleration.** Extend the existing child and
    `scripts/check_camera.py` with an optional acceleration probe. Check both RGB
@@ -320,6 +463,7 @@ also avoid double rotation when a portrait derivative is opened again.
    permission to fuse. Promote the feature only after it improves accuracy or
    recovery without increasing incorrect registrations.
 
-The recommended first implementation is acquisition plus portrait handling.
-Gravity-assisted tracking is a separate measured experiment; inertial position
-tracking from this built-in sensor is not a dependable recovery strategy.
+The first implementation now provides acquisition, portrait handling, raw
+archival/replay, and the bounded gravity seed. Validate these on hardware before
+claiming tracking gains or extending the joint solver. Inertial position tracking
+from this built-in sensor is not a dependable recovery strategy.

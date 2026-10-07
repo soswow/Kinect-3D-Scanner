@@ -5,7 +5,9 @@ remote server instead of calling ScanEngine directly.
 """
 
 import queue
+import os
 import traceback
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
@@ -15,6 +17,7 @@ from typing import Any
 from PyQt6.QtCore import QThread
 
 from shared.recording import RecordingWriter
+from shared.sensor_recording import augment_session_archive
 
 
 class ServerTaskType(Enum):
@@ -241,9 +244,26 @@ class ServerTaskWorker(QThread):
             path = task.kwargs["path"]
             fmt = task.kwargs.get("format", "session")
             self._client.task_started.emit(f"Exporting {fmt} to {path}...")
-            success = self._client.request_export(
-                fmt, path, options=task.kwargs.get("options")
-            )
+            snapshot = None
+            recorder = task.kwargs.get("sensor_recorder")
+            if tt == ServerTaskType.EXPORT_SESSION and recorder is not None:
+                snapshot = recorder.flush_sensor_recording(task.kwargs.get("sensor_path"), stop=True)
+            if snapshot is None:
+                success = self._client.request_export(fmt, path, options=task.kwargs.get("options"))
+            else:
+                # Keep an existing complete session intact if downloading or
+                # merging the local observations fails.
+                fd, temporary = tempfile.mkstemp(prefix=".sensor-session-", suffix=".zip", dir=Path(path).resolve().parent)
+                os.close(fd)
+                try:
+                    success = self._client.request_export(fmt, temporary, options=task.kwargs.get("options"))
+                    if success:
+                        augment_session_archive(temporary, snapshot)
+                        Path(temporary).replace(path)
+                        if not snapshot["complete"]:
+                            self._client.task_error.emit("Session saved with incomplete sensor recording; see sensor_archive and per-stream drop/error reports.")
+                finally:
+                    Path(temporary).unlink(missing_ok=True)
             self._client.export_done.emit(success, path)
 
         elif tt == ServerTaskType.SAVE_MESH:

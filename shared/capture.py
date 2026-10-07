@@ -75,3 +75,26 @@ class RGBDepthPairer:
         for _ in range(index + 1):
             self.depths.popleft()
         return rgb, depth, rgb_stamp, depth_stamp
+
+
+class DeviceClockMapper:
+    """Unwrap image ticks and estimate host time using least-delayed receipts.
+
+    This maps packet-end clocks, not exposure times or accelerometer sample times.
+    """
+
+    def __init__(self):
+        self.last_tick = None
+        self.elapsed_s = 0.0
+        self.offsets = deque(maxlen=128)
+
+    def observe(self, tick, host_time):
+        if self.last_tick is not None:
+            self.elapsed_s += timestamp_delta_ms(tick, self.last_tick) / 1000
+        self.last_tick = int(tick)
+        self.offsets.append(host_time - self.elapsed_s)
+        offset = min(self.offsets)
+        return {"device_timestamp_unwrapped_s": self.elapsed_s,
+                "estimated_host_monotonic_s": self.elapsed_s + offset,
+                "host_receipt_monotonic_s": host_time,
+                "host_mapping_uncertainty_s": max(self.offsets) - offset}
