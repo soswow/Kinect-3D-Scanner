@@ -1,0 +1,1064 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "26fc9ed68829d3a722202b7924e3e571460ab1d1",
+  "current_revision": "fdf144bdc69d024e1f2ec9f5e99ea4e9cadbe078",
+  "source_sha256": {
+    "shared/visual_tracking.py": "f08293195add5ebeb4357eaae5783f53a4f27987d2cdd777d3c1a1513feebc88",
+    "scanner_server/engine.py": "dae87dc5ada2b39c34e48eb47fe0b8ee6f17896bc174dd1ca9539305a22e0fa2",
+    "scanner_server/tracking_cache.py": "30b1e667a9d9a37373dcb3ac4d1b04cc0820569153a22a8f02a98c48e24fec20"
+  },
+  "baseline_camera_source_sha256": "b256d62f55394850c2fb52e9a1abde550ffa7db1bd08383042b7e5f28413c073",
+  "versions": {
+    "python": "3.13.7",
+    "opencv": "5.0.0",
+    "numpy": "2.5.3",
+    "open3d": "0.20.0"
+  },
+  "threads": {
+    "opencv": 10,
+    "omp": "4"
+  },
+  "repeats": 3,
+  "sessions": [
+    {
+      "session": "chest-2scan-session_20261006_090302.zip",
+      "input_sha256": "3e419b154522e58c1ff1cc9d87983b86dd2cbaf9821ce3993b60c286836762f2",
+      "stored_views": 200,
+      "settings_sha256": "c0d469d3fbb462dec512d36a5c3ba30f570fb8427f5daf439ea56d12d598aba8",
+      "camera": {
+        "timing_ms": {
+          "before": {
+            "compute_ms": {
+              "samples": 51,
+              "median": 14.575166627764702,
+              "p95": 19.033687189221382
+            }
+          },
+          "after": {
+            "compute_ms": {
+              "samples": 51,
+              "median": 14.640082605183125,
+              "p95": 21.929604467004538
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          }
+        ]
+      },
+      "server": {
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "timing_ms": {
+          "before": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 1086.3558324053884,
+              "p95": 5291.16736613214
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 217.75675006210804,
+              "p95": 5203.621467202902
+            }
+          },
+          "after": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 1047.359791584313,
+              "p95": 5422.585725225508
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 212.1881665661931,
+              "p95": 5342.066941782832
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "diagnostic_disagreement_indices": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "max_common_pose_matrix_difference": 0.0003286107050498206
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "diagnostic_disagreement_indices": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              12,
+              13,
+              14
+            ],
+            "max_common_pose_matrix_difference": 0.00018175003821618851
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "diagnostic_disagreement_indices": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "max_common_pose_matrix_difference": 0.00041246987499812815
+          }
+        ]
+      },
+      "input_unchanged": true
+    },
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+      "stored_views": 126,
+      "settings_sha256": "64493d0b3f0a40a03d2a87672715fb38c6e6dde599785088cd62f3285c45ecdb",
+      "camera": {
+        "timing_ms": {
+          "before": {
+            "compute_ms": {
+              "samples": 375,
+              "median": 14.926416799426079,
+              "p95": 20.51082542166114
+            }
+          },
+          "after": {
+            "compute_ms": {
+              "samples": 375,
+              "median": 14.550499618053436,
+              "p95": 16.769571416079998
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          }
+        ]
+      },
+      "server": {
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "timing_ms": {
+          "before": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 830.6488329544663,
+              "p95": 6523.100641556084
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 438.74758295714855,
+              "p95": 6334.753625281154
+            }
+          },
+          "after": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 848.4856253489852,
+              "p95": 6691.582841798662
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 442.5838328897953,
+              "p95": 6383.649599738419
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              21,
+              22,
+              23
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              21,
+              22,
+              23
+            ],
+            "diagnostic_disagreement_indices": [
+              4,
+              7,
+              8,
+              9,
+              10,
+              15,
+              21
+            ],
+            "max_common_pose_matrix_difference": 0.00018255309401427056
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              21,
+              22,
+              23
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              21,
+              22,
+              23
+            ],
+            "diagnostic_disagreement_indices": [
+              1,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              15,
+              16,
+              21
+            ],
+            "max_common_pose_matrix_difference": 0.0002442116377099346
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              21,
+              22,
+              23
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              21,
+              22,
+              23
+            ],
+            "diagnostic_disagreement_indices": [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              15,
+              16,
+              21
+            ],
+            "max_common_pose_matrix_difference": 0.0004515677600744894
+          }
+        ]
+      },
+      "input_unchanged": true
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "input_sha256": "ab0465d56d05c172074075b056c22f10a3337c83b2e564c148d4f10ea64ce49f",
+      "stored_views": 164,
+      "settings_sha256": "64493d0b3f0a40a03d2a87672715fb38c6e6dde599785088cd62f3285c45ecdb",
+      "camera": {
+        "timing_ms": {
+          "before": {
+            "compute_ms": {
+              "samples": 489,
+              "median": 14.352208003401756,
+              "p95": 16.10535066574812
+            }
+          },
+          "after": {
+            "compute_ms": {
+              "samples": 489,
+              "median": 14.485917054116726,
+              "p95": 16.53052493929863
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          }
+        ]
+      },
+      "server": {
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "timing_ms": {
+          "before": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 840.2848746627569,
+              "p95": 6836.87270786613
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 420.05445901304483,
+              "p95": 6735.936300456522
+            }
+          },
+          "after": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 844.2647494375706,
+              "p95": 6732.3102252557865
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 396.7165006324649,
+              "p95": 6651.960332691669
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "diagnostic_disagreement_indices": [
+              2,
+              4,
+              10
+            ],
+            "max_common_pose_matrix_difference": 0.00012457359414502073
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "diagnostic_disagreement_indices": [
+              2,
+              4,
+              10
+            ],
+            "max_common_pose_matrix_difference": 7.767104739747621e-05
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ],
+            "diagnostic_disagreement_indices": [
+              4,
+              10
+            ],
+            "max_common_pose_matrix_difference": 2.6869946728347305e-05
+          }
+        ]
+      },
+      "input_unchanged": true
+    },
+    {
+      "session": "chest_20261005_230320.zip",
+      "input_sha256": "ade7f340aa8759233a50509431768732d2836fbb50b77d922e34d50ac99a63b0",
+      "stored_views": 50,
+      "settings_sha256": "0ca3b5227030f442abcc39500929383f3f0eb6ba26ed6341b544ff4923d000f9",
+      "camera": {
+        "timing_ms": {
+          "before": {
+            "compute_ms": {
+              "samples": 15,
+              "median": 13.983041048049927,
+              "p95": 15.168062504380941
+            }
+          },
+          "after": {
+            "compute_ms": {
+              "samples": 15,
+              "median": 14.384958893060684,
+              "p95": 15.762420650571583
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          },
+          {
+            "support_disagreement_indices": [],
+            "max_pose_matrix_difference": 0.0,
+            "valid_reports_before": 1,
+            "valid_reports_after": 1,
+            "measured_motion_reports_after": 0
+          }
+        ]
+      },
+      "server": {
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "timing_ms": {
+          "before": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 1216.2639992311597,
+              "p95": 4525.071692094206
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 251.7135003581643,
+              "p95": 4444.109300151466
+            }
+          },
+          "after": {
+            "frame_ms": {
+              "samples": 69,
+              "median": 1073.3281653374434,
+              "p95": 4529.704932682216
+            },
+            "tracking_ms": {
+              "samples": 69,
+              "median": 215.75949992984533,
+              "p95": 4465.584874339402
+            }
+          }
+        },
+        "comparisons": [
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "diagnostic_disagreement_indices": [
+              2,
+              3,
+              4,
+              5,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "max_common_pose_matrix_difference": 0.00018545636472022675
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "diagnostic_disagreement_indices": [
+              2,
+              3,
+              4,
+              5,
+              7,
+              8,
+              10,
+              11,
+              13
+            ],
+            "max_common_pose_matrix_difference": 0.00017651553295905398
+          },
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "diagnostic_disagreement_indices": [
+              2,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "max_common_pose_matrix_difference": 0.00018963522770254482
+          }
+        ]
+      },
+      "input_unchanged": true
+    }
+  ],
+  "notes": [
+    "Original metadata/timing, calibration and depth units retained; inputs never overwritten",
+    "Sparse uploaded captures do not reproduce continuous camera-rate tracking; no absolute pose truth",
+    "Camera timing excludes decoding, origin frame and timing-guard rejections",
+    "Server uses current algorithms with only the ICP source cache toggled; archived poses are never seeds",
+    "Server timings exclude decoding and initial frame; selected prefix is explicitly listed",
+    "Interleaved repeats after short warmups; no acquisition/network/rendering or Finish included",
+    "Replay frame_id replaces upload identity and reference_pose is removed; original timing/calibration/depth values and recorded visual hints retained",
+    "Historical tracker code shares current calibration/depth/native helpers, not a complete historical app comparison",
+    "5000 live blocks are initial capacity, not a hard map-allocation limit",
+    "Recorded poses differ between runs; accepted indices match; same-variant controls are in recorded-tracking-repeatability.json",
+    "Max pose matrix differences mix rotation entries and metre translations; physical translation/angle differences are reported by repeatability controls"
+  ]
+}
