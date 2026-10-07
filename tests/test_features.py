@@ -6,6 +6,7 @@ os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -308,6 +309,9 @@ class FeatureTests(unittest.TestCase):
         for (_, a), (_, b) in zip(originals, engine.poses):
             np.testing.assert_array_equal(a, b)
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("PyQt6"), "Requires optional Qt client dependencies"
+    )
     def test_partial_batch_recording_uses_individual_acknowledgements(self):
         from unittest.mock import Mock
         from shared.recording import RecordingWriter

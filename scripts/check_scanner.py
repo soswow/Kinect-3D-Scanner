@@ -178,11 +178,26 @@ def check_client(port, rgb, depth):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--server-only",
+        action="store_true",
+        help="Check HTTP/WebSocket reconstruction and exports without Qt or camera dependencies",
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=120,
+        help="HTTP operation timeout in seconds; allow more for first-use CUDA initialization",
+    )
+    parser.add_argument(
+        "--startup-timeout", type=float, default=90,
+        help="Server startup timeout in seconds",
+    )
+    parser.add_argument(
         "--public-data",
         action="store_true",
         help="Also download/replay the official five-frame Redwood sample",
     )
     args = parser.parse_args()
+    if args.timeout <= 0 or args.startup_timeout <= 0:
+        parser.error("Timeouts must be positive")
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -206,9 +221,9 @@ def main():
         )
         try:
             with httpx.Client(
-                base_url=f"http://127.0.0.1:{port}", trust_env=False, timeout=120
+                base_url=f"http://127.0.0.1:{port}", trust_env=False, timeout=args.timeout
             ) as http:
-                deadline = time.monotonic() + 90
+                deadline = time.monotonic() + args.startup_timeout
                 while True:
                     if server.poll() is not None:
                         raise RuntimeError(
@@ -343,7 +358,8 @@ def main():
                     flush=True,
                 )
                 http.post("/api/scan/reset", json={"rgb_mode": "rgb_low_res"}).raise_for_status()
-                check_client(port, rgb, depth)
+                if not args.server_only:
+                    check_client(port, rgb, depth)
                 if args.public_data:
                     from replay_scan import load_dataset, replay_server
 
@@ -360,7 +376,16 @@ def main():
         finally:
             if ws is not None:
                 ws.close()
-            server.terminate()
+            if sys.platform == "win32":
+                # The Windows venv executable spawns the base Python as a child.
+                # Terminating only the wrapper leaves the test server running.
+                subprocess.run(
+                    ["taskkill", "/PID", str(server.pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            else:
+                server.terminate()
             try:
                 server.wait(timeout=8)
             except subprocess.TimeoutExpired:

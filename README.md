@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="#run-client-and-server-on-one-machine"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue" alt="Platform"></a>
+  <a href="#server-setup"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20server-blue" alt="Linux, macOS, and Windows server"></a>
   <a href="#installation"><img src="https://img.shields.io/badge/python-3.10+-yellow?logo=python&logoColor=white" alt="Python"></a>
   <a href="#usage"><img src="https://img.shields.io/badge/UI-PyQt6-green?logo=qt&logoColor=white" alt="PyQt6"></a>
   <a href="#architecture"><img src="https://img.shields.io/badge/server-FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
@@ -391,6 +391,84 @@ Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> I
 ---
 
 ## Server Setup
+
+### Windows CUDA server (no Kinect required)
+
+Install 64-bit Python **3.12** and Visual Studio 2022 or Build Tools 2022 with
+the **Desktop development with C++** workload (MSVC and a Windows SDK).
+Use a compatible NVIDIA GPU and driver. The CUDA wheel below is specific to
+CPython 3.12 on Windows x64; it does not work with other Python versions.
+The CUDA toolkit is unnecessary for this setup: the wheel supplies its runtime,
+and the scanner's native extension uses the C++ compiler.
+
+Open PowerShell in a checkout of this repository. Ensure `python --version`
+reports `3.12.x`, then create a fresh environment:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements-server-windows-cuda-lock.txt
+.\.venv\Scripts\python.exe -m pip install ./native
+$env:KINECT_DEVICE = "cuda"
+$env:KINECT_NATIVE = "on"
+$env:OMP_NUM_THREADS = "4"
+.\.venv\Scripts\python.exe scripts/check_scanner.py --server-only --startup-timeout 180 --timeout 300
+```
+
+The [official Open3D 0.20 Windows CUDA wheel](https://github.com/isl-org/Open3D/releases/tag/v0.20.0)
+is a preview release. Its NVIDIA runtime dependencies install into the environment;
+the machine still needs a compatible NVIDIA driver. The ordinary Windows
+`open3d` package is CPU-only: do not install it alongside `open3d-cuda` in this
+environment, since both provide the same Python module. Kinect drivers, freenect,
+and Qt are unnecessary on the server.
+
+First-use CUDA driver compilation can take several minutes; the longer check
+timeouts above allow that initialization. Later runs reuse the driver's cache.
+`requirements-server-windows-cuda-lock.txt` records the dependency versions
+used for Windows validation. `requirements-server-windows-cuda.txt` is the
+unpinned alternative for testing newer dependencies.
+
+The Windows CUDA preview also has an upstream [process shutdown issue](https://github.com/isl-org/Open3D/issues/6399):
+reconstruction tests can finish successfully, then Python exits with
+`CUDA runtime error: driver shutting down`. During Windows validation, the
+server regression assertions and synthetic HTTP scan/exports passed, but the
+regression process exited abnormally during CUDA teardown. Explicit cache cleanup did not
+resolve the exit error. The background launcher's printed process-tree stop
+command terminates the server without relying on Open3D's teardown.
+
+Double-click **Start Server.cmd**, or run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1
+```
+
+The launcher requires CUDA and the compiled native extension, binds to
+`0.0.0.0:8000`, and starts with 5,000 voxel blocks, 500 stored frames, and eight
+OpenMP threads. Existing environment variables override these defaults. Press
+Ctrl+C to stop. Add `-Background` to run hidden with output in
+`logs/server-<port>.*.log`; the launcher waits up to three minutes for health,
+then prints the process ID and stop command. It rejects an occupied port before
+starting another process. For example, select a different port before launch:
+
+```powershell
+$env:KINECT_SERVER_PORT = "8001"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1 -Background
+```
+
+Check `http://127.0.0.1:8000/api/health` for `device: CUDA:0`, tensor tracking,
+and active native kernels. On the capture laptop, enter this server's LAN IPv4
+address and port 8000. Windows Firewall must allow inbound TCP 8000 for the
+project's Python interpreter. A LAN-scoped rule can be added once in an
+administrator PowerShell window:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/allow_server_firewall.ps1
+```
+
+For a custom port, pass the same value with `-Port 8001`. Use the server on a
+trusted LAN: its HTTP/WebSocket API does not authenticate clients. The firewall
+helper limits the allowed remote addresses to the local subnet, including when
+Windows marks that LAN as a Public network.
 
 ### Requirements
 - Python 3.10+

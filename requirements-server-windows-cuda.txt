@@ -1,0 +1,13 @@
+# Windows x64, CPython 3.12. The CUDA wheel is an official Open3D preview.
+# Install this instead of requirements-server.txt (which installs CPU Open3D).
+numpy
+scipy
+opencv-python
+trimesh
+pillow
+fastapi
+uvicorn[standard]
+open3d-cuda @ https://github.com/isl-org/Open3D/releases/download/v0.20.0/open3d_cuda-0.20.0-cp312-cp312-win_amd64.whl#sha256=495ad8bfd18403320d3dc88bb070524d68cee09b85a1f413b4049cf3fda9bc3d
+# Hardware-free server verification: scripts/check_scanner.py --server-only
+httpx
+websocket-client
