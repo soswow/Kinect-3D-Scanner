@@ -1,0 +1,217 @@
+{
+  "archive": "chest-4-scan-session_20261007_173028.zip",
+  "archive_sha256": "ab0465d56d05c172074075b056c22f10a3337c83b2e564c148d4f10ea64ce49f",
+  "code_commit": "175927202c480653078a87ebe7d4855f3cecade0",
+  "implementation_source_sha256": "7647f7d4298b98500c8531b5e922086a66c2965a00e2d80411f1d6b754c2114f",
+  "captures": 164,
+  "original": {
+    "live_accepted": 114,
+    "live_loss_episodes": 16,
+    "final_views": 4,
+    "final_vertices": 1843,
+    "final_triangles": 2615,
+    "final_area_m2": 0.022924135846057712
+  },
+  "full_live_and_finish_replay": {
+    "live_accepted": 130,
+    "live_loss_episodes": 14,
+    "archived_pose_seeds_used": false,
+    "final_views": 162,
+    "final_vertices": 301667,
+    "final_triangles": 581764,
+    "final_area_m2": 4.8427307824317625,
+    "final_missing_captures_1based": [
+      52,
+      110
+    ],
+    "recovered_rejected_captures": 32,
+    "corrected_accepted_poses": 129,
+    "excluded_accepted_captures_1based": [],
+    "connected_fragments": 15,
+    "unconnected_fragments": 2,
+    "surviving_bridges": 19,
+    "verified_fragment_cycles": 5,
+    "recent_reference_links": 9,
+    "sequential_bridges": 7,
+    "tested_pairs": 28,
+    "candidate_pairs": 98,
+    "budget_limited": false,
+    "blocks": 9120,
+    "block_limit": 10000,
+    "final_weight": 2.0,
+    "voxel_m": 0.005,
+    "optimization_fallback": "Revalidated measured bridge poses",
+    "additional_refinement": "No trustworthy loop constraints",
+    "returning_bridge_support_captures_1based": [
+      [
+        [
+          25,
+          142
+        ],
+        [
+          25,
+          144
+        ],
+        [
+          27,
+          143
+        ]
+      ],
+      [
+        [
+          25,
+          143
+        ],
+        [
+          25,
+          144
+        ],
+        [
+          26,
+          145
+        ]
+      ],
+      [
+        [
+          22,
+          145
+        ],
+        [
+          22,
+          146
+        ],
+        [
+          22,
+          147
+        ],
+        [
+          23,
+          144
+        ]
+      ],
+      [
+        [
+          22,
+          144
+        ],
+        [
+          23,
+          144
+        ],
+        [
+          24,
+          142
+        ]
+      ]
+    ],
+    "input_changed_during_profile": false,
+    "source_changed_during_profile": false
+  },
+  "finish_from_archived_final_pose_seeds": {
+    "live_accepted": 4,
+    "live_loss_episodes": null,
+    "archived_pose_seeds_used": true,
+    "final_views": 162,
+    "final_vertices": 301668,
+    "final_triangles": 581767,
+    "final_area_m2": 4.842664610794337,
+    "final_missing_captures_1based": [
+      52,
+      110
+    ],
+    "recovered_rejected_captures": 158,
+    "corrected_accepted_poses": 2,
+    "excluded_accepted_captures_1based": [],
+    "connected_fragments": 15,
+    "unconnected_fragments": 2,
+    "surviving_bridges": 19,
+    "verified_fragment_cycles": 5,
+    "recent_reference_links": 9,
+    "sequential_bridges": 7,
+    "tested_pairs": 28,
+    "candidate_pairs": 98,
+    "budget_limited": false,
+    "blocks": 9120,
+    "block_limit": 10000,
+    "final_weight": 2.0,
+    "voxel_m": 0.005,
+    "optimization_fallback": "Revalidated measured bridge poses",
+    "additional_refinement": "No trustworthy loop constraints",
+    "returning_bridge_support_captures_1based": [
+      [
+        [
+          25,
+          142
+        ],
+        [
+          25,
+          144
+        ],
+        [
+          27,
+          143
+        ]
+      ],
+      [
+        [
+          25,
+          143
+        ],
+        [
+          25,
+          144
+        ],
+        [
+          26,
+          145
+        ]
+      ],
+      [
+        [
+          22,
+          145
+        ],
+        [
+          22,
+          146
+        ],
+        [
+          22,
+          147
+        ],
+        [
+          23,
+          144
+        ]
+      ],
+      [
+        [
+          22,
+          144
+        ],
+        [
+          23,
+          144
+        ],
+        [
+          24,
+          142
+        ]
+      ]
+    ],
+    "input_changed_during_profile": false,
+    "source_changed_during_profile": false
+  },
+  "validation": {
+    "full_tests": 326,
+    "passed": 324,
+    "cuda_skipped": 2,
+    "original_archive_crc": "all 330 entries passed in initial investigation",
+    "camera_capture_selection_and_recovery_pacing": "synthetic camera images and Qt workflow passed; physical Kinect capture unverified",
+    "camera_recent_reference_recovery": "actual optical flow on controlled images passed; intermediate physical images absent from archive",
+    "absolute_geometry_accuracy": "unverified; no independent reference trajectory or surface",
+    "mesh_visual_review": "matched oblique and overhead renders show a single box/table, with substantial lower-basket holes",
+    "timing_scope": "CPU tests and replay runs overlapped; not a controlled performance comparison"
+  },
+  "artifact_directory": "/Users/sasha/hobby/xbox360/Kinect-3D-Scanner/benchmark-output/chest-4-improvement"
+}

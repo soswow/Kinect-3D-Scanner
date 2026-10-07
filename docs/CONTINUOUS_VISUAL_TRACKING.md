@@ -191,3 +191,7 @@ resolution or a measurement of absolute accuracy. The fixed-camera comparison
 is `mesh-comparison.jpg`; the reconstructed mesh is `final.ply` in the artifact
 directory above. The compact [benchmark record](benchmarks/chest-3-visual-tracking.json)
 contains counts, exclusions, unchanged source checksum, and verification scope.
+
+The later [Chest 4 recovery result](CHEST_4_TRACKING_RECOVERY.md) tests sharper
+capture selection, recent-reference fallback and wider returning-loop retrieval
+on the following scan.

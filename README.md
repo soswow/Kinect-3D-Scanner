@@ -227,11 +227,15 @@ OMP_NUM_THREADS=4 python scripts/check_scanner.py --public-data
 
 ## Live Feedback, NVIDIA Compute, and Textures
 
-On tracking loss, fusion pauses until the last good camera view is verified.
+On tracking loss, fusion pauses until a recent raw view or earlier keyframe
+verifies the camera position. Automatic capture selects a sharp recent pair
+and probes again as soon as the previous recovery check finishes.
 The red notice, overhead trajectory, and saved reference image guide recovery;
 RGB/depth timing warnings explain when color recovery is unavailable. See
 [tracking recovery](docs/TRACKING_RECOVERY.md) and the
 [RGB/depth timing explanation and second chest-session analysis](docs/RGB_DEPTH_TIMING.md).
+The [Chest 4 recovery results](docs/CHEST_4_TRACKING_RECOVERY.md) cover recent-view
+fallback, sharp capture selection, returning-loop evidence, and replay limits.
 
 New scans enable live feedback in the GUI; API clients opt in with
 `live_reconstruction: true` in reset settings. CPU remains supported on Apple
