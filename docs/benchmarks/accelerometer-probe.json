@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-07",
+  "probe": "RGB/depth callbacks with 0/20/0 Hz accelerometer polling",
+  "images_saved": false,
+  "motor_commands_sent": false,
+  "results": [
+    {
+      "mode": "rgb_low_res",
+      "binding": "/Users/sasha/hobby/xbox360/.venv/lib/python3.13/site-packages/freenect.cpython-313-darwin.so",
+      "windows": [],
+      "device_count": 0,
+      "error": "No Kinect connected",
+      "child_exit_code": 0
+    },
+    {
+      "mode": "rgb_high_res",
+      "binding": "/Users/sasha/hobby/xbox360/.venv/lib/python3.13/site-packages/freenect.cpython-313-darwin.so",
+      "windows": [],
+      "device_count": 0,
+      "error": "No Kinect connected",
+      "child_exit_code": 0
+    }
+  ]
+}

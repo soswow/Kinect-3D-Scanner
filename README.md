@@ -545,6 +545,7 @@ Kinect-3D-Scanner/
 ## Documentation
 
 - **[Kinect v1 Technical Reference](docs/KINECT_V1_LINUX_PYTHON_REFERENCE.md)** — Hardware specs, driver installation, Python API, camera intrinsics, calibration, point cloud generation, registration algorithms, mesh reconstruction, and export formats.
+- **[Accelerometer feasibility and portrait design](docs/KINECT_ACCELEROMETER.md)** — Concurrent acquisition, timing limits, proposed gravity-assisted tracking, and portrait previews/recordings. Hardware validation and implementation remain pending.
 
 ---
 
