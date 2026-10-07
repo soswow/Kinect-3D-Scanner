@@ -138,19 +138,28 @@ class VisualTracker:
         self.steps = 0
 
     def _match_reference(self, reference, gray, depth, stamp):
-        old_gray, old_depth, old_corners, old_stamp, old_pose = reference
+        old_gray, _, old_corners, old_stamp, old_pose, points_a = reference
         if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
             return None, {}
+        if len(points_a) < 40:
+            return None, {}
+        # Only features with stable measured source depth can ever constrain a
+        # pose. Their independent LK tracks are unchanged by excluding the
+        # unusable points before flow rather than after it. The unused default
+        # L1 patch score adds another patch interpolation; request the already
+        # computed eigenvalue instead. Forward/backward and measured-depth
+        # checks below still decide correspondence support.
         new, forward, _ = cv2.calcOpticalFlowPyrLK(
-            old_gray, gray, old_corners, None, winSize=(21, 21), maxLevel=3)
+            old_gray, gray, old_corners, None, winSize=(21, 21), maxLevel=3,
+            flags=cv2.OPTFLOW_LK_GET_MIN_EIGENVALS)
         back, reverse, _ = cv2.calcOpticalFlowPyrLK(
-            gray, old_gray, new, None, winSize=(21, 21), maxLevel=3)
+            gray, old_gray, new, None, winSize=(21, 21), maxLevel=3,
+            flags=cv2.OPTFLOW_LK_GET_MIN_EIGENVALS)
         a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
         supported = (forward.ravel() > 0) & (reverse.ravel() > 0)
         supported &= np.linalg.norm(a - back.reshape(-1, 2), axis=1) < 0.8
-        points_a, measured_a = sampled_points(old_depth, a, self.settings.camera)
         points_b, measured_b = sampled_points(depth, b, self.settings.camera)
-        supported &= measured_a & measured_b
+        supported &= measured_b
         pa, pb, pixels = points_a[supported], points_b[supported], b[supported]
         if len(pa) < 40:
             return None, {}
@@ -202,7 +211,9 @@ class VisualTracker:
         # A failed image never replaces the last trustworthy reference. An
         # expired chain starts a fresh origin, which is explicitly unverified.
         if valid or (usable and not self.history):
-            self.history.append((gray, depth, corners, stamp, self.pose.copy()))
+            points, measured = sampled_points(depth, corners, self.settings.camera)
+            self.history.append((gray, depth, corners[measured], stamp,
+                                 self.pose.copy(), points[measured]))
             self.previous = self.history[-1][:4]
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
                 "steps": self.steps, "elapsed_ms": (time.monotonic() - started) * 1000,
