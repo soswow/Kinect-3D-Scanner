@@ -1,0 +1,373 @@
+{
+  "scope": "Known synthetic geometry, fixed exact poses, independent per-pixel Gaussian noise; engineering noise profile, not device-calibrated uncertainty.",
+  "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+  "python": "3.13.7",
+  "numpy": "2.5.3",
+  "omp_threads": "4",
+  "confidence_ms": {
+    "legacy": 13.604165986180305,
+    "local_planes": 6.5603964030742645
+  },
+  "depth_mean": {
+    "plane_0deg": {
+      "legacy": [
+        {
+          "views": 4,
+          "mean_weight": 0.4082353659079915,
+          "rmse_m": 0.001631544907103143,
+          "completeness_at_weight_2": 0.225625,
+          "missing_aware_capped_rmse_m": 0.008833917587238185
+        },
+        {
+          "views": 12,
+          "mean_weight": 0.40867168969010687,
+          "rmse_m": 0.0009903217042133915,
+          "completeness_at_weight_2": 1.0,
+          "missing_aware_capped_rmse_m": 0.0009903217042133915
+        },
+        {
+          "views": 32,
+          "mean_weight": 0.4073855281861991,
+          "rmse_m": 0.000606606922952269,
+          "completeness_at_weight_2": 1.0,
+          "missing_aware_capped_rmse_m": 0.000606606922952269
+        }
+      ],
+      "local_planes": [
+        {
+          "views": 4,
+          "mean_weight": 0.922084206288079,
+          "rmse_m": 0.0014978002732803934,
+          "completeness_at_weight_2": 0.9633333333333334,
+          "missing_aware_capped_rmse_m": 0.002414086601143808
+        },
+        {
+          "views": 12,
+          "mean_weight": 0.9221533394173215,
+          "rmse_m": 0.0008703132638596632,
+          "completeness_at_weight_2": 1.0,
+          "missing_aware_capped_rmse_m": 0.0008703132638596632
+        },
+        {
+          "views": 32,
+          "mean_weight": 0.9220699175081366,
+          "rmse_m": 0.0005331763691989678,
+          "completeness_at_weight_2": 1.0,
+          "missing_aware_capped_rmse_m": 0.0005331763691989678
+        }
+      ]
+    },
+    "plane_55deg": {
+      "legacy": [
+        {
+          "views": 4,
+          "mean_weight": 0.25648377573874315,
+          "rmse_m": 0.0014276338781986143,
+          "completeness_at_weight_2": 0.04010416666666667,
+          "missing_aware_capped_rmse_m": 0.009801597889070602
+        },
+        {
+          "views": 12,
+          "mean_weight": 0.2567174837044796,
+          "rmse_m": 0.0010333573382278797,
+          "completeness_at_weight_2": 0.7854166666666667,
+          "missing_aware_capped_rmse_m": 0.004721972338055397
+        },
+        {
+          "views": 32,
+          "mean_weight": 0.2562264574025206,
+          "rmse_m": 0.0006966712863570076,
+          "completeness_at_weight_2": 0.9999479166666667,
+          "missing_aware_capped_rmse_m": 0.0007003812789302196
+        }
+      ],
+      "local_planes": [
+        {
+          "views": 4,
+          "mean_weight": 0.29626455399513363,
+          "rmse_m": 0.001205693360790802,
+          "completeness_at_weight_2": 0.009427083333333334,
+          "missing_aware_capped_rmse_m": 0.009953441404083687
+        },
+        {
+          "views": 12,
+          "mean_weight": 0.296341701632385,
+          "rmse_m": 0.0008535752235073787,
+          "completeness_at_weight_2": 0.80203125,
+          "missing_aware_capped_rmse_m": 0.004514557284998287
+        },
+        {
+          "views": 32,
+          "mean_weight": 0.2963237063629943,
+          "rmse_m": 0.0005679943546115257,
+          "completeness_at_weight_2": 1.0,
+          "missing_aware_capped_rmse_m": 0.0005679943546115257
+        }
+      ]
+    }
+  },
+  "tsdf": {
+    "plane_0deg": {
+      "legacy": [
+        {
+          "views": 4,
+          "surface_points": 599,
+          "low_threshold_points": 5489,
+          "axial_rmse_m": 0.001366214228366768,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 0.9066666666666666,
+          "missing_aware_capped_rmse_m": 0.006199102711322578,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 3.4264796413481236,
+          "fusion_first_ms": 3.523167222738266,
+          "fusion_warm_median_ms": 3.329792059957981,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        },
+        {
+          "views": 12,
+          "surface_points": 5431,
+          "low_threshold_points": 5431,
+          "axial_rmse_m": 0.000662456167041984,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 1.0,
+          "missing_aware_capped_rmse_m": 0.0019016796847873426,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 3.3338330686092377,
+          "fusion_first_ms": 3.399292007088661,
+          "fusion_warm_median_ms": 3.3102501183748245,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        }
+      ],
+      "local_planes": [
+        {
+          "views": 4,
+          "surface_points": 5348,
+          "low_threshold_points": 5457,
+          "axial_rmse_m": 0.000984872137183657,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 1.0,
+          "missing_aware_capped_rmse_m": 0.0020194630309365667,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 3.035500645637512,
+          "fusion_first_ms": 3.199249505996704,
+          "fusion_warm_median_ms": 2.9191672801971436,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        },
+        {
+          "views": 12,
+          "surface_points": 5462,
+          "low_threshold_points": 5462,
+          "axial_rmse_m": 0.0005846301407550202,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 1.0,
+          "missing_aware_capped_rmse_m": 0.0018606768969110271,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 3.183874301612377,
+          "fusion_first_ms": 3.119000233709812,
+          "fusion_warm_median_ms": 3.1889574602246284,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        }
+      ]
+    },
+    "plane_55deg": {
+      "legacy": [
+        {
+          "views": 12,
+          "surface_points": 4926,
+          "low_threshold_points": 8124,
+          "axial_rmse_m": 0.0011667134429240377,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 0.9255555555555556,
+          "missing_aware_capped_rmse_m": 0.003938515751496424,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 4.376063123345375,
+          "fusion_first_ms": 4.475624300539494,
+          "fusion_warm_median_ms": 4.3709175661206245,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        },
+        {
+          "views": 32,
+          "surface_points": 7815,
+          "low_threshold_points": 7815,
+          "axial_rmse_m": 0.001093376490173475,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 1.0,
+          "missing_aware_capped_rmse_m": 0.0019141549696993514,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 4.364625085145235,
+          "fusion_first_ms": 4.2951675131917,
+          "fusion_warm_median_ms": 4.365500062704086,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        }
+      ],
+      "local_planes": [
+        {
+          "views": 12,
+          "surface_points": 5398,
+          "low_threshold_points": 7990,
+          "axial_rmse_m": 0.0010565005157887177,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 0.8372222222222222,
+          "missing_aware_capped_rmse_m": 0.004493528294329643,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 3.993729129433632,
+          "fusion_first_ms": 4.14841715246439,
+          "fusion_warm_median_ms": 3.9889169856905937,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        },
+        {
+          "views": 32,
+          "surface_points": 7764,
+          "low_threshold_points": 7764,
+          "axial_rmse_m": 0.0010287106046341732,
+          "precision_within_0_01m": 1.0,
+          "completeness_within_0_01m": 1.0,
+          "missing_aware_capped_rmse_m": 0.0018980071946678645,
+          "points_projecting_into_holes": 0,
+          "fusion_median_ms": 3.8377707824110985,
+          "fusion_first_ms": 3.7242919206619263,
+          "fusion_warm_median_ms": 3.851667046546936,
+          "native": {
+            "requested": "auto",
+            "active": true,
+            "api_version": 2,
+            "fallback_reason": null
+          }
+        }
+      ]
+    },
+    "step_and_hole": {
+      "legacy": {
+        "views": 12,
+        "surface_points": 5488,
+        "low_threshold_points": 5488,
+        "axial_rmse_m": 0.0007019160804528074,
+        "precision_within_0_01m": 1.0,
+        "completeness_within_0_01m": 1.0,
+        "missing_aware_capped_rmse_m": 0.00201693158024577,
+        "points_projecting_into_holes": 0,
+        "fusion_median_ms": 3.5787918604910374,
+        "fusion_first_ms": 3.9055831730365753,
+        "fusion_warm_median_ms": 3.577957861125469,
+        "native": {
+          "requested": "auto",
+          "active": true,
+          "api_version": 2,
+          "fallback_reason": null
+        }
+      },
+      "local_planes": {
+        "views": 12,
+        "surface_points": 5505,
+        "low_threshold_points": 5505,
+        "axial_rmse_m": 0.0006155536397120071,
+        "precision_within_0_01m": 1.0,
+        "completeness_within_0_01m": 1.0,
+        "missing_aware_capped_rmse_m": 0.0019686161807281237,
+        "points_projecting_into_holes": 0,
+        "fusion_median_ms": 3.2707704231142998,
+        "fusion_first_ms": 3.41624952852726,
+        "fusion_warm_median_ms": 3.2678330317139626,
+        "native": {
+          "requested": "auto",
+          "active": true,
+          "api_version": 2,
+          "fallback_reason": null
+        }
+      }
+    },
+    "10mm_ridges": {
+      "legacy": {
+        "views": 16,
+        "surface_points": 5706,
+        "low_threshold_points": 5706,
+        "axial_rmse_m": 0.000892022699388247,
+        "precision_within_0_01m": 1.0,
+        "completeness_within_0_01m": 1.0,
+        "missing_aware_capped_rmse_m": 0.0019433485013149133,
+        "points_projecting_into_holes": 0,
+        "fusion_median_ms": 3.4263753332197666,
+        "fusion_first_ms": 3.929249942302704,
+        "fusion_warm_median_ms": 3.4097926691174507,
+        "native": {
+          "requested": "auto",
+          "active": true,
+          "api_version": 2,
+          "fallback_reason": null
+        },
+        "detail_amplitude_m": 0.009950636886060238
+      },
+      "local_planes": {
+        "views": 16,
+        "surface_points": 5650,
+        "low_threshold_points": 5650,
+        "axial_rmse_m": 0.0007536124390988059,
+        "precision_within_0_01m": 1.0,
+        "completeness_within_0_01m": 1.0,
+        "missing_aware_capped_rmse_m": 0.0019099922706709452,
+        "points_projecting_into_holes": 0,
+        "fusion_median_ms": 3.022999968379736,
+        "fusion_first_ms": 3.01162526011467,
+        "fusion_warm_median_ms": 3.034374676644802,
+        "native": {
+          "requested": "auto",
+          "active": true,
+          "api_version": 2,
+          "fallback_reason": null
+        },
+        "detail_amplitude_m": 0.009942639619112015
+      }
+    }
+  },
+  "source_sha256": {
+    "shared/confidence.py": "7bbe810172134769cfae6ff237cc3631c2f838cc868545214005899bb2cda3d1",
+    "scanner_server/weighted_fusion.py": "d5fb2e8b2fdab086f92005cc136dc87c6f434ecbfa1eb8f287c7d317c1166310",
+    "scripts/benchmark_confidence_fusion.py": "0690b9e4a08418ae5d258135f8e584476ad660056f0a7e14e8e8921a63a99482"
+  },
+  "fusion_cost": {
+    "image_size": [
+      640,
+      480
+    ],
+    "scope": "Warm allocated volume: block discovery + confidence + voxel transforms/updates; excludes preparation, tracking, extraction, network.",
+    "median_ms": {
+      "legacy": 53.253875114023685,
+      "local_planes": 48.56029152870178
+    }
+  }
+}

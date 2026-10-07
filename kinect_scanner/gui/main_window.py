@@ -51,6 +51,7 @@ from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
 from .preferences import ScannerPreferences
+from .tracking_debug import flow_image, flow_summary
 from .widgets import (
     FrameIntervalSpinBox,
     colorize_depth,
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
         self._camera = self._sensor_calibration.depth
         self._frame_sequence = 0
         self._last_frame_metadata = {}
+        self._last_tracking_debug = None
         self._orientation = OrientationTracker()
         self._display_rotation = 0
         self._sensor_recording_path = None
@@ -202,6 +204,8 @@ class MainWindow(QMainWindow):
                 (self.rgb_exposure_combo, "camera/exposure_mode"),
                 (self.rgb_shutter_spin, "camera/shutter_speed"),
                 (self.rgb_gain_combo, "camera/gain"),
+                (self.flow_debug_cb, "debug/tracking_flow"),
+                (self.flow_windows_cb, "debug/tracking_windows"),
             ):
                 preferences.bind(widget, key)
             preferences.bind(self.server_ip_edit, "connection/host",
@@ -212,6 +216,7 @@ class MainWindow(QMainWindow):
             self._update_exposure_controls()
             self._capture_mode_changed()
             self._validate_setup()
+            self._update_tracking_debug()
 
     def _start_camera(self):
         self.worker = KinectWorker(
@@ -237,6 +242,7 @@ class MainWindow(QMainWindow):
                 lambda status: self._on_sensor_recording_status(status) if worker is self.worker else None)
         self.worker.start()
         self._configure_camera_tracking()
+        self._update_tracking_debug()
 
     def _restart_camera(self):
         self.worker.stop()
@@ -635,6 +641,35 @@ class MainWindow(QMainWindow):
         motion_calibration_btn.clicked.connect(self._load_accelerometer_calibration)
         ev.addWidget(motion_calibration_btn)
         settings_layout.addWidget(self.settings_group)
+        diagnostics = CollapsibleSection("Tracking diagnostics")
+        self.tracking_diagnostics_section = diagnostics
+        dv = diagnostics.content_layout
+        self.flow_debug_cb = QCheckBox("Show tracking flow")
+        self.flow_debug_cb.setToolTip(
+            "Show camera-side feature motion during scans with live reconstruction and color-assisted tracking. "
+            "Uses the calibrated RGB image on the depth grid."
+        )
+        self.flow_windows_cb = QCheckBox("Show LK patch windows")
+        self.flow_windows_cb.setToolTip(
+            "Outline up to 24 of the 21 × 21 pixel tracking windows. "
+            "Pyramid levels extend motion estimation; these boxes are not a fixed search boundary."
+        )
+        dv.addWidget(self.flow_debug_cb)
+        dv.addWidget(self.flow_windows_cb)
+        legend = QLabel(
+            "Green: verified motion · cyan: new corners · red: flow lost · "
+            "orange: round-trip rejection · purple: depth rejection · yellow: geometry rejection. "
+            "Camera motion is checked independently by the server before fusion."
+        )
+        legend.setWordWrap(True)
+        dv.addWidget(legend)
+        self.flow_debug_status = QLabel()
+        self.flow_debug_status.setWordWrap(True)
+        self.flow_debug_status.setAccessibleName("Camera tracking diagnostics")
+        dv.addWidget(self.flow_debug_status)
+        self.flow_debug_cb.toggled.connect(self._update_tracking_debug)
+        self.flow_windows_cb.toggled.connect(self._update_tracking_debug)
+        settings_layout.addWidget(diagnostics)
         connection = CollapsibleSection("Connection details")
         self.connection_section = connection
         cl = connection.content_layout
@@ -957,6 +992,10 @@ class MainWindow(QMainWindow):
         self._frame_sequence += 1
         self._last_frame_metadata = dict(metadata or {})
         self._update_orientation()
+        # Arrays and the calibrated preview belong only to this frame's UI.
+        # Remove them before capture selection, upload, or local recording.
+        debug = self._last_frame_metadata.pop("_tracking_debug", None)
+        self._last_tracking_debug = debug if self.flow_debug_cb.isChecked() else None
         if self._last_frame_metadata.get("rgb_exposure_controls") is False:
             self.rgb_exposure_status_label.setText("Default auto exposure · manual controls unavailable in this driver")
         elif self._last_frame_metadata.get("rgb_exposure_mode") == "manual":
@@ -973,6 +1012,7 @@ class MainWindow(QMainWindow):
         self._last_frame_metadata["frame_id"] = f"{self._capture_run_id}:{self._frame_sequence}"
         self._last_frame_metadata.setdefault("timestamp_s", time.time())
         self._capture_selector.offer(video, depth, self._last_frame_metadata, self._last_frame_time)
+        self._update_tracking_debug_status()
 
         if self._mode == MODE_RGB:
             self._show_rgb(video)
@@ -996,7 +1036,36 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _show_rgb(self, rgb):
-        self._set_pixmap(numpy_to_qimage(rotate_display(rgb, self._display_rotation)))
+        if self.flow_debug_cb.isChecked() and self._last_tracking_debug is not None:
+            self.camera_title.setText("Live camera · Tracking RGB (depth grid)")
+            image = flow_image(self._last_tracking_debug, show_windows=self.flow_windows_cb.isChecked())
+        else:
+            self.camera_title.setText("Live camera · Color")
+            image = numpy_to_qimage(rgb)
+        from PyQt6.QtGui import QTransform
+        self._set_pixmap(image.transformed(QTransform().rotate(self._display_rotation)))
+
+    def _update_tracking_debug_status(self):
+        if not self.flow_debug_cb.isChecked():
+            return
+        if self._last_tracking_debug is not None:
+            self.flow_debug_status.setText(flow_summary(self._last_tracking_debug))
+        else:
+            reason = self._last_frame_metadata.get("visual_tracking", {}).get("reason")
+            self.flow_debug_status.setText(reason or
+                "Waiting for tracking frames. Start a scan with Show live reconstruction and Color-assisted tracking enabled.")
+
+    def _update_tracking_debug(self):
+        enabled = self.flow_debug_cb.isChecked()
+        self.flow_windows_cb.setEnabled(enabled)
+        self.flow_debug_status.setVisible(enabled)
+        if not enabled:
+            self._last_tracking_debug = None
+        if hasattr(self, "worker") and hasattr(self.worker, "set_tracking_debug"):
+            self.worker.set_tracking_debug(enabled)
+        self._update_tracking_debug_status()
+        if self._last_rgb is not None and self._mode != MODE_DEPTH:
+            self._show_rgb(self._last_rgb)
 
     def _selected_roi(self):
         if not self.crop_cb.isChecked():
@@ -1220,6 +1289,7 @@ class MainWindow(QMainWindow):
             if getattr(self, "_tracking_configuration", None) == configuration:
                 return
             self._tracking_configuration = configuration
+            self._last_tracking_debug = None
             self.worker.set_tracking_settings(settings)
 
     def _configure_sensor_recording(self):

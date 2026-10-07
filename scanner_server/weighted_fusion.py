@@ -4,6 +4,12 @@ CPU voxel math uses shared NumPy buffers, with optional fused C++ updates;
 CUDA math stays on device tensors.
 Confidence is computed on CPU.
 The ordinary optimized integration remains the default.
+
+For a static scalar with independent Gaussian measurements, this weighted
+average has the same mean update as a Kalman filter with zero process noise:
+gain = incoming / (old + incoming). Here weights are relative engineering
+scores, not calibrated precisions; repeated, correlated frames must not be
+interpreted as independent samples or as a physical posterior variance.
 """
 
 import numpy as np

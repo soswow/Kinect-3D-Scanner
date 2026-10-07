@@ -143,3 +143,19 @@ class CaptureWorkerTests(unittest.TestCase):
         self.assertFalse(frames[0][2]["visual_tracking"]["valid"])
         self.assertTrue(np.all(frames[0][0] == 42))
         self.assertFalse(errors)
+
+    def test_debug_snapshot_uses_the_copied_pair_after_driver_buffer_reuse(self):
+        frames = []
+        worker = KinectWorker(capture_target=one_frame_capture, rgb_mode="rgb_low_res")
+        self.addCleanup(self.stop_worker, worker)
+        worker.set_tracking_settings(ScanSettings(color_recovery=True, live_reconstruction=True))
+        worker.set_tracking_debug(True)
+        worker.frame_pair_ready.connect(lambda *args: frames.append(args), Qt.ConnectionType.DirectConnection)
+        worker.start()
+        self.assertTrue(wait_for(lambda: bool(frames)))
+        self.stop_worker(worker)
+        rgb, depth, metadata = frames[0]
+        np.testing.assert_array_equal(metadata["_tracking_debug"]["image"], rgb)
+        self.assertTrue(np.all(rgb == 42))
+        self.assertTrue(np.all(depth == 1234))
+        self.assertFalse(metadata["visual_tracking"]["valid"])
