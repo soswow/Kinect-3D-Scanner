@@ -131,3 +131,7 @@ Integration validation: the full suite completed 371 tests successfully with
 three CUDA cases skipped on this host. The standalone synthetic HTTP/WebSocket/Qt
 workflow passed capture, preview, cancellation, Finish, and mesh/session exports.
 Concurrent tracking diagnostics were retained and checked with the speed changes.
+
+## Recorded archive evaluation
+
+All four supplied sessions were tested. [Recorded results and reproduction](RECORDED_RGBD_EVALUATION.md) document mixed source-cache timing gains, improved held-out depth coverage from local-plane confidence, saved-budget refusals and separately labelled expanded-budget comparisons, and conservative joint Finish declines. These sensor-consistency measurements use estimated archived poses; they do not establish independent absolute surface accuracy.

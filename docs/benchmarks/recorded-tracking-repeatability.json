@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "26fc9ed68829d3a722202b7924e3e571460ab1d1",
+  "current_revision": "fdf144bdc69d024e1f2ec9f5e99ea4e9cadbe078",
+  "source_sha256": {
+    "shared/visual_tracking.py": "f08293195add5ebeb4357eaae5783f53a4f27987d2cdd777d3c1a1513feebc88",
+    "scanner_server/engine.py": "dae87dc5ada2b39c34e48eb47fe0b8ee6f17896bc174dd1ca9539305a22e0fa2",
+    "scanner_server/tracking_cache.py": "30b1e667a9d9a37373dcb3ac4d1b04cc0820569153a22a8f02a98c48e24fec20"
+  },
+  "baseline_camera_source_sha256": "b256d62f55394850c2fb52e9a1abde550ffa7db1bd08383042b7e5f28413c073",
+  "versions": {
+    "python": "3.13.7",
+    "opencv": "5.0.0",
+    "numpy": "2.5.3",
+    "open3d": "0.20.0"
+  },
+  "threads": {
+    "opencv": 10,
+    "omp": "4"
+  },
+  "repeats": 2,
+  "controls_only": true,
+  "sessions": [
+    {
+      "session": "chest-2scan-session_20261006_090302.zip",
+      "input_sha256": "3e419b154522e58c1ff1cc9d87983b86dd2cbaf9821ce3993b60c286836762f2",
+      "server_repeatability": {
+        "uncached": [
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "diagnostic_disagreement_indices": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "max_common_pose_translation_difference_m": 0.0003841305650546611,
+            "max_common_pose_rotation_difference_deg": 0.01770711276885118,
+            "max_common_pose_matrix_difference": 0.0003587623450383992
+          }
+        ],
+        "cached": [
+          {
+            "accepted_before": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "accepted_after": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "diagnostic_disagreement_indices": [
+              2,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ],
+            "max_common_pose_translation_difference_m": 0.00026372656278203,
+            "max_common_pose_rotation_difference_deg": 0.011182587286475249,
+            "max_common_pose_matrix_difference": 0.00024659506141909426
+          }
+        ]
+      },
+      "selected_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "input_unchanged": true
+    }
+  ],
+  "notes": [
+    "Original timing, calibration and depth units retained; inputs never overwritten",
+    "Replay frame_id replaces upload identity; reference_pose is removed and never used to initialize tracking",
+    "Historical camera code shares current calibration/depth/native helpers; this is a tracker-code comparison",
+    "Sparse uploaded captures do not reproduce continuous camera-rate tracking; no absolute pose truth",
+    "Camera timing excludes decoding, origin frame and timing-guard rejections",
+    "Server uses current algorithms with only the ICP source cache toggled; archived poses are never seeds",
+    "Server timings exclude decoding and initial frame; selected prefix is explicitly listed",
+    "Interleaved repeats after short warmups; no acquisition/network/rendering or Finish included"
+  ]
+}
