@@ -111,6 +111,13 @@ adjusted pace shown below the interval. It allows one processing frame and one
 waiting capture, including uploads, and waits if live feedback disconnects.
 Move more slowly at longer intervals to preserve overlap between views.
 
+For capture debugging, open **Tracking diagnostics** and enable **Show tracking
+flow** during a scan with live reconstruction and color-assisted tracking.
+The calibrated color preview shows verified/rejected feature motion, new
+corners, and optional LK patch outlines. Counts, timing, and reference age
+appear in the sidebar. See [capture flow diagnostics](docs/CONTINUOUS_VISUAL_TRACKING.md#capture-flow-diagnostics)
+for the color legend and current tracking parameters.
+
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
 or plain OBJ; texture choices appear in that dialog. **Open Model…** opens a file.
