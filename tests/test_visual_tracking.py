@@ -34,6 +34,58 @@ def textured_plane(seed=8, shift=0):
 
 
 class VisualTrackingTests(unittest.TestCase):
+    def test_bad_camera_image_does_not_replace_recent_good_references(self):
+        tracker = VisualTracker(ScanSettings(color_recovery=True))
+        first = tracker.update(*textured_plane(), {"timestamp_s": 0})
+        tracker.update(*textured_plane(shift=2), {"timestamp_s": 0.1})
+        failed = tracker.update(np.zeros((480, 640, 3), np.uint8), textured_plane()[1], {"timestamp_s": 0.2})
+        self.assertFalse(failed["valid"])
+        self.assertEqual(first["segment"], failed["segment"])
+        recovered = tracker.update(*textured_plane(shift=4), {"timestamp_s": 0.3})
+        self.assertTrue(recovered["valid"], recovered)
+        self.assertEqual(first["segment"], recovered["segment"])
+        self.assertAlmostEqual(0.1, recovered["reference_timestamp_s"])
+        self.assertAlmostEqual(4 * 2 / 525, tracker.pose[0, 3], delta=0.003)
+        self.assertLessEqual(len(tracker.history), 5)
+
+    def test_one_late_rgb_depth_pair_does_not_erase_valid_references(self):
+        tracker = VisualTracker(ScanSettings(color_recovery=True))
+        first = tracker.update(*textured_plane(), {"timestamp_s": 0})
+        failed = tracker.update(*textured_plane(shift=2), {"timestamp_s": 0.1, "rgb_depth_delta_ms": 21})
+        recovered = tracker.update(*textured_plane(shift=4), {"timestamp_s": 0.2})
+        self.assertFalse(failed["valid"])
+        self.assertTrue(recovered["valid"], recovered)
+        self.assertEqual(first["segment"], recovered["segment"])
+        self.assertAlmostEqual(0, recovered["reference_timestamp_s"])
+
+    def test_finish_can_connect_across_an_invalid_depth_capture(self):
+        engine = ScanEngine(device="cpu")
+        for i, (rgb, depth, _) in enumerate(scene_frames(6)):
+            engine.store_frame(rgb, np.zeros_like(depth) if i == 2 else depth,
+                               {"timestamp_s": i * 0.2})
+        engine.poses = [(0, np.eye(4))]
+        poses, report = propose_fragment_poses(engine)
+        self.assertEqual([0, 1, 3, 4, 5], [i for i, _ in poses], report)
+        self.assertEqual([2], report["invalid_indices"])
+        self.assertEqual(1, len(report["fragments"]))
+        self.assertEqual(1, len(report["recent_reference_links"]))
+        self.assertEqual(1, report["recent_reference_links"][0]["target_index"])
+
+    def test_final_graph_records_verified_return_loop(self):
+        engine = ScanEngine(device="cpu")
+        frames = scene_frames(8)
+        order = list(range(8)) + list(range(6, -1, -1))
+        for i, index in enumerate(order):
+            engine.store_frame(*frames[index][:2], {"timestamp_s": i * 0.2})
+        engine.poses = [(0, np.eye(4))]
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4):
+            poses, report = propose_fragment_poses(engine)
+        self.assertEqual(len(order), len(poses), report)
+        self.assertTrue(report["loop_closures"], report)
+        self.assertFalse(report["unconnected_fragments"])
+        for i, pose in poses:
+            self.assertLess(motion(np.linalg.inv(frames[order[i]][2]) @ pose)[0], 0.025)
+
     def test_continuous_motion_has_metric_accuracy_and_seeds_sparse_fusion(self):
         tracker = VisualTracker(ScanSettings(color_recovery=True))
         frames = scene_frames(12)

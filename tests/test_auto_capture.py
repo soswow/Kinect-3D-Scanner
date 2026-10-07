@@ -177,6 +177,20 @@ class AutoCaptureTests(unittest.TestCase):
         self.receive()
         self.assertEqual([2, 7], self.ids())
 
+    def test_recovery_uses_next_arrival_without_waiting_for_normal_interval(self):
+        self.window.live_cb.setChecked(True)
+        self.window.auto_capture_spin.set_interval_seconds(2)
+        self.window.auto_capture_cb.setChecked(True)
+        self.window.live_view.snapshot = {"fusion_paused": True, "processed_count": 0}
+        self.receive()
+        self.assertEqual([1], self.ids())
+        self.receive(10)
+        self.assertEqual([1], self.ids(), "Only one recovery probe may be outstanding")
+        self.window.live_view.snapshot = {"fusion_paused": True, "processed_count": 1,
+            "result": {"metadata": self.window.task_worker.frames[0]["metadata"]}}
+        self.receive()
+        self.assertEqual([1, 12], self.ids())
+
     def test_backpressure_waits_and_resumes_once_without_catch_up_burst(self):
         self.window.live_cb.setChecked(True)
         self.window.auto_capture_spin.setValue(2)

@@ -37,6 +37,7 @@ from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
 from ..capture_pacing import CapturePacer
+from ..capture_selection import CaptureSelector
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
         self._last_capture_id = None
         self._auto_frames_since_capture = 0
         self._capture_pacer = CapturePacer()
+        self._capture_selector = CaptureSelector()
         self._reset_pending = False
         self._cancel_pending = False
         self._preview_pending = False
@@ -385,7 +387,7 @@ class MainWindow(QMainWindow):
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.auto_capture_spin)
         layout.addWidget(self.interval_row)
-        self.interval_help = QLabel("Automatically slows to match live reconstruction.")
+        self.interval_help = QLabel("Selects a sharp recent frame; slows to match live reconstruction.")
         self.interval_help.setWordWrap(True)
         layout.addWidget(self.interval_help)
         self.adaptive_capture_cb = QCheckBox(container)
@@ -694,14 +696,16 @@ class MainWindow(QMainWindow):
 
     def _refresh_status(self):
         interval = self._effective_capture_interval()
-        if self._scanning and interval > self.auto_capture_spin.interval_seconds + 1e-9:
+        if self._scanning and self.live_view.snapshot.get("fusion_paused"):
+            self.interval_help.setText("Checking fresh views as soon as each recovery check finishes.")
+        elif self._scanning and interval > self.auto_capture_spin.interval_seconds + 1e-9:
             self.interval_help.setText(
                 f"Capture pace: ~{interval:g} s · adjusted for live reconstruction."
             )
         else:
             self.interval_help.setText(
                 f"Captures no faster than {self.auto_capture_spin.interval_seconds:g} s. "
-                "Automatically slows to match live reconstruction."
+                "Selects a sharp recent frame; slows to match live reconstruction."
             )
         if self._server_operation:
             state = "Server is still building · waiting for completion" if self._server_operation == "build" else "Server is preparing inspection · waiting"
@@ -929,6 +933,7 @@ class MainWindow(QMainWindow):
         # GUI sequence remains unique if the USB device reconnects mid-session.
         self._last_frame_metadata["frame_id"] = f"{self._capture_run_id}:{self._frame_sequence}"
         self._last_frame_metadata.setdefault("timestamp_s", time.time())
+        self._capture_selector.offer(video, depth, self._last_frame_metadata, self._last_frame_time)
 
         if self._mode == MODE_RGB:
             self._show_rgb(video)
@@ -946,7 +951,8 @@ class MainWindow(QMainWindow):
             and self.auto_capture_cb.isChecked()
         ):
             self._auto_frames_since_capture += 1
-            if self._auto_frames_since_capture >= self.auto_capture_spin.value():
+            if (self._auto_frames_since_capture >= self.auto_capture_spin.value()
+                    or self.live_view.snapshot.get("fusion_paused")):
                 self._auto_capture_tick()
         self._refresh_controls()
 
@@ -1081,6 +1087,7 @@ class MainWindow(QMainWindow):
         )
         self._last_capture_id = None
         self._capture_pacer.reset()
+        self._capture_selector.clear()
         self._reset_auto_capture_cadence()
         self._server_stored = 0
         self._server_integrated = 0
@@ -1174,14 +1181,15 @@ class MainWindow(QMainWindow):
             self._refresh_status()
             return
         self._capture_waiting = ""
+        recovering = bool(snapshot.get("fusion_paused"))
         if not self._capture_pacer.ready(
-            now, self.auto_capture_spin.interval_seconds,
+            now, 0.1 if recovering else self.auto_capture_spin.interval_seconds,
             RGB_MODE_FPS[self.rgb_mode_combo.currentData()],
-            adaptive=self._adaptive_live_capture(),
+            adaptive=self._adaptive_live_capture() and not recovering,
         ):
             self._refresh_status()
             return
-        self._capture_frame()
+        self._capture_frame(select_best=True)
 
     def _adaptive_live_capture(self):
         return self.adaptive_capture_cb.isChecked() and self.live_cb.isChecked()
@@ -1193,7 +1201,7 @@ class MainWindow(QMainWindow):
             adaptive=self._adaptive_live_capture(),
         )
 
-    def _capture_frame(self):
+    def _capture_frame(self, *, select_best=False):
         if (
             not self._scanning
             or self._reset_pending
@@ -1221,15 +1229,15 @@ class MainWindow(QMainWindow):
             self._capture_waiting = "Waiting for a fresh camera frame"
             self._refresh_status()
             return
+        selected = (self._capture_selector.choose(time.monotonic(), self._capture_pacer.last_capture_at)
+                    if select_best else None)
+        rgb, depth, metadata = selected if selected is not None else (
+            self._last_rgb, self._last_depth, self._last_frame_metadata)
+        frame_id = metadata.get("frame_id")
         queued = self.task_worker.submit(
-            ServerTask(
-                ServerTaskType.SEND_FRAME,
-                {
-                    "rgb": self._last_rgb.copy(),
-                    "depth": self._last_depth.copy(),
-                    "metadata": self._last_frame_metadata.copy(),
-                },
-            )
+            ServerTask(ServerTaskType.SEND_FRAME, {
+                "rgb": rgb.copy(), "depth": depth.copy(), "metadata": metadata.copy(),
+            })
         )
         if not queued:
             self._capture_waiting = "Upload queue full; skipped capture"
@@ -1237,6 +1245,7 @@ class MainWindow(QMainWindow):
         else:
             self._last_capture_id = frame_id
             self._capture_pacer.captured(frame_id, time.monotonic(), live=self.live_cb.isChecked())
+            self._capture_selector.clear()
             self._capture_revision += 1
             self._session_dirty = True
             self._operation_error = ""
@@ -1472,6 +1481,7 @@ class MainWindow(QMainWindow):
         # The connection command is a queue barrier. Use authoritative server
         # counts, and avoid learning the disconnected time as processing cost.
         self._capture_pacer.reset()
+        self._capture_selector.clear()
         self._capture_pacer.observe(status, time.monotonic())
         if not same_session:
             self._capture_revision = self._server_stored

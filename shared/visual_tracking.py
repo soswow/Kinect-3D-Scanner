@@ -6,6 +6,7 @@ segment; the server may use it only as an initializer and verifies raw evidence.
 
 import time
 import uuid
+from collections import deque
 
 import cv2
 import numpy as np
@@ -133,63 +134,79 @@ class VisualTracker:
         self.segment = uuid.uuid4().hex[:16]
         self.pose = np.eye(4)
         self.previous = None
+        self.history = deque(maxlen=5)
         self.steps = 0
+
+    def _match_reference(self, reference, gray, depth, stamp):
+        old_gray, old_depth, old_corners, old_stamp, old_pose = reference
+        if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
+            return None, {}
+        new, forward, _ = cv2.calcOpticalFlowPyrLK(
+            old_gray, gray, old_corners, None, winSize=(21, 21), maxLevel=3)
+        back, reverse, _ = cv2.calcOpticalFlowPyrLK(
+            gray, old_gray, new, None, winSize=(21, 21), maxLevel=3)
+        a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
+        supported = (forward.ravel() > 0) & (reverse.ravel() > 0)
+        supported &= np.linalg.norm(a - back.reshape(-1, 2), axis=1) < 0.8
+        points_a, measured_a = sampled_points(old_depth, a, self.settings.camera)
+        points_b, measured_b = sampled_points(depth, b, self.settings.camera)
+        supported &= measured_a & measured_b
+        pa, pb, pixels = points_a[supported], points_b[supported], b[supported]
+        if len(pa) < 40:
+            return None, {}
+        ok, rotation, translation, inliers = cv2.solvePnPRansac(
+            pa, pixels, camera_matrix(self.settings.camera), None,
+            iterationsCount=80, reprojectionError=2.0, confidence=0.999,
+            flags=cv2.SOLVEPNP_EPNP)
+        if not ok or inliers is None or len(inliers) < 35:
+            return None, {}
+        delta = np.eye(4)
+        delta[:3, :3] = cv2.Rodrigues(rotation)[0]
+        delta[:3, 3] = translation.ravel()
+        delta = measured_rigid_motion(pa, pb, delta)
+        if delta is not None:
+            delta = refine_measured_motion(pa, pb, pixels, delta, self.settings.camera)
+        if delta is None:
+            return None, {}
+        valid, stats = feature_agreement(pa, pb, pixels, delta, self.settings.camera)
+        angle = np.degrees(np.arccos(np.clip((np.trace(delta[:3, :3]) - 1) / 2, -1, 1)))
+        if not valid or np.linalg.norm(delta[:3, 3]) > 0.15 or angle > 15:
+            return None, stats
+        return old_pose @ np.linalg.inv(delta), stats
 
     def update(self, rgb, raw_depth, metadata):
         started = time.monotonic()
         stamp = metadata.get("timestamp_s", started)
         lag = metadata.get("rgb_depth_delta_ms")
         if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
-            self.reset()
-            return {"valid": False, "reason": "RGB/depth timing exceeds 20 ms"}
+            return {"valid": False, "reason": "RGB/depth timing exceeds 20 ms",
+                    "segment": self.segment, "camera_to_local": self.pose.tolist(), "steps": self.steps}
         rgb, depth = prepare_rgbd(rgb, raw_depth, self.settings)
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         corners = cv2.goodFeaturesToTrack(gray, 500, 0.015, 9, mask=(depth > 0).astype(np.uint8))
-        valid = corners is not None and len(corners) >= 60
-        stats = {}
-        if self.previous is not None:
-            old_gray, old_depth, old_corners, old_stamp = self.previous
-            gap = stamp - old_stamp
-            stats["gap_s"] = gap
-            valid = valid and 0 < gap <= self.MAX_GAP_S
-            if valid:
-                new, forward, _ = cv2.calcOpticalFlowPyrLK(
-                    old_gray, gray, old_corners, None, winSize=(21, 21), maxLevel=3)
-                back, reverse, _ = cv2.calcOpticalFlowPyrLK(
-                    gray, old_gray, new, None, winSize=(21, 21), maxLevel=3)
-                a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
-                supported = (forward.ravel() > 0) & (reverse.ravel() > 0)
-                supported &= np.linalg.norm(a - back.reshape(-1, 2), axis=1) < 0.8
-                points_a, measured_a = sampled_points(old_depth, a, self.settings.camera)
-                points_b, measured_b = sampled_points(depth, b, self.settings.camera)
-                supported &= measured_a & measured_b
-                pa, pb, pixels = points_a[supported], points_b[supported], b[supported]
-                valid = len(pa) >= 40
-                if valid:
-                    ok, rotation, translation, inliers = cv2.solvePnPRansac(
-                        pa, pixels, camera_matrix(self.settings.camera), None,
-                        iterationsCount=80, reprojectionError=2.0, confidence=0.999,
-                        flags=cv2.SOLVEPNP_EPNP)
-                    valid = bool(ok and inliers is not None and len(inliers) >= 35)
-                    if valid:
-                        delta = np.eye(4)
-                        delta[:3, :3] = cv2.Rodrigues(rotation)[0]
-                        delta[:3, 3] = translation.ravel()
-                        delta = measured_rigid_motion(pa, pb, delta)
-                        if delta is not None:
-                            delta = refine_measured_motion(pa, pb, pixels, delta, self.settings.camera)
-                        valid = delta is not None
-                        if valid:
-                            valid, stats = feature_agreement(pa, pb, pixels, delta, self.settings.camera)
-                            angle = np.degrees(np.arccos(np.clip((np.trace(delta[:3, :3]) - 1) / 2, -1, 1)))
-                            valid = valid and np.linalg.norm(delta[:3, 3]) <= 0.15 and angle <= 15
-                        if valid:
-                            self.pose = self.pose @ np.linalg.inv(delta)
-                            self.steps += 1
-            if not valid:
-                self.reset()
-        self.previous = (gray, depth, corners, stamp) if corners is not None and len(corners) >= 60 else None
+        usable = corners is not None and len(corners) >= 60
+        had_history = bool(self.history)
+        if self.history and not 0 < stamp - self.history[-1][3] <= self.MAX_GAP_S:
+            self.reset()
+        stats, matched_stamp = {}, None
+        valid = usable and not had_history
+        if usable:
+            for reference in reversed(self.history):
+                pose, stats = self._match_reference(reference, gray, depth, stamp)
+                if pose is not None:
+                    self.pose = pose
+                    self.steps += 1
+                    matched_stamp = reference[3]
+                    valid = True
+                    break
+        # A failed image never replaces the last trustworthy reference. An
+        # expired chain starts a fresh origin, which is explicitly unverified.
+        if valid or (usable and not self.history):
+            self.history.append((gray, depth, corners, stamp, self.pose.copy()))
+            self.previous = self.history[-1][:4]
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
                 "steps": self.steps, "elapsed_ms": (time.monotonic() - started) * 1000,
-                "reason": "Measured RGB-D motion" if valid else "Visual chain lost; new local origin",
-                **stats}
+                "reason": "Measured RGB-D motion" if valid else
+                    "Visual motion unverified; retaining recent references" if self.history else
+                    "Visual chain lost; new local origin",
+                "reference_timestamp_s": matched_stamp, **stats}

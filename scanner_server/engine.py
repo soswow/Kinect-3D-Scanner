@@ -216,6 +216,8 @@ class ScanEngine:
             guidance = f"Final model retains {self.frame_count} of {self.stored_count} captures."
             if excluded:
                 guidance += f" {excluded} previously fused views were removed because their positions could not be verified."
+            loops = len(self.fragment_reconnection.get("loop_closures", [])) + (self.refinement.get("loops", 0) if self.refinement.get("applied") else 0)
+            guidance += f" {loops} verified loop constraint{'s' if loops != 1 else ''}."
             guidance += " Save Session preserves all captured views."
         elif result and not result.get("success"):
             guidance = (
@@ -517,7 +519,7 @@ class ScanEngine:
         features = extract_features(
             np.asarray(rgbd.color),
             np.rint(np.asarray(rgbd.depth) * 1000).astype(np.uint16),
-            self.settings.camera,
+            self.settings.camera, method="sift",
         )
         selected = np.unique(
             np.linspace(0, len(self.poses) - 1, min(32, len(self.poses)), dtype=int)
@@ -535,7 +537,7 @@ class ScanEngine:
             if index not in self._appearance_cache:
                 rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
                 self._appearance_cache[index] = extract_features(
-                    rgb, depth, self.settings.camera
+                    rgb, depth, self.settings.camera, method="sift"
                 )
             matched = correspondences(features, self._appearance_cache[index])
             if len(matched) >= 40:
@@ -710,26 +712,36 @@ class ScanEngine:
                                     np.rint(np.asarray(rgbd.depth) * 1000).astype(np.uint16),
                                     self.settings.camera)
         recent = self.poses[-8:]
-        historical = [self.poses[j] for j in np.unique(np.linspace(
-            0, len(self.poses) - 1, min(4, len(self.poses)), dtype=int))]
+        # Stable landmarks avoid evicting/repreparing an evenly resampled bank
+        # on every accepted frame. Keep the initial five views for a returning
+        # loop, plus 27 spaced landmarks and the recent eight raw observations.
+        historical = self.poses[:5] + self.poses[::4][-27:]
         candidates = {i: pose for i, pose in historical + recent}
         self._visual_cache = {i: value for i, value in self._visual_cache.items() if i in candidates}
-        for target_index in sorted(candidates, reverse=True):
-            target_pose = candidates[target_index]
+        ranked = []
+        for target_index, target_pose in candidates.items():
             lag = self.frame_metadata[target_index].get("rgb_depth_delta_ms")
             if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
                 continue
             if target_index not in self._visual_cache:
                 rgb, depth = prepare_rgbd(*self.raw_frames[target_index], self.settings)
-                target_rgbd = self._make_rgbd(rgb, depth)
                 self._visual_cache[target_index] = (
-                    extract_features(rgb, depth, self.settings.camera),
-                    self._make_reg_pcd(target_rgbd))
+                    extract_features(rgb, depth, self.settings.camera), None)
             target_features, target = self._visual_cache[target_index]
             matches = correspondences(features, target_features)
+            if len(matches) >= 40:
+                ranked.append((len(matches), target_index, target_pose, matches))
+        # Cheap descriptor retrieval searches the whole bounded keyframe bank;
+        # only the five best candidates pay for point-cloud registration.
+        for _, target_index, target_pose, matches in sorted(ranked, key=lambda row: (-row[0], -row[1]))[:5]:
+            target_features, target = self._visual_cache[target_index]
             proposal = propose_transform(features, target_features, self.settings.camera, matches)
             if proposal is None:
                 continue
+            if target is None:
+                rgb, depth = prepare_rgbd(*self.raw_frames[target_index], self.settings)
+                target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+                self._visual_cache[target_index] = target_features, target
             a, b = matches.T
             # Feature identities survive refinement: anonymous geometric overlap
             # cannot move a textured surface to another plausible model location.
@@ -827,7 +839,7 @@ class ScanEngine:
         if self._tracking_lost_frames:
             # ICP against a large accumulated model can snap onto another side
             # of a box. Resume only after verification against the last actual
-            # camera observation, or verified appearance relocalization.
+            # camera observations, or verified appearance relocalization.
             recovered = self._recover_anchor(source_pcd)
             if recovered is not None:
                 return recovered, "anchor+icp"
@@ -886,45 +898,44 @@ class ScanEngine:
         return None, error
 
     def _recover_anchor(self, source):
-        """Require nearby, reciprocal overlap with the last accepted raw view."""
+        """Require nearby, reciprocal overlap with up to five accepted raw views."""
         from .refinement import _match, _trustworthy, motion
 
         if self._last_rgbd is None or not self.poses:
             return None
         if self._last_reg_pcd is None:
             self._last_reg_pcd = self._make_reg_pcd(self._last_rgbd)
-        target = self._last_reg_pcd
-        forward = _match(source, target, np.eye(4))
-        if not _trustworthy(forward, target):
-            return None
-        translation, angle = motion(forward.transformation)
-        if translation > min(0.15, self.settings.max_translation_m) or angle > min(
-            15, self.settings.max_rotation_deg
-        ):
-            return None
-        reverse = _match(target, source, np.linalg.inv(forward.transformation))
-        translation, angle = motion(reverse.transformation @ forward.transformation)
-        if not _trustworthy(reverse, source) or translation > 0.01 or angle > 2:
-            return None
-        if self._integrations_since_model:
-            with self._stage("model_refresh"):
-                self._extract_model_pcd()
-        result = self._icp(
-            source, self.model_pcd, self.poses[-1][1] @ forward.transformation
-        )
-        # Model refinement must agree with the independently observed anchor.
-        translation, angle = motion(
-            np.linalg.inv(self.poses[-1][1] @ forward.transformation)
-            @ result.transformation
-        )
-        if (
-            result.fitness < 0.6
-            or translation > 0.03
-            or angle > 3
-            or self._alignment_error(result, self.model_pcd) is not None
-        ):
-            return None
-        return result
+        for index, anchor_pose in reversed(self.poses[-5:]):
+            if index == self.poses[-1][0]:
+                target = self._last_reg_pcd
+            else:
+                cached = self._visual_cache.get(index)
+                target = cached[1] if cached is not None else None
+                if target is None:
+                    rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                    target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+            forward = _match(source, target, np.eye(4))
+            if not _trustworthy(forward, target):
+                continue
+            translation, angle = motion(forward.transformation)
+            if translation > min(0.15, self.settings.max_translation_m) or angle > min(
+                15, self.settings.max_rotation_deg
+            ):
+                continue
+            reverse = _match(target, source, np.linalg.inv(forward.transformation))
+            translation, angle = motion(reverse.transformation @ forward.transformation)
+            if not _trustworthy(reverse, source) or translation > 0.01 or angle > 2:
+                continue
+            if self._integrations_since_model:
+                with self._stage("model_refresh"):
+                    self._extract_model_pcd()
+            observed = anchor_pose @ forward.transformation
+            result = self._icp(source, self.model_pcd, observed)
+            translation, angle = motion(np.linalg.inv(observed) @ result.transformation)
+            if (result.fitness >= 0.6 and translation <= 0.03 and angle <= 3
+                    and self._alignment_error(result, self.model_pcd, False) is None):
+                return result
+        return None
 
     def _verify_tracking_transition(self, source, result):
         """A gap or large step needs actual camera-to-camera evidence."""

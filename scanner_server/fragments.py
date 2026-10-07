@@ -121,7 +121,7 @@ def _view(engine, index):
     heldout = cloud.select_by_index(list(range(1, len(cloud.points), 2)))
     train.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=0.06, max_nn=30))
     lag = engine.frame_metadata[index].get("rgb_depth_delta_ms")
-    features = (extract_features(rgb, depth, engine.settings.camera)
+    features = (extract_features(rgb, depth, engine.settings.camera, method="sift")
                 if lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS
                 else Features(np.empty((0, 2)), np.empty((0, 3)), None))
     return View(index, train, heldout, features)
@@ -165,7 +165,11 @@ def _local_match(source, target, camera, settings, initial=None):
     if relative is None:
         return None
     translation, angle = motion(relative)
-    if translation > settings.max_translation_m or angle > settings.max_rotation_deg:
+    # A direct link over a rejected capture spans several capture steps. Keep
+    # the same per-step motion budget, bounded to three steps, while requiring
+    # the identical reciprocal, color and held-out geometric evidence.
+    steps = max(1, min(3, source.index - target.index))
+    if translation > settings.max_translation_m * steps or angle > settings.max_rotation_deg * steps:
         return None
     valid, _ = _heldout(source.heldout, target.heldout, relative, 0.4)
     return relative if valid else None
@@ -197,10 +201,11 @@ def _aggregate(fragment, name):
 
 def _prepare_fragment(fragment):
     last = len(fragment.views) - 1
-    # Keep witnesses near both ends as well as the middle. A sparse midpoint
-    # alone can miss the small shared arc between consecutive camera runs.
-    chosen = np.unique(np.r_[np.linspace(0, last, min(3, len(fragment.views)), dtype=int),
-                             min(2, last), max(0, last - 2)])
+    # Keep the first and last five witnesses, plus the midpoint. Narrow shared
+    # arcs and a single blurred boundary view must not vanish in a sparse
+    # three-view sample. Aggregated point counts remain independently bounded.
+    chosen = np.unique(np.r_[np.arange(min(5, last + 1)),
+                             np.arange(max(0, last - 4), last + 1), last // 2])
     fragment.keys = fragment.context + [fragment.views[i] for i in chosen]
     fragment.train = _aggregate(fragment, "train")
     fragment.heldout = _aggregate(fragment, "heldout")
@@ -430,6 +435,8 @@ def propose_fragment_poses(engine, progress_cb=None):
     gap_limit = capture_gap_limit(engine.frame_metadata)
     report["capture_gap_limit_s"] = gap_limit
     current, previous = None, None
+    recent = []
+    report["recent_reference_links"] = []
     total = len(engine.raw_frames)
     for index in range(total):
         _notify(progress_cb, index + 1, total, f"Recovering fragments: preparing view {index + 1}/{total}")
@@ -439,15 +446,22 @@ def propose_fragment_poses(engine, progress_cb=None):
             current, previous = None, None
             continue
         stamp = engine.frame_metadata[index].get("timestamp_s")
-        last_stamp = engine.frame_metadata[previous.index].get("timestamp_s") if previous else None
-        gap = previous is None or index != previous.index + 1 or (
-            stamp is not None and last_stamp is not None and (stamp - last_stamp > gap_limit or stamp <= last_stamp)
-        )
         relative = None
-        if not gap:
-            initial = (np.linalg.inv(baseline[previous.index]) @ baseline[index]
-                       if index in baseline and previous.index in baseline else None)
-            relative = _local_match(view, previous, engine.settings.camera, engine.settings, initial)
+        gap = True
+        for reference, owner in reversed(recent[-5:]):
+            last_stamp = engine.frame_metadata[reference.index].get("timestamp_s")
+            if stamp is not None and last_stamp is not None and not 0 < stamp - last_stamp <= gap_limit:
+                continue
+            initial = (np.linalg.inv(baseline[reference.index]) @ baseline[index]
+                       if index in baseline and reference.index in baseline else None)
+            relative = _local_match(view, reference, engine.settings.camera, engine.settings, initial)
+            if relative is not None:
+                gap = False
+                current, previous = owner, reference
+                if index != reference.index + 1:
+                    report["recent_reference_links"].append({"source_index": index,
+                        "target_index": reference.index, "fragment_id": owner.index})
+                break
         full = current is not None and len(current.views) >= MAX_FRAGMENT_VIEWS
         if gap or relative is None or full:
             if len(fragments) == MAX_FRAGMENTS:
@@ -477,6 +491,8 @@ def propose_fragment_poses(engine, progress_cb=None):
         if index in baseline and current.seed is None:
             current.seed = baseline[index] @ np.linalg.inv(view.pose)
         previous = view
+        recent.append((view, current))
+        recent = recent[-5:]
     if not fragments:
         return None, report
     for fragment in fragments:
@@ -657,6 +673,24 @@ def propose_fragment_poses(engine, progress_cb=None):
             "camera_to_fragment": [{"index": v.index, "pose": v.pose.tolist()} for v in fragment.views],
             "fragment_to_world": transform.tolist() if transform is not None else None,
         })
+    # Count cycles in the surviving graph, rather than the original tree:
+    # optimizer pruning or fallback can turn an old redundant edge into the
+    # only remaining connection. Such an edge is not a closed loop.
+    groups = {i: i for i in connected}
+    def root(i):
+        while groups[i] != i:
+            i = groups[i]
+        return i
+    report["loop_closures"] = []
+    for edge in edges:
+        a, b = edge["source"], edge["target"]
+        if a not in connected or b not in connected or (a, b) not in surviving_pairs:
+            continue
+        ra, rb = root(a), root(b)
+        if ra == rb:
+            report["loop_closures"].append({"source": a, "target": b, "support": edge["support"]})
+        else:
+            groups[ra] = rb
     report["connected_fragments"] = sorted(connected)
     report["unconnected_fragments"] = [f.index for f in fragments if f.index not in connected]
     report["verified_bridges"] = [

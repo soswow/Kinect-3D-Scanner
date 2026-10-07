@@ -108,7 +108,7 @@ def propose_poses(engine, max_keyframes=32, max_loops=40):
             extract_features(
                 rgb,
                 depth if lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS else np.zeros_like(depth),
-                engine.settings.camera,
+                engine.settings.camera, method="sift",
             )
         )
         rgbd = engine._make_rgbd(rgb, depth)

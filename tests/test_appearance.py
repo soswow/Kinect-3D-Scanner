@@ -12,6 +12,25 @@ from shared.settings import CameraCalibration
 
 
 class AppearanceTests(unittest.TestCase):
+    def test_scale_tolerant_retrieval_keeps_measured_metric_motion(self):
+        from scanner_server.appearance import correspondences
+
+        rng = np.random.default_rng(35)
+        rgb = cv2.resize(rng.integers(0, 256, (120, 160, 3), dtype=np.uint8), (640, 480))
+        camera = CameraCalibration()
+        zoom = cv2.warpAffine(rgb, np.array([
+            [1.2, 0, camera.cx * -0.2], [0, 1.2, camera.cy * -0.2]], float), (640, 480))
+        source = extract_features(rgb, np.full((480, 640), 1200, np.uint16), camera, method="sift")
+        target = extract_features(zoom, np.full((480, 640), 1000, np.uint16), camera, method="sift")
+        self.assertGreater(len(correspondences(source, target)), 40)
+        pose = propose_transform(source, target, camera)
+        self.assertIsNotNone(pose)
+        self.assertAlmostEqual(-0.2, pose[2, 3], delta=0.005)
+        self.assertLess(np.linalg.norm(pose[:2, 3]), 0.005)
+        # Binary and floating descriptors belong to different retrieval banks.
+        orb = extract_features(rgb, np.full((480, 640), 1200, np.uint16), camera)
+        self.assertEqual(0, len(correspondences(orb, target)))
+
     def test_verified_relocalization_recovers_after_lost_pose(self):
         from dataclasses import replace
 
