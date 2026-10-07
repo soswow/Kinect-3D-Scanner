@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-07",
+  "implementation_revision": "d8e8133",
+  "hardware": {
+    "connected_kinect_devices": 0,
+    "physical_orientation_verified": false,
+    "simultaneous_usb_capture_measured": false,
+    "tracking_improvement_measured": false
+  },
+  "validation": {
+    "integrated_suite": {"tests": 366, "skipped": 2, "seconds": 235.092, "result": "OK", "revision": "d28f631"},
+    "latest_master_compatibility": {"tests": 73, "skipped": 1, "seconds": 21.435, "result": "OK", "revision": "d8e8133"},
+    "http_websocket_qt_synthetic_pipeline": "PASS",
+    "real_child_process_sensor_checkpoint_barrier": "PASS",
+    "portrait_tracking_diagnostic_overlay": "PASS"
+  },
+  "synthetic_recording": {
+    "source": "Seeded random native arrays; no Kinect USB input",
+    "rgb_shape": [1024, 1280, 3],
+    "depth_shape": [480, 640],
+    "rgb_frames": 30,
+    "depth_frames": 90,
+    "accelerometer_records": 60,
+    "duration_s": 3.026116625405848,
+    "bytes_written": 173289321,
+    "write_MB_s": 57.26458773767825,
+    "dropped_observations": 0,
+    "limitation": "Short local-filesystem run includes OS caching; sustained storage performance, USB delivery, and accuracy are unmeasured"
+  }
+}

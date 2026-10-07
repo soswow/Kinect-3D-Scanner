@@ -139,13 +139,18 @@ verified device calibration.
 
 ## Validation checkpoint
 
-The prior full suite passed 341 tests with two skips. Additional regression
-checks cover raw retention under image backpressure, read failures, timing
+The integrated full suite ran 366 tests successfully with two skips; 73 targeted
+checks against the subsequently merged tracking caches passed with one skip.
+Regression checks cover raw retention under image backpressure, read failures, timing
 rejection, orientation/native-array separation, exact uint16 portrait exports,
-intermediate-motion replay, and atomic save failure. A three-second synthetic
+intermediate-motion replay, atomic save failure, and the actual child-process
+save/checkpoint barrier. The HTTP/WebSocket/Qt synthetic scan check also passed.
+A three-second synthetic
 native-array workload wrote 30 high-resolution RGB frames, 90 depth frames, and
-60 acceleration records (~173 MB, ~57 MB/s) with zero drops on the local SSD.
-This checks storage throughput only. USB latency, fresh accelerometer frequency,
+60 acceleration records (~173 MB, ~57 MB/s) with zero drops on the local filesystem.
+This short run includes OS caching; sustained long-scan storage performance and
+disk durability were not measured. See the [validation record](benchmarks/accelerometer-implementation.json).
+USB latency, fresh accelerometer frequency,
 physical signs/extrinsics, and tracking accuracy still require a connected Kinect.
 
 ## Findings
