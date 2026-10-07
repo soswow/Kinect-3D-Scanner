@@ -65,6 +65,7 @@ referencing==0.37.0
 requests==2.34.2
 retrying==1.4.2
 rpds-py==2026.6.3
+scipy==1.18.1
 setuptools==84.0.0
 stack-data==0.6.3
 starlette==1.7.0

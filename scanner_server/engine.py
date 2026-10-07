@@ -105,6 +105,8 @@ class ScanEngine:
         self._frame_timings = {}
         self._stage_children = []
         self.refinement = {"applied": False, "reason": "Not requested"}
+        self.bundle_adjustment = {"applied": False, "reason": "Not requested"}
+        self._bundle_count = None
         self.original_poses = None
         self._refined_count = None
         self._reconnection_count = None
@@ -187,6 +189,7 @@ class ScanEngine:
             ],
             "stage_totals_ms": dict(self.stage_totals_ms),
             "refinement": self.refinement,
+            "bundle_adjustment": self.bundle_adjustment,
             "final_reconstruction": self.final_reconstruction,
             "fragment_reconnection": self.fragment_reconnection,
             "tracking_edges": list(self.tracking_edges),
@@ -1027,6 +1030,8 @@ class ScanEngine:
         self._reconnection_count = None
         self.fragment_reconnection = {"applied": False, "reason": "Awaiting final build"}
         self.refinement = {"applied": False, "reason": "Awaiting final build"}
+        self.bundle_adjustment = {"applied": False, "reason": "Awaiting final build"}
+        self._bundle_count = None
         self.original_poses = None
         self.frame_metadata.append(metadata)
         if frame_id is not None:
@@ -1339,6 +1344,7 @@ class ScanEngine:
                 self._lost_at_index = lost_at
                 self._recovery_preview = None
                 self._refined_count = None
+                self._bundle_count = None
                 self._final_vbg = None
             self.fragment_reconnection = report
             self._reconnection_count = self.stored_count
@@ -1351,7 +1357,7 @@ class ScanEngine:
         self.stage_totals_ms["fragment_reconnection"] = self.stage_totals_ms.get("fragment_reconnection", 0) + elapsed
         return not self.fragment_reconnection.get("failed", False)
 
-    def _required_fusion_blocks(self, proposals, progress_cb=None):
+    def _required_fusion_blocks(self, proposals, progress_cb=None, *, stage="fragment_reconnection"):
         """Measure allocation before touching a candidate or existing volume.
 
         A one-block grid computes the exact frustum coordinates without voxel
@@ -1371,7 +1377,7 @@ class ScanEngine:
             blocks.update(map(tuple, coordinates))
             if progress_cb:
                 progress_cb(completed, len(proposals), {
-                    "stage": "fragment_reconnection",
+                    "stage": stage,
                     "message": f"Planning verified fusion {completed}/{len(proposals)} views: {len(blocks)} blocks",
                 })
         return len(blocks)
@@ -1426,6 +1432,7 @@ class ScanEngine:
                 self.poses = proposals
                 self.cumulative_T = cumulative
                 self.diagnostics = diagnostics
+                self._bundle_count = None
             self.refinement = report
         except Exception as exc:
             logger.exception("Pose refinement failed; original reconstruction retained")
@@ -1436,6 +1443,80 @@ class ScanEngine:
             + self.refinement["elapsed_ms"]
         )
         self._refined_count = self.stored_count
+
+    def _bundle_volume(self, progress_cb=None):
+        """Commit joint camera/landmark refinement only after bounded fresh fusion."""
+        if self._bundle_count == self.stored_count:
+            return True
+        from .bundle_adjustment import MAX_ROTATION_DEG, MAX_TRANSLATION_M, propose_bundle_poses
+        from .fragments import _rigid
+        from .refinement import motion
+
+        started = time.monotonic()
+        report = {"applied": False}
+        try:
+            proposals, report = propose_bundle_poses(self, progress_cb)
+            report = dict(report)
+            if proposals is not None:
+                if ([i for i, _ in proposals] != [i for i, _ in self.poses]
+                        or not proposals
+                        or not all(_rigid(p) for _, p in proposals)
+                        or not np.allclose(proposals[0][1], self.poses[0][1], atol=1e-8, rtol=0)):
+                    raise ValueError("Bundle proposal changed frame identities or the anchored coordinate system")
+                for (_, old), (_, new) in zip(self.poses, proposals):
+                    translation, angle = motion(np.linalg.inv(old) @ new)
+                    if translation > MAX_TRANSLATION_M or angle > MAX_ROTATION_DEG:
+                        raise ValueError("Bundle proposal exceeded camera correction bounds")
+                required = self._required_fusion_blocks(proposals, progress_cb, stage="bundle_adjustment")
+                limit = self.settings.final_block_count
+                report.update(fusion_required_blocks=required, fusion_block_limit=limit,
+                              fusion_voxel_m=self.voxel_size)
+                if required > limit:
+                    raise ValueError(f"Joint refinement needs {required} blocks; increase the final block budget from {limit}")
+                candidate = copy.copy(self)
+                candidate._fusion_block_limit = limit
+                candidate.vbg = self._create_vbg(block_count=max(1, required))
+                for completed, (index, pose) in enumerate(proposals, 1):
+                    rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                    candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
+                    if progress_cb:
+                        progress_cb(completed, len(proposals), {
+                            "stage": "bundle_adjustment",
+                            "message": f"Fusing joint RGB-D refinement {completed}/{len(proposals)} views",
+                        })
+                candidate._extract_model_pcd()
+                if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
+                    raise ValueError("Jointly refined volume has insufficient geometry")
+                diagnostics = [dict(result) for result in self.diagnostics]
+                for index, pose in proposals:
+                    diagnostics[index]["pose_before_bundle_adjustment"] = diagnostics[index].get("pose")
+                    diagnostics[index]["pose"] = pose.tolist()
+                originals = [(i, p.copy()) for i, p in self.poses]
+                last_index, last_pose = proposals[-1]
+                last_rgbd = self._make_rgbd(*prepare_rgbd(*self.raw_frames[last_index], self.settings))
+                report.update(applied=True, reason="Validated joint RGB-D refinement committed after fresh fusion",
+                              fusion_blocks=int(candidate.vbg.hashmap().size()))
+                # Native allocation, fusion, extraction and state preparation succeeded.
+                for name in ("vbg", "model_pcd", "_live_points", "_live_colors", "_model_feature_cloud",
+                             "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model"):
+                    setattr(self, name, getattr(candidate, name))
+                if self.original_poses is None:
+                    self.original_poses = originals
+                self.poses, self.diagnostics = proposals, diagnostics
+                self.cumulative_T = last_pose.copy()
+                self._last_rgbd = last_rgbd
+                self._last_reg_pcd = None
+                self._final_vbg = None
+            self.bundle_adjustment = report
+            self._bundle_count = self.stored_count
+        except Exception as exc:
+            logger.exception("Joint RGB-D refinement failed; previous reconstruction retained")
+            report.update(applied=False, failed=True, reason=f"Joint refinement failed: {exc}")
+            self.bundle_adjustment = report
+        elapsed = (time.monotonic() - started) * 1000
+        self.bundle_adjustment["elapsed_ms"] = elapsed
+        self.stage_totals_ms["bundle_adjustment"] = self.stage_totals_ms.get("bundle_adjustment", 0) + elapsed
+        return not self.bundle_adjustment.get("failed", False)
 
     def _final_volume(self, progress_cb=None):
         """Fresh bounded fusion of accepted poses, leaving live tracking intact."""
@@ -1500,6 +1581,14 @@ class ScanEngine:
         else:
             self.refinement = {"applied": False, "reason": "Not requested"}
         process_result["refinement"] = self.refinement
+        if self.settings.bundle_adjustment:
+            if not self._bundle_volume(progress_cb):
+                process_result.update(success=False, message=self.bundle_adjustment["reason"],
+                                      bundle_adjustment=self.bundle_adjustment)
+                return False, process_result
+        else:
+            self.bundle_adjustment = {"applied": False, "reason": "Not requested"}
+        process_result["bundle_adjustment"] = self.bundle_adjustment
         try:
             volume = self._final_volume(progress_cb)
             mesh = volume.extract_triangle_mesh(

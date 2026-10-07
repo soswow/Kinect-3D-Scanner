@@ -63,6 +63,7 @@ def inspect(path, output):
             "color_tracking_requested": manifest["settings"].get("color_recovery", False),
             "appearance_recovery_requested": manifest["settings"].get("relocalize", False),
             "refinement": reconstruction.get("refinement"),
+            "bundle_adjustment": reconstruction.get("bundle_adjustment"),
             "final_reconstruction": reconstruction.get("final_reconstruction"),
             "failures": [{"index": f["index"], "message": f.get("message")} for f in frames if not f.get("success")],
         }
