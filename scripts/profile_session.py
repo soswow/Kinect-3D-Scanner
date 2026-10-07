@@ -262,6 +262,8 @@ def main():
     parser.add_argument("--limit", type=int)
     parser.add_argument("--stride", type=int, default=1)
     parser.add_argument("--finish", action="store_true")
+    parser.add_argument("--bundle-adjustment", action="store_true",
+                        help="Enable joint RGB-D refinement during Finish")
     parser.add_argument("--use-pose-seeds", action="store_true")
     parser.add_argument(
         "--cprofile",
@@ -284,6 +286,8 @@ def main():
         parser.error("Require positive stride and limit")
     if args.use_pose_seeds and not args.finish:
         parser.error("--use-pose-seeds requires --finish")
+    if args.bundle_adjustment and not args.finish:
+        parser.error("--bundle-adjustment requires --finish")
     if args.final_block_count is not None and not 1 <= args.final_block_count <= 50000:
         parser.error("Final block count must be 1–50000")
     os.environ.setdefault("OMP_NUM_THREADS", "4")
@@ -318,6 +322,9 @@ def main():
             json.dumps(settings.to_dict(), sort_keys=True, allow_nan=False).encode()
         ).hexdigest()
         overrides = {}
+        if args.bundle_adjustment:
+            overrides["bundle_adjustment"] = True
+            settings = replace(settings, **overrides)
         if args.final_block_count is not None:
             overrides["final_block_count"] = args.final_block_count
             settings = replace(settings, **overrides)
@@ -442,6 +449,7 @@ def main():
         "diagnostics": engine.diagnostics,
         "fragment_reconnection": engine.fragment_reconnection,
         "refinement": engine.refinement,
+        "bundle_adjustment": engine.bundle_adjustment,
         "final_reconstruction": engine.final_reconstruction,
         "peak_process_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         * (1 if sys.platform == "darwin" else 1024),

@@ -80,6 +80,8 @@ def main():
     parser.add_argument("--block-budget", type=int, help="Maximum blocks for verified fresh fusion (1–50000)")
     parser.add_argument("--use-pose-seeds", action="store_true",
                         help="Revalidate archived pose guesses instead of repeating live tracking")
+    parser.add_argument("--bundle-adjustment", action="store_true",
+                        help="Attempt validated joint RGB-D camera/feature refinement after reconnection")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     args = parser.parse_args()
     destination = args.output_dir / "reconnected-session.zip"
@@ -93,6 +95,8 @@ def main():
         engine.settings = replace(engine.settings, final_weight=args.final_weight)
     if args.block_budget is not None:
         engine.settings = replace(engine.settings, final_block_count=args.block_budget)
+    if args.bundle_adjustment:
+        engine.settings = replace(engine.settings, bundle_adjustment=True)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     def progress(current, total, result):
@@ -110,6 +114,7 @@ def main():
     print(json.dumps({"mesh_built": success, "accepted": engine.frame_count,
                       "recovered_views": recovery.get("recovered_frames", 0),
                       "unconnected_fragments": recovery.get("unconnected_fragments", []),
+                      "bundle_adjustment": report["bundle_adjustment"],
                       "reason": recovery["reason"]}, indent=2))
     return 0 if success else 1
 

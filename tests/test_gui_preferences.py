@@ -105,6 +105,7 @@ class GuiPreferencesTests(unittest.TestCase):
         checks = {
             "crop_cb": True, "record_cb": True, "live_cb": False,
             "color_tracking_cb": True, "refine_cb": True,
+            "bundle_cb": True,
             "relocalize_cb": True, "confidence_cb": True,
             "reconnect_fragments_cb": False,
         }
@@ -205,10 +206,12 @@ class GuiPreferencesTests(unittest.TestCase):
         session = ScanSettings(sensor_calibration=load_calibration(), rgb_mode="rgb_high_res",
                                near_m=0.8, far_m=2, voxel_m=0.004,
                                final_voxel_m=0.002, final_weight=4,
-                               live_reconstruction=True, refine_poses=True,
+                               live_reconstruction=True, refine_poses=True, bundle_adjustment=True,
                                reconnect_fragments=False)
         first._apply_session_settings(session.to_dict())
         self.assertFalse(first.reconnect_fragments_cb.isChecked())
+        self.assertTrue(first.bundle_cb.isChecked())
+        self.assertFalse(self.window().bundle_cb.isChecked())
         after = {key: self.new_store().settings.value(key) for key in self.new_store().settings.allKeys()}
         self.assertEqual(before, after)
         reopened = self.window()
