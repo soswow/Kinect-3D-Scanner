@@ -23,11 +23,13 @@ The camera thread follows up to 500 image corners with pyramidal optical flow,
 checks forward/backward agreement, and requires measured depth at both ends.
 PnP proposes motion, paired 3D points constrain metric motion, and a small joint
 pixel/depth refinement retains the feature identities. This is a short-baseline
-motion estimate, not a trusted world map. Unknown depth is never filled. A gap
-over 0.75 s, RGB/depth timing over 20 ms, insufficient distributed support, or
-inconsistent motion breaks the chain and starts a new local coordinate system.
-Camera restarts and session/calibration changes also start new chains. Visual
-failure leaves acquisition running.
+motion estimate, not a trusted world map. Unknown depth is never filled. It
+tries up to five recent verified references, newest first. A blurred image,
+insufficient support, inconsistent motion, or RGB/depth timing over 20 ms leaves
+those references intact for the next image. A gap over 0.75 s since the last
+verified reference starts a new local coordinate system. Camera restarts and
+session/calibration changes also start new chains. Visual failure leaves
+acquisition running.
 
 Selected uploads carry `metadata.visual_tracking`: a segment identifier,
 camera-to-local transform, validity, steps, residuals, and timing. The server
@@ -37,9 +39,12 @@ authorize a frame, bypass loss recovery, or join disconnected camera chains.
 Intermediate camera images are not uploaded or saved, so exported sessions
 retain motion summaries but cannot re-run the intermediate optical flow.
 
-The server now attempts synchronized ORB/depth registration against the last
-eight accepted views and four sampled historical views. Cache and search size
-are bounded. A view can match an earlier measured keyframe during ordinary
+The server attempts synchronized ORB/depth registration against a bounded bank
+of up to forty accepted views: the recent eight, the initial five, and up to
+twenty-seven spaced historical landmarks. Descriptor matches rank the bank;
+only the best five candidates undergo geometric registration. Stable landmarks
+avoid rebuilding a uniformly resampled cache on every capture. A view can
+match an earlier measured keyframe during ordinary
 tracking or recovery. ICP may refine the measured feature proposal, but the
 result must still satisfy the original pixel and 3D correspondences. If geometry
 slides off that evidence, the observed proposal is checked directly against
@@ -54,6 +59,29 @@ global graph optimization. Full fragment graph optimization and fresh final
 fusion still run at Finish. Model extraction follows its scheduled cadence
 instead of being forced before every color-assisted frame.
 
+Recovery also checks up to five recent accepted raw depth observations instead
+of depending on the last one alone. Wider appearance relocalization and Finish
+use scale-tolerant SIFT features; ordinary live matching keeps the cheaper ORB
+features. Descriptor similarity proposes a connection, which still needs the
+existing measured color/depth and reciprocal geometry checks.
+
+## Sharp capture selection and recovery pacing
+
+Automatic capture chooses from the last five incoming RGB-D pairs, limited to
+300 ms of age and captured after the preceding upload. It prefers a valid
+camera motion estimate, then the highest grayscale Laplacian variance at a
+fixed scoring resolution, with the newest image breaking ties. RGB, measured
+depth, timestamps and motion metadata always come from the same candidate.
+This is a relative sharpness score, not a guarantee that the selected image is
+sharp. Manual capture continues to send the displayed latest image.
+
+While fusion is paused, automatic capture checks each arriving image and sends
+the next fresh selected pair as soon as the previous recovery check finishes,
+with a 100 ms minimum spacing. It bypasses the ordinary capture interval and
+learned processing delay, but allows only one outstanding recovery probe.
+Unused candidates are discarded; frames actually sent to the server remain in
+the session for later verification. Successful recovery resumes normal pacing.
+
 The approach uses OpenCV's [pyramidal optical flow](https://docs.opencv.org/4.x/d4/dee/tutorial_optical_flow.html)
 and [PnP](https://docs.opencv.org/4.x/d5/d1f/calib3d_solvePnP.html). The residual
 scales and acceptance thresholds are engineering bounds, not a measured
@@ -63,7 +91,13 @@ long-term drift remain limitations.
 ## Finish and the preview
 
 The fragment pass now retains measured feature constraints during adjacent
-registration. A planar fragment bridge can pass only when at least two distinct
+registration. It tries the previous five prepared views, so a bad capture need
+not split the next good view from an earlier reference. Nonadjacent local links
+allow the same per-capture motion budget over at most three capture steps; the
+reciprocal, visual and held-out depth checks are unchanged. Fragments retain
+their first five, last five and middle views as retrieval witnesses, plus
+measured boundary context, to preserve short overlap arcs. A planar fragment
+bridge can pass only when at least two distinct
 camera positions on each side support the same transform with distributed
 visual matches and independent held-out depth. Stationary duplicate images and
 a single matching view remain insufficient. Optimized visual bridges must pass
@@ -77,6 +111,10 @@ their raw-data checks, its adjustment is rejected. The measured bridge poses
 are rechecked, inconsistent surviving links are discarded, and connectivity
 is recomputed from the first view. Pruned edges stay pruned. The report records
 this fallback; it does not establish that accumulated drift has been corrected.
+The report counts independent cycles in the surviving verified fragment graph,
+after pruning and fallback. The final guidance displays that count together
+with any applied refinement loops. A redundant edge that becomes the only
+remaining connection does not count as a closed loop.
 
 The live point cloud still includes low-weight tentative surface. Inspection
 during capture uses weight 0.5; Finish uses the selected final confidence

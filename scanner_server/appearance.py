@@ -15,20 +15,23 @@ class Features:
     descriptors: np.ndarray | None
 
 
-def extract_features(rgb, depth, camera, *, depth_support=True):
+def extract_features(rgb, depth, camera, *, depth_support=True, method="orb"):
     gray = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2GRAY)
-    keypoints, descriptors = cv2.ORB_create(
-        nfeatures=1200, fastThreshold=12
-    ).detectAndCompute(gray, None)
+    detector = (cv2.SIFT_create(nfeatures=1200) if method == "sift"
+                else cv2.ORB_create(nfeatures=1200, fastThreshold=12))
+    keypoints, descriptors = detector.detectAndCompute(gray, None)
     if descriptors is None:
         return Features(np.empty((0, 2)), np.empty((0, 3)), None)
     pixels = np.array([k.pt for k in keypoints], np.float32)
     x, y = np.rint(pixels).astype(int).T
+    inside = (x >= 1) & (y >= 1) & (x < depth.shape[1] - 1) & (y < depth.shape[0] - 1)
+    x = np.clip(x, 0, depth.shape[1] - 1)
+    y = np.clip(y, 0, depth.shape[0] - 1)
     z = np.asarray(depth)[y, x].astype(float) / 1000
-    valid = z > 0
+    valid = (z > 0) & inside
     if depth_support:
         # A measured center is mandatory; neighbours never fill unknown pixels.
-        # ORB's border margin keeps every 3x3 patch inside the image.
+        # Both detector types require a fully supported 3x3 image patch.
         pixels, descriptors, x, y = (
             pixels[valid],
             descriptors[valid],
@@ -66,7 +69,10 @@ def correspondences(source, target):
         or min(len(source.points), len(target.points)) < 40
     ):
         return np.empty((0, 2), int)
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+    if source.descriptors.dtype != target.descriptors.dtype:
+        return np.empty((0, 2), int)
+    norm = cv2.NORM_HAMMING if source.descriptors.dtype == np.uint8 else cv2.NORM_L2
+    matcher = cv2.BFMatcher(norm)
     forward = matcher.knnMatch(source.descriptors, target.descriptors, k=2)
     backward = matcher.knnMatch(target.descriptors, source.descriptors, k=2)
     reverse = {
