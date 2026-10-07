@@ -157,6 +157,71 @@ rotation error below 0.006° on those idealized planes. These times exclude
 acquisition, upload, server processing, and drawing; they do not establish
 Kinect throughput or real-world pose accuracy.
 
+## Adaptive tracking on archived captures
+
+The [archived evaluation](benchmarks/archived-adaptive-feature-tracking.json)
+compares the adaptive camera tracker with its immediate predecessor, `fdf144b`,
+using every raw RGB/depth pair in four unchanged session ZIPs: 540 captures.
+Calibration and depth filtering are held constant, and saved poses never
+initialize either tracker. Two complete runs agree on motion counts, detector
+calls, feature-count distributions, and input checksums. Timing below comes
+from the second run on the same ARM Mac with four OpenCV threads, after warmup;
+no validation tests ran concurrently with that run.
+
+These archives contain selected captures, with gaps of 0.97–57.92 seconds,
+and no intermediate camera streams. Every gap exceeds the camera tracker's
+0.75-second reference lifetime. Replay with original timestamps produces
+**zero measured motion steps in either version**. Bootstrap references are
+counted separately and do not establish motion. The first two sessions also
+have excessive RGB/depth skew: 45 of 50 and 183 of 200 captures exceed 20 ms.
+All 126 Chest 3 and 164 Chest 4 pairs satisfy the timing guard. None of these
+results measure a change in server pose verification or reconstruction quality.
+
+A separate stationary diagnostic repeats each original raw pair for a seed
+and five subsequent observations, with artificial 10 Hz timestamps and zero
+skew. It preserves the recorded images, calibration and depth processing.
+These are identical-image comparisons; they contain no real camera motion,
+occlusion, blur, exposure changes or newly sampled sensor noise.
+
+| Session | Raw captures | Median initial measured features, before → after | Median stationary motion update, before → after |
+| --- | ---: | ---: | ---: |
+| Chest, Oct 5 | 50 | 397.5 → 500 | 17.54 → 16.35 ms |
+| Chest 2, Oct 6 | 200 | 427 → 500 | 17.58 → 16.26 ms |
+| Chest 3, Oct 6 | 126 | 439 → 500 | 17.58 → 16.22 ms |
+| Chest 4, Oct 7 | 164 | 316.5 → 317 | 16.98 → 16.04 ms |
+
+Both versions verify all 2,700 stationary motion steps. Every original adaptive
+feature identity survives its five updates, reaching 0.5 seconds of diagnostic
+age; the predecessor selects a fresh field every time. Corner-detector calls
+fall from 3,240 to 1,124, a **65.3% reduction** including initialization. The
+combined median motion-update time falls from 17.44 to 16.23 ms, **6.9% lower**.
+The 90th percentile increases slightly, from 18.25 to 18.55 ms; replenishment
+still costs work. Median new-reference seeding increases from 13.78 to 14.40 ms.
+Static translation drift stays below 0.001 mm in both versions. That measures
+numerical consistency on duplicated observations, not Kinect accuracy.
+
+Chest 4 also stores 164 capture-selected live reports from the tracker used
+during that earlier scan: 159 have measured support, five report chain loss,
+and 27 distinct local segments appear. Median supported feature count is 279,
+median reported pixel residual is 0.336 px, and median reported depth residual
+is 1.71 mm. These are fitting residuals and sampled old-tracker diagnostics,
+not independent pose truth or an evaluation of adaptive lifetimes.
+
+Reproduce the selected-capture evaluation with:
+
+```sh
+OMP_NUM_THREADS=4 python scripts/evaluate_archived_visual_tracking.py \
+  export/sessions/*.zip --baseline-revision fdf144b --stationary-steps 5 \
+  --threads 4 --output benchmark-output/archived-tracking.json \
+  --details-output benchmark-output/archived-tracking.jsonl
+```
+
+The evaluator reads selected captures even if a newer archive includes sensor
+streams. To measure moving-camera acceptance, recovery and feature lifetimes,
+make a short new scan with **Record all camera frames (large files)** enabled
+and replay its complete stream. The four evaluated archives cannot supply
+that missing evidence.
+
 ## Sharp capture selection and recovery pacing
 
 Automatic capture chooses from the last five incoming RGB-D pairs, limited to

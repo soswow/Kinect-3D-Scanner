@@ -1,0 +1,963 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "fdf144bdc69d024e1f2ec9f5e99ea4e9cadbe078",
+  "baseline_source_sha256": "f08293195add5ebeb4357eaae5783f53a4f27987d2cdd777d3c1a1513feebc88",
+  "current_source_sha256": "adecd8daa433e2406997bde94103e710d4675d7b8eef7b85b2e17b495d43d1a0",
+  "versions": {
+    "opencv": "5.0.0",
+    "numpy": "2.5.3",
+    "python": "3.13.7"
+  },
+  "host": {
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "logical_cpus": 10
+  },
+  "opencv_threads": 10,
+  "stationary_steps": 5,
+  "notes": [
+    "Before is the immediate pre-adaptive tracker; shared calibration/filtering are held constant",
+    "Recorded-time replay preserves timestamps, calibration and skew; no archived pose initializes tracking",
+    "Seeded references are counted separately from measured motion",
+    "Stationary diagnostic duplicates each raw pair at artificial 10 Hz and zero RGB/depth skew",
+    "Stationary zero motion is diagnostic truth only; it does not measure physical moving-camera accuracy or feature lifetimes",
+    "Alternating before/after order, OpenCV RNG seed shared for each observation, per-session warmup excluded",
+    "Timing includes calibration, depth filtering, tracking and field maintenance; excludes ZIP/image I/O, capture, server fusion and preview",
+    "Saved live diagnostics are capture-selected reports from the previously recorded tracker"
+  ],
+  "sessions": {
+    "chest-2scan-session_20261006_090302.zip": {
+      "archive": "/Users/sasha/hobby/xbox360/Kinect-3D-Scanner/export/sessions/chest-2scan-session_20261006_090302.zip",
+      "archive_sha256": "3e419b154522e58c1ff1cc9d87983b86dd2cbaf9821ce3993b60c286836762f2",
+      "input": {
+        "frames": 200,
+        "duration_s": 471.6044065952301,
+        "frame_gap_s": {
+          "min": 0.969714879989624,
+          "median": 1.1789960861206055,
+          "p90": 1.4732407569885255,
+          "max": 57.917176723480225
+        },
+        "adjacent_pairs_within_tracking_gap": 0,
+        "timing_eligible_frames": 17,
+        "unknown_rgb_depth_timing_frames": 0,
+        "sensor_archive_present": false
+      },
+      "recorded_live_diagnostics": null,
+      "recorded_time": {
+        "before": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 17,
+          "reasons": {
+            "RGB/depth timing exceeds 20 ms": 183,
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 16
+          },
+          "corner_detector_calls": 17,
+          "processed_update_ms": {
+            "min": 13.416375033557415,
+            "median": 13.77920713275671,
+            "p90": 14.341158047318459,
+            "max": 14.60479199886322
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 299.0,
+            "median": 426.0,
+            "p90": 454.0,
+            "max": 470.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 17,
+          "reasons": {
+            "RGB/depth timing exceeds 20 ms": 183,
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 16
+          },
+          "corner_detector_calls": 17,
+          "processed_update_ms": {
+            "min": 14.09116666764021,
+            "median": 14.56120889633894,
+            "p90": 15.087857842445374,
+            "max": 15.237582847476006
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 299.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        }
+      },
+      "stationary_diagnostic": {
+        "before": {
+          "measured_motion_updates": 1000,
+          "seeded_reference_updates": 200,
+          "reasons": {
+            "Measured RGB-D motion": 1200
+          },
+          "corner_detector_calls": 1200,
+          "processed_update_ms": {
+            "min": 13.174749910831451,
+            "median": 17.472125124186277,
+            "p90": 18.304016441106796,
+            "max": 32.40879252552986
+          },
+          "measured_motion_update_ms": {
+            "min": 15.363083221018314,
+            "median": 17.584833782166243,
+            "p90": 18.403386883437634,
+            "max": 32.40879252552986
+          },
+          "initial_measured_features": {
+            "min": 136.0,
+            "median": 427.0,
+            "p90": 455.0,
+            "max": 476.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": {
+            "min": 1.650374623681232e-06,
+            "median": 7.844847665966644e-06,
+            "p90": 1.3547134338472061e-05,
+            "max": 2.2159581042553094e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.9575586669421963e-06,
+            "max": 5.663293681020318e-06
+          },
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 1000,
+          "seeded_reference_updates": 200,
+          "reasons": {
+            "Measured RGB-D motion": 1200
+          },
+          "corner_detector_calls": 341,
+          "processed_update_ms": {
+            "min": 13.665124773979187,
+            "median": 16.15177094936371,
+            "p90": 18.40457478538156,
+            "max": 144.10041738301516
+          },
+          "measured_motion_update_ms": {
+            "min": 14.056709595024586,
+            "median": 16.260582488030195,
+            "p90": 18.588596116751432,
+            "max": 56.4285833388567
+          },
+          "initial_measured_features": {
+            "min": 136.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "retained_features_per_motion": {
+            "min": 136.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "added_features_per_motion": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 0.0,
+            "max": 119.0
+          },
+          "median_feature_age_s_per_motion": {
+            "min": 0.1,
+            "median": 0.30000000000000004,
+            "p90": 0.5,
+            "max": 0.5
+          },
+          "occupied_cells": {
+            "min": 25.0,
+            "median": 37.0,
+            "p90": 41.0,
+            "max": 48.0
+          },
+          "eligible_cells": {
+            "min": 48.0,
+            "median": 48.0,
+            "p90": 48.0,
+            "max": 48.0
+          },
+          "zero_motion_translation_error_mm": {
+            "min": 1.6596634720871925e-06,
+            "median": 7.997685260846807e-06,
+            "p90": 1.3629873438743008e-05,
+            "max": 2.2726393236278527e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.699869328381916e-06,
+            "max": 5.122641877509565e-06
+          },
+          "stationary_seed_identity_survival_fraction": {
+            "min": 1.0,
+            "median": 1.0,
+            "p90": 1.0,
+            "max": 1.0
+          },
+          "stationary_end_median_feature_age_s": {
+            "min": 0.5,
+            "median": 0.5,
+            "p90": 0.5,
+            "max": 0.5
+          }
+        }
+      }
+    },
+    "chest-3-scan-session_20261006_215208.zip": {
+      "archive": "/Users/sasha/hobby/xbox360/Kinect-3D-Scanner/export/sessions/chest-3-scan-session_20261006_215208.zip",
+      "archive_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+      "input": {
+        "frames": 126,
+        "duration_s": 563.9218819141388,
+        "frame_gap_s": {
+          "min": 1.067965030670166,
+          "median": 4.651188135147095,
+          "p90": 6.50706734657288,
+          "max": 8.572251081466675
+        },
+        "adjacent_pairs_within_tracking_gap": 0,
+        "timing_eligible_frames": 126,
+        "unknown_rgb_depth_timing_frames": 0,
+        "sensor_archive_present": false
+      },
+      "recorded_live_diagnostics": null,
+      "recorded_time": {
+        "before": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 126,
+          "reasons": {
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 125
+          },
+          "corner_detector_calls": 126,
+          "processed_update_ms": {
+            "min": 13.133750297129154,
+            "median": 13.803728390485048,
+            "p90": 14.442687388509512,
+            "max": 16.006333753466606
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 147.0,
+            "median": 439.0,
+            "p90": 462.0,
+            "max": 478.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 126,
+          "reasons": {
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 125
+          },
+          "corner_detector_calls": 126,
+          "processed_update_ms": {
+            "min": 13.592499308288097,
+            "median": 14.511416666209698,
+            "p90": 15.280437655746937,
+            "max": 19.265666604042053
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 147.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        }
+      },
+      "stationary_diagnostic": {
+        "before": {
+          "measured_motion_updates": 630,
+          "seeded_reference_updates": 126,
+          "reasons": {
+            "Measured RGB-D motion": 756
+          },
+          "corner_detector_calls": 756,
+          "processed_update_ms": {
+            "min": 13.146832585334778,
+            "median": 17.4664999358356,
+            "p90": 18.291208427399397,
+            "max": 125.76216738671064
+          },
+          "measured_motion_update_ms": {
+            "min": 15.482459217309952,
+            "median": 17.577041406184435,
+            "p90": 18.412461783736944,
+            "max": 125.76216738671064
+          },
+          "initial_measured_features": {
+            "min": 147.0,
+            "median": 439.0,
+            "p90": 462.0,
+            "max": 478.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": {
+            "min": 1.2580591590124832e-06,
+            "median": 8.64275255474512e-06,
+            "p90": 1.858258540196929e-05,
+            "max": 3.115775932743441e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.9575586669421963e-06,
+            "max": 5.663293681020318e-06
+          },
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 630,
+          "seeded_reference_updates": 126,
+          "reasons": {
+            "Measured RGB-D motion": 756
+          },
+          "corner_detector_calls": 205,
+          "processed_update_ms": {
+            "min": 13.49458284676075,
+            "median": 16.076083295047283,
+            "p90": 17.78733404353261,
+            "max": 35.70970892906189
+          },
+          "measured_motion_update_ms": {
+            "min": 14.06591571867466,
+            "median": 16.218166798353195,
+            "p90": 17.95108001679182,
+            "max": 35.70970892906189
+          },
+          "initial_measured_features": {
+            "min": 147.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "retained_features_per_motion": {
+            "min": 147.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "added_features_per_motion": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 0.0,
+            "max": 99.0
+          },
+          "median_feature_age_s_per_motion": {
+            "min": 0.1,
+            "median": 0.30000000000000004,
+            "p90": 0.5,
+            "max": 0.5
+          },
+          "occupied_cells": {
+            "min": 17.0,
+            "median": 38.0,
+            "p90": 47.0,
+            "max": 48.0
+          },
+          "eligible_cells": {
+            "min": 48.0,
+            "median": 48.0,
+            "p90": 48.0,
+            "max": 48.0
+          },
+          "zero_motion_translation_error_mm": {
+            "min": 1.6464338699861742e-06,
+            "median": 8.851054884909538e-06,
+            "p90": 1.857675302314295e-05,
+            "max": 3.115776003816796e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.9575586669421963e-06,
+            "max": 5.122641877509565e-06
+          },
+          "stationary_seed_identity_survival_fraction": {
+            "min": 1.0,
+            "median": 1.0,
+            "p90": 1.0,
+            "max": 1.0
+          },
+          "stationary_end_median_feature_age_s": {
+            "min": 0.5,
+            "median": 0.5,
+            "p90": 0.5,
+            "max": 0.5
+          }
+        }
+      }
+    },
+    "chest-4-scan-session_20261007_173028.zip": {
+      "archive": "/Users/sasha/hobby/xbox360/Kinect-3D-Scanner/export/sessions/chest-4-scan-session_20261007_173028.zip",
+      "archive_sha256": "ab0465d56d05c172074075b056c22f10a3337c83b2e564c148d4f10ea64ce49f",
+      "input": {
+        "frames": 164,
+        "duration_s": 523.0583209991455,
+        "frame_gap_s": {
+          "min": 1.0367650985717773,
+          "median": 3.0017032623291016,
+          "p90": 4.565139436721802,
+          "max": 6.2029759883880615
+        },
+        "adjacent_pairs_within_tracking_gap": 0,
+        "timing_eligible_frames": 164,
+        "unknown_rgb_depth_timing_frames": 0,
+        "sensor_archive_present": false
+      },
+      "recorded_live_diagnostics": {
+        "sampled_reports": 164,
+        "supported_reports": 159,
+        "reasons": {
+          "Measured RGB-D motion": 159,
+          "Visual chain lost; new local origin": 5
+        },
+        "observed_segments": 27,
+        "steps": {
+          "min": 0.0,
+          "median": 153.0,
+          "p90": 489.10000000000025,
+          "max": 920.0
+        },
+        "elapsed_ms": {
+          "min": 18.666124902665615,
+          "median": 22.410874720662832,
+          "p90": 33.37630787864329,
+          "max": 156.31079114973545
+        },
+        "inliers": {
+          "min": 68.0,
+          "median": 279.0,
+          "p90": 357.0,
+          "max": 382.0
+        },
+        "support_fraction": {
+          "min": 0.8323353293413174,
+          "median": 0.9882697947214076,
+          "p90": 1.0,
+          "max": 1.0
+        },
+        "median_pixel_error": {
+          "min": 0.08832997362612949,
+          "median": 0.33595887514286255,
+          "p90": 0.7354103237808962,
+          "max": 1.1454148376500053
+        },
+        "median_depth_error_mm": {
+          "min": 0.33661586442033736,
+          "median": 1.710184926100713,
+          "p90": 2.776055092673197,
+          "max": 5.496181603692613
+        },
+        "scope": "Previously recorded tracker; capture-selected samples, not every live frame, and not an evaluation of the new tracker"
+      },
+      "recorded_time": {
+        "before": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 164,
+          "reasons": {
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 163
+          },
+          "corner_detector_calls": 164,
+          "processed_update_ms": {
+            "min": 13.121083378791809,
+            "median": 13.743021059781313,
+            "p90": 14.43156693130732,
+            "max": 248.25791735202074
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 90.0,
+            "median": 316.5,
+            "p90": 385.0,
+            "max": 419.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 164,
+          "reasons": {
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 163
+          },
+          "corner_detector_calls": 164,
+          "processed_update_ms": {
+            "min": 13.694374822080135,
+            "median": 14.246311504393816,
+            "p90": 14.798137359321117,
+            "max": 78.55725008994341
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 90.0,
+            "median": 317.0,
+            "p90": 393.40000000000003,
+            "max": 493.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        }
+      },
+      "stationary_diagnostic": {
+        "before": {
+          "measured_motion_updates": 820,
+          "seeded_reference_updates": 164,
+          "reasons": {
+            "Measured RGB-D motion": 984
+          },
+          "corner_detector_calls": 984,
+          "processed_update_ms": {
+            "min": 13.166666962206364,
+            "median": 16.85268757864833,
+            "p90": 17.709970753639936,
+            "max": 67.85704102367163
+          },
+          "measured_motion_update_ms": {
+            "min": 15.153958462178707,
+            "median": 16.97852136567235,
+            "p90": 17.770404182374477,
+            "max": 67.85704102367163
+          },
+          "initial_measured_features": {
+            "min": 90.0,
+            "median": 316.5,
+            "p90": 385.0,
+            "max": 419.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": {
+            "min": 1.0957633019576037e-06,
+            "median": 6.790131675910207e-06,
+            "p90": 1.3136731345298203e-05,
+            "max": 1.789624100415659e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.699869328381916e-06,
+            "max": 4.676310850554341e-06
+          },
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 820,
+          "seeded_reference_updates": 164,
+          "reasons": {
+            "Measured RGB-D motion": 984
+          },
+          "corner_detector_calls": 489,
+          "processed_update_ms": {
+            "min": 13.572665862739086,
+            "median": 15.75058326125145,
+            "p90": 18.580320477485657,
+            "max": 118.33933275192976
+          },
+          "measured_motion_update_ms": {
+            "min": 13.851208612322807,
+            "median": 16.043853480368853,
+            "p90": 18.673120252788067,
+            "max": 118.33933275192976
+          },
+          "initial_measured_features": {
+            "min": 90.0,
+            "median": 317.0,
+            "p90": 393.40000000000003,
+            "max": 493.0
+          },
+          "retained_features_per_motion": {
+            "min": 90.0,
+            "median": 323.0,
+            "p90": 404.1,
+            "max": 500.0
+          },
+          "added_features_per_motion": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 7.0,
+            "max": 97.0
+          },
+          "median_feature_age_s_per_motion": {
+            "min": 0.1,
+            "median": 0.30000000000000004,
+            "p90": 0.5,
+            "max": 0.5
+          },
+          "occupied_cells": {
+            "min": 24.0,
+            "median": 34.0,
+            "p90": 39.0,
+            "max": 48.0
+          },
+          "eligible_cells": {
+            "min": 45.0,
+            "median": 48.0,
+            "p90": 48.0,
+            "max": 48.0
+          },
+          "zero_motion_translation_error_mm": {
+            "min": 1.0957633255939848e-06,
+            "median": 6.777329021436227e-06,
+            "p90": 1.3051255805060608e-05,
+            "max": 1.765898221958058e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.4148365394514667e-06,
+            "max": 3.818191820832846e-06
+          },
+          "stationary_seed_identity_survival_fraction": {
+            "min": 1.0,
+            "median": 1.0,
+            "p90": 1.0,
+            "max": 1.0
+          },
+          "stationary_end_median_feature_age_s": {
+            "min": 0.5,
+            "median": 0.5,
+            "p90": 0.5,
+            "max": 0.5
+          }
+        }
+      }
+    },
+    "chest_20261005_230320.zip": {
+      "archive": "/Users/sasha/hobby/xbox360/Kinect-3D-Scanner/export/sessions/chest_20261005_230320.zip",
+      "archive_sha256": "ade7f340aa8759233a50509431768732d2836fbb50b77d922e34d50ac99a63b0",
+      "input": {
+        "frames": 50,
+        "duration_s": 105.24648714065552,
+        "frame_gap_s": {
+          "min": 0.9706411361694336,
+          "median": 1.0721399784088135,
+          "p90": 1.2691692352294923,
+          "max": 29.932089805603027
+        },
+        "adjacent_pairs_within_tracking_gap": 0,
+        "timing_eligible_frames": 5,
+        "unknown_rgb_depth_timing_frames": 0,
+        "sensor_archive_present": false
+      },
+      "recorded_live_diagnostics": null,
+      "recorded_time": {
+        "before": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 5,
+          "reasons": {
+            "RGB/depth timing exceeds 20 ms": 45,
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 4
+          },
+          "corner_detector_calls": 5,
+          "processed_update_ms": {
+            "min": 13.52483406662941,
+            "median": 13.829249888658524,
+            "p90": 14.206625148653984,
+            "max": 14.328042045235634
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 326.0,
+            "median": 438.0,
+            "p90": 446.2,
+            "max": 447.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 0,
+          "seeded_reference_updates": 5,
+          "reasons": {
+            "RGB/depth timing exceeds 20 ms": 45,
+            "Measured RGB-D motion": 1,
+            "Visual motion unverified; retaining recent references": 4
+          },
+          "corner_detector_calls": 5,
+          "processed_update_ms": {
+            "min": 14.244625344872475,
+            "median": 14.594041742384434,
+            "p90": 14.73277471959591,
+            "max": 14.76895809173584
+          },
+          "measured_motion_update_ms": null,
+          "initial_measured_features": {
+            "min": 326.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": null,
+          "zero_motion_rotation_error_deg": null,
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        }
+      },
+      "stationary_diagnostic": {
+        "before": {
+          "measured_motion_updates": 250,
+          "seeded_reference_updates": 50,
+          "reasons": {
+            "Measured RGB-D motion": 300
+          },
+          "corner_detector_calls": 300,
+          "processed_update_ms": {
+            "min": 13.223209418356419,
+            "median": 17.453812062740326,
+            "p90": 18.158936593681574,
+            "max": 23.350832983851433
+          },
+          "measured_motion_update_ms": {
+            "min": 15.768541023135185,
+            "median": 17.54012517631054,
+            "p90": 18.20644661784172,
+            "max": 23.350832983851433
+          },
+          "initial_measured_features": {
+            "min": 137.0,
+            "median": 397.5,
+            "p90": 466.2,
+            "max": 477.0
+          },
+          "retained_features_per_motion": null,
+          "added_features_per_motion": null,
+          "median_feature_age_s_per_motion": null,
+          "occupied_cells": null,
+          "eligible_cells": null,
+          "zero_motion_translation_error_mm": {
+            "min": 1.1096757179226608e-06,
+            "median": 6.177376926788188e-06,
+            "p90": 1.187012811753551e-05,
+            "max": 2.069179701851512e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.9812556472609953e-06,
+            "max": 5.122641877509565e-06
+          },
+          "stationary_seed_identity_survival_fraction": null,
+          "stationary_end_median_feature_age_s": null
+        },
+        "after": {
+          "measured_motion_updates": 250,
+          "seeded_reference_updates": 50,
+          "reasons": {
+            "Measured RGB-D motion": 300
+          },
+          "corner_detector_calls": 89,
+          "processed_update_ms": {
+            "min": 13.723041862249374,
+            "median": 16.229478642344475,
+            "p90": 18.146841507405043,
+            "max": 20.929332822561264
+          },
+          "measured_motion_update_ms": {
+            "min": 14.765082858502865,
+            "median": 16.346354503184557,
+            "p90": 18.321112170815468,
+            "max": 20.929332822561264
+          },
+          "initial_measured_features": {
+            "min": 137.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "retained_features_per_motion": {
+            "min": 137.0,
+            "median": 500.0,
+            "p90": 500.0,
+            "max": 500.0
+          },
+          "added_features_per_motion": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 0.0,
+            "max": 88.0
+          },
+          "median_feature_age_s_per_motion": {
+            "min": 0.1,
+            "median": 0.30000000000000004,
+            "p90": 0.5,
+            "max": 0.5
+          },
+          "occupied_cells": {
+            "min": 26.0,
+            "median": 38.0,
+            "p90": 43.0,
+            "max": 48.0
+          },
+          "eligible_cells": {
+            "min": 47.0,
+            "median": 48.0,
+            "p90": 48.0,
+            "max": 48.0
+          },
+          "zero_motion_translation_error_mm": {
+            "min": 1.2437696638107723e-06,
+            "median": 6.386891139565845e-06,
+            "p90": 1.2057911318001947e-05,
+            "max": 1.951022390826525e-05
+          },
+          "zero_motion_rotation_error_deg": {
+            "min": 0.0,
+            "median": 0.0,
+            "p90": 2.9575586669421963e-06,
+            "max": 4.676310850554341e-06
+          },
+          "stationary_seed_identity_survival_fraction": {
+            "min": 1.0,
+            "median": 1.0,
+            "p90": 1.0,
+            "max": 1.0
+          },
+          "stationary_end_median_feature_age_s": {
+            "min": 0.5,
+            "median": 0.5,
+            "p90": 0.5,
+            "max": 0.5
+          }
+        }
+      }
+    }
+  },
+  "repeat_validation": {
+    "full_runs": 2,
+    "checks": {
+      "chest-2scan-session_20261006_090302.zip": {
+        "same_archive_sha256": true,
+        "same_counts_and_feature_distributions": true
+      },
+      "chest-3-scan-session_20261006_215208.zip": {
+        "same_archive_sha256": true,
+        "same_counts_and_feature_distributions": true
+      },
+      "chest-4-scan-session_20261007_173028.zip": {
+        "same_archive_sha256": true,
+        "same_counts_and_feature_distributions": true
+      },
+      "chest_20261005_230320.zip": {
+        "same_archive_sha256": true,
+        "same_counts_and_feature_distributions": true
+      }
+    },
+    "timing_scope": "Second run only; no validation tests ran concurrently. First-run timing overlapped the targeted test suite and is excluded from this report."
+  },
+  "aggregate": {
+    "before": {
+      "stationary_motion_median_ms": 17.438916955143213,
+      "stationary_motion_p90_ms": 18.25476298108697,
+      "stationary_detector_calls": 3240,
+      "stationary_measured_motion_updates": 2700,
+      "recorded_time_measured_motion_updates": 0
+    },
+    "after": {
+      "stationary_motion_median_ms": 16.233895905315876,
+      "stationary_motion_p90_ms": 18.55262517929077,
+      "stationary_detector_calls": 1124,
+      "stationary_measured_motion_updates": 2700,
+      "recorded_time_measured_motion_updates": 0
+    },
+    "detector_call_reduction_percent": 65.30864197530863,
+    "stationary_motion_median_time_reduction_percent": 6.909953484651144,
+    "recorded_time_seed_median_ms": {
+      "before": 13.78231169655919,
+      "after": 14.400208834558725
+    },
+    "source": "Aggregated from per-observation JSONL wall times; detector and motion counts sum per-session results"
+  }
+}
