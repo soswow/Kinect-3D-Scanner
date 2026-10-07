@@ -149,6 +149,17 @@ class TrackingDebugGuiTests(unittest.TestCase):
         self.assertTrue(self.store.read("debug/tracking_windows", False))
         self.assertTrue(self.window.flow_windows_cb.isEnabled())
 
+    def test_portrait_rotates_diagnostic_presentation_after_native_overlay(self):
+        self.window.flow_debug_cb.setChecked(True)
+        self.window.orientation_combo.setCurrentIndex(self.window.orientation_combo.findData("portrait_right"))
+        debug = self.snapshot()
+        with patch.object(self.window, "_set_pixmap") as render:
+            self.window._on_frame(*frame(), {"_tracking_debug": debug})
+        image = render.call_args.args[0]
+        self.assertEqual((image.width(), image.height()), (480, 640))
+        self.assertEqual(debug["image"].shape, (480, 640, 3))
+        self.assertNotIn("_tracking_debug", self.window._last_frame_metadata)
+
     def test_debug_pixels_and_arrays_do_not_enter_manual_or_automatic_uploads(self):
         self.window.server_client._connected = True
         self.window._scanning = True

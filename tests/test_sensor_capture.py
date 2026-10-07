@@ -19,6 +19,8 @@ from shared.inertial import G
 from shared.sensor_recording import journal_snapshot
 from shared.settings import ScanSettings
 from shared.protocol import pack_frame, unpack_frame_with_metadata
+from kinect_scanner.worker import KinectWorker
+from PyQt6.QtCore import Qt
 
 
 class SimulatedDriver:
@@ -32,6 +34,7 @@ class SimulatedDriver:
         self.stop = stop
         self.iteration = 0
         self.mode = self.VIDEO_IR_10BIT
+        self.maximum_iterations = 55
         self.depth = np.full((480, 640), 500, np.uint16)
         self.rgb = np.zeros((480, 640, 3), np.uint8)
 
@@ -59,9 +62,9 @@ class SimulatedDriver:
         self.iteration += 1
         stamp = self.iteration * 2_000_000
         self.depth_callback(None, self.depth, stamp)
-        self.rgb[:] = self.iteration
+        self.rgb[:] = self.iteration % 256
         self.video_callback(None, self.rgb if self.mode == self.VIDEO_RGB else self.depth, stamp)
-        if self.iteration >= 55:
+        if self.iteration >= self.maximum_iterations:
             self.stop.set()
         time.sleep(.01)
         return 0
@@ -70,7 +73,44 @@ class SimulatedDriver:
         return self.process_events_timeout(context)
 
 
+def simulated_child(*args):
+    """Spawn-safe fake USB surface; keep the real capture loop and control path."""
+    driver = SimulatedDriver(args[1])
+    driver.maximum_iterations = 10_000
+    with patch.dict(sys.modules, {"freenect": driver}), patch(
+        "kinect_scanner.capture_process.RGBExposureControl",
+        side_effect=ExposureControlUnavailable("Simulated default auto exposure")):
+        capture_frames(*args)
+
+
 class CaptureLoopTests(unittest.TestCase):
+    def test_supervisor_save_barrier_drains_real_child_journal(self):
+        with tempfile.TemporaryDirectory() as folder, patch("kinect_scanner.worker.capture_frames", simulated_child):
+            worker = KinectWorker(capture_target=simulated_child, rgb_mode="rgb_low_res", retry_delay=10)
+            worker.set_sensor_recording(folder, ScanSettings().to_dict())
+            frames, errors = [], []
+            worker.frame_pair_ready.connect(lambda *args: frames.append(args), Qt.ConnectionType.DirectConnection)
+            worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
+            worker.start()
+            try:
+                deadline = time.monotonic() + 8
+                while not frames and not errors and time.monotonic() < deadline:
+                    time.sleep(.02)
+                self.assertTrue(frames, errors)
+                worker.set_sensor_recording(None)
+                snapshot = worker.flush_sensor_recording(folder, stop=True)
+                self.assertTrue(snapshot["complete"], snapshot)
+                status = snapshot["segments"][0]["status"]
+                self.assertTrue(status["closed"])
+                self.assertGreater(status["counts"]["rgb"], 0)
+                self.assertGreater(status["counts"]["accelerometer"], 0)
+                time.sleep(.1)
+                self.assertEqual(journal_snapshot(folder)["segments"][0]["status"]["index_bytes"], status["index_bytes"])
+            finally:
+                worker.stop()
+                self.assertTrue(worker.wait(2500))
+            self.assertFalse(errors)
+
     def test_full_streams_survive_slow_consumer_and_native_metadata_roundtrip(self):
         with tempfile.TemporaryDirectory() as folder:
             stop = threading.Event()
