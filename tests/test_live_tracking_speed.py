@@ -44,17 +44,17 @@ class LiveTrackingSpeedTests(unittest.TestCase):
         tracker = VisualTracker(settings)
         tracker.update(rgb_a, depth_a, {"timestamp_s": 0})
         gray_a = tracker.history[0][0]
-        corners = cv2.goodFeaturesToTrack(
-            gray_a, 500, 0.015, 9, mask=(depth_a > 0).astype(np.uint8))
         cached = tracker.history[0][2]
-        self.assertLess(len(cached), len(corners))
+        sampled, measured = sampled_points(depth_a, cached, settings.camera)
+        self.assertTrue(measured.all())
+        np.testing.assert_array_equal(sampled, tracker.history[0][5])
         # Larger shifts also exercise border points and newly occluded depths.
         for shift in (2, 12, 28):
             with self.subTest(shift=shift):
                 rgb_b, depth_b = frames(shift)
                 gray_b = cv2.cvtColor(rgb_b, cv2.COLOR_RGB2GRAY)
                 source, target, pixels = legacy_correspondences(
-                    gray_a, gray_b, depth_a, depth_b, corners, settings.camera)
+                    gray_a, gray_b, depth_a, depth_b, cached, settings.camera)
                 with patch("shared.visual_tracking.cv2.solvePnPRansac",
                            wraps=cv2.solvePnPRansac) as solve, patch(
                                "shared.visual_tracking.measured_rigid_motion",
@@ -64,8 +64,8 @@ class LiveTrackingSpeedTests(unittest.TestCase):
                 self.assertIsNotNone(pose, report)
                 np.testing.assert_array_equal(source, solve.call_args.args[0])
                 np.testing.assert_array_equal(pixels, solve.call_args.args[1])
-                np.testing.assert_array_equal(source, rigid.call_args.args[0])
-                np.testing.assert_array_equal(target, rigid.call_args.args[1])
+                np.testing.assert_array_equal(source, rigid.call_args_list[0].args[0])
+                np.testing.assert_array_equal(target, rigid.call_args_list[0].args[1])
                 self.assertAlmostEqual(shift * 2 / 525, pose[0, 3], delta=0.002)
 
     def test_accepted_reference_depth_is_sampled_only_once(self):
@@ -77,9 +77,10 @@ class LiveTrackingSpeedTests(unittest.TestCase):
         self.assertTrue(report["valid"], report)
         self.assertTrue(sample.called)
         self.assertFalse(any(call.args[0] is old_depth for call in sample.call_args_list))
-        # The target is sampled at tracked locations and then at the newly
-        # detected reference corners; neither step fills unknown depth.
-        self.assertEqual(2, sample.call_count)
+        # A healthy persistent field samples only the tracked target locations.
+        # The same measured points are cached for the next reference.
+        self.assertEqual(1, sample.call_count)
+        self.assertEqual(0, report["tracks"]["added"])
 
     def test_too_few_measured_source_features_skip_flow_without_authorizing_motion(self):
         rgb, depth = frames(holes=0)
@@ -87,8 +88,8 @@ class LiveTrackingSpeedTests(unittest.TestCase):
         depth[checker > 0] += 300
         tracker = VisualTracker(ScanSettings(filter_depth=False))
         first = tracker.update(rgb, depth, {"timestamp_s": 0})
-        self.assertTrue(first["valid"])
-        self.assertEqual(0, len(tracker.history[-1][2]))
+        self.assertFalse(first["valid"])
+        self.assertFalse(tracker.history)
         with patch("shared.visual_tracking.cv2.calcOpticalFlowPyrLK") as flow:
             failed = tracker.update(rgb, depth, {"timestamp_s": 0.1})
         flow.assert_not_called()

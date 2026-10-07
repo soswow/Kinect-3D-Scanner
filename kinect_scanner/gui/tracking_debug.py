@@ -75,11 +75,20 @@ def flow_summary(snapshot):
     counts = np.bincount(status, minlength=5)
     age = snapshot.get("reference_age_ms")
     reference = f" · reference {age:.0f} ms ago" if age is not None else ""
+    tracks = snapshot.get("tracks")
+    field = (
+        f"Tracks {tracks['active']} · kept {tracks['retained']} · new {tracks['added']} · "
+        f"retired for quality {tracks['retired']}\n"
+        f"Median age {tracks['median_age_s']:.1f} s (oldest {tracks['max_age_s']:.1f} s)\n"
+        f"Coverage {tracks['occupied_cells']} / {tracks['eligible_cells']} depth cells · "
+        f"replenishment: {tracks['replenishment']}\n" if tracks else ""
+    )
     return (
         f"{snapshot['reason']}\n"
         f"Verified {counts[4]} / {len(status)} · flow lost {counts[0]} · "
         f"round-trip {counts[1]} · depth {counts[2]} · geometry {counts[3]}\n"
-        f"Detected {snapshot['detected']} · {snapshot['elapsed_ms']:.1f} ms{reference}\n"
+        f"New candidates {snapshot['detected']} · {snapshot['elapsed_ms']:.1f} ms{reference}\n"
+        f"{field}"
         f"LK {snapshot['window_size']} × {snapshot['window_size']} px · "
-        f"pyramid 0–{snapshot['pyramid_level']} · fresh corners on each accepted reference"
+        f"pyramid 0–{snapshot['pyramid_level']} · surviving identities retained"
     )

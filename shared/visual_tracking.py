@@ -7,6 +7,8 @@ segment; the server may use it only as an initializer and verifies raw evidence.
 import time
 import uuid
 from collections import deque
+import heapq
+from typing import NamedTuple
 
 import cv2
 import numpy as np
@@ -15,8 +17,7 @@ from .calibration import camera_matrix, prepare_rgbd
 from .capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 
-def feature_agreement(source_points, target_points, target_pixels, pose, camera):
-    """Keep measured color correspondences as a constraint after geometric ICP."""
+def _feature_support(source_points, target_points, target_pixels, pose, camera):
     moved = source_points @ pose[:3, :3].T + pose[:3, 3]
     z = np.maximum(moved[:, 2], 1e-6)
     projected = moved[:, :2] / z[:, None] * [camera.fx, camera.fy]
@@ -24,6 +25,12 @@ def feature_agreement(source_points, target_points, target_pixels, pose, camera)
     pixels = np.linalg.norm(projected - target_pixels, axis=1)
     distances = np.linalg.norm(moved - target_points, axis=1)
     good = (moved[:, 2] > 0) & (pixels <= 3) & (distances <= 0.03)
+    return good, pixels, distances
+
+
+def feature_agreement(source_points, target_points, target_pixels, pose, camera):
+    """Keep measured color correspondences as a constraint after geometric ICP."""
+    good, pixels, distances = _feature_support(source_points, target_points, target_pixels, pose, camera)
     count = int(good.sum())
     report = {"inliers": count, "matches": len(good),
               "support_fraction": float(good.mean()) if len(good) else 0.0,
@@ -123,11 +130,33 @@ def refine_measured_motion(source, target, pixels, pose, camera):
     return pose
 
 
+class _Reference(NamedTuple):
+    gray: np.ndarray
+    depth: np.ndarray
+    corners: np.ndarray
+    stamp: float
+    pose: np.ndarray
+    points: np.ndarray
+    ids: np.ndarray
+    born_s: np.ndarray
+    observations: np.ndarray
+
+
 class VisualTracker:
     MAX_GAP_S = 0.75
     MAX_CORNERS = 500
     WINDOW_SIZE = 21
     PYRAMID_LEVEL = 3
+    MIN_SEED_CORNERS = 60
+    CORNER_QUALITY = 0.015
+    MIN_SPACING_PX = 9
+    GRID_COLS, GRID_ROWS = 8, 6
+    REPLENISH_FRACTION = 0.8
+    MIN_CELL_TRACKS = 3
+    MIN_REPLENISH_INTERVAL_S = 0.2
+    # A track may support this short step yet be too uncertain to keep alive.
+    MAX_RETENTION_PIXEL_ERROR = 0.5
+    MAX_RETENTION_DEPTH_ERROR_M = 0.02
 
     # Debug classifications follow the existing rejection gates, in order.
     FLOW_LOST, ROUNDTRIP_REJECTED, DEPTH_REJECTED, GEOMETRY_REJECTED, VERIFIED = range(5)
@@ -145,12 +174,114 @@ class VisualTracker:
         self.steps = 0
         self.debug_snapshot = None
         self._match_debug = None
+        self._matched_reference = None
+        self._next_feature_id = 0
+        self._last_detection_s = None
+
+    def _cell_indices(self, pixels):
+        camera = self.settings.camera
+        pixels = np.asarray(pixels).reshape(-1, 2)
+        cols = np.clip((pixels[:, 0] * self.GRID_COLS / camera.width).astype(int), 0, self.GRID_COLS - 1)
+        rows = np.clip((pixels[:, 1] * self.GRID_ROWS / camera.height).astype(int), 0, self.GRID_ROWS - 1)
+        return rows * self.GRID_COLS + cols
+
+    def _field_counts(self, pixels, depth):
+        counts = np.bincount(self._cell_indices(pixels), minlength=self.GRID_ROWS * self.GRID_COLS)
+        # Cropped/excluded depth cells do not create perpetual coverage deficits.
+        eligible = np.array([np.count_nonzero(tile) >= 64
+                             for row in np.array_split(depth, self.GRID_ROWS)
+                             for tile in np.array_split(row, self.GRID_COLS, axis=1)])
+        return counts, eligible
+
+    def _replenish(self, gray, depth, reference, stamp):
+        """Keep verified survivors; detect only in gaps, with a bounded cadence."""
+        corners = reference.corners if reference is not None else np.empty((0, 1, 2), np.float32)
+        counts, eligible = self._field_counts(corners, depth)
+        room = self.MAX_CORNERS - len(corners)
+        reason = "initial" if reference is None else (
+            "count" if len(corners) < self.MAX_CORNERS * self.REPLENISH_FRACTION else
+            "coverage" if np.any(eligible & (counts < self.MIN_CELL_TRACKS)) else "healthy")
+        empty = np.empty((0, 1, 2), np.float32)
+        points = np.empty((0, 3), float)
+        if room <= 0 or reason == "healthy":
+            return reference, empty, 0, "healthy"
+        if (reference is not None and len(corners) >= self.MIN_SEED_CORNERS
+                and self._last_detection_s is not None
+                and stamp - self._last_detection_s < self.MIN_REPLENISH_INTERVAL_S - 1e-9):
+            return reference, empty, 0, "cooldown"
+        mask = (depth > 0).astype(np.uint8)
+        # Round outward so subpixel survivors also retain the minimum spacing.
+        for x, y in corners.reshape(-1, 2):
+            cv2.circle(mask, (int(round(x)), int(round(y))), self.MIN_SPACING_PX + 1, 0, -1)
+        if reason == "coverage":
+            # Spend the remaining slots on under-covered cells, rather than
+            # adding still more features to an already populated texture patch.
+            for row, tiles in enumerate(np.array_split(mask, self.GRID_ROWS)):
+                for col, tile in enumerate(np.array_split(tiles, self.GRID_COLS, axis=1)):
+                    if counts[row * self.GRID_COLS + col] >= self.MIN_CELL_TRACKS:
+                        tile[:] = 0
+        candidates = cv2.goodFeaturesToTrack(gray, self.MAX_CORNERS * 4,
+                                             self.CORNER_QUALITY, self.MIN_SPACING_PX, mask=mask)
+        self._last_detection_s = stamp
+        detected = len(candidates) if candidates is not None else 0
+        if candidates is not None:
+            candidate_points, measured = sampled_points(depth, candidates, self.settings.camera)
+            candidates, candidate_points = candidates[measured], candidate_points[measured]
+            # The detector orders by corner strength. Pick its strongest
+            # remaining candidate in the least populated cell, repeatedly.
+            pools = {}
+            for index, cell in enumerate(self._cell_indices(candidates)):
+                pools.setdefault(int(cell), deque()).append(index)
+            queue = [(int(counts[cell]), cell) for cell in pools]
+            heapq.heapify(queue)
+            selected = []
+            while queue and len(selected) < room:
+                count, cell = heapq.heappop(queue)
+                selected.append(pools[cell].popleft())
+                if pools[cell]:
+                    heapq.heappush(queue, (count + 1, cell))
+            added, points = candidates[selected], candidate_points[selected]
+        else:
+            added = empty
+        n = len(added)
+        if reference is None and n < self.MIN_SEED_CORNERS:
+            # A seed cannot manufacture measured support out of RGB corners.
+            return None, empty, detected, "insufficient measured corners"
+        if reference is not None and len(corners) + n < 40:
+            return None, empty, detected, "insufficient reference tracks"
+        ids = np.arange(self._next_feature_id, self._next_feature_id + n, dtype=np.int64)
+        self._next_feature_id += n
+        born = np.full(n, stamp, float)
+        observations = np.ones(n, np.int32)
+        if reference is not None:
+            corners = np.concatenate((corners, added))
+            points = np.concatenate((reference.points, points))
+            ids = np.concatenate((reference.ids, ids))
+            born = np.concatenate((reference.born_s, born))
+            observations = np.concatenate((reference.observations, observations))
+        else:
+            corners = added
+        return _Reference(gray, depth, corners, stamp, self.pose.copy(), points, ids, born, observations), added, detected, reason
+
+    def _track_summary(self, reference, *, retained=0, added=0, retired=0, reason="unverified"):
+        if reference is None:
+            return {"active": 0, "retained": 0, "added": 0, "retired": retired, "median_age_s": 0.0,
+                    "max_age_s": 0.0, "occupied_cells": 0, "eligible_cells": 0,
+                    "replenishment": reason}
+        counts, eligible = self._field_counts(reference.corners, reference.depth)
+        ages = np.maximum(0, reference.stamp - reference.born_s)
+        return {"active": len(reference.ids), "retained": retained, "added": added, "retired": retired,
+                "median_age_s": float(np.median(ages)) if len(ages) else 0.0,
+                "max_age_s": float(np.max(ages)) if len(ages) else 0.0,
+                "occupied_cells": int(np.count_nonzero((counts > 0) & eligible)),
+                "eligible_cells": int(eligible.sum()), "replenishment": reason}
 
     def _match_reference(self, reference, gray, depth, stamp):
-        old_gray, _, old_corners, old_stamp, old_pose, points_a = reference
+        old_gray, _, old_corners, old_stamp, old_pose, points_a = reference[:6]
         if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
             return None, {}
         self._match_debug = None
+        self._matched_reference = None
         if len(points_a) < 40:
             return None, {}
         # Only features with stable measured source depth can constrain a pose.
@@ -175,6 +306,7 @@ class VisualTracker:
             status[supported] = self.ROUNDTRIP_REJECTED
             self._match_debug = {
                 "source": a, "target": b, "status": status,
+                "source_ids": reference.ids,
                 "reference_age_ms": (stamp - old_stamp) * 1000,
                 "reason": "Insufficient depth-supported tracks",
             }
@@ -214,21 +346,33 @@ class VisualTracker:
                     "Measured motion lacks distributed support" if not valid else
                     "Motion exceeds step budget")
             return None, stats
+        agreed, pixel_errors, depth_errors = _feature_support(pa, pb, pixels, delta, self.settings.camera)
+        reliable = (agreed & (pixel_errors <= self.MAX_RETENTION_PIXEL_ERROR)
+                    & (depth_errors <= self.MAX_RETENTION_DEPTH_ERROR_M))
+        indices = np.flatnonzero(supported)[reliable]
+        stats["retention_rejected"] = int(agreed.sum() - reliable.sum())
+        pose = old_pose @ np.linalg.inv(delta)
+        ids = reference.ids[indices]
+        observations = reference.observations[indices].copy()
+        if self.history and reference is not self.history[-1]:
+            # Recovery can reuse an older identity. Its observation count must
+            # include successful appearances in the newer retained references.
+            for recent in self.history:
+                _, here, there = np.intersect1d(ids, recent.ids, assume_unique=True, return_indices=True)
+                observations[here] = np.maximum(observations[here], recent.observations[there])
+        self._matched_reference = _Reference(
+            gray, depth, new[indices], stamp, pose.copy(), points_b[indices],
+            ids, reference.born_s[indices], observations + 1)
         if self.debug_enabled:
-            moved = pa @ delta[:3, :3].T + delta[:3, 3]
-            projected = moved[:, :2] / np.maximum(moved[:, 2:3], 1e-6)
-            projected = projected * [self.settings.camera.fx, self.settings.camera.fy]
-            projected += [self.settings.camera.cx, self.settings.camera.cy]
-            agreed = (moved[:, 2] > 0) & (np.linalg.norm(projected - pixels, axis=1) <= 3)
-            agreed &= np.linalg.norm(moved - pb, axis=1) <= 0.03
             status[np.flatnonzero(supported)[agreed]] = self.VERIFIED
             self._match_debug["reason"] = "Verified camera motion"
-        return old_pose @ np.linalg.inv(delta), stats
+        return pose, stats
 
     def update(self, rgb, raw_depth, metadata):
         # Snapshots are local preview data, never part of the pose report.
         self.debug_snapshot = None
         self._match_debug = None
+        self._matched_reference = None
         started = time.monotonic()
         stamp = metadata.get("timestamp_s", started)
         lag = metadata.get("rgb_depth_delta_ms")
@@ -237,39 +381,46 @@ class VisualTracker:
                     "segment": self.segment, "camera_to_local": self.pose.tolist(), "steps": self.steps}
         rgb, depth = prepare_rgbd(rgb, raw_depth, self.settings)
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        corners = cv2.goodFeaturesToTrack(gray, self.MAX_CORNERS, 0.015, 9, mask=(depth > 0).astype(np.uint8))
-        usable = corners is not None and len(corners) >= 60
         had_history = bool(self.history)
         if self.history and not 0 < stamp - self.history[-1][3] <= self.MAX_GAP_S:
             self.reset()
         stats, matched_stamp = {}, None
-        valid = usable and not had_history
-        if usable:
-            for reference in reversed(self.history):
-                pose, stats = self._match_reference(reference, gray, depth, stamp)
-                if pose is not None:
-                    self.pose = pose
-                    self.steps += 1
-                    matched_stamp = reference[3]
-                    valid = True
-                    break
+        valid = False
+        for reference in reversed(self.history):
+            pose, stats = self._match_reference(reference, gray, depth, stamp)
+            if pose is not None:
+                self.pose = pose
+                self.steps += 1
+                matched_stamp = reference.stamp
+                valid = True
+                break
         # A failed image never replaces the last trustworthy reference. An
         # expired chain starts a fresh origin, which is explicitly unverified.
-        seeded = valid or (usable and not self.history)
-        if seeded:
-            points, measured = sampled_points(depth, corners, self.settings.camera)
-            self.history.append((gray, depth, corners[measured], stamp,
-                                 self.pose.copy(), points[measured]))
+        retained = len(self._matched_reference.ids) if valid else 0
+        added, detected, replenishment = np.empty((0, 1, 2), np.float32), 0, "unverified"
+        if valid or not self.history:
+            current, added, detected, replenishment = self._replenish(gray, depth, self._matched_reference, stamp)
+            if current is not None:
+                self.history.append(current)
+                valid = valid or not had_history
+            else:
+                retained = 0
+        if self.history:
             self.previous = self.history[-1][:4]
+        tracks = self._track_summary(self.history[-1] if self.history else None,
+                                     retained=retained, added=len(added),
+                                     retired=stats.get("retention_rejected", 0), reason=replenishment)
         if self.debug_enabled:
             self.debug_snapshot = {
-                "image": rgb, "corners": corners if seeded else None,
-                "detected": len(corners) if corners is not None else 0,
+                "image": rgb, "corners": added,
+                "detected": detected, "tracks": tracks,
+                "track_ids": self.history[-1].ids if self.history else np.empty(0, np.int64),
+                "track_ages_s": self.history[-1].stamp - self.history[-1].born_s if self.history else np.empty(0),
                 "window_size": self.WINDOW_SIZE, "pyramid_level": self.PYRAMID_LEVEL,
                 "elapsed_ms": (time.monotonic() - started) * 1000,
-                "reason": "Seeded reference; no motion measured yet" if seeded else
-                    "Fewer than 60 usable corners; retaining references" if not usable else
-                    "No eligible reference produced flow; retaining references",
+                "reason": "Seeded reference; no motion measured yet" if len(added) and matched_stamp is None else
+                    "Visual motion unverified; retaining recent references" if self.history else
+                    "Fewer than 60 measured corners; no reference seeded",
                 **(self._match_debug or {}),
             }
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
@@ -277,4 +428,4 @@ class VisualTracker:
                 "reason": "Measured RGB-D motion" if valid else
                     "Visual motion unverified; retaining recent references" if self.history else
                     "Visual chain lost; new local origin",
-                "reference_timestamp_s": matched_stamp, **stats}
+                "reference_timestamp_s": matched_stamp, "tracks": tracks, **stats}

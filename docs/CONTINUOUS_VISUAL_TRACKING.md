@@ -19,7 +19,7 @@ flowchart LR
   Links --> Finish[Finish: verify graph and rebuild]
 ```
 
-The camera thread follows up to 500 image corners with pyramidal optical flow,
+The camera thread follows up to 500 image corners with persistent identities and pyramidal optical flow,
 checks forward/backward agreement, and requires measured depth at both ends.
 PnP proposes motion, paired 3D points constrain metric motion, and a small joint
 pixel/depth refinement retains the feature identities. This is a short-baseline
@@ -78,7 +78,7 @@ view keeps its depth display.
 
 Arrows run from the reference location to the current image location. Green
 marks correspondences consistent with verified camera motion; cyan marks
-fresh corners in a newly retained reference. Red crosses mark failed optical
+newly added corners. Red crosses mark failed optical
 flow, orange marks forward/backward disagreement, purple marks unavailable or
 unstable measured depth, and yellow marks geometry/pose rejection. A seeded
 reference explicitly says that no motion has been measured yet. This local
@@ -93,13 +93,43 @@ Timing failures clear the overlay and display the failure reason.
 keep the display readable. These are 21 × 21 pixel windows at pyramid level
 zero, not a fixed search boundary.
 
-The current tracker detects up to 500 corners with quality threshold 0.015
-and minimum spacing 9 pixels. Lucas–Kanade uses a 21 × 21 window at each of
-pyramid levels 0–3. It detects fresh corners on every image and retains them
-only when a new reference is accepted (or a new origin is seeded). It does
-not yet preserve long-lived feature IDs or use a periodic replenishment
-schedule. These tracking parameters remain the existing defaults; the new
-settings control visualization only.
+The field retains up to 500 corners with persistent IDs, birth timestamps, and
+successful observation counts. Verified survivors keep their subpixel locations
+and measured depth in each new reference. The five-reference fallback can
+recover those same identities from an earlier good image. Failed observations
+within a current chain never replace the field, allocate IDs, or trigger
+replenishment. A chain reset
+starts fresh lifetimes; IDs are local to their segment, not world landmarks.
+
+Replenishment runs after a verified motion step when fewer than 400 reliable
+tracks remain, or an eligible cell in the 8 × 6 image grid has fewer than three
+tracks. It keeps existing survivors, masks at least nine pixels around
+them, and selects new measured-depth corners from the least populated cells
+first, within the 500-track budget. Cells with insufficient included depth are
+excluded from coverage checks. The detector can inspect up to 2,000 candidates
+with corner quality 0.015 and nine-pixel spacing, but retains at most 500 tracks.
+Healthy fields skip detection. Ordinary top-ups are spaced by at least 200 ms;
+fewer than 60 surviving tracks bypass that delay. A new origin requires at
+least 60 corners with stable measured depth. An unusable replacement reference
+is discarded while earlier references remain available.
+
+Maintaining an identity uses a stricter quality check than authorizing one
+short motion step: retained tracks must have pixel residual at most 0.5 pixels
+and paired 3D residual at most 20 mm. Tracks with weaker evidence are retired
+and can be replaced. This limits accumulation of uncertain subpixel locations.
+These are engineering bounds, not a calibrated sensor uncertainty model. The
+existing motion acceptance, forward/backward, depth, and server verification
+gates remain in effect. Lucas–Kanade still uses 21 × 21 windows at pyramid
+levels 0–3. No camera image history beyond the five-reference bank is added.
+
+Diagnostics show tracks kept/new/retired for quality, median/oldest track age,
+grid coverage, and why replenishment ran or was skipped. Only newly added
+corners are cyan. Green flow can support the current pose yet fail the stricter
+lifetime check, so the green count can exceed the retained count. On a failed
+frame, ages and active counts describe the last retained reference. Scalar
+field summaries are included in capture metadata; per-feature IDs and ages
+remain local preview data. Algorithm parameters currently use code defaults;
+the sidebar controls visualization.
 
 Debug arrays and the calibrated preview travel only with their matching
 camera pair to the UI and are removed before manual/automatic capture
@@ -108,6 +138,24 @@ does not reset the motion chain, change acceptance thresholds, or restart the
 camera. The cost of snapshot collection and overlay drawing applies only
 while diagnostics are enabled. Physical Kinect capture with this overlay
 still requires validation.
+
+The adaptive-field tests cover identity survival across twelve updates,
+count/coverage top-ups, minimum spacing, bounded detection cadence, quality
+retirement, older-reference recovery, timing/depth/blank-frame rejection,
+segment resets, and manual/automatic capture isolation. The existing noisy
+raycast sequence still passes its metric motion checks: 9.31 mm translation
+RMS, 8.95 mm final translation error, and 1.20° final rotation error over
+twelve observations. Repeating with five PnP random seeds gives the same result.
+This tests a synthetic camera sequence, not physical scanning accuracy.
+
+The interleaved [compute benchmark](benchmarks/adaptive-feature-tracking.json)
+compares thirty-frame textured-plane sequences over three repeats. Whole-update
+median time changes from 9.83 to 7.42 ms, and from 9.21 to 7.92 ms with 20%
+depth holes. Both versions accept all thirty observations; the feature support
+sets differ by design. Synthetic translation RMS stays below 0.05 mm and maximum
+rotation error below 0.006° on those idealized planes. These times exclude
+acquisition, upload, server processing, and drawing; they do not establish
+Kinect throughput or real-world pose accuracy.
 
 ## Sharp capture selection and recovery pacing
 
