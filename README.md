@@ -117,6 +117,9 @@ The calibrated color preview shows verified/rejected feature motion, new
 corners, and optional LK patch outlines. Counts, timing, and reference age
 appear in the sidebar. See [capture flow diagnostics](docs/CONTINUOUS_VISUAL_TRACKING.md#capture-flow-diagnostics)
 for the color legend and current tracking parameters.
+Camera-side features now keep their identities while their measured support
+remains reliable. Adaptive top-ups fill count and coverage gaps; the diagnostic
+view reports tracks kept/added/retired and their lifetimes.
 
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,

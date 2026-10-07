@@ -63,7 +63,9 @@ class TrackingDebugTests(unittest.TestCase):
         tracker.debug_enabled = True
         failed = tracker.update(np.zeros((480, 640, 3), np.uint8), frame()[1], {"timestamp_s": 0.3})
         self.assertFalse(failed["valid"])
-        self.assertNotIn("source", tracker.debug_snapshot)
+        self.assertFalse(np.any(tracker.debug_snapshot["status"] == VisualTracker.VERIFIED))
+        self.assertEqual(0, tracker.debug_snapshot["tracks"]["added"])
+        self.assertEqual(0, tracker.debug_snapshot["tracks"]["retained"])
         late = tracker.update(*frame(4), {"timestamp_s": 0.4, "rgb_depth_delta_ms": 21})
         self.assertFalse(late["valid"])
         self.assertIsNone(tracker.debug_snapshot)
