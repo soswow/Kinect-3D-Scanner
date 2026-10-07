@@ -296,6 +296,8 @@ def main():
         action="store_true",
         help="Enable experimental final pose graph and reintegration",
     )
+    parser.add_argument("--bundle-adjustment", action="store_true",
+                        help="Enable experimental joint RGB-D camera/feature refinement at Finish")
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument(
         "--confidence-fusion", action="store_true", help="Experimental weighted TSDF"
@@ -330,6 +332,8 @@ def main():
         settings = replace(settings, color_recovery=True)
     if args.refine_poses:
         settings = replace(settings, refine_poses=True)
+    if args.bundle_adjustment:
+        settings = replace(settings, bundle_adjustment=True)
     if args.relocalize:
         settings = replace(settings, relocalize=True)
     if args.confidence_fusion:
@@ -386,6 +390,7 @@ def main():
         "tracking_score": score(estimated, frames),
         "backend": getattr(engine, "backend", None),
         "refinement": getattr(engine, "refinement", None),
+        "bundle_adjustment": getattr(engine, "bundle_adjustment", None),
         "final_reconstruction": getattr(engine, "final_reconstruction", None),
         "stage_totals_ms": getattr(engine, "stage_totals_ms", None),
         "peak_process_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

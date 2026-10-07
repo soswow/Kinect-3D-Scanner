@@ -409,6 +409,8 @@ async def scan_build():
                     detail += "; reconnection search budget reached"
             if engine.settings.refine_poses:
                 detail += "; " + refinement.get("reason", "Refinement finished")
+            if engine.settings.bundle_adjustment:
+                detail += "; " + proc_result.get("bundle_adjustment", {}).get("reason", "Joint RGB-D refinement finished")
             if engine.settings.final_voxel_m is not None:
                 final = proc_result["final_reconstruction"]
                 detail += (

@@ -288,6 +288,16 @@ constraints, optimizes a bounded keyframe graph, and reintegrates into a fresh
 volume only after separate geometry samples improve. It can retain the original
 trajectory when no reliable loop exists, and needs memory for two volumes.
 
+**Joint RGB-D refinement at Finish** is also experimental and off by default.
+It builds features shared by at least three saved views, then jointly refines
+camera positions and 3D feature positions using color and measured depth.
+Disjoint depth samples from every output view must improve before a bounded
+fresh reconstruction replaces the previous volume. Calibration and the first
+camera stay fixed. Current limits are 24 keyframes, 800 features, 128 accepted
+views and a 45-second proposal budget. Install the updated server requirements
+for SciPy. See [joint refinement](docs/JOINT_RGBD_REFINEMENT.md) and
+[candidates, statistical interpretation and evaluation](docs/RGBD_IMPROVEMENT_PLAN.md).
+
 Optional **Lost tracking recovery**, **sensor confidence weighting**, and
 **finer final fusion** now have explicit controls. Final fusion uses a separate,
 bounded volume; live feedback reports queue age and can pause automatic capture
