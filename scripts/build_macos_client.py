@@ -9,6 +9,8 @@ def main():
     if sys.platform != "darwin":
         raise SystemExit("Build the client on macOS using its configured Python environment.")
     root = Path(__file__).resolve().parents[1]
+    subprocess.run([sys.executable, str(root / "scripts/build_macos_icon.py")],
+                   check=True)
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm",
                     str(root / "packaging/macos-client.spec"),
                     "--distpath", str(root / "dist"), "--workpath", str(root / "build/macos-client")],

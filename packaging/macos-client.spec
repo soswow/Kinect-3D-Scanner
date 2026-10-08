@@ -33,6 +33,7 @@ exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Kinect 3D Scanner",
           console=False, argv_emulation=False)
 collection = COLLECT(exe, a.binaries, a.datas, name="Kinect 3D Scanner")
 app = BUNDLE(collection, name="Kinect 3D Scanner.app",
+             icon=str(root / "assets/icons/kinect-scanner-client.icns"),
              bundle_identifier="org.kinect3dscanner.client",
              info_plist={"CFBundleShortVersionString": "0.1.0",
                          "CFBundleVersion": "1", "NSHighResolutionCapable": True})

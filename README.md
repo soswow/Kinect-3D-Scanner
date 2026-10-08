@@ -40,6 +40,11 @@ The build creates `dist/Kinect 3D Scanner.app` and runs a hardware-free startup
 check that exercises the real Qt window, synthetic capture in a spawned process,
 calibration/sound resources, preferences, shutdown, and the mesh helper process.
 Copy the entire `.app` to Applications. Rebuild after changing the source code.
+The build generates `assets/icons/kinect-scanner-client.iconset` (standard and
+Retina sizes from 16 to 1024 pixels) and `kinect-scanner-client.icns` from the
+PNG master in the same directory. The bundle includes the ICNS in
+`Contents/Resources` and references it through `CFBundleIconFile`. To regenerate
+only the icon assets, run `python scripts/build_macos_icon.py` on macOS.
 The bundle targets the Mac architecture used to build it. It is signed locally
 for local use; distributing it to other users requires Developer ID signing and
 notarization. No Linux or Windows client bundles are provided yet.
