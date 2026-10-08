@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-POLICY = "explicit-stream-chunked-device-icp-v1"
+POLICY = "explicit-stream-chunked-device-icp-owner-bound-v2"
 STAGES = ((.12, 40), (.06, 30), (.03, 20))
 MAX_POINTS = 1_000_000
 BLOCK = 128
@@ -301,7 +301,13 @@ class DeviceLoopICP:
                     raise DeviceLoopError("Device-loop source changed after construction")
 
     def _check_inputs(self):
-        for key, array in zip(("source", "target", "normals", "seed"), self.host_inputs):
+        # Re-read the actual original owners. Uploaded C-order copies are kept
+        # separately; they cannot prove an F/strided seed or replaced cloud
+        # vector remained unchanged.
+        actual = (self.source_owner.points, self.target_owner.points,
+                  self.target_owner.normals, self.initial_owner)
+        for key, value in zip(("source", "target", "normals", "seed"), actual):
+            array = self.np.asarray(value)
             descriptor = self.input_binding[key]
             if (array.dtype.str != descriptor["dtype"] or list(array.shape) != descriptor["shape"] or
                     hashlib.sha256(array.tobytes(order="C")).hexdigest() != descriptor["sha256"]):
@@ -314,8 +320,9 @@ class DeviceLoopICP:
             raise ValueError("Require finite original float64 "+label)
         return np.ascontiguousarray(result)
 
-    def start(self, source, target, initial, *, pair_lease=None):
+    def start(self, source, target, initial, *, pair_lease=None, chunk_iterations=1):
         self._check_healthy(source_check=True)
+        checked_chunk(chunk_iterations)
         if self.started:
             raise DeviceLoopError("A lane owns exactly one trajectory; create another for the next seed")
         np, cp = self.np, self.cp
@@ -340,13 +347,15 @@ class DeviceLoopICP:
                 "max_scratch_bytes": self.max_scratch_bytes, "stages": [list(s) for s in STAGES],
                 "max_total_bytes": self.max_total_bytes,
                 "cuda_graph": self.cuda_graph,
+                "chunk_iterations": chunk_iterations,
                 "audit_nearest": self.audit_nearest, "audit_misses": self.audit_misses}}
         if not self.audit_nearest:
             permit = self.authorizer(self.input_binding, dict(self.provenance))
             if permit is None or permit is False:
                 raise DeviceLoopError("Fresh device-loop timing authorization was not granted")
             self.timing_permit = permit
-        self.source_owner, self.target_owner = source, target
+        self.source_owner, self.target_owner, self.initial_owner = source, target, initial
+        self.declared_chunk = chunk_iterations
         self.host_inputs = (host_source, host_target, normals, seed)
         self.n, self.m, self.blocks = n, m, (n+127)//128
         self.started = True
@@ -567,11 +576,13 @@ class DeviceLoopICP:
         self._launch("loop_resume_nn", (1,), (1,), (b["control"],))
         self._equations()
 
-    def advance(self, chunk_iterations=1):
+    def advance(self, chunk_iterations=None):
         self._check_healthy()
-        checked_chunk(chunk_iterations)
         if not self.started:
             raise DeviceLoopError("Start exact inputs before enqueuing device steps")
+        chunk_iterations = self.declared_chunk if chunk_iterations is None else checked_chunk(chunk_iterations)
+        if chunk_iterations != self.declared_chunk or chunk_iterations != self.input_binding["configuration"]["chunk_iterations"]:
+            raise DeviceLoopError("Chunk differs from the exact input/authorization binding")
         if hasattr(self, "empty_result"):
             return {"phase": "done", "queries": 0, "updates": 0}
         begin = time.perf_counter()
@@ -633,7 +644,7 @@ class DeviceLoopICP:
 
     def match(self, source, target, initial, *, chunk_iterations=1, pair_lease=None):
         checked_chunk(chunk_iterations)
-        self.start(source, target, initial, pair_lease=pair_lease)
+        self.start(source, target, initial, pair_lease=pair_lease, chunk_iterations=chunk_iterations)
         # 93 evaluations at most; CPU audit resumes a blocked evaluation before
         # the next step, so each advance must make progress or hard-fail.
         for _ in range(94):

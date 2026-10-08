@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
+import importlib
 import json
 import os
 from pathlib import Path
@@ -61,6 +62,14 @@ def run(args, report, save):
         "open3d": o3d.__version__, "opencv": cv2.__version__, "driver": cp.cuda.runtime.driverGetVersion(),
         "cuda": cp.cuda.runtime.runtimeGetVersion(), "device": "CUDA:0", "opencv_threads": cv2.getNumThreads(),
         "open3d_threads": o3d.utility.get_max_threads(), "omp_threads": os.environ.get("OMP_NUM_THREADS")}
+    binary_paths = {"open3d_legacy_search": Path(sys.modules[o3d.geometry.PointCloud.__module__.split(".geometry")[0]].__file__),
+        "numpy_arithmetic": Path(importlib.import_module("numpy._core._multiarray_umath").__file__),
+        "cupy_core": Path(importlib.import_module("cupy._core.core").__file__),
+        "native_extension": Path(capture["native_extension"]["path"])}
+    binaries = {name: {"path": str(path), "sha256": sha(path)} for name, path in binary_paths.items()}
+    if binaries["native_extension"]["sha256"] != capture["native_extension"]["sha256"]:
+        raise ValueError("Current native binary differs from the closed capture")
+    report["runtime_binaries"] = binaries
     with fixture_path.open("rb") as f:
         fixture = pickle.load(f)  # User-authorized own local capture, SHA checked above.
     if sha(fixture_path) != report["fixture_sha256"]:
@@ -90,6 +99,9 @@ def run(args, report, save):
                         audit_misses=True, miss_policy="direct-miss-research-v1")
                     loop = DeviceLoopICP(retrieval, cuda_graph=graph)
                     result = loop.match(source_cloud, target_cloud, seed, chunk_iterations=chunk)
+                    if (not np.isfinite(cpu.transformation).all() or not np.isfinite(result.transformation).all()
+                            or not np.isfinite([cpu.fitness, cpu.inlier_rmse, result.fitness, result.inlier_rmse]).all()):
+                        raise RuntimeError("Nonfinite original CPU or GPU result cannot satisfy comparison bounds")
                     relative = np.linalg.inv(cpu.transformation) @ result.transformation
                     translation = float(np.linalg.norm(relative[:3,3]))
                     angle = float(np.degrees(np.arccos(np.clip((np.trace(relative[:3,:3])-1)/2,-1,1))))
@@ -141,6 +153,9 @@ def run(args, report, save):
             or before != report["device_loop_source_contract_after"] or capture_sha != sha(args.capture)
             or report["fixture_sha256"] != sha(fixture_path)):
         raise RuntimeError("Input/source/helper closure failed")
+    report["runtime_binaries_after"] = {name: {"path": str(path), "sha256": sha(path)} for name, path in binary_paths.items()}
+    if binaries != report["runtime_binaries_after"]:
+        raise RuntimeError("Measured runtime binaries changed")
     report["status"] = "passed"
 
 
@@ -161,7 +176,7 @@ def main():
         if probe.connect_ex(("127.0.0.1",8000)) == 0:
             p.error("Stop idle field server first")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    report = {"kind": "actual-input-exhaustive-device-loop-graph-probe-v1", "status": "running",
+    report = {"kind": "actual-input-exhaustive-device-loop-graph-probe-v2", "status": "running",
         "start_utc": dt.datetime.now(dt.timezone.utc).isoformat(), "performance_authority": False,
         "timer_scope": "Audited diagnostic including setup/all CPU query audits/graph capture. No unaudited speed claim."}
     def save():

@@ -128,6 +128,8 @@ def fake_lane():
     lane.statistics.update({"graph_capture_s": 0., "graph_captures": 0,
                             "maximum_graph_nodes": 0, "graph_launches": 0})
     lane.started, lane.closed, lane.failure = True, False, None
+    lane.declared_chunk = 1
+    lane.input_binding = {"configuration": {"chunk_iterations": 1}}
     lane.buffers, lane.lease = {"pose": object(), "matrix": object(), "gradient": object()}, {"owned": object()}
     lane.n = 10
     return lane
@@ -136,6 +138,8 @@ def fake_lane():
 class FailureOwnershipContracts(unittest.TestCase):
     def test_nn_fault_latches_and_never_resolves_cpu_or_returns_result(self):
         lane = fake_lane()
+        lane.declared_chunk = 2
+        lane.input_binding["configuration"]["chunk_iterations"] = 2
         state = {"phase": "fault", "error": 1}
         with patch.object(lane, "_enqueue_step") as enqueue, patch.object(lane, "_read_control", return_value=state), \
                 patch.object(lane, "_resolve_nn") as resolve:
@@ -160,6 +164,8 @@ class FailureOwnershipContracts(unittest.TestCase):
 
     def test_audit_failure_cannot_reach_equations_or_success(self):
         lane = fake_lane(); primary = ValueError("wrong actual NN ID")
+        lane.declared_chunk = 4
+        lane.input_binding["configuration"]["chunk_iterations"] = 4
         with patch.object(lane, "_enqueue_step"), \
                 patch.object(lane, "_read_control", return_value={"phase": "nn_block"}), \
                 patch.object(lane, "_resolve_nn", side_effect=primary):
@@ -212,6 +218,14 @@ class FailureOwnershipContracts(unittest.TestCase):
         self.assertLess(calls.index("loop_commit_update"), calls.index("loop_transform_points"))
         self.assertEqual(calls[-1], "loop_metrics")
 
+    def test_changed_or_unbound_chunk_stops_before_any_enqueue(self):
+        lane = fake_lane()
+        with patch.object(lane, "_enqueue_step") as enqueue:
+            with self.assertRaises(loop.DeviceLoopError): lane.advance(4)
+            lane.declared_chunk = 4
+            with self.assertRaises(loop.DeviceLoopError): lane.advance(4)
+        enqueue.assert_not_called()
+
     def test_graph_capture_has_only_fixed_device_steps_and_reuses_one_graph(self):
         lane = fake_lane(); events = []
         class Graph:
@@ -256,6 +270,56 @@ class SimpleStream:
     def synchronize(self):
         self.on_sync()
         if self.failure: raise self.failure
+
+
+class InputOwnerContracts(unittest.TestCase):
+    def lane(self):
+        class Array:
+            dtype = SimpleNamespace(str="<f8")
+            shape = (4, 4)
+            def __init__(self, payload): self.payload = payload
+            def tobytes(self, *, order):
+                self.requested_order = order
+                return self.payload
+        seed, points, target, normals = (Array(b"seed F-order"), Array(b"source"), Array(b"target"), Array(b"normals"))
+        lane = fake_lane()
+        lane.np = SimpleNamespace(asarray=lambda x: x)
+        lane.source_owner = SimpleNamespace(points=points)
+        lane.target_owner = SimpleNamespace(points=target, normals=normals)
+        lane.initial_owner = seed
+        lane.host_inputs = tuple(Array(a.payload) for a in (points, target, normals, seed))
+        lane.input_binding.update({key: {"dtype": value.dtype.str, "shape": list(value.shape),
+            "sha256": loop.hashlib.sha256(value.payload).hexdigest()}
+            for key, value in zip(("source", "target", "normals", "seed"), (points, target, normals, seed))})
+        return lane, Array
+
+    def test_fortran_seed_owner_mutation_cannot_hide_behind_uploaded_copy(self):
+        lane, _ = self.lane()
+        lane._check_inputs()
+        self.assertEqual(lane.initial_owner.requested_order, "C")
+        lane.initial_owner.payload = b"one changed seed byte"
+        self.assertEqual(lane.host_inputs[3].payload, b"seed F-order")
+        with self.assertRaises(loop.DeviceLoopError): lane._check_inputs()
+
+    def test_replaced_pointcloud_vector_is_re_read(self):
+        lane, Array = self.lane()
+        lane.source_owner.points = Array(b"replacement source")
+        with self.assertRaises(loop.DeviceLoopError): lane._check_inputs()
+
+    def test_replaced_normals_and_dtype_or_shape_cannot_hide(self):
+        for change in ("normals", "dtype", "shape"):
+            with self.subTest(change=change):
+                lane, Array = self.lane()
+                if change == "normals": lane.target_owner.normals = Array(b"replacement normals")
+                elif change == "dtype": lane.target_owner.points.dtype = SimpleNamespace(str="<i8")
+                else: lane.target_owner.points.shape = (2, 8)
+                with self.assertRaises(loop.DeviceLoopError): lane._check_inputs()
+
+    def test_same_value_bytes_layout_change_is_explicitly_c_order(self):
+        lane, Array = self.lane()
+        lane.source_owner.points = Array(b"source")
+        lane._check_inputs()
+        self.assertEqual(lane.source_owner.points.requested_order, "C")
 
 
 if __name__ == "__main__":
