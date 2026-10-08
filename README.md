@@ -349,7 +349,17 @@ off-by-default **Use accelerometer to assist tracking** checkbox in scan setting
 Enabling this checkbox adds a bounded roll/pitch correction
 to the existing RGB-D initializer and retains the normal acceptance checks.
 The factory sensor axes are provisional; load a measured accelerometer profile
-for stronger assistance. Hardware orientation/performance and tracking gains
+for stronger assistance. To record and fit one with step-by-step terminal
+guidance, close the scanner and run in its Python environment:
+
+```bash
+python scripts/calibrate_accelerometer.py --interactive --output ~/Documents/measured-accelerometer.json
+```
+
+Follow the nine physical positioning prompts, then select the output JSON with
+**Load Accelerometer Calibration…** before scanning. Keep the head tilt fixed;
+independent camera-axis alignment checks are required for a verified profile.
+Hardware orientation/performance and tracking gains
 still need validation; see the [implementation and calibration guide](docs/KINECT_ACCELEROMETER.md).
 **Reconnect separated views at Finish** is enabled for new GUI scans. Finish
 reconstructs local fragments from retained raw frames, verifies overlapping
