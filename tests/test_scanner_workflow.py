@@ -135,13 +135,15 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertFalse(self.window._session_dirty)
         self.assertEqual("/tmp/project.zip", self.window._project_path)
 
-    def test_retry_build_submits_changed_final_block_budget(self):
+    def test_retry_build_uses_resolution_without_a_block_count_control(self):
         self.retain_scan()
-        self.window.final_blocks_spin.setValue(25000)
+        self.window.final_voxel_spin.setValue(3)
         self.window._stop_and_build()
         task = self.window.task_worker.tasks[-1]
         self.assertEqual(ServerTaskType.BUILD_MESH, task.task_type)
-        self.assertEqual(25000, task.kwargs["options"]["final_block_count"])
+        self.assertEqual(.003, task.kwargs["options"]["final_voxel_m"])
+        self.assertNotIn("final_block_count", task.kwargs["options"])
+        self.assertFalse(hasattr(self.window, "final_blocks_spin"))
 
     def test_invalid_range_stays_disabled_after_camera_update(self):
         self.window.depth_near_spin.setValue(2000)

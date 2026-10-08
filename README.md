@@ -292,7 +292,7 @@ The optional `-Recipe adaptive` tries verified ORB tracking before SIFT fallback
 Its measured fast-preview profile uses **Live voxel 10 mm / Final voxel 5 mm**
 in the client's advanced scan settings. Finish still uses the original recorded
 views at 5 mm; the live preview is coarser. The measured profile also uses a
-**10,000-block final budget** and **Final surface confidence 2**. See the experiment report for the
+**Final surface confidence 2**. Final volume storage is allocated automatically from the measured scan extent and available RAM/GPU memory. The historical benchmark used a 10,000-block cap. See the experiment report for the
 CPU/CUDA comparison, retained views and restrictions. Adaptive fallback is
 enabled only for that validated resolution pair; other settings use ORB.
 Add `-CudaInput auto` to accelerate calibrated native RGB/depth preparation on
@@ -454,7 +454,7 @@ Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> I
 4. Pause/resume as needed, or **Cancel Scan** to return to setup without building. **Inspect Scan** temporarily suspends capture to prepare a mesh snapshot.
 5. Click **Finish Scan**. The finished mesh opens for inspection; failed builds retain captures for retry/resume.
 6. Use **Export…** for a model or **Save Project…** for a reopenable ZIP. **Open Project…** accepts existing session recordings too.
-7. If final fusion exceeds its block budget, increase **Final block budget** or use a coarser final voxel and choose **Retry Build**. These final settings now apply to the retained captures without starting a new scan.
+7. **Final voxel size** controls reconstruction detail; the app measures scene extent and allocates volume storage automatically. Old session block counts are accepted for compatibility and do not limit reconstruction. If memory is insufficient, the build reports estimated/available RAM or GPU memory before fusion and retains the scan. Choose a coarser final voxel or free memory on the processing machine, then **Retry Build**.
 
 ---
 

@@ -4,5 +4,6 @@ open3d
 opencv-python
 trimesh
 pillow
+psutil
 fastapi
 uvicorn[standard]
