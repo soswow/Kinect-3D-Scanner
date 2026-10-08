@@ -123,7 +123,7 @@ view reports tracks kept/added/retired and their lifetimes.
 
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
-or plain OBJ; texture choices appear in that dialog. **Open Model…** opens a file.
+or plain OBJ; texture choices appear in that dialog. **Inspect Scan** previews the current scan.
 **Save Session…** preserves lossless observations for replay. New Scan, Cancel Scan and close
 offer Save Session / Discard / Cancel for unsaved captures, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan

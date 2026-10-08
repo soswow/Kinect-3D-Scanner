@@ -360,11 +360,6 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
             self._mode_actions.append(action)
         toolbar.addSeparator()
-        open_action = QAction("Open Model…", self)
-        open_action.setShortcut(QKeySequence.StandardKey.Open)
-        open_action.triggered.connect(self._view_3d_file)
-        toolbar.addAction(open_action)
-        toolbar.addSeparator()
         self.sound_action = QAction("Scan sounds", self)
         self.sound_action.setCheckable(True)
         self.sound_action.setChecked(self.capture_sound.enabled)
@@ -477,8 +472,6 @@ class MainWindow(QMainWindow):
             ("btn_export_texture_obj", "Export textured OBJ", lambda: self._export_texture("obj.zip")),
             ("btn_preview_3d", "View snapshot", self._preview_3d),
             ("btn_save_mesh", "Save Mesh", self._save_mesh),
-            ("btn_load_mesh", "Open Model", self._load_mesh),
-            ("btn_view_file", "Open Model", self._view_3d_file),
         ):
             button = QPushButton(title, container)
             button.clicked.connect(handler)
@@ -1608,30 +1601,6 @@ class MainWindow(QMainWindow):
         path = os.path.join(MESH_DIR, filename)
         self.btn_save_mesh.setEnabled(False)
         self.task_worker.submit(ServerTask(ServerTaskType.SAVE_MESH, {"path": path}))
-
-    def _load_mesh(self):
-        start_dir = MESH_DIR if os.path.isdir(MESH_DIR) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load Mesh",
-            start_dir,
-            "PLY files (*.ply);;All 3D files (*.obj *.ply *.stl *.glb)",
-        )
-        if path:
-            self.statusBar().showMessage(f"Opening: {path}")
-            launch_viewer_subprocess(path)
-
-    def _view_3d_file(self):
-        start_dir = EXPORT_DIR if os.path.isdir(EXPORT_DIR) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open 3D File",
-            start_dir,
-            "3D files (*.obj *.ply *.stl *.glb);;OBJ files (*.obj);;PLY files (*.ply);;STL files (*.stl)",
-        )
-        if path:
-            self.statusBar().showMessage(f"Opening: {path}")
-            launch_viewer_subprocess(path)
 
     # ── Task/server signal handlers ──────────────────────────────────
     def _on_server_status(self, status):
