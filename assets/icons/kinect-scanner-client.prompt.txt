@@ -1,11 +1,4 @@
-Revised with the built-in image_gen tool. This PNG is the source artwork for the client application icon; app-bundle integration is handled separately.
-Hardware reference: https://commons.wikimedia.org/wiki/File:Xbox-360-Kinect-Standalone.png (photo by Evan-Amos).
-Edit target: kinect-scanner-client-concept.png
-
-Use case: precise-object-edit
-Asset type: macOS application icon revision.
-Input images: Image 1 is the icon EDIT TARGET. Image 2 is a real original Xbox 360 Kinect v1 HARDWARE REFERENCE ONLY.
-Primary request: Change ONLY the Kinect device in the lower part of image 1 to accurately depict the real Kinect v1 shown in image 2, interpreted in the same polished icon-rendering style as image 1.
-Hardware accuracy: Match the original Kinect v1's long slim glossy-black subtly tapered bar, dark black plastic top lip and rounded ends, front face about six times wider than high. Remove the invented silver/chrome outline entirely. Copy the real asymmetric optics layout: from the viewer's left, a large flat pale turquoise IR projector window at about 27 percent of bar width; tiny status indicator between that and the RGB lens; the RGB camera at about 44 percent; the IR camera close to its right at about 53 percent. All three optical windows are similar physical diameter, but their interiors visibly differ. The right third of the bar remains mainly empty black plastic with the small authentic light-gray XBOX 360 device marking. Do NOT spread three camera lenses evenly across the entire bar. A short central tilt joint supports the sensor above its broad low black wedge-shaped trapezoidal base; match image 2's squat sloping base with subtle embossed KINECT device marking. No silver rim, no tall display-monitor pedestal, no modern webcam body.
-Composition: Keep the sensor centered beneath the cube at the same overall horizontal span as the existing sensor; its physical bar and base proportions should match the reference. Render front-on with a slight view of the top, consistent with the icon's viewpoint and lighting. Ignore image 2's background, cable, transparent artifacts, and photographic scene.
-Invariants: Keep image 1's reconstructed cube, ivory faces, cyan triangular mesh, node pattern, glow, graphite rounded-square tile, lighting, framing, and transparent outer corners unchanged. Do not redesign anything beyond the sensor. Preserve a square icon canvas. No additional objects, text, or branding except authentic tiny device markings.
+This PNG is the flattened macOS rendering of kinect-scanner-client.icon, exported with Apple's ictool.
+The revised full-bleed artwork was generated with the built-in image_gen tool, then imported into Icon Composer with additional glass effects disabled.
+Generation prompt: kinect-scanner-client-tahoe.prompt.txt
+Original Kinect v1 hardware reference: https://commons.wikimedia.org/wiki/File:Xbox-360-Kinect-Standalone.png

@@ -14,6 +14,7 @@ if importlib.util.find_spec("freenect") is None:
 datas = collect_data_files("open3d", includes=["resources/*"])
 datas += [(str(root / "calibration/default.json"), "calibration"),
           (str(root / "calibration/raw-to-mm.bin"), "calibration"),
+          (str(root / "assets/icons/Assets.car"), "."),
           (str(root / "kinect_scanner/gui/assets"), "kinect_scanner/gui/assets")]
 hiddenimports = ["freenect", "open3d.pybind"]
 if importlib.util.find_spec("_kinect_native") is not None:
@@ -36,4 +37,5 @@ app = BUNDLE(collection, name="Kinect 3D Scanner.app",
              icon=str(root / "assets/icons/kinect-scanner-client.icns"),
              bundle_identifier="org.kinect3dscanner.client",
              info_plist={"CFBundleShortVersionString": "0.1.0",
-                         "CFBundleVersion": "1", "NSHighResolutionCapable": True})
+                         "CFBundleVersion": "1", "NSHighResolutionCapable": True,
+                         "CFBundleIconName": "kinect-scanner-client"})
