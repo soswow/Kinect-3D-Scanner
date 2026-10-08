@@ -722,6 +722,7 @@ Kinect-3D-Scanner/
 
 ## Documentation
 
+- **[Script and research index](scripts/README.md)** — Maintained tools, reusable benchmarks, active research and archived experiments, with prerequisites and supported commands.
 - **[CUDA scanning performance and research](docs/CUDA_EXPERIMENTS.md)** — Measured field recipe, complete archive comparisons, CUDA research results and reproduction instructions.
 - **[Saved CUDA reports](docs/benchmarks/CUDA_REPORTS.md)** — Published charts and summaries, with original and published file hashes.
 - **[Kinect v1 Technical Reference](docs/KINECT_V1_LINUX_PYTHON_REFERENCE.md)** — Hardware specs, driver installation, Python API, camera intrinsics, calibration, point cloud generation, registration algorithms, mesh reconstruction, and export formats.
