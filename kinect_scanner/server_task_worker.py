@@ -200,7 +200,9 @@ class ServerTaskWorker(QThread):
             self._client.session_id = result.get("session_id")
             self._live = result["settings"].get("live_reconstruction", False)
             if task.kwargs.get("record"):
-                root = Path(__file__).resolve().parents[1] / "recordings"
+                from .runtime import data_root
+
+                root = data_root() / "recordings"
                 path = root / datetime.now(timezone.utc).astimezone().strftime("scan-%Y%m%d-%H%M%S-%f")
                 try:
                     self._recording = RecordingWriter(path, result["settings"])

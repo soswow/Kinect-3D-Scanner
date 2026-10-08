@@ -16,58 +16,61 @@
 
 ---
 
-## Run Client and Server on One Machine
+## Start the Client and Server Separately
 
-The client and server can run on the same computer over loopback HTTP and
-WebSocket connections. Install the dependencies from `requirements.txt` into a
-Python environment with working `freenect` bindings, then run from the repository:
+The client and server have independent entry points and lifetimes. Closing the
+client does not stop the server. Current launch support is a macOS desktop client
+and a manually started server on macOS or Windows. They can run on separate LAN
+machines or on the same Mac; use `localhost` in the client for a local server.
+
+For daily use on Mac, open **Kinect 3D Scanner.app** from Finder, Dock, or
+Applications. The app includes Python, Qt, Open3D, the freenect bindings and their
+USB libraries; it does not search for a virtual environment or start a server.
+It remembers the server address and port. Start the server independently, then
+click **Connect** in the client. Only one application should use the Kinect at a time.
+
+To build the client app using an environment with working Kinect bindings:
 
 ```bash
-python scripts/start_scanner.py
+python -m pip install -r requirements-packaging.txt
+python scripts/build_macos_client.py
 ```
 
-The launcher starts a server on `127.0.0.1:8000`, waits for its health check,
-opens the GUI, and connects automatically. Closing the GUI stops the server.
-Only one application should use the Kinect at a time.
+The build creates `dist/Kinect 3D Scanner.app` and runs a hardware-free startup
+check that exercises the real Qt window, synthetic capture in a spawned process,
+calibration/sound resources, preferences, shutdown, and the mesh helper process.
+Copy the entire `.app` to Applications. Rebuild after changing the source code.
+The bundle targets the Mac architecture used to build it. It is signed locally
+for local use; distributing it to other users requires Developer ID signing and
+notarization. No Linux or Windows client bundles are provided yet.
 
-On macOS, **Start Scanner.command** can be opened from Finder. It uses the
-repository's `.venv/`, the parent folder's `.venv/`, an activated virtual
-environment, or `python3` from PATH, in that order. Finder launches do not
-require activating either local environment in Terminal first.
-For an environment located elsewhere, run the launcher with that environment's
-Python interpreter directly. The driver and compiled Python bindings must both
-be installed; the Python dependencies alone do not provide `freenect`.
+Client logs rotate in `~/Library/Logs/Kinect3DScanner/client.log`. The bundled
+client saves local recordings and preview meshes under
+`~/Library/Application Support/Kinect3DScanner/`; the default export folder is
+`~/Documents/Kinect 3D Scanner/export/`. Source runs retain the repository's
+`recordings/`, `mesh/`, and `export/` folders.
+
+For development, install the commands into your configured environment:
+
+```bash
+python -m pip install --no-deps -e .
+kinect-scanner-server
+# In a separate terminal, using the client environment:
+kinect-scanner
+```
+
+The module commands `python -m scanner_server` and `python -m kinect_scanner`
+also remain available. Installation/build are explicit steps; startup never
+installs packages or compiles extensions. See the separate setup sections below
+for each component's dependencies.
 
 The software has been checked on Apple Silicon macOS with Python 3.13 and
-Open3D 0.20. A tested dependency snapshot is in `requirements-macos-lock.txt`:
+Open3D 0.20. `requirements-macos-lock.txt` records the tested Mac dependencies;
+`freenect` must be compiled separately before building the app. Synthetic checks
+cover reconstruction and the client workflow; live capture and mesh building
+have also been exercised on Kinect v1 hardware. Reconstruction quality depends
+on overlap, camera calibration, and the subject's geometry.
 
-```bash
-python -m pip install -r requirements-macos-lock.txt
-```
-
-This snapshot excludes `freenect`, which must be compiled separately. Synthetic
-checks cover reconstruction and the client workflow; live capture and mesh
-building have also been exercised on Kinect v1 hardware. Reconstruction quality
-depends on overlap, camera calibration, and the subject's geometry.
-
-The launcher uses four OpenMP threads and an initial 5,000-block TSDF allocation
-(roughly 400 MB of voxel attributes, plus overhead). Larger scans may need more
-blocks. These environment variables can override its defaults:
-
-| Variable | Launcher default | Purpose |
-|----------|------------------|---------|
-| `KINECT_SERVER_PORT` | `8000` | Local server and client port |
-| `KINECT_BLOCK_COUNT` | `5000` | Initial TSDF block budget |
-| `KINECT_MAX_FRAMES` | `500` | Stored-frame limit per session |
-| `OMP_NUM_THREADS` | `4` | OpenMP/native kernel threads; Open3D 0.20 uses its separate TBB policy |
-| `KINECT_NATIVE` | `auto` | Use installed C++ kernels; `off` selects NumPy, `on` requires native |
-
-```bash
-KINECT_SERVER_PORT=8001 KINECT_BLOCK_COUNT=10000 python scripts/start_scanner.py
-```
-
-Client and server output is saved in `logs/`, which is excluded from Git along
-with exports, meshes, virtual environments, and local environment files.
 The client reports missing hardware and retries automatically. Camera acquisition
 runs in an isolated process: a stalled USB driver times out and restarts, and
 cannot prevent the window from closing. RGB/depth pairing uses the Kinect v1's
@@ -468,26 +471,29 @@ reconstruction tests can finish successfully, then Python exits with
 `CUDA runtime error: driver shutting down`. During Windows validation, the
 server regression assertions and synthetic HTTP scan/exports passed, but the
 regression process exited abnormally during CUDA teardown. Explicit cache cleanup did not
-resolve the exit error. The background launcher's printed process-tree stop
-command terminates the server without relying on Open3D's teardown.
+resolve the exit error. For a server that fails to exit during CUDA teardown,
+stop its process through Windows Task Manager.
 
-Double-click **Start Server.cmd**, or run:
+Install the server command after the dependencies and native extension:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1
+.\.venv\Scripts\python.exe -m pip install --no-deps -e .
+.\.venv\Scripts\kinect-scanner-server.exe --device cuda --native on --tracking tensor --threads 8
 ```
 
-The launcher requires CUDA and the compiled native extension, binds to
-`0.0.0.0:8000`, and starts with 5,000 voxel blocks, 500 stored frames, and eight
-OpenMP threads. Existing environment variables override these defaults. Press
-Ctrl+C to stop. Add `-Background` to run hidden with output in
-`logs/server-<port>.*.log`; the launcher waits up to three minutes for health,
-then prints the process ID and stop command. It rejects an occupied port before
-starting another process. For example, select a different port before launch:
+Those explicit options require CUDA and native kernels, so missing components
+fail visibly. Without options, startup selects available CPU/CUDA and optional
+native kernels automatically. The shared startup defaults are port 8000, 5,000
+voxel blocks, 500 stored frames and four OpenMP threads. CLI options override
+existing environment variables. Press Ctrl+C to stop.
+
+For a source-checkout shortcut, double-click **Start Server.cmd**. It uses only
+that checkout's `.venv` and the same Python startup policy. The optional
+`scripts/start_server.ps1` wrapper forwards the same arguments. Neither wrapper
+starts the client or creates a hidden background process.
 
 ```powershell
-$env:KINECT_SERVER_PORT = "8001"
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1 -Background
+.\.venv\Scripts\kinect-scanner-server.exe --device cuda --native on --port 8001
 ```
 
 Check `http://127.0.0.1:8000/api/health` for `device: CUDA:0`, tensor tracking,
@@ -537,19 +543,45 @@ still performs tracking, volume allocation, extraction, and CUDA integration.
 See [native backend measurements](docs/NATIVE_PERFORMANCE.md) for recorded-session
 comparisons and reproduction commands.
 
-### Run
+### Run (macOS and Windows)
+
+Install dependencies from the appropriate server requirements file, then install
+this project's command. On macOS, a fresh environment can be set up with:
 
 ```bash
-python -m scanner_server
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-server.txt
+.venv/bin/python -m pip install ./native
+.venv/bin/python -m pip install --no-deps -e .
+.venv/bin/kinect-scanner-server
 ```
 
-The server listens on `0.0.0.0:8000` by default.
+The server stays in the foreground and prints startup status and request logs.
+Ctrl+C stops it. The installed command works from any directory; alternatively,
+run `python -m scanner_server` from the checkout. On Windows use the commands in
+the Windows setup section above. Standalone server executables are not bundled
+in this version; the installed Python command is the supported launch path.
 
-For standalone processes, `KINECT_SERVER_HOST` and `KINECT_SERVER_PORT`
-configure the server's bind address and the client's connection fields.
-`KINECT_AUTOCONNECT=1` makes the client connect on startup. The standalone
-server retains a 50,000-block TSDF default; use `KINECT_BLOCK_COUNT` to change
-it. The combined launcher always binds to `127.0.0.1`.
+The server binds to `0.0.0.0:8000` by default, allowing LAN connections. Use
+`--host 127.0.0.1` when only local connections are needed. The client uses a
+concrete server hostname/IP, such as `localhost`, rather than the bind address.
+macOS uses the CPU backend when CUDA is unavailable.
+
+| CLI option | Environment fallback | Default |
+|------------|----------------------|---------|
+| `--host` | `KINECT_SERVER_HOST` | `0.0.0.0` |
+| `--port` | `KINECT_SERVER_PORT` | `8000` |
+| `--device` | `KINECT_DEVICE` | `auto` (`auto`, `cpu`, `cuda`) |
+| `--tracking` | `KINECT_TRACKING` | `auto` (`auto`, `legacy`, `tensor`) |
+| `--native` | `KINECT_NATIVE` | `auto` (`auto`, `off`, `on`) |
+| `--threads` | `OMP_NUM_THREADS` | `4` |
+| `--block-count` | `KINECT_BLOCK_COUNT` | `5000` |
+| `--max-frames` | `KINECT_MAX_FRAMES` | `500` |
+
+CLI options override environment variables. Invalid settings fail before the
+server loads its reconstruction dependencies. Advanced backend settings remain
+available through their existing environment variables. `scripts/start_cuda_server.ps1`
+is a separate research tool for measured CUDA recipes, not the normal server entry point.
 
 ### API Endpoints
 
@@ -603,11 +635,13 @@ cd ../wrappers/python && pip install .
 python -m kinect_scanner
 ```
 
-On macOS, double-click **Start Client.command** in Finder to open only the client.
-It uses the repository's `.venv/`, the parent folder's `.venv/`, an activated
-virtual environment, or `python3` from PATH, in that order. Enter the server's
-LAN IP address and port in the GUI, then click **Connect**. **Start Scanner.command**
-continues to start both the client and a local server.
+For daily use on macOS, open **Kinect 3D Scanner.app**; see the build steps at
+the top of this README. For development, install `python -m pip install --no-deps -e .`
+and run `kinect-scanner` in the client environment. Both launch only the client.
+Enter the server's LAN hostname/IP and port in the GUI, then click **Connect**.
+The client remembers these fields across launches. `KINECT_SERVER_HOST` and
+`KINECT_SERVER_PORT` override the saved connection fields for source runs;
+`KINECT_AUTOCONNECT=1` optionally connects on startup.
 
 ### View Modes
 

@@ -46,6 +46,7 @@ from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
+from ..runtime import data_root, export_root
 from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
@@ -59,11 +60,9 @@ from .widgets import (
     numpy_to_qimage,
 )
 
-# Default export directory (relative to where the app is launched)
-_PROJECT_ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
-EXPORT_DIR = os.path.join(_PROJECT_ROOT, "export")
+# Bundled code/resources are read-only; keep generated files in user folders.
+_PROJECT_ROOT = str(data_root())
+EXPORT_DIR = str(export_root())
 MESH_DIR = os.path.join(_PROJECT_ROOT, "mesh")
 
 
