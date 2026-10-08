@@ -37,6 +37,10 @@ unchanged because measured earlier component proofs bind its exact bytes.
 | [MARKER_PROPOSAL_RESEARCH.md](MARKER_PROPOSAL_RESEARCH.md) | Exact native marker lookup and proposal experiments; appending more seeds did not help whole Finish |
 | [FINAL_HEADROOM_RESEARCH.md](FINAL_HEADROOM_RESEARCH.md) | Reproduce Open3D repeated-key reserve growth and distinguish logical limits from actual allocation |
 | [benchmark_missing_activation.py](benchmark_missing_activation.py) | Compare original and missing-key activation with per-key CPU/tensor/fused voxel-bit checks |
+| [benchmark_production_missing_activation.py](benchmark_production_missing_activation.py) | Check installed weighted Final allocation with native capacity and per-key voxel-bit comparisons |
+| [probe_final_budget.py](probe_final_budget.py) | Verify an insufficient Final budget using a fresh current-source raw replay; allocation only |
+| [summarize_production_allocation.py](summarize_production_allocation.py) | Publish bounded scalar production validation from closed local reports |
+| [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Concrete next experiment: independent proposal batches and complete device iterations |
 
 These files have different jobs: runnable experiments, bounded adapters,
 independent validators, fault contracts and negative-result diagnostics. They
@@ -87,6 +91,13 @@ component result.
 | [plot_gpu_model_experiments.py](plot_gpu_model_experiments.py) | Plot saved synthetic model experiments; requires Matplotlib and existing reports. |
 
 ## Running a new experiment
+
+Historical source-bound experiments use research baseline commit
+`fb9069d33cd12efb3b305054934fea28ffbc1959` and the
+[measured-byte restoration instructions](MEASURED_SOURCE_REPRODUCIBILITY.md).
+Their old core checks correctly reject the subsequent production allocation
+change. Current-source raw workflow and installed allocation tools explicitly
+check the source they actually measure.
 
 Use the scanner/native environment plus CUDA-enabled Open3D and CuPy. The
 resident method also needs the exact pinned Eigen CPU bridge, built locally

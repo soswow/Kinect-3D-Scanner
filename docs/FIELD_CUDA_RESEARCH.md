@@ -10,6 +10,49 @@ launcher defaults to `full`, and the production ICP label remains `legacy`.
 Chest-7's 5 mm Final requires a budget of at least 13,302 unique blocks;
 the successful experiments used a common 20,000-block budget.
 
+## Installed Final memory improvement
+
+Confidence-weighted Final reconstruction now measures its original frustum
+requirement before allocating the Final candidate, then activates only missing
+keys. The original CPU, tensor CUDA and fused CUDA voxel update equations are
+unchanged. Live, reconnection and refinement retain their original activation.
+
+| Fresh installed replay | Final views | Required and allocated blocks | Configured attribute allowance, MiB | Measured attribute allocation, MiB |
+|---|---:|---:|---:|---:|
+| chest-5 | 7 | 3,328 | 781.25 | 260.00 |
+| chest-6 | 38 | 2,860 | 781.25 | 223.44 |
+| chest-7, 20,000-block limit | 108 | 13,302 | 1,562.50 | 1,039.22 |
+
+These are TSDF/weight/color payload sizes, not peak GPU or process memory.
+Historical raw profiles recorded the configured allowance, not actual native
+capacity. The new diagnostics measure both initial and final native capacity.
+Planning took 46 / 250 / 781 milliseconds, already included in Final time.
+This is a memory improvement; single-run Finish times do not establish a speed
+gain.
+
+Fresh native CPU/tensor/fused tests matched every per-key float32 TSDF, weight
+and color bit while preventing repeated-key capacity growth from four to eight
+blocks. All three complete raw replays retained their earlier Final views and
+passed fixed-coordinate mesh comparisons: symmetric vertex distances were
+zero, surface p95 was at most 0.00000012 metres, and precision/completeness
+were 1. Mesh buffer ordering changed; ordered mesh arrays are not byte-identical.
+Unrounded pose differences remained far below 0.5 mm / 0.1 degrees.
+
+An allocation-only check using chest-7's fresh, full-precision Final poses
+confirmed that a 10,000-block limit is rejected before allocating
+the Final candidate. It creates only the original one-block planning scratch,
+performs no registration or fusion, and preserves input and owner state.
+The [compact production validation](benchmarks/field-study-production-v1/validation-summary.json)
+records these checks and the preserved unsuccessful first attempts.
+
+The historical research baseline is commit
+`fb9069d33cd12efb3b305054934fea28ffbc1959`. Its source-bound GPU experiments
+must run from that baseline using the
+[measured-byte reproduction instructions](../scripts/research/MEASURED_SOURCE_REPRODUCIBILITY.md).
+The installed allocation change deliberately invalidates those old core checks.
+The next speed study is described in the
+[bounded proposal-batch and device-iteration design](../scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md).
+
 The new field archives make fragment verification the main speed target, but
 they also expose two quality/completion issues that a speed comparison must
 preserve. Chest-5 retained only the anchored seven-view fragment. Chest-7 spent

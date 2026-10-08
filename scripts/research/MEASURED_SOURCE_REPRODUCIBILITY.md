@@ -7,7 +7,10 @@ CRLF lines. `measured-source-layout.json` records the raw and normalized hashes,
 byte counts and compact one-based LF line ranges for 74 exact source paths,
 including the complete 48-file core inventory.
 
-On the preserved research baseline commit, first check:
+Use research baseline commit `fb9069d33cd12efb3b305054934fea28ffbc1959`
+in a separate checkout for these historical experiments. The subsequent
+production allocation change deliberately invalidates the old core guards.
+On that preserved baseline, first check:
 
 ```powershell
 python -S scripts/research/restore_measured_source.py

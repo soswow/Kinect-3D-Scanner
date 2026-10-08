@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace, ModuleType
 import unittest
+from tests.final_source_fixture import baseline_sources
 from unittest.mock import patch
 
 from scripts.research import final_missing_activation as missing
@@ -179,7 +180,9 @@ class Engine(BaseEngine):
 
 class MissingHashMapContracts(unittest.TestCase):
     def setUp(self):
-        self.contract = missing.WeightedActivationSourceContract()
+        # Artificial hashmap tests exercise the contract interface; acceptance
+        # of actual source is checked separately by WeightedSourceContracts.
+        self.contract = object.__new__(missing.WeightedActivationSourceContract)
         self.caller = patch.object(self.contract, "caller")
         self.caller.start()
         self.addCleanup(self.caller.stop)
@@ -342,6 +345,9 @@ class MissingHashMapContracts(unittest.TestCase):
 
 class MissingFinalContracts(unittest.TestCase):
     def setUp(self):
+        fixture = baseline_sources()
+        fixture.__enter__()
+        self.addCleanup(fixture.__exit__, None, None, None)
         self.guards = [patch.object(original, "validate_original_functions", return_value={}),
                        patch.object(original, "private_depth_preparation", side_effect=lambda fn: fn),
                        patch.object(missing, "private_prepare_input", side_effect=lambda owner: owner._prepare_input.__func__),
@@ -545,18 +551,29 @@ class MissingFinalContracts(unittest.TestCase):
 
 class WeightedSourceContracts(unittest.TestCase):
     def test_real_pinned_source_guard_and_unused_tuple_contract(self):
-        contract = missing.WeightedActivationSourceContract()
-        self.assertEqual(len(contract.caller_signatures), 3)
-        self.assertEqual(contract.unchanged(), contract.source_sha256)
+        try:
+            current = missing.WeightedActivationSourceContract()
+        except missing.MissingActivationContractError as error:
+            self.assertIn("Original weighted activation caller changed", str(error))
+        else:
+            self.assertEqual(len(current.caller_signatures), 3)
+            self.assertEqual(current.unchanged(), current.source_sha256)
+        # Preserved source acceptance is an explicit artificial source fixture;
+        # it cannot authorize changed current production callers.
+        with baseline_sources():
+            contract = missing.WeightedActivationSourceContract()
+            self.assertEqual(len(contract.caller_signatures), 3)
+            self.assertEqual(contract.unchanged(), contract.source_sha256)
 
     def test_unreviewed_caller_refused_without_native_mutation(self):
-        contract = missing.WeightedActivationSourceContract()
-        native = HashMap(1)
-        adapter = missing.MissingOnlyHashMap(native, core=CORE, device="CPU:0", physical_capacity=1,
-            logical_limit=1, source_contract=contract, configuration=lambda: (True, "CPU:0"))
-        with self.assertRaisesRegex(missing.MissingActivationContractError, "caller"):
-            adapter.activate(Tensor([key(0)]))
-        self.assertEqual(native.activate_inputs, [])
+        with baseline_sources():
+            contract = missing.WeightedActivationSourceContract()
+            native = HashMap(1)
+            adapter = missing.MissingOnlyHashMap(native, core=CORE, device="CPU:0", physical_capacity=1,
+                logical_limit=1, source_contract=contract, configuration=lambda: (True, "CPU:0"))
+            with self.assertRaisesRegex(missing.MissingActivationContractError, "caller"):
+                adapter.activate(Tensor([key(0)]))
+            self.assertEqual(native.activate_inputs, [])
 
     def test_source_change_refused_without_numerical_import(self):
         real = Path.read_bytes
@@ -565,13 +582,14 @@ class WeightedSourceContracts(unittest.TestCase):
                 missing.WeightedActivationSourceContract()
 
     def test_activation_result_consumption_is_not_silently_authorized(self):
-        real = Path.read_text
-        def altered(path, *args, **kwargs):
-            text = real(path, *args, **kwargs)
-            return text.replace("    hashmap.activate(blocks)", "    ignored = hashmap.activate(blocks)") if path.name == "weighted_fusion.py" else text
-        with patch.object(Path, "read_text", altered):
-            with self.assertRaises(missing.MissingActivationContractError):
-                missing.WeightedActivationSourceContract()
+        with baseline_sources():
+            real = Path.read_text
+            def altered(path, *args, **kwargs):
+                text = real(path, *args, **kwargs)
+                return text.replace("    hashmap.activate(blocks)", "    ignored = hashmap.activate(blocks)") if path.name == "weighted_fusion.py" else text
+            with patch.object(Path, "read_text", altered):
+                with self.assertRaises(missing.MissingActivationContractError):
+                    missing.WeightedActivationSourceContract()
 
 
 if __name__ == "__main__":

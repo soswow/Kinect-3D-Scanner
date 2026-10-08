@@ -18,6 +18,8 @@ from open3d import core
 from shared.confidence import depth_confidence
 from shared.native import kernels
 
+from .fusion_allocation import activate_fusion_blocks
+
 
 def integrate_weighted(engine, volume, blocks, rgb, depth, extrinsic):
     preparation = getattr(engine, "_confidence_preparation", None)
@@ -56,7 +58,7 @@ def _integrate_cpu(engine, volume, blocks, rgb, depth, extrinsic, confidence):
     projective TSDF equations or the confidence and truncation gates.
     """
     hashmap = volume.hashmap()
-    hashmap.activate(blocks)
+    activate_fusion_blocks(engine, hashmap, blocks)
     buffers, found = hashmap.find(blocks)
     buffers = buffers[found]
     tsdf = volume.attribute("tsdf").numpy().reshape(-1, 1)
@@ -132,7 +134,7 @@ def _integrate_tensor(engine, volume, blocks, rgb, depth, extrinsic, confidence)
     transform = core.Tensor(extrinsic, dtype=core.float32, device=device)
     camera = engine.settings.camera
     hashmap = volume.hashmap()
-    hashmap.activate(blocks)
+    activate_fusion_blocks(engine, hashmap, blocks)
     buffers, found = hashmap.find(blocks)
     buffers = buffers[found]
     tsdf = volume.attribute("tsdf").reshape((-1, 1))

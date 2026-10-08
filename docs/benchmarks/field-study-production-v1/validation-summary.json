@@ -1,0 +1,810 @@
+{
+  "kind": "installed-weighted-final-allocation-publication-v1",
+  "status": "complete",
+  "baseline_source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "installed_source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+  "sessions": [
+    {
+      "session": "chest-5",
+      "baseline": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.json",
+        "sha256": "e5b41a6363e2741850aeef8572c8385263867dfb49c92900eb7c2ae956d9bc10",
+        "bytes": 392162,
+        "reported_status": "profile"
+      },
+      "current": {
+        "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-5-scan-session-full.json",
+        "sha256": "438afec40476d88bebeb9dddc53d4c6a778e4c15edc1805daffa934c9f2ccb14",
+        "bytes": 392934,
+        "reported_status": "profile"
+      },
+      "matched_raw_scope": {
+        "input_sha256": "599eae75263c7398cda0cef84efe2ef23b87391b269c988ec8a2dbf60ed1907a",
+        "settings_sha256": "e992961bbf336f0f0010544af0ad96edb5b9c85bcea16e341503233527afeba4",
+        "selected_indices_sha256": "072fe8f2d041ae930b93919ae6b2d30f7196363e87d5e10eb3c5b94eb76dc1af",
+        "pipeline_options_sha256": "0c0bb1ac1c06f8ce4d2390f0d27c5e49fa84b4a2918aafcee31ed18cc1cac7d4",
+        "runtime_scope_sha256": "07ad69923c141244b498a4f3cbc05147bd841d5effd668e110791a8297cee096",
+        "native_extension_sha256": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313",
+        "frames": 27,
+        "live_views": 21,
+        "final_views": 7,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off",
+        "confidence_algorithm": "cpu"
+      },
+      "allocation": {
+        "logical_block_limit": 10000,
+        "required_blocks": 3328,
+        "historical_configured_attribute_budget_mib": 781.25,
+        "historical_actual_block_capacity": null,
+        "current_initial_block_capacity": 3328,
+        "current_actual_block_capacity": 3328,
+        "current_attribute_allocation_floor_mib": 260.0,
+        "planning_elapsed_ms": 46.000000002095476,
+        "capacity_unchanged": true,
+        "memory_scope": "Configured historical allowance versus measured current attributes; not peak GPU/process memory."
+      },
+      "baseline_worker": {
+        "execution": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/execution.json",
+          "sha256": "6328a84bd6e140bbf7125913212e9adb7ca5e77d57f3301f6824f51a22e0b20a",
+          "bytes": 18359,
+          "reported_status": "complete"
+        },
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "owned_tree_closed": null,
+        "historical_tree_ownership_recorded": false
+      },
+      "current_worker": {
+        "execution": {
+          "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/execution.json",
+          "sha256": "ae4565e8dbeb2223e2c75560c3df8ec4ea2d2348f0ca8b1fc14a89b38bc0636e",
+          "bytes": 6590,
+          "reported_status": "complete"
+        },
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "owned_tree_closed": true,
+        "historical_tree_ownership_recorded": null,
+        "geometry": {
+          "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-5-scan-session-full.geometry.npz",
+          "sha256": "a0a421d3c20bf4e0c3713f04cda75aae308d463c84b50f0f839d1aa64dd03d59",
+          "bytes": 176293,
+          "reported_status": "payload"
+        }
+      },
+      "geometry": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-5.json",
+          "sha256": "e4612fd77c0fb39a8734296ef91a74656818a0491566ff610941105a6405ac25",
+          "bytes": 1239,
+          "reported_status": "profile"
+        },
+        "final_pose_translation_max_m": 5.56803001126317e-17,
+        "final_pose_rotation_max_deg": 0.0,
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 6.006850128414953e-08,
+          "surface_rmse_m": 2.8828205600461843e-08,
+          "alignment": "fixed input coordinate frame; no fitting"
+        },
+        "vertex_distance_max_m": 0.0,
+        "geometry_passed": true,
+        "bit_identical_pose_claim": false,
+        "performance_authority": false,
+        "physical_input_closure": {
+          "evidence": {
+            "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/execution.json",
+            "sha256": "0c5e27df28e50d052c0fa1b6bb8646e9b489aa74a36fe6d6e0417e10d37e915f",
+            "bytes": 15103,
+            "reported_status": "complete"
+          },
+          "inputs_before_after_sha256": "f24af989f06e3dada17c4a21d146299c7479af6da09c32553895669a289338b9",
+          "geometry_payloads": {
+            "baseline": {
+              "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.geometry.npz",
+              "sha256": "bb0ee3f7b4c58372438d9be5fe2148da0384706a61e491da435455312ae57458",
+              "bytes": 175146,
+              "reported_status": "payload"
+            },
+            "candidate": {
+              "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-5-scan-session-full.geometry.npz",
+              "sha256": "a0a421d3c20bf4e0c3713f04cda75aae308d463c84b50f0f839d1aa64dd03d59",
+              "bytes": 176293,
+              "reported_status": "payload"
+            }
+          },
+          "exit_code": 0,
+          "child_wait_completed": true,
+          "ordered_mesh_arrays_equal": {
+            "points": false,
+            "faces": false
+          },
+          "ordered_mesh_array_identity_required": false,
+          "scope": "Observed raw/profile/geometry/native/helper bytes unchanged before and after the fixed-frame comparison."
+        },
+        "completion": {
+          "controller": {
+            "path": "benchmark-output/field-cuda-study/root-completed-exec-observations-v1.json",
+            "sha256": "a48bc3bc4383c64337d62dcb09f3ae5afdf8a1d29b11f0405fe40e5d343c56b5",
+            "bytes": 7416,
+            "reported_status": "complete"
+          },
+          "exit_code": 0,
+          "tool_completed": true,
+          "pid_recorded": false,
+          "owned_process_tree_claim": false
+        }
+      },
+      "observed_phase_walls_s": {
+        "historical": {
+          "live_s": 12.465281400000094,
+          "finish_s": 11.636186700008693,
+          "processing_s": 24.101468100008788
+        },
+        "current": {
+          "live_s": 11.920503100001952,
+          "finish_s": 11.131491399995866,
+          "processing_s": 23.051994499997818
+        }
+      },
+      "causal_speed_claim": false
+    },
+    {
+      "session": "chest-6",
+      "baseline": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.json",
+        "sha256": "d25c650afc004b85802f23c582d2ef5d5417628db99066b060848a20fd3b2970",
+        "bytes": 611898,
+        "reported_status": "profile"
+      },
+      "current": {
+        "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-6-scan-session_20261009_002019-full.json",
+        "sha256": "eceb162b172266e2222ce97f72db739381c4c19166614561a1ff634514f3fa9e",
+        "bytes": 612643,
+        "reported_status": "profile"
+      },
+      "matched_raw_scope": {
+        "input_sha256": "53b15492e2df455392b2b322d97a67c8a76fab3151ea4535c047d05734f53642",
+        "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+        "selected_indices_sha256": "7257493e0441a417c00e19a7ab5466c8c4091963819b9bc39ef716795b4b5764",
+        "pipeline_options_sha256": "0c0bb1ac1c06f8ce4d2390f0d27c5e49fa84b4a2918aafcee31ed18cc1cac7d4",
+        "runtime_scope_sha256": "07ad69923c141244b498a4f3cbc05147bd841d5effd668e110791a8297cee096",
+        "native_extension_sha256": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313",
+        "frames": 38,
+        "live_views": 33,
+        "final_views": 38,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off",
+        "confidence_algorithm": "cpu"
+      },
+      "allocation": {
+        "logical_block_limit": 10000,
+        "required_blocks": 2860,
+        "historical_configured_attribute_budget_mib": 781.25,
+        "historical_actual_block_capacity": null,
+        "current_initial_block_capacity": 2860,
+        "current_actual_block_capacity": 2860,
+        "current_attribute_allocation_floor_mib": 223.4375,
+        "planning_elapsed_ms": 250.0,
+        "capacity_unchanged": true,
+        "memory_scope": "Configured historical allowance versus measured current attributes; not peak GPU/process memory."
+      },
+      "baseline_worker": {
+        "execution": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/execution.json",
+          "sha256": "6328a84bd6e140bbf7125913212e9adb7ca5e77d57f3301f6824f51a22e0b20a",
+          "bytes": 18359,
+          "reported_status": "complete"
+        },
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "owned_tree_closed": null,
+        "historical_tree_ownership_recorded": false
+      },
+      "current_worker": {
+        "execution": {
+          "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/execution.json",
+          "sha256": "ae4565e8dbeb2223e2c75560c3df8ec4ea2d2348f0ca8b1fc14a89b38bc0636e",
+          "bytes": 6590,
+          "reported_status": "complete"
+        },
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "owned_tree_closed": true,
+        "historical_tree_ownership_recorded": null,
+        "geometry": {
+          "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-6-scan-session_20261009_002019-full.geometry.npz",
+          "sha256": "7fdf4cbb5cf2fb89e8de64b47b6e02cc79f64caec2bc41e22bd7a285b2d75e4d",
+          "bytes": 4916751,
+          "reported_status": "payload"
+        }
+      },
+      "geometry": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-6.json",
+          "sha256": "fbee8703f7b1d70b032c0ebe015ca85c6118ef51f87422d911746fe5b8e0c17c",
+          "bytes": 1277,
+          "reported_status": "profile"
+        },
+        "final_pose_translation_max_m": 1.0277998708388704e-15,
+        "final_pose_rotation_max_deg": 2.4148365394514667e-06,
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 1.1920928955078125e-07,
+          "surface_rmse_m": 4.485313809254876e-08,
+          "alignment": "fixed input coordinate frame; no fitting"
+        },
+        "vertex_distance_max_m": 0.0,
+        "geometry_passed": true,
+        "bit_identical_pose_claim": false,
+        "performance_authority": false,
+        "physical_input_closure": {
+          "evidence": {
+            "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/execution.json",
+            "sha256": "0c5e27df28e50d052c0fa1b6bb8646e9b489aa74a36fe6d6e0417e10d37e915f",
+            "bytes": 15103,
+            "reported_status": "complete"
+          },
+          "inputs_before_after_sha256": "f24af989f06e3dada17c4a21d146299c7479af6da09c32553895669a289338b9",
+          "geometry_payloads": {
+            "baseline": {
+              "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.geometry.npz",
+              "sha256": "6934e3d9011f2291c85c15e62eab438f8b7907462d7bd99d35847d6bb3a6a41f",
+              "bytes": 4930425,
+              "reported_status": "payload"
+            },
+            "candidate": {
+              "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-6-scan-session_20261009_002019-full.geometry.npz",
+              "sha256": "7fdf4cbb5cf2fb89e8de64b47b6e02cc79f64caec2bc41e22bd7a285b2d75e4d",
+              "bytes": 4916751,
+              "reported_status": "payload"
+            }
+          },
+          "exit_code": 0,
+          "child_wait_completed": true,
+          "ordered_mesh_arrays_equal": {
+            "points": false,
+            "faces": false
+          },
+          "ordered_mesh_array_identity_required": false,
+          "scope": "Observed raw/profile/geometry/native/helper bytes unchanged before and after the fixed-frame comparison."
+        },
+        "completion": {
+          "controller": {
+            "path": "benchmark-output/field-cuda-study/root-completed-exec-observations-v1.json",
+            "sha256": "a48bc3bc4383c64337d62dcb09f3ae5afdf8a1d29b11f0405fe40e5d343c56b5",
+            "bytes": 7416,
+            "reported_status": "complete"
+          },
+          "exit_code": 0,
+          "tool_completed": true,
+          "pid_recorded": false,
+          "owned_process_tree_claim": false
+        }
+      },
+      "observed_phase_walls_s": {
+        "historical": {
+          "live_s": 12.470888600000762,
+          "finish_s": 18.55899930000305,
+          "processing_s": 31.029887900003814
+        },
+        "current": {
+          "live_s": 12.207184500002768,
+          "finish_s": 18.5277700000006,
+          "processing_s": 30.73495450000337
+        }
+      },
+      "causal_speed_claim": false
+    },
+    {
+      "session": "chest-7",
+      "baseline": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+        "sha256": "9cf1c101eaddc04345a055f8fc9041b07552ab63306c087e2b3a81cc664e2f0b",
+        "bytes": 1633362,
+        "reported_status": "profile"
+      },
+      "current": {
+        "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.json",
+        "sha256": "1b0a2cdbaed1405cde7fce585d2a6b1040d49276be93306c23a5870c271a7e54",
+        "bytes": 1633883,
+        "reported_status": "profile"
+      },
+      "matched_raw_scope": {
+        "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+        "settings_sha256": "4a237f878d3d13487c458ab8e726e91d01c20537ac4166e4f3b14d71a6158047",
+        "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+        "pipeline_options_sha256": "0c0bb1ac1c06f8ce4d2390f0d27c5e49fa84b4a2918aafcee31ed18cc1cac7d4",
+        "runtime_scope_sha256": "07ad69923c141244b498a4f3cbc05147bd841d5effd668e110791a8297cee096",
+        "native_extension_sha256": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313",
+        "frames": 115,
+        "live_views": 82,
+        "final_views": 108,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off",
+        "confidence_algorithm": "cpu"
+      },
+      "allocation": {
+        "logical_block_limit": 20000,
+        "required_blocks": 13302,
+        "historical_configured_attribute_budget_mib": 1562.5,
+        "historical_actual_block_capacity": null,
+        "current_initial_block_capacity": 13302,
+        "current_actual_block_capacity": 13302,
+        "current_attribute_allocation_floor_mib": 1039.21875,
+        "planning_elapsed_ms": 781.0000000026776,
+        "capacity_unchanged": true,
+        "memory_scope": "Configured historical allowance versus measured current attributes; not peak GPU/process memory."
+      },
+      "baseline_worker": {
+        "execution": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/execution.json",
+          "sha256": "f0561e093391cd6fa42860f6fa099866acce20704520086b15c2ba3490ffa565",
+          "bytes": 4099,
+          "reported_status": "complete"
+        },
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "owned_tree_closed": null,
+        "historical_tree_ownership_recorded": false
+      },
+      "current_worker": {
+        "execution": {
+          "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/execution.json",
+          "sha256": "6f563d9d8df64357b0021712d0d05a9721ecd8a9e4595ee3d4e96990c58be905",
+          "bytes": 4613,
+          "reported_status": "complete"
+        },
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "owned_tree_closed": true,
+        "historical_tree_ownership_recorded": null,
+        "geometry": {
+          "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.geometry.npz",
+          "sha256": "7272997a04b75b6eeec6f7108679944715d8668ae4c63bdd50a019911515c268",
+          "bytes": 17589266,
+          "reported_status": "payload"
+        }
+      },
+      "geometry": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-7.json",
+          "sha256": "8f2894db1984246b906f62c483358bf51cd87d267d020f84b464d17f06cd13c3",
+          "bytes": 1287,
+          "reported_status": "profile"
+        },
+        "final_pose_translation_max_m": 5.098873748708844e-15,
+        "final_pose_rotation_max_deg": 1.7075472925031877e-06,
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 1.1920928955078125e-07,
+          "surface_rmse_m": 4.4325506820541705e-08,
+          "alignment": "fixed input coordinate frame; no fitting"
+        },
+        "vertex_distance_max_m": 0.0,
+        "geometry_passed": true,
+        "bit_identical_pose_claim": false,
+        "performance_authority": false,
+        "physical_input_closure": {
+          "evidence": {
+            "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/execution.json",
+            "sha256": "0c5e27df28e50d052c0fa1b6bb8646e9b489aa74a36fe6d6e0417e10d37e915f",
+            "bytes": 15103,
+            "reported_status": "complete"
+          },
+          "inputs_before_after_sha256": "f24af989f06e3dada17c4a21d146299c7479af6da09c32553895669a289338b9",
+          "geometry_payloads": {
+            "baseline": {
+              "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.geometry.npz",
+              "sha256": "aefc15b82a121b251daa4c9bef191cc9c4755d9d5c26d7ded7294eb1a43bbbd3",
+              "bytes": 17540060,
+              "reported_status": "payload"
+            },
+            "candidate": {
+              "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.geometry.npz",
+              "sha256": "7272997a04b75b6eeec6f7108679944715d8668ae4c63bdd50a019911515c268",
+              "bytes": 17589266,
+              "reported_status": "payload"
+            }
+          },
+          "exit_code": 0,
+          "child_wait_completed": true,
+          "ordered_mesh_arrays_equal": {
+            "points": false,
+            "faces": false
+          },
+          "ordered_mesh_array_identity_required": false,
+          "scope": "Observed raw/profile/geometry/native/helper bytes unchanged before and after the fixed-frame comparison."
+        },
+        "completion": {
+          "controller": {
+            "path": "benchmark-output/field-cuda-study/root-completed-exec-observations-v1.json",
+            "sha256": "a48bc3bc4383c64337d62dcb09f3ae5afdf8a1d29b11f0405fe40e5d343c56b5",
+            "bytes": 7416,
+            "reported_status": "complete"
+          },
+          "exit_code": 0,
+          "tool_completed": true,
+          "pid_recorded": false,
+          "owned_process_tree_claim": false
+        }
+      },
+      "observed_phase_walls_s": {
+        "historical": {
+          "live_s": 76.47972909999953,
+          "finish_s": 250.72987809999904,
+          "processing_s": 327.2096071999986
+        },
+        "current": {
+          "live_s": 76.77026350000233,
+          "finish_s": 255.7211335000029,
+          "processing_s": 332.49139700000524
+        }
+      },
+      "causal_speed_claim": false
+    }
+  ],
+  "installed_physical_proof": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/production-allocation-smoke-v2/report.json",
+      "sha256": "99ed01dd1b3ca0948907348f88a072e95f96315899b8f9467caf2e6a4ea8c18f",
+      "bytes": 56207,
+      "reported_status": "passed"
+    },
+    "runtime_binding_sha256": "0cb3857752bf93f6ed98eaa18258d22e447fd09199b015b518a36971c93451db",
+    "backends": [
+      {
+        "backend": "cpu-original",
+        "device": "CPU:0",
+        "original_final_capacity": 8,
+        "candidate_final_capacity": 4,
+        "float32_values_compared": 81920,
+        "bit_mismatches": 0,
+        "nonzero_weight_voxels": 16384,
+        "fractional_weight_voxels": 224
+      },
+      {
+        "backend": "cuda-tensor",
+        "device": "CUDA:0",
+        "original_final_capacity": 8,
+        "candidate_final_capacity": 4,
+        "float32_values_compared": 81920,
+        "bit_mismatches": 0,
+        "nonzero_weight_voxels": 16384,
+        "fractional_weight_voxels": 224
+      },
+      {
+        "backend": "cuda-fused",
+        "device": "CUDA:0",
+        "original_final_capacity": 8,
+        "candidate_final_capacity": 4,
+        "float32_values_compared": 81920,
+        "bit_mismatches": 0,
+        "nonzero_weight_voxels": 16384,
+        "fractional_weight_voxels": 224
+      }
+    ],
+    "capacity_and_attribute_bits_passed": true,
+    "whole_session_authority": false,
+    "completion": {
+      "controller": {
+        "path": "benchmark-output/field-cuda-study/root-completed-exec-observations-v1.json",
+        "sha256": "a48bc3bc4383c64337d62dcb09f3ae5afdf8a1d29b11f0405fe40e5d343c56b5",
+        "bytes": 7416,
+        "reported_status": "complete"
+      },
+      "exit_code": 0,
+      "tool_completed": true,
+      "pid_recorded": false,
+      "owned_process_tree_claim": false
+    }
+  },
+  "allocation_only_early_failure": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/production-final-budget-v2/report.json",
+      "sha256": "413d8fa6dfed6de90d2c8a65403d63470c2f48bcc97f52da5804b7c202cccdf6",
+      "bytes": 4333,
+      "reported_status": "passed"
+    },
+    "fresh_profile": {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.json",
+      "sha256": "1b0a2cdbaed1405cde7fce585d2a6b1040d49276be93306c23a5870c271a7e54",
+      "bytes": 1633883,
+      "reported_status": "profile"
+    },
+    "logical_limit": 10000,
+    "required_blocks": 13302,
+    "candidate_allocated": false,
+    "scratch_block_capacity": 1,
+    "owner_and_hooks_unchanged": true,
+    "pose_scope": "Completed current raw replay poses used for allocation only; never tracking seeds.",
+    "geometry_authority": false,
+    "registration_authority": false,
+    "performance_authority": false,
+    "completion": {
+      "controller": {
+        "path": "benchmark-output/field-cuda-study/root-completed-exec-observations-v1.json",
+        "sha256": "a48bc3bc4383c64337d62dcb09f3ae5afdf8a1d29b11f0405fe40e5d343c56b5",
+        "bytes": 7416,
+        "reported_status": "complete"
+      },
+      "exit_code": 0,
+      "tool_completed": true,
+      "pid_recorded": false,
+      "owned_process_tree_claim": false
+    }
+  },
+  "preserved_failures": [
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/production-allocation-smoke-v1/report.json",
+        "sha256": "d34d5769c6b950e46e20286691bccb4c041b982890f5d101cf74bf95fbe6f7f2",
+        "bytes": 24243,
+        "reported_status": "failed"
+      },
+      "reported_status": "failed",
+      "failure_type": "TypeError",
+      "message_omitted_for_privacy": true,
+      "numerical_authority": false
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/production-final-budget-v1/report.json",
+        "sha256": "9a9bb7574889499f3db9db64bb87ea5790bd9f65e8fa6bca56a322cff76b9db9",
+        "bytes": 3105,
+        "reported_status": "failed"
+      },
+      "reported_status": "failed",
+      "failure_type": "BudgetProbeFault",
+      "message_omitted_for_privacy": true,
+      "numerical_authority": false
+    }
+  ],
+  "geometry_authority": false,
+  "registration_authority": false,
+  "performance_authority": false,
+  "causal_speed_claim": false,
+  "memory_scope": "Historical configured Final allowance versus measured installed allocation; attribute floor, not peak RSS/VRAM.",
+  "limits": [
+    "Private local raw ZIPs and geometry payloads are required to reproduce numerical measurements.",
+    "Stored selected-view replay is not continuous camera FPS.",
+    "Historical raw profiles do not record actual old native capacity or owned process-tree closure.",
+    "Root completion observations lack a returned PID and do not establish owned-tree identity.",
+    "The source transition and single-run phase walls are descriptive; no causal speed gain is inferred.",
+    "Surface/pose bounds are declared observable comparisons; no bit-identical trajectory or ground-truth claim."
+  ],
+  "evidence": [
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.json",
+      "sha256": "e5b41a6363e2741850aeef8572c8385263867dfb49c92900eb7c2ae956d9bc10",
+      "bytes": 392162,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-5-scan-session-full.json",
+      "sha256": "438afec40476d88bebeb9dddc53d4c6a778e4c15edc1805daffa934c9f2ccb14",
+      "bytes": 392934,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/execution.json",
+      "sha256": "6328a84bd6e140bbf7125913212e9adb7ca5e77d57f3301f6824f51a22e0b20a",
+      "bytes": 18359,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.log",
+      "sha256": "c157f06892d4781ed9aa5aedf87cb82b74b9a1fc5c666b45eb06f7dff729c59c",
+      "bytes": 6622,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/execution.json",
+      "sha256": "ae4565e8dbeb2223e2c75560c3df8ec4ea2d2348f0ca8b1fc14a89b38bc0636e",
+      "bytes": 6590,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-5-scan-session-full.log",
+      "sha256": "e9a974f85ff609e974e6eec4bbce01d34ca5fa40f5eea2cdafc939e3f4375007",
+      "bytes": 7055,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-5-scan-session-full.geometry.npz",
+      "sha256": "a0a421d3c20bf4e0c3713f04cda75aae308d463c84b50f0f839d1aa64dd03d59",
+      "bytes": 176293,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-5.json",
+      "sha256": "e4612fd77c0fb39a8734296ef91a74656818a0491566ff610941105a6405ac25",
+      "bytes": 1239,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/execution.json",
+      "sha256": "0c5e27df28e50d052c0fa1b6bb8646e9b489aa74a36fe6d6e0417e10d37e915f",
+      "bytes": 15103,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.geometry.npz",
+      "sha256": "bb0ee3f7b4c58372438d9be5fe2148da0384706a61e491da435455312ae57458",
+      "bytes": 175146,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-5.log",
+      "sha256": "38252e531a93e3bbbc9dd4dbb6f6f2472367ed4360c3cad8bbaef0ff032c2731",
+      "bytes": 1241,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/root-completed-exec-observations-v1.json",
+      "sha256": "a48bc3bc4383c64337d62dcb09f3ae5afdf8a1d29b11f0405fe40e5d343c56b5",
+      "bytes": 7416,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.json",
+      "sha256": "d25c650afc004b85802f23c582d2ef5d5417628db99066b060848a20fd3b2970",
+      "bytes": 611898,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-6-scan-session_20261009_002019-full.json",
+      "sha256": "eceb162b172266e2222ce97f72db739381c4c19166614561a1ff634514f3fa9e",
+      "bytes": 612643,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.log",
+      "sha256": "2c379426bc0986343a92c5a1e1f6afb4644424e43076e9879f7fe56fa5a03345",
+      "bytes": 13976,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-6-scan-session_20261009_002019-full.log",
+      "sha256": "976f4307b0f3653c9fcc9fcfcde4b7bb8429720b74060d1beaec15404418ae7e",
+      "bytes": 16433,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-v1/chest-6-scan-session_20261009_002019-full.geometry.npz",
+      "sha256": "7fdf4cbb5cf2fb89e8de64b47b6e02cc79f64caec2bc41e22bd7a285b2d75e4d",
+      "bytes": 4916751,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-6.json",
+      "sha256": "fbee8703f7b1d70b032c0ebe015ca85c6118ef51f87422d911746fe5b8e0c17c",
+      "bytes": 1277,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.geometry.npz",
+      "sha256": "6934e3d9011f2291c85c15e62eab438f8b7907462d7bd99d35847d6bb3a6a41f",
+      "bytes": 4930425,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-6.log",
+      "sha256": "cc532d605be8a2810d60a952c592158996ceb458f3ec6ac6962f5b8dbce4e492",
+      "bytes": 1279,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+      "sha256": "9cf1c101eaddc04345a055f8fc9041b07552ab63306c087e2b3a81cc664e2f0b",
+      "bytes": 1633362,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.json",
+      "sha256": "1b0a2cdbaed1405cde7fce585d2a6b1040d49276be93306c23a5870c271a7e54",
+      "bytes": 1633883,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/execution.json",
+      "sha256": "f0561e093391cd6fa42860f6fa099866acce20704520086b15c2ba3490ffa565",
+      "bytes": 4099,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.log",
+      "sha256": "03ecdadd421be07bebd361c354d927e8ae59b95298fba054f668563dde1ba53e",
+      "bytes": 39652,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/execution.json",
+      "sha256": "6f563d9d8df64357b0021712d0d05a9721ecd8a9e4595ee3d4e96990c58be905",
+      "bytes": 4613,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.log",
+      "sha256": "dc805965c578f48cb6dee2af41dacca07b52fc98b2a606914ce33c83d56a581b",
+      "bytes": 46901,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-raw-20k-v1/chest-7-scan-session_20261009_003259-full.geometry.npz",
+      "sha256": "7272997a04b75b6eeec6f7108679944715d8668ae4c63bdd50a019911515c268",
+      "bytes": 17589266,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-7.json",
+      "sha256": "8f2894db1984246b906f62c483358bf51cd87d267d020f84b464d17f06cd13c3",
+      "bytes": 1287,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.geometry.npz",
+      "sha256": "aefc15b82a121b251daa4c9bef191cc9c4755d9d5c26d7ded7294eb1a43bbbd3",
+      "bytes": 17540060,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-memory-quality-v2/chest-7.log",
+      "sha256": "3a1536f8a413e43252ef356476dcce59a0ce19fc6e0e453cf8b85e718cf8e75f",
+      "bytes": 1289,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-allocation-smoke-v2/report.json",
+      "sha256": "99ed01dd1b3ca0948907348f88a072e95f96315899b8f9467caf2e6a4ea8c18f",
+      "bytes": 56207,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-allocation-smoke-v2/report.log",
+      "sha256": "6174712b4f229fc01e3bd96145c42454ada78900ce9ba51a8563db6794a097d4",
+      "bytes": 115,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-final-budget-v2/report.json",
+      "sha256": "413d8fa6dfed6de90d2c8a65403d63470c2f48bcc97f52da5804b7c202cccdf6",
+      "bytes": 4333,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-final-budget-v2/report.log",
+      "sha256": "97ec8188753ebb17dcfd5b8b1005b08ac5499ecdcb357980f3ad116e6ce583a9",
+      "bytes": 141,
+      "reported_status": "payload"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-allocation-smoke-v1/report.json",
+      "sha256": "d34d5769c6b950e46e20286691bccb4c041b982890f5d101cf74bf95fbe6f7f2",
+      "bytes": 24243,
+      "reported_status": "failed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/production-final-budget-v1/report.json",
+      "sha256": "9a9bb7574889499f3db9db64bb87ea5790bd9f65e8fa6bca56a322cff76b9db9",
+      "bytes": 3105,
+      "reported_status": "failed"
+    }
+  ],
+  "publication_artifacts_sha256": {
+    "scripts/research/summarize_production_allocation.py": "c91867962a14fe083e18ff1e0613dcca7a86507770373f957a6d69a7f1d2ef09",
+    "tests/test_production_allocation_summary.py": "c206f37a60e5586e9ec830b7cd91d449de987ae2ec0c715179799cb57cf40422",
+    "scripts/profile_session.py": "f228243cf071231b978fb891584da5af11d5a143df9edbdd9f983f98f8880a35"
+  }
+}

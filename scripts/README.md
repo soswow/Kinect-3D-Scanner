@@ -34,6 +34,11 @@ a **20,000-block final budget**: its exact 5 mm volume needed 13,302 unique
 blocks and could not fit the original 10,000-block limit. Read the
 [field measurements and tradeoffs](../docs/FIELD_CUDA_RESEARCH.md).
 
+Weighted Final fusion now plans its required blocks and allocates that exact
+capacity. It reports both the configured limit and actual allocation, and rejects
+an insufficient limit before allocating the Final candidate. The limit still
+needs to cover the complete reconstruction; it does not limit a scan's coverage.
+
 The launcher checks ownership of an existing listener. Server validation tools
 perform synthetic captures and settings/reset operations; use them only with
 an empty test server. They refuse an existing scan and restore test settings.

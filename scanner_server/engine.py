@@ -1819,7 +1819,31 @@ class ScanEngine:
         candidate.settings = replace(self.settings, voxel_m=self.settings.final_voxel_m)
         candidate.voxel_size = candidate.settings.voxel_m
         candidate._fusion_block_limit = self.settings.final_block_count
-        candidate.vbg = candidate._create_vbg(block_count=candidate._fusion_block_limit)
+        candidate._final_missing_only_activation = candidate.settings.confidence_fusion is True
+        required = None
+        allocated = candidate._fusion_block_limit
+        planning_elapsed_ms = 0.0
+        if candidate._final_missing_only_activation:
+            planning_started = time.monotonic()
+            # Original frustum planner: Final voxel and original SDF truncation,
+            # original raw inputs/intrinsics/depth bounds/unrounded accepted poses.
+            required = candidate._required_fusion_blocks(
+                self.poses, progress_cb, stage="final_capacity_preflight"
+            )
+            planning_elapsed_ms = (time.monotonic() - planning_started) * 1000
+            if required > candidate._fusion_block_limit:
+                raise ValueError(
+                    f"Final {candidate.voxel_size:g} m model needs {required} blocks; "
+                    f"increase final_block_count from {candidate._fusion_block_limit} "
+                    f"to at least {required}, or choose a coarser final voxel. "
+                    "No Final fusion candidate was allocated."
+                )
+            allocated = max(1, required)
+        candidate._final_allocated_blocks = allocated
+        candidate.vbg = candidate._create_vbg(block_count=allocated)
+        initial_capacity = int(candidate.vbg.hashmap().capacity())
+        if candidate._final_missing_only_activation and initial_capacity != allocated:
+            raise ValueError("Weighted Final native initial capacity differs from the exact plan")
         for completed, (index, pose) in enumerate(self.poses, 1):
             rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
             candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
@@ -1827,10 +1851,13 @@ class ScanEngine:
                 progress_cb(
                     completed,
                     len(self.poses),
-                    {
-                        "message": f"Final fusion {completed}/{len(self.poses)} accepted views"
-                    },
+                    {"message": f"Final fusion {completed}/{len(self.poses)} accepted views"},
                 )
+        actual_capacity = int(candidate.vbg.hashmap().capacity())
+        actual_blocks = int(candidate.vbg.hashmap().size())
+        if candidate._final_missing_only_activation and (
+                actual_capacity != allocated or actual_blocks != required):
+            raise ValueError("Weighted Final capacity or unique block count differs from the exact plan")
         elapsed = (time.monotonic() - started) * 1000
         self.stage_totals_ms["final_reintegration"] = (
             self.stage_totals_ms.get("final_reintegration", 0) + elapsed
@@ -1839,9 +1866,16 @@ class ScanEngine:
             "applied": False,
             "reason": "Awaiting final surface validation",
             "voxel_m": candidate.voxel_size,
-            "blocks": int(candidate.vbg.hashmap().size()),
+            "blocks": actual_blocks,
             "block_limit": candidate._fusion_block_limit,
-            "attribute_budget_mib": candidate._fusion_block_limit * 4096 * 20 / 2**20,
+            "required_blocks": required,
+            "requested_block_capacity": allocated,
+            "allocated_blocks": actual_capacity,
+            "initial_block_capacity": initial_capacity,
+            "allocation_strategy": "exact missing-key activation" if candidate._final_missing_only_activation else "configured native activation",
+            "attribute_budget_mib": actual_capacity * 4096 * 20 / 2**20,
+            "configured_attribute_budget_mib": candidate._fusion_block_limit * 4096 * 20 / 2**20,
+            "planning_elapsed_ms": planning_elapsed_ms,
             "elapsed_ms": elapsed,
         }
         return candidate.vbg

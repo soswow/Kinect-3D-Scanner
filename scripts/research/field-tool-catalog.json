@@ -51,6 +51,12 @@
       "role": "Research protocol, evidence limits and reproduction notes"
     },
     {
+      "legacy_path": "scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md",
+      "path": "scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md",
+      "group": "active",
+      "role": "Next bounded GPU proposal-batch and device-iteration experiment design"
+    },
+    {
       "legacy_path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
       "path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
       "group": "active",
@@ -67,6 +73,12 @@
       "path": "scripts/research/MISSING_ACTIVATION_RESEARCH.md",
       "group": "active",
       "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/PRODUCTION_ALLOCATION_VALIDATION.md",
+      "path": "scripts/research/PRODUCTION_ALLOCATION_VALIDATION.md",
+      "group": "active",
+      "role": "Installed weighted Final memory validation protocol and reproduction limits"
     },
     {
       "legacy_path": "scripts/research/analyze_field_markers.py",
@@ -327,6 +339,12 @@
       "role": "Private checkpoints of freshly measured raw Live; never exported-pose seeds."
     },
     {
+      "legacy_path": "scripts/research/probe_final_budget.py",
+      "path": "scripts/research/probe_final_budget.py",
+      "group": "active",
+      "role": "Current-source raw Final budget allocation-only boundary probe"
+    },
+    {
       "legacy_path": "scripts/research/profile_checkpoint_resident_finish.py",
       "path": "scripts/research/profile_checkpoint_resident_finish.py",
       "group": "active",
@@ -415,6 +433,12 @@
       "path": "scripts/research/summarize_field_study.py",
       "group": "active",
       "role": "Publishable scalar evidence from closed local field reports; stdlib only."
+    },
+    {
+      "legacy_path": "scripts/research/summarize_production_allocation.py",
+      "path": "scripts/research/summarize_production_allocation.py",
+      "group": "active",
+      "role": "Retrospective scalar installed Final allocation and quality publication"
     },
     {
       "legacy_path": "scripts/research/validate_bulk_resident_audit.py",

@@ -112,3 +112,17 @@ tests/test_production_missing_activation_smoke.py text eol=lf
 docs/benchmarks/field-study-v1/** text eol=lf
 # Preserve the frozen measured synthetic source, including its final blank line.
 scripts/research/combined_sync_synthetic.py whitespace=-blank-at-eof
+
+# Production Final allocation contracts and source fixture.
+scanner_server/fusion_allocation.py text eol=lf
+scanner_server/cuda_fusion.py text eol=lf
+tests/final_source_fixture.py text eol=lf
+tests/fixtures/final-source-fixture.json text eol=lf
+tests/test_final_memory_allocation.py text eol=lf
+scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md text eol=lf
+scripts/research/probe_final_budget.py text eol=lf
+scripts/research/summarize_production_allocation.py text eol=lf
+scripts/research/PRODUCTION_ALLOCATION_VALIDATION.md text eol=lf
+tests/test_final_budget_probe.py text eol=lf
+tests/test_production_allocation_summary.py text eol=lf
+docs/benchmarks/field-study-production-v1/** text eol=lf

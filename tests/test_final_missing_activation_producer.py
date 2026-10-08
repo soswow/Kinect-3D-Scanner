@@ -12,8 +12,10 @@ from unittest.mock import patch
 
 from scripts.research import profile_final_missing_activation as producer
 from scripts.research.final_missing_activation import MissingKeyFinalScope, KIND as allocator_kind
+from scripts.research.final_missing_activation import WeightedActivationSourceContract, MissingActivationContractError
 from scripts.research.final_allocation_scope import ObservedOriginalFinalScope
 from scripts.research.validate_checkpoint_finish_proof import FINISH_ARTIFACTS
+from tests.final_source_fixture import baseline_sources
 
 
 class Harness:
@@ -64,6 +66,12 @@ class Harness:
 
 class SupervisorContracts(unittest.TestCase):
     def setUp(self):
+        # Harness is explicitly artificial. Restore its reviewed source seam so
+        # faults exercise the supervisor rather than an unrelated current-core
+        # refusal. This read-only fixture cannot authorize numerical execution.
+        source_fixture = baseline_sources()
+        source_fixture.__enter__()
+        self.addCleanup(source_fixture.__exit__, None, None, None)
         self.fake_proof = {"path": "closed-physical.json", "sha256": "bound",
             "runtime_binding": {"versions": {"numpy": "bound", "open3d": "bound", "cupy": "bound"}, "gpu": ["bound"],
                 "binaries": {"fixture-library": {"sha256": "bound"}},
@@ -198,6 +206,14 @@ class SupervisorContracts(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("--activation-proof", result.stdout)
             self.assertEqual(list(Path(folder).iterdir()), [])
+
+
+class CurrentSourceGuardContracts(unittest.TestCase):
+    def test_historical_activation_guard_rejects_real_production_callers(self):
+        # No source fixture or guard mock: installed missing-key callers are a
+        # different authority from the frozen historical proxy experiment.
+        with self.assertRaisesRegex(MissingActivationContractError, "Original weighted activation caller changed"):
+            WeightedActivationSourceContract()
 
 
 class PhysicalPrerequisiteContracts(unittest.TestCase):

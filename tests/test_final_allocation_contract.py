@@ -15,6 +15,7 @@ import sys
 import tempfile
 from types import FunctionType, SimpleNamespace
 import unittest
+from tests.final_source_fixture import baseline_sources
 from unittest.mock import patch
 
 from scripts.research import final_allocation_scope as allocation
@@ -441,18 +442,27 @@ class PrivateSourceContracts(unittest.TestCase):
     def test_real_source_and_loaded_function_code_are_bound_without_native_import(self):
         cls = self.actual_class_without_importing_engine()
         engine = cls.__new__(cls)
-        self.assertEqual(allocation.validate_original_functions(engine, cls._final_volume), allocation.ORIGINAL_AST)
+        try:
+            current = allocation.validate_original_functions(engine, cls._final_volume)
+        except allocation.FinalAllocationContractError as error:
+            self.assertIn("source changed", str(error))
+        else:
+            self.assertEqual(current, allocation.ORIGINAL_AST)
         self.assertNotIn("scanner_server.engine", sys.modules)
+        with baseline_sources():
+            preserved = self.actual_class_without_importing_engine()
+            self.assertEqual(allocation.validate_original_functions(preserved.__new__(preserved), preserved._final_volume), allocation.ORIGINAL_AST)
         with patch.dict(allocation.ORIGINAL_AST, {"_final_volume": "0" * 64}):
             with self.assertRaisesRegex(allocation.FinalAllocationContractError, "source changed"):
                 allocation.validate_original_functions(engine, cls._final_volume)
 
     def test_loaded_replacement_is_rejected_despite_same_module_and_disk(self):
-        cls = self.actual_class_without_importing_engine()
-        engine = cls.__new__(cls)
-        replacement = FunctionType(cls._create_vbg.__code__, {"__name__": "scanner_server.engine"}, "_final_volume")
-        with self.assertRaisesRegex(allocation.FinalAllocationContractError, "Loaded Final"):
-            allocation.validate_original_functions(engine, replacement)
+        with baseline_sources():
+            cls = self.actual_class_without_importing_engine()
+            engine = cls.__new__(cls)
+            replacement = FunctionType(cls._create_vbg.__code__, {"__name__": "scanner_server.engine"}, "_final_volume")
+            with self.assertRaisesRegex(allocation.FinalAllocationContractError, "Loaded Final"):
+                allocation.validate_original_functions(engine, replacement)
 
     def test_helper_imports_under_no_site_packages_without_numerical_runtime(self):
         with tempfile.TemporaryDirectory() as folder:
