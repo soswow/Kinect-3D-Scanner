@@ -418,7 +418,10 @@ def propose_bundle_poses(engine, progress_cb=None):
             if not _timely(engine.frame_metadata[index]):
                 report["reason"] = "Selected RGB and depth measurements are not synchronized"
                 return finish()
-            rgb, depth = prepare_rgbd(*engine.raw_frames[index], engine.settings)
+            prepare = getattr(engine, "_prepare_input", None)
+            rgb, depth = (prepare_rgbd(*engine.raw_frames[index], engine.settings)
+                          if prepare is None else prepare(*engine.raw_frames[index],
+                              engine.settings, cpu_prepare=prepare_rgbd))
             feature = _distinct_features(extract_features(rgb, depth, engine.settings.camera, method="sift"))
             features.append(feature)
             prepared[position] = depth
@@ -462,7 +465,10 @@ def propose_bundle_poses(engine, progress_cb=None):
             position = completed - 1
             depth = prepared.get(position)
             if depth is None:
-                _, depth = prepare_rgbd(*engine.raw_frames[index], engine.settings)
+                prepare = getattr(engine, "_prepare_input", None)
+                _, depth = (prepare_rgbd(*engine.raw_frames[index], engine.settings)
+                             if prepare is None else prepare(*engine.raw_frames[index],
+                                 engine.settings, cpu_prepare=prepare_rgbd))
             clouds.append(_heldout_points(depth, engine.settings.camera, by_position.get(position)))
             _notify(progress_cb, completed, len(poses), "Checking refined positions against independent depth")
         validation_pairs = set((i, i + 1) for i in range(len(poses) - 1))

@@ -46,6 +46,11 @@ def interpolate(a, b, fraction):
 
 
 def _match(source, target, initial):
+    from .cuda_registration import match
+
+    result = match(source, target, initial)
+    if result is not None:
+        return result
     pose = initial
     for distance, iterations in ((0.12, 40), (0.06, 30), (0.03, 20)):
         result = REG.registration_icp(

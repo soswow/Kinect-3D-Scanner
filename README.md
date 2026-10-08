@@ -59,7 +59,7 @@ blocks. These environment variables can override its defaults:
 | `KINECT_SERVER_PORT` | `8000` | Local server and client port |
 | `KINECT_BLOCK_COUNT` | `5000` | Initial TSDF block budget |
 | `KINECT_MAX_FRAMES` | `500` | Stored-frame limit per session |
-| `OMP_NUM_THREADS` | `4` | CPU processing threads |
+| `OMP_NUM_THREADS` | `4` | OpenMP/native kernel threads; Open3D 0.20 uses its separate TBB policy |
 | `KINECT_NATIVE` | `auto` | Use installed C++ kernels; `off` selects NumPy, `on` requires native |
 
 ```bash
@@ -260,7 +260,42 @@ KINECT_DEVICE=cuda KINECT_TRACKING=tensor KINECT_BLOCK_COUNT=5000 python -m scan
 CUDA requires a compatible NVIDIA driver and CUDA-enabled Open3D build.
 An explicit unavailable CUDA request fails at startup. `KINECT_DEVICE=auto`
 selects CUDA when available and reports its CPU fallback through health/status.
-Actual CUDA performance needs hardware validation; it has not been measured here.
+Recorded-session CUDA measurements and optional fused confidence-weighted
+fusion are documented in [CUDA performance](docs/CUDA_PERFORMANCE.md).
+Further experiments targeting tracking, descriptor retrieval, model preparation
+and recovery are documented in [CUDA pipeline experiments](docs/CUDA_EXPERIMENTS.md).
+On Windows, start the measured hybrid recipe with
+`./scripts/start_cuda_server.ps1 -Recipe hybrid`. It uses CPU pose tracking and
+verification, fused confidence-weighted CUDA volume integration, exact CUDA feature matching,
+keyframe preparation caching and lazy model preparation. The launcher detects
+the existing virtual environment, starts a hidden server, checks health and
+writes logs under `logs/`. Use `-Recipe baseline` for the CUDA tracking control;
+see the experiment report for full scan timings and geometry checks.
+The optional `-Recipe adaptive` tries verified ORB tracking before SIFT fallback.
+Its measured fast-preview profile uses **Live voxel 10 mm / Final voxel 5 mm**
+in the client's advanced scan settings. Finish still uses the original recorded
+views at 5 mm; the live preview is coarser. The measured profile also uses a
+**10,000-block final budget** and **Final surface confidence 2**. See the experiment report for the
+CPU/CUDA comparison, retained views and restrictions. Adaptive fallback is
+enabled only for that validated resolution pair; other settings use ORB.
+Add `-CudaInput auto` to accelerate calibrated native RGB/depth preparation on
+compatible CUDA installations. Compatibility probes check the installed CPU
+implementation; unsupported inputs use CPU preparation and report the reason.
+`-CudaInput on` requires CUDA preparation. The default is `off`.
+The recommended measured fast-preview command is
+`./scripts/start_cuda_server.ps1 -Recipe adaptive -CudaInput auto`, with the
+10 mm live / 5 mm final client settings above. On the two original exports this
+processed selected views about 3.0–3.5 times faster live and reduced combined
+processing by about 40–44% versus the original CPU workflow. These gains include
+the preview and tracking-policy changes; the matched-policy CUDA contribution
+and per-view recovery latency are detailed in the experiment report.
+Sensor confidence uses the original CPU calculation unless the separate
+`-CudaConfidence auto` or `on` option is selected. That optional CUDA path uses
+exact reduction order and compatibility probes; both flags default to `off`.
+The fused path uses optional CuPy (`pip install -r requirements-cuda-fusion.txt`
+for CUDA 12); `KINECT_CUDA_FUSION=auto` falls back to tensor integration when it
+is unavailable, `tensor` selects the previous implementation, and `fused`
+requires the optimized path.
 
 Final exports now include **textured GLB** (one file) and **textured OBJ bundle**
 (ZIP containing OBJ, MTL, PNG, and a texture report). The existing plain OBJ uses
@@ -603,6 +638,8 @@ Kinect-3D-Scanner/
 
 ## Documentation
 
+- **[CUDA scanning performance and research](docs/CUDA_EXPERIMENTS.md)** — Measured field recipe, complete archive comparisons, CUDA research results and reproduction instructions.
+- **[Saved CUDA reports](docs/benchmarks/CUDA_REPORTS.md)** — Published charts and summaries, with original and published file hashes.
 - **[Kinect v1 Technical Reference](docs/KINECT_V1_LINUX_PYTHON_REFERENCE.md)** — Hardware specs, driver installation, Python API, camera intrinsics, calibration, point cloud generation, registration algorithms, mesh reconstruction, and export formats.
 - **[Accelerometer, sensor sessions, and portrait capture](docs/KINECT_ACCELEROMETER.md)** — Implemented concurrent reads, conservative gravity assistance, full-stream archival/replay, calibration, and portrait previews/exports. Hardware validation remains pending.
 

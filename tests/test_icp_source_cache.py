@@ -23,6 +23,9 @@ class CountedSource:
         self.downsamples += 1
         return self.cloud.voxel_down_sample(voxel)
 
+    def __getattr__(self, name):
+        return getattr(self.cloud, name)
+
 
 def cloud():
     rng = np.random.default_rng(21)

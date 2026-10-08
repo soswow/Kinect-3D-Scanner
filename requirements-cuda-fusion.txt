@@ -1,0 +1,4 @@
+# Optional fused confidence-weighted TSDF for an existing CUDA-enabled Open3D
+# environment. Match the CuPy wheel to the installed CUDA toolkit (CUDA 12 here).
+# CPU execution and KINECT_CUDA_FUSION=tensor do not require this dependency.
+cupy-cuda12x>=13.4,<14

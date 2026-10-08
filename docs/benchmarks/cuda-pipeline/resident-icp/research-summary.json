@@ -1,0 +1,344 @@
+{
+  "kind": "standalone-resident-fp64-icp-research-summary",
+  "status": "measured_correct_on_fixed_pairs_but_slower",
+  "production_integration": false,
+  "whole_session_mesh_proof": false,
+  "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "verification_dependencies_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+  "gpu": [
+    {
+      "name": "NVIDIA GeForce RTX 3080 Ti",
+      "driver": "610.88"
+    }
+  ],
+  "versions": {
+    "numpy": "2.5.3",
+    "open3d": "0.20.0",
+    "cupy": "13.6.0",
+    "opencv": "5.0.0"
+  },
+  "thread_policy": {
+    "omp": "8",
+    "open3d": 20,
+    "opencv": 20
+  },
+  "raw_reports": {
+    "audit": {
+      "path": "benchmark-output\\cuda-pipeline\\resident-icp\\proof-direct-staged-audit.json",
+      "sha256": "5a4f06a974f0337cc2fb7cd9aa47c164e095fb22ffe1989d08b12fbacd7cb4c0",
+      "bytes": 72642
+    },
+    "timing": {
+      "path": "benchmark-output\\cuda-pipeline\\resident-icp\\timing-direct-staged.json",
+      "sha256": "64bd2fddc190ce1b46cda5ca5af0099455745940c10f02cef2a4b4682ae583cf",
+      "bytes": 107085
+    }
+  },
+  "script": {
+    "path": "scripts\\research_resident_icp.py",
+    "sha256": "aad3553a48a4875a22f8f4dfa98fb58d910939904718184e8bbd6262deee011b",
+    "bytes": 51748
+  },
+  "measured_artifacts_sha256": {
+    "research_resident_icp.py": "aad3553a48a4875a22f8f4dfa98fb58d910939904718184e8bbd6262deee011b",
+    "cuda_optix_registration.py": "ecdd883b77b67b872f67b7bf7f2ec4b554c2cf1cc311b890df2c22f6f88ba6f1",
+    "research_optix_nn.cu": "9883a2b7bfafd0a77da38d336309cb421e506ca03f20efa9a3377b13073a7b1a",
+    "research_optix_nn_host.cpp": "187c4c774d23e7849a2a944c9a4b377d8a06ad382c855206a1a1969fcbae2635",
+    "benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+    "benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+    "solve_library": "8268e8c2361a574beb71bda18d22294805033d11effc0e089fc2056a71491de5",
+    "solve_manifest": "6c02704d3e9083af0d63589cd11890253ae54684cb72149c63f032232f67162f",
+    "adapter_proof": "56da98160e7aebb0596eccdb9e0548f3dcdd61b8f7af1e7debd331eed588d0e9",
+    "fixture": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "retrieval_library": "62bbbe97afc0a21dac0e635eb4b8eeba8a18480ab50ce4f9e7da760018de3354",
+    "retrieval_ptx": "905eb9cf163bbac3ae244d0831e76a31ab62eaeb762704997d134d3ecc26d7e4",
+    "retrieval_proof_0": "dece50b148e8045ceb08f209b27d021772b59f26e5cef2945a049650cc2bd0f2",
+    "raw_input_0": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4"
+  },
+  "retrieval_prerequisites": {
+    "adapter": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\optix-nearest\\synthetic-direct-staged.json",
+      "sha256": "56da98160e7aebb0596eccdb9e0548f3dcdd61b8f7af1e7debd331eed588d0e9"
+    },
+    "native": [
+      {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\optix-nearest\\real-pairs-direct-staged-audit.json",
+        "sha256": "dece50b148e8045ceb08f209b27d021772b59f26e5cef2945a049650cc2bd0f2",
+        "direct_rt_hit_queries": 58809403,
+        "declared_rt_miss_queries": 45314585,
+        "retrieval_complete_on_tested_queries": true,
+        "rt_miss_cpu_hits": 0
+      }
+    ],
+    "direct_native_hits": 58809403,
+    "declared_native_misses": 45314585,
+    "miss_policy": "direct-miss-research-v1",
+    "certified_domain": {
+      "version": "outward-fp32-aabb-fp64-radius-v1",
+      "coordinates": "finite float64 target and query; absolute coordinate <= 1000000",
+      "minimum_index_radius_m": 1e-06,
+      "bounds": "float64 p +/- radius outward nextafter, float32 conversion, eight outward float32 ULPs",
+      "traversal": "positive x axis ray; t in [0, 1e-20]; enumerate without reporting an intersection",
+      "distance": "original float64 coordinates; (dx*dx + dy*dy) + dz*dz; fmad disabled",
+      "complete_radius_bin": 1.0,
+      "uncertainty": "CPU complete-radius search for tied/near-boundary hits, unsupported coordinates or absent indexes"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "audited_pairs": [
+      [
+        0,
+        2
+      ],
+      [
+        8,
+        12
+      ]
+    ],
+    "fixture_sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "raw_inputs_sha256": {
+      "F:\\Projects\\coding\\Kinect-3D-Scanner\\export\\chest-3-scan-session_20261006_215208.zip": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4"
+    },
+    "proofs_sha256": {
+      "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\optix-nearest\\synthetic-direct-staged.json": "56da98160e7aebb0596eccdb9e0548f3dcdd61b8f7af1e7debd331eed588d0e9",
+      "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\optix-nearest\\real-pairs-direct-staged-audit.json": "dece50b148e8045ceb08f209b27d021772b59f26e5cef2945a049650cc2bd0f2"
+    },
+    "artifacts_sha256": {
+      "benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+      "cuda_optix_registration.py": "ecdd883b77b67b872f67b7bf7f2ec4b554c2cf1cc311b890df2c22f6f88ba6f1",
+      "research_optix_nn.cu": "9883a2b7bfafd0a77da38d336309cb421e506ca03f20efa9a3377b13073a7b1a",
+      "research_optix_nn_host.cpp": "187c4c774d23e7849a2a944c9a4b377d8a06ad382c855206a1a1969fcbae2635",
+      "build_optix_nn.ps1": "39d615c8ce14d502377869ae06c21cc59917507c95a85250f39f9fe94d519816",
+      "benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+      "original_cpu_icp_adapter": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "nearest.dll": "62bbbe97afc0a21dac0e635eb4b8eeba8a18480ab50ce4f9e7da760018de3354",
+      "nearest.ptx": "905eb9cf163bbac3ae244d0831e76a31ab62eaeb762704997d134d3ecc26d7e4",
+      "vendor/optix-dev-v9.0.0.zip": "461664fda99a901d364996bf048a3dae399ce1162c725e5c1855c336c6c9d0a8"
+    },
+    "radius_bin_policy": {
+      "fractions": [
+        0.25,
+        0.5,
+        1.0
+      ],
+      "semantics": "Ascending fractions of each original ICP search radius ending at 1; original CPU hybrid search resolves uncertain rows; full-radius misses follow the separately proven miss_policy",
+      "retrieval_script_sha256": "ecdd883b77b67b872f67b7bf7f2ec4b554c2cf1cc311b890df2c22f6f88ba6f1",
+      "retrieval_library_sha256": "62bbbe97afc0a21dac0e635eb4b8eeba8a18480ab50ce4f9e7da760018de3354",
+      "retrieval_ptx_sha256": "905eb9cf163bbac3ae244d0831e76a31ab62eaeb762704997d134d3ecc26d7e4"
+    },
+    "scope": "Direct RTX completeness is separate from final-index parity preserved by original CPU fallback"
+  },
+  "solve_build": {
+    "eigen_commit": "da7909592376c893dabbc4b6453a8ffe46b1eb8e",
+    "eigen_archive_sha256": "37f71e1d7c408e2cc29ef90dcda265e2de0ad5ed6249d7552f6c33897eafd674",
+    "eigen_headers_sha256": "043d5bf81ab89615257f297638bfe749867f1593c656610178be4c5a611f7b7a",
+    "verified_header_files": 366,
+    "bridge_source_sha256": "7aa2e3fb40538431e7ecca7adf0f4e0b88ba587053c2dfc1f710e1a483104076",
+    "library_sha256": "8268e8c2361a574beb71bda18d22294805033d11effc0e089fc2056a71491de5",
+    "compiler": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\cl.exe",
+    "command": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\cl.exe",
+      "/nologo",
+      "/O2",
+      "/EHsc",
+      "/LD",
+      "/std:c++17",
+      "/DEIGEN_DONT_PARALLELIZE",
+      "/IC:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\resident-icp\\vendor\\eigen-da7909592376c893dabbc4b6453a8ffe46b1eb8e",
+      "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.cpp",
+      "/Fo:C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.obj",
+      "/link",
+      "/OUT:C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.dll"
+    ],
+    "compile_s": 2.82673440000508,
+    "solver": "standalone Eigen LDLT/RzRyRx reimplementation; original Open3D binary is not called",
+    "reported_eigen_version": "3.4.90"
+  },
+  "build_and_download_records": [
+    {
+      "path": "benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.build.json",
+      "sha256": "6c02704d3e9083af0d63589cd11890253ae54684cb72149c63f032232f67162f",
+      "bytes": 1601
+    },
+    {
+      "path": "benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.build.log",
+      "sha256": "f3b89e430b680d92ce78b04e080ccfdc8d56be5d98b38c211fafd4d524c9d712",
+      "bytes": 90
+    },
+    {
+      "path": "benchmark-output\\cuda-pipeline\\resident-icp\\dependency-download.json",
+      "sha256": "9e2cfe0b168e19d209f33d435aca7ef24eb180cfbf04db17be85d90adc3df544",
+      "bytes": 1329
+    },
+    {
+      "path": "benchmark-output\\cuda-pipeline\\resident-icp\\preparation-fingerprints.json",
+      "sha256": "27190b972782ea73fea2ba8d09f248a68af0505dead5537a501350f63145afc0",
+      "bytes": 979
+    }
+  ],
+  "authority": "Fixed bridge component inputs and unchanged original CPU witnesses/gates; no archived pose seeds, live integration, graph frontier or mesh speed/quality claim",
+  "roundoff": "FP64 GPU transforms/reductions and separately compiled Eigen bridge require empirical full CPU acceptance/evidence proof; resemblance to source is not equivalence",
+  "audit": {
+    "process_exit_code": 0,
+    "passed": true,
+    "pair_decisions_and_all_proposal_evidence_match": true,
+    "proposal_count": 9,
+    "calls": 236,
+    "iterations": 10861,
+    "cpu_full_call_fallbacks": 0,
+    "query_rows": 104123989,
+    "direct_hits": 58809403,
+    "audited_hits": 58809403,
+    "index_mismatches": 0,
+    "declared_misses": 45314585,
+    "audited_misses": 45314585,
+    "false_misses": 0,
+    "uncertain_cpu_queries": 1
+  },
+  "timing": {
+    "process_exit_code": 0,
+    "passed": true,
+    "cpu_shadow_audits_enabled": false,
+    "contemporary_native_full_bridge_s": 11.190198100004636,
+    "resident_repeats": [
+      {
+        "repeat": 0,
+        "full_bridge_s": 70.81735019999905,
+        "resident_to_native_ratio": 6.328516221707435
+      },
+      {
+        "repeat": 1,
+        "full_bridge_s": 71.28015339999547,
+        "resident_to_native_ratio": 6.369874131179674
+      }
+    ],
+    "pairs": [
+      {
+        "pair": [
+          8,
+          12
+        ],
+        "native_full_bridge_s": 2.9044194000016432,
+        "native_accepted": true,
+        "resident_full_bridge_s": [
+          15.679388600001403,
+          17.491784400001052
+        ]
+      },
+      {
+        "pair": [
+          0,
+          2
+        ],
+        "native_full_bridge_s": 8.285778700002993,
+        "native_accepted": false,
+        "resident_full_bridge_s": [
+          55.13796159999765,
+          53.78836899999442
+        ]
+      }
+    ],
+    "inclusive_host_stage_s": {
+      "upload_s": 0.11400239993236028,
+      "transform_enqueue_s": 1.523100199556211,
+      "equation_enqueue_s": 1.1534888006935944,
+      "system_copy_s": 2.5381429004482925,
+      "solve_s": 0.36475990018516313,
+      "final_pair_copy_s": 0.19643529997119913,
+      "event_collection_s": 0.05859109992888989
+    },
+    "inclusive_retrieval_stage_s": {
+      "rt_search_s": 106.18017549942306,
+      "cpu_fallback_s": 4.6219319004012505,
+      "dataset_wall_s": 0.8363438999003847,
+      "index_build_s": 0.5417891999750282
+    },
+    "gpu_event_s": {
+      "transforms": 0.9266868481617421,
+      "normal_equations": 2.1883241595067084
+    },
+    "timer_limits": "RT search is a subset of NN, NN a subset of ICP, and ICP a subset of bridge. Host enqueue/copy timers can wait for earlier GPU work. GPU event times overlap those host scopes and must never be added to wall totals. Native C++ internal stages are not exposed.",
+    "statistics": {
+      "calls": 472,
+      "pose_iterations": 21722,
+      "cpu_fallback_calls": 0,
+      "host_to_device_bytes": 225766992,
+      "device_to_host_bytes": 24751072,
+      "peak_owned_gpu_bytes": 1738732,
+      "wall_s": 138.29090160004125,
+      "upload_s": 0.11400239993236028,
+      "transform_enqueue_s": 1.523100199556211,
+      "nn_wall_s": 129.59744589986076,
+      "equation_enqueue_s": 1.1534888006935944,
+      "system_copy_s": 2.5381429004482925,
+      "solve_s": 0.36475990018516313,
+      "final_pair_copy_s": 0.19643529997119913,
+      "event_collection_s": 0.05859109992888989,
+      "cpu_fallback_s": 0.0,
+      "gpu_transform_ms": 926.6868481617421,
+      "gpu_equations_ms": 2188.3241595067084
+    },
+    "retrieval_statistics": {
+      "cloud_uploads": 30,
+      "index_builds": 150,
+      "cache_hits": 1386,
+      "searches": 0,
+      "pose_iterations": 0,
+      "exact_cpu_queries": 2,
+      "rt_queries": 453706640,
+      "query_rows": 208247978,
+      "candidate_visits": 1818575500,
+      "bvh_bytes": 55847040,
+      "full_radius_rt_misses": 90629170,
+      "rt_miss_cpu_hits": 0,
+      "rt_uncertain_queries": 2,
+      "direct_rt_hit_queries": 117618806,
+      "audited_rt_hit_queries": 0,
+      "audit_index_mismatches": 0,
+      "cpu_audit_s": 0.0,
+      "declared_rt_miss_queries": 90629170,
+      "audited_rt_miss_queries": 0,
+      "audit_false_misses": 0,
+      "cpu_miss_audit_s": 0.0,
+      "peak_bvh_bytes": 55847040,
+      "cache_gpu_bytes": 98610720,
+      "peak_allocated_cache_gpu_bytes": 98610720,
+      "cache_evictions": 0,
+      "cache_budget_bypasses": 0,
+      "dataset_hash_s": 0.18194699985906482,
+      "index_build_s": 0.5417891999750282,
+      "cpu_fallback_tree_build_s": 0.06819230001565302,
+      "rt_search_s": 106.18017549942306,
+      "cpu_fallback_s": 4.6219319004012505,
+      "icp_calls": 0,
+      "icp_wall_s": 0.0,
+      "dataset_wall_s": 0.8363438999003847,
+      "correspondence_wall_s": 0.0
+    },
+    "nested_host_scope_totals_s": {
+      "full_bridge": 142.09750359999452,
+      "resident_icp_match": 138.29090160004125,
+      "nn": 129.59744589986076
+    },
+    "disjoint_host_wall_partition_s": {
+      "scope": "sum of the two resident repeats; mutually exclusive parts only",
+      "parts": {
+        "outside_resident_icp_match": 3.8066019999532728,
+        "icp_outside_nn": 8.693455700180493,
+        "nn": 129.59744589986076
+      },
+      "sum": 142.09750359999452,
+      "residual_from_full_bridge": 0.0
+    },
+    "derivation": {
+      "resident_to_native_ratio": "sum of per-pair resident elapsed_s for each repeat / sum of contemporary original_cpu_s",
+      "outside_resident_icp_match": "sum of resident bridge elapsed_s - resident statistics.wall_s",
+      "icp_outside_nn": "resident statistics.wall_s - statistics.nn_wall_s"
+    }
+  },
+  "conclusion": "Resident iteration math passes the fixed original CPU authority checks, but this device-array adapter is 6.33-6.37 times slower than contemporary native bridge work. NN orchestration consumes 93.7% of resident ICP wall time; reducing host transfers alone did not help. No production promotion or whole-session speed/quality claim."
+}

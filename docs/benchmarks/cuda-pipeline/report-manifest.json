@@ -1,0 +1,132 @@
+{
+  "scope": "Selected report snapshots with LF text; original hashes retained; raw captures, build outputs and full execution proofs remain local",
+  "source_directory": "cuda-pipeline",
+  "files": {
+    "REPORT.md": {
+      "sha256": "b4ec2a0fc5f336ea4afd4a0d641f11438cecd55f241586afe1e6661e7653e092",
+      "bytes": 27884,
+      "source_sha256": "52b83dca18826c4c216e305e5e8e6356ef41c032dd29eb7a8168380d1af99580",
+      "source_bytes": 28086
+    },
+    "pipeline-current-release.png": {
+      "sha256": "d4e3838df4fe08fcefddaaf5a0ab8d21ac6abbc999861e38356356aec7bbf7e4",
+      "bytes": 154060,
+      "source_sha256": "d4e3838df4fe08fcefddaaf5a0ab8d21ac6abbc999861e38356356aec7bbf7e4",
+      "source_bytes": 154060
+    },
+    "pipeline-confidence.png": {
+      "sha256": "c534fb684179afad21719d1a78a0c382407a0f018afee262bf0b80052d258757",
+      "bytes": 92430,
+      "source_sha256": "c534fb684179afad21719d1a78a0c382407a0f018afee262bf0b80052d258757",
+      "source_bytes": 92430
+    },
+    "pipeline-performance.png": {
+      "sha256": "97c3bf704823228362f754cccd0bcd4e89678adcc1a39ad9cb2d9547f5ab5060",
+      "bytes": 151822,
+      "source_sha256": "97c3bf704823228362f754cccd0bcd4e89678adcc1a39ad9cb2d9547f5ab5060",
+      "source_bytes": 151822
+    },
+    "pipeline-complete.png": {
+      "sha256": "d108f63d326666cb5649f89a5cc872cf471ce92424b5e5d43a50223aba89bea0",
+      "bytes": 134562,
+      "source_sha256": "d108f63d326666cb5649f89a5cc872cf471ce92424b5e5d43a50223aba89bea0",
+      "source_bytes": 134562
+    },
+    "gpu-model-motion.png": {
+      "sha256": "b98ba16f2c65858d0e9d71c974d2916c2eae0eadd047e58ff687b067ba145af3",
+      "bytes": 315875,
+      "source_sha256": "b98ba16f2c65858d0e9d71c974d2916c2eae0eadd047e58ff687b067ba145af3",
+      "source_bytes": 315875
+    },
+    "verification-profile/chest-3-summary.json": {
+      "sha256": "52ab76745b94ca10dc3a8e686fb103f3da3c001e40c72af9db0ae742b90d8b90",
+      "bytes": 60904,
+      "source_sha256": "d7f024cf72bd8de384ea5251c8cbda637b733f5be87e7879d3d8cf3b942d7d4b",
+      "source_bytes": 63060
+    },
+    "optix-nearest/research-summary.json": {
+      "sha256": "647c21666ed2114f0a5ef731bfc88a8f9eeb8d3bd235629c79ba13bb4d89eebb",
+      "bytes": 18631,
+      "source_sha256": "3dad77df8ed414aaf329e3cc59950edb587106385b4dbe1954875d148894a0e2",
+      "source_bytes": 19048
+    },
+    "resident-icp/research-summary.json": {
+      "sha256": "739c8ebc0b9678845c63576ca553f0bbda10638f56918c1bfce11385bded4210",
+      "bytes": 15449,
+      "source_sha256": "c03c271c57a3687da69d765c31e989b29cba33f8792708a607a951bd66efcabe",
+      "source_bytes": 15793
+    },
+    "native-icp-signatures/research-summary.json": {
+      "sha256": "e80e0aa9a419ea2ee3b091d59598c461ab578a77be8b1741339015182ec134de",
+      "bytes": 17907,
+      "source_sha256": "4ff87055de8c7b1f88f0d667b18dbcb5b728abdc049aa9abb2c23f3bef800790",
+      "source_bytes": 18286
+    },
+    "uniform-grid-nearest/summary.json": {
+      "sha256": "b7eb0ccfa80f95884ccf94db667e0c9400d879a3fbe5ca22c6f17e550fa76578",
+      "bytes": 18383,
+      "source_sha256": "d37d5c440047ce259b2dcd8b77cd64ab375d4b8a0b26b2ad962f045c3bd8441a",
+      "source_bytes": 18831
+    },
+    "uniform-grid-nearest/research-summary.json": {
+      "sha256": "b7eb0ccfa80f95884ccf94db667e0c9400d879a3fbe5ca22c6f17e550fa76578",
+      "bytes": 18383,
+      "source_sha256": "d37d5c440047ce259b2dcd8b77cd64ab375d4b8a0b26b2ad962f045c3bd8441a",
+      "source_bytes": 18831
+    },
+    "selective-fragment-threads/research-summary.json": {
+      "sha256": "01b7ada5952deb40ffbe195742ab417a663a75c148d0bab561ae12d574ca34ea",
+      "bytes": 18811,
+      "source_sha256": "240451036e28be3d693412fde9692aa553aaaf6a8c87abd44ea75c33673d16d9",
+      "source_bytes": 19271
+    },
+    "uniform-grid-nearest/staged-pruned-v1/research-summary.json": {
+      "sha256": "b6415982ce1707c1098fabdf19280c0cdd4176195cd56c890b922c577ceec678",
+      "bytes": 25556,
+      "source_sha256": "096a3d0f3d98b55031b2bfa16967fe2e9f1b227ef7cf088a78006cea3890366e",
+      "source_bytes": 26182
+    },
+    "uniform-grid-nearest/flat-v1/research-summary.json": {
+      "sha256": "59aa7e18e6a76684bbbcbf4957107e791e93f8ea1cfe13f6c66194689a9f1c41",
+      "bytes": 12603,
+      "source_sha256": "be36cce581207974e2bac0a290d4549facbcb208d7273160490f7dbc741f3118",
+      "source_bytes": 12891
+    },
+    "uniform-grid-nearest/device-resident-v1/research-summary.json": {
+      "sha256": "c506c84dc64efd251a574b711dd02974d2612dabdd8ccd2b0a557e2212bf20aa",
+      "bytes": 23044,
+      "source_sha256": "37d8c31f331aa38dae4bae139f728218a3240d727aa39e930ac756a9ab9e0efe",
+      "source_bytes": 23501
+    },
+    "grid-lookup-ablation-v1/research-summary.json": {
+      "sha256": "28ed16c54252bebbe89feba8109268d21f88ce680631770e98fb8f344a4916b8",
+      "bytes": 108140,
+      "source_sha256": "d431bbfe746c2d4d5eb33689a392876d70e4dadd1ff8bfa015a1d15b01a32d55",
+      "source_bytes": 110966
+    },
+    "grid-lookup-ablation-order-v2/host-diagnostics-summary.json": {
+      "sha256": "5b918681795b68ead4b3e908c251fafa7125a0a5b194617a9d1d329b89c96c79",
+      "bytes": 11789,
+      "source_sha256": "cf5f2f4f6447461a84dea948575720e952285ffc1f60600fabf3908b4406f7d0",
+      "source_bytes": 12060
+    },
+    "validation.json": {
+      "sha256": "aa392f9b04725b9b3b49abb5c242c37d3f6f44d1f4f016bae8610016c1bc8a07",
+      "bytes": 1335,
+      "source_sha256": "10fcb359cbc94df22749c618037ca5ea90c33f5ef8531c9da49f93675d3f6f51",
+      "source_bytes": 1379
+    },
+    "current-release-validation.json": {
+      "sha256": "8e9e6f8f27198c93e9bec9943edce741ce26164adc65276218dc4bd196d52ed9",
+      "bytes": 8186,
+      "source_sha256": "6b6299f0d81fd8ca92d78e52a8ac63e59edf87649281c42a9ca3b71ef4a3a06f",
+      "source_bytes": 8319
+    },
+    "summary-provenance-validation.json": {
+      "sha256": "3fbdaff30516dced665d0b199371366643cfdafce022942c679f4f6b8bfe1e26",
+      "bytes": 476,
+      "source_sha256": "4266a192a378c9a29e3bad9f8f88ec6208f01a660dca516afa16eabe9e8ad54b",
+      "source_bytes": 491
+    }
+  }
+}

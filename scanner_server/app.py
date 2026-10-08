@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 
 from shared.live import encode_live_message
@@ -18,6 +18,8 @@ from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
 from .engine import ScanEngine
+from .cuda_fusion import FusionUpdateError
+from .cuda_input import CudaInputError
 
 logger = logging.getLogger("scanner_server")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -79,6 +81,8 @@ def _ensure_live_worker():
     if (
         not _shutting_down
         and engine.settings.live_reconstruction
+        and not getattr(engine, "fusion_failure", None)
+        and not getattr(engine, "input_failure", None)
         and engine.unprocessed_count
         and (_live_task is None or _live_task.done())
     ):
@@ -110,6 +114,19 @@ async def _live_worker():
     except asyncio.CancelledError:
         failed = True
         raise
+    except (FusionUpdateError, CudaInputError) as exc:
+        failed = True
+        logger.error("Live CUDA reconstruction stopped: %s", exc)
+        await _flush_live_feedback()
+        async with _build_lock:
+            snapshot = await _engine_call(engine.live_snapshot, array_geometry=True)
+            _latest_live = snapshot
+        if snapshot.get("volume_requires_reset") or snapshot.get("input_requires_reset"):
+            await _broadcast(snapshot)
+            await _broadcast({"type": "error", "session_id": snapshot["session_id"],
+                              "message": str(exc),
+                              "volume_requires_reset": snapshot["volume_requires_reset"],
+                              "input_requires_reset": snapshot.get("input_requires_reset", False)})
     except Exception:
         failed = True
         logger.exception("Live processing stopped; manual build can retry")
@@ -217,6 +234,25 @@ async def _wait_for_processing(task, drain_progress):
 # ── Health / Status ────────────────────────────────────────────────────
 
 
+@app.exception_handler(FusionUpdateError)
+async def fusion_update_error(request: Request, exc: FusionUpdateError):
+    return JSONResponse(status_code=409, content={
+        "success": False, "message": str(exc), "detail": str(exc),
+        "volume_requires_reset": engine.fusion_failure is not None,
+        "fusion_failure": engine.fusion_failure,
+    })
+
+
+@app.exception_handler(CudaInputError)
+async def cuda_input_error(request: Request, exc: CudaInputError):
+    return JSONResponse(status_code=409, content={
+        "success": False, "message": str(exc), "detail": str(exc),
+        "volume_requires_reset": engine.fusion_failure is not None,
+        "input_requires_reset": engine.input_failure is not None,
+        "input_failure": engine.input_failure,
+    })
+
+
 @app.get("/api/health")
 async def health():
     return {
@@ -226,6 +262,8 @@ async def health():
         "stored_count": engine.stored_count,
         "frame_count": engine.frame_count,
         "has_mesh": engine.mesh is not None,
+        "volume_requires_reset": engine.fusion_failure is not None,
+        "input_requires_reset": engine.input_failure is not None,
         "operation": _exclusive_kind if _exclusive else None,
     }
 
@@ -241,8 +279,12 @@ async def scan_status():
         "settings": engine.settings.to_dict(),
         "skipped_count": sum(not r["success"] for r in engine.diagnostics),
         "has_mesh": engine.mesh is not None,
-        "tracking_state": "recovering" if engine._tracking_lost_frames else "tracking" if engine.poses else "waiting",
-        "fusion_paused": bool(engine._tracking_lost_frames),
+        "tracking_state": "error" if engine.fusion_failure or engine.input_failure else "recovering" if engine._tracking_lost_frames else "tracking" if engine.poses else "waiting",
+        "fusion_paused": bool(engine._tracking_lost_frames) or engine.fusion_failure is not None or engine.input_failure is not None,
+        "volume_requires_reset": engine.fusion_failure is not None,
+        "fusion_failure": engine.fusion_failure,
+        "input_requires_reset": engine.input_failure is not None,
+        "input_failure": engine.input_failure,
         "operation": _exclusive_kind if _exclusive else None,
     }
 

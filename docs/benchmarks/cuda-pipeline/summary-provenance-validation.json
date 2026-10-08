@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "checks": [
+    "all_actual_release_profiles_pass",
+    "confidence_failed_probe_refused",
+    "confidence_wrong_device_refused",
+    "missing_observations_refused",
+    "invalid_surface_metrics_refused",
+    "failed_finish_cannot_be_reported_as_valid",
+    "missing_surface_cannot_be_reported_as_zero_error",
+    "historical_live_only_rows_preserved"
+  ],
+  "count": 8,
+  "scope": "Report provenance/quality guard checks; no native or GPU benchmark"
+}

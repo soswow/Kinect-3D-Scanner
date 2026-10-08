@@ -1,0 +1,626 @@
+{
+  "kind": "derived-staged-pruned-original-double-uniform-grid-summary",
+  "status": "passed",
+  "result": "Exact but slower: staged/pruned warm bridge is approximately twice contemporary native CPU wall time; research only",
+  "production_promotion": false,
+  "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+  "raw_report_sha256": {
+    "synthetic-proof": "5b6405d4cc94965c0a4d422eaffc217e08588a42b5700593f524632ba5a34652",
+    "bridge-audit": "a1b6fefdafc9785acd63f2a8cd496588429b35daf4fbd6773ddafaadbe437b38",
+    "timing": "8696e7d0bc8760f7590dffeb3f2d9ec8a36c97d5334e0224f928847e78d41a60"
+  },
+  "proof_bindings_sha256": "692691f7e9b05a61149a6d101614dbb90f3a68cd74c621e3e3169298bcdb8c0b",
+  "fixture_binding_sha256": "91ba569fb6bd03fb9c9b1dcc48ac27a70def3cd3c18c836977b2a529cdc2ed1a",
+  "proof_target_count": 30,
+  "fixture_binding": {
+    "fixture_sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "reference_sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3",
+    "original_raw_input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+    "local_pose_source": "measured Finish fragment report; no archived ZIP poses",
+    "tasks": [
+      {
+        "position": 0,
+        "pair": [
+          8,
+          12
+        ],
+        "proposal_sha256": [
+          "163c3b8c34a5089a703ed0eaa22d472fb534858a5c52ead7e49e129f289698ac",
+          "4a8d6e0be023f239c22fd61b332a107b7bb705e8cb4550a16aed1f5e92e382d8",
+          "df19003966889bca7578a8b58b9ea7d6270a5d04816e252e1d88891a104a82a9",
+          "b7e55e2e821dd88d79ba8b6a9d6ca865f89afd86d794c1e48a2a0d73911e862f",
+          "df1990d547d07e6155b1c5be3cc11545cffb66ab08c959151837ed3d72e7ad77"
+        ]
+      },
+      {
+        "position": 4,
+        "pair": [
+          0,
+          2
+        ],
+        "proposal_sha256": [
+          "b692a4645909476fab4c77e549d0220e0f433457d92b01b115f7f8848f4da5b3",
+          "ccc7977ae7987f37c2235e57c320a5142d6b58413825b6457a4a1c9fe469ac1c",
+          "8d1a3625dea25bd459a846fd231518cdea7ec059ca9b63191c0c8a6469deec78",
+          "0e69129ce7f988d366e2272a86d712df84ee7a6afd7beb23c3e458ae48018333"
+        ]
+      }
+    ]
+  },
+  "artifact_sha256": {
+    "scripts\\benchmark_staged_grid_nn.py": "b0725129b164abf538df36693cebc4fc2c80a6ce827d41364d39f1d0dbc56996",
+    "scripts\\cuda_staged_grid_registration.py": "171b2612d30787db1ae84c2d9f1351a447f92914303a025c60492687f640e65e",
+    "scripts\\research_staged_grid_nn.cu": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+    "scripts\\STAGED_GRID_RESEARCH.md": "3ea127a71b2fd70b342b4bd94b9c33da0cc0ef72e7228e233e9665cc05f7f812",
+    "scripts\\benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+    "scripts\\benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+    "scripts\\benchmark_selective_fragment_threads.py": "9e0a806077bda62ef2ade96de8d1a67cc013ef3f15de3171e50320327de0dcfe",
+    "scripts\\profile_fragment_verification.py": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+    "scanner_server\\cuda_nn_registration.py": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+    "scripts\\validate_staged_grid_proof.py": "f0896e37de75a038d1b10e1fd39c87b3c118d5856c653d4a95a802e4f7c184b2"
+  },
+  "timing_driver": {
+    "path": "scripts\\benchmark_staged_grid_timing.py",
+    "sha256": "ee0dd284a57547405ab67e00b28e039be1a2ad82d4bc27ab0d862fe0c52616e3",
+    "sha256_after": "ee0dd284a57547405ab67e00b28e039be1a2ad82d4bc27ab0d862fe0c52616e3",
+    "unchanged": true,
+    "proof_producing_harness_path": "scripts\\benchmark_staged_grid_nn.py",
+    "proof_producing_harness_sha256": "b0725129b164abf538df36693cebc4fc2c80a6ce827d41364d39f1d0dbc56996",
+    "proof_producing_harness_sha256_after": "b0725129b164abf538df36693cebc4fc2c80a6ce827d41364d39f1d0dbc56996",
+    "changed_scope": "Omit redundant synthetic setup only; original native/grid all-nine proposal loop, comparisons and source/input/cleanup gates execute unchanged"
+  },
+  "metadata": {
+    "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "artifacts_sha256": {
+      "scripts\\benchmark_staged_grid_nn.py": "b0725129b164abf538df36693cebc4fc2c80a6ce827d41364d39f1d0dbc56996",
+      "scripts\\cuda_staged_grid_registration.py": "171b2612d30787db1ae84c2d9f1351a447f92914303a025c60492687f640e65e",
+      "scripts\\research_staged_grid_nn.cu": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+      "scripts\\STAGED_GRID_RESEARCH.md": "3ea127a71b2fd70b342b4bd94b9c33da0cc0ef72e7228e233e9665cc05f7f812",
+      "scripts\\benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+      "scripts\\benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+      "scripts\\benchmark_selective_fragment_threads.py": "9e0a806077bda62ef2ade96de8d1a67cc013ef3f15de3171e50320327de0dcfe",
+      "scripts\\profile_fragment_verification.py": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+      "scanner_server\\cuda_nn_registration.py": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "scripts\\validate_staged_grid_proof.py": "f0896e37de75a038d1b10e1fd39c87b3c118d5856c653d4a95a802e4f7c184b2"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "domain": {
+      "version": "staged-dyadic27-directed-fp32-original-double-v1",
+      "radius_m": "2^-20 <= radius <= 1",
+      "cell_width": "smallest power of two >=radius; reversible finite ldexp scaling",
+      "cells": "floor(scaled coordinate) in signed21-bit range [-1048576,1048575]",
+      "packing": "bias each axis by1048576; x<<42|y<<21|z, no collisions in declared domain",
+      "enclosure": "CPU strict squared-distance hit implies every absolute coordinate difference<cell_width; at most one floor cell apart",
+      "distance": "original float64 points; explicit RN subtraction, multiply and left-associated add; --fmad=false; CuPy injects -ftz=true for single precision only",
+      "uncertainty": "64epsilon relative metric margin for nearest/second/radius; CPU ties and boundary/unsupported fallback",
+      "missing_policy": "original CPU tree unless explicitly research-certified and CPU hit/miss proof bound to helper/source/kernel/input",
+      "stages": "fractions(.25,.5,1); skip inner radius below2^-20/unsupported stage; early certificate uses64eps margin based on FULL radius squared; final CPU fallback uses original radius",
+      "pruning": "directed FP32 intervals; only zero or absolute original coordinates>=FLT_MIN; lower bound>upward_FP32(RN64(stage_radius_squared*(1+64eps64))) skips distance; potential winners use original explicit FP64",
+      "pruning_cpu_bound": "dCPU>=exact_squared_distance*(1-2^-53)^5; supported nonzero differences>=2^-178 and squared terms normal64; FTZ inputs guarded, positive subnormal float outputs flush only toward conservative zero",
+      "memory": "at most5dyadic grids and4pointer tables per cloud; signed21 bit domain unchanged; bounded total retained bytes include FP32 endpoints/valid flags/tables",
+      "diagnostics": "visited/pruned counts per stage packed20bits each;3execution mask bits; raw float columns decoded via uint64 view only; double evaluations=visited-pruned"
+    },
+    "domain_sha256": "6ad07df41d5f993775f5b5a4ca12df3c0defc5598482559ad469f5360b31b7d2",
+    "versions": {
+      "numpy": "2.5.3",
+      "open3d": "0.20.0",
+      "opencv": "5.0.0",
+      "cupy": "13.6.0"
+    },
+    "thread_policy": {
+      "open3d": 20,
+      "opencv": 20,
+      "omp": "8"
+    },
+    "cache_policy": {
+      "max_clouds": 64,
+      "retained_gpu_bytes": 268435456,
+      "max_grids_per_cloud": 5,
+      "max_pointer_tables_per_cloud": 4,
+      "limit": "Retained grid arrays only; transient launch/transfer buffers and CuPy pools separately observed"
+    },
+    "policy": "direct-miss-research-v1",
+    "stage_policy": "staged-pruned-v1: fractions(.25,.5,1); original-radius uncertainty; restricted directed-FP32 screen; original explicit FP64 final distances",
+    "kernel_options": [
+      "--std=c++11",
+      "--fmad=false"
+    ],
+    "cupy_injected_compiler_options": [
+      "-ftz=true; single precision only; original geometry is explicit FP64"
+    ],
+    "cuda_driver_version": 13030,
+    "cuda_runtime_version": 12090,
+    "nvrtc_version": [
+      12,
+      4
+    ],
+    "cuda_compute_capability": "86",
+    "open3d_backend_binary_sha256": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+    "numpy_core_binary_sha256": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+    "numpy_build_configuration_sha256": "853393fd18a6f78e0f4c95ac3154d889032290093edc9ef5fa0cd701d0069fc8",
+    "numpy_cpu_features": {
+      "MMX": true,
+      "SSE": true,
+      "SSE2": true,
+      "SSE3": true,
+      "SSSE3": true,
+      "SSE41": true,
+      "POPCNT": true,
+      "SSE42": true,
+      "X86_V2": true,
+      "AVX": true,
+      "F16C": true,
+      "XOP": false,
+      "FMA4": false,
+      "FMA3": true,
+      "AVX2": true,
+      "LAHF": true,
+      "CX16": true,
+      "MOVBE": true,
+      "BMI": true,
+      "BMI2": true,
+      "LZCNT": true,
+      "GFNI": true,
+      "VPCLMULQDQ": true,
+      "VAES": true,
+      "X86_V3": true,
+      "AVX512F": false,
+      "AVX512CD": false,
+      "AVX512ER": false,
+      "AVX512PF": false,
+      "AVX5124FMAPS": false,
+      "AVX5124VNNIW": false,
+      "AVX512VPOPCNTDQ": false,
+      "AVX512VL": false,
+      "AVX512BW": false,
+      "AVX512DQ": false,
+      "AVX512VNNI": false,
+      "AVX512IFMA": false,
+      "AVX512VBMI": false,
+      "AVX512VBMI2": false,
+      "AVX512BITALG": false,
+      "AVX512FP16": false,
+      "AVX512BF16": false,
+      "AVX512_KNL": false,
+      "AVX512_KNM": false,
+      "AVX512_SKX": false,
+      "X86_V4": false,
+      "AVX512_CLX": false,
+      "AVX512_CNL": false,
+      "AVX512_ICL": false,
+      "AVX512_SPR": false,
+      "VSX": false,
+      "VSX2": false,
+      "VSX3": false,
+      "VSX4": false,
+      "VX": false,
+      "VXE": false,
+      "VXE2": false,
+      "NEON": false,
+      "NEON_FP16": false,
+      "NEON_VFPV4": false,
+      "ASIMD": false,
+      "FPHP": false,
+      "ASIMDHP": false,
+      "ASIMDDP": false,
+      "ASIMDFHM": false,
+      "SVE": false,
+      "RVV": false,
+      "LSX": false
+    }
+  },
+  "synthetic": {
+    "host_device_cases": 16,
+    "extra_boundary_cases": 43,
+    "host_enclosure": {
+      "domain_boundary_cases": [
+        {
+          "radius": 0.0075,
+          "cell_width": 0.0078125,
+          "supported_boundary_pairs": 147,
+          "strict_hits_inside27cells": 51,
+          "passed": true
+        },
+        {
+          "radius": 0.015,
+          "cell_width": 0.015625,
+          "supported_boundary_pairs": 147,
+          "strict_hits_inside27cells": 51,
+          "passed": true
+        },
+        {
+          "radius": 0.03,
+          "cell_width": 0.03125,
+          "supported_boundary_pairs": 147,
+          "strict_hits_inside27cells": 51,
+          "passed": true
+        },
+        {
+          "radius": 0.06,
+          "cell_width": 0.0625,
+          "supported_boundary_pairs": 147,
+          "strict_hits_inside27cells": 51,
+          "passed": true
+        },
+        {
+          "radius": 0.12,
+          "cell_width": 0.125,
+          "supported_boundary_pairs": 147,
+          "strict_hits_inside27cells": 51,
+          "passed": true
+        },
+        {
+          "radius": 0.125,
+          "cell_width": 0.125,
+          "supported_boundary_pairs": 144,
+          "strict_hits_inside27cells": 43,
+          "passed": true
+        },
+        {
+          "radius": 0.03125,
+          "cell_width": 0.03125,
+          "supported_boundary_pairs": 144,
+          "strict_hits_inside27cells": 43,
+          "passed": true
+        },
+        {
+          "radius": 0.25,
+          "cell_width": 0.25,
+          "supported_boundary_pairs": 144,
+          "strict_hits_inside27cells": 43,
+          "passed": true
+        },
+        {
+          "radius": 0.5,
+          "cell_width": 0.5,
+          "supported_boundary_pairs": 144,
+          "strict_hits_inside27cells": 43,
+          "passed": true
+        },
+        {
+          "radius": 1.0,
+          "cell_width": 1.0,
+          "supported_boundary_pairs": 144,
+          "strict_hits_inside27cells": 43,
+          "passed": true
+        },
+        {
+          "radius": 9.5367431640625e-07,
+          "cell_width": 9.5367431640625e-07,
+          "supported_boundary_pairs": 144,
+          "strict_hits_inside27cells": 43,
+          "passed": true
+        }
+      ],
+      "packing_unique_cases": 64,
+      "unsupported_guard_passed": true,
+      "claim": "Finite sample gate plus declared dyadic enclosure argument; complete actual hit/miss CPU audits still required"
+    },
+    "statistics": {
+      "cloud_uploads": 62,
+      "index_builds": 148,
+      "cache_hits": 0,
+      "searches": 0,
+      "pose_iterations": 0,
+      "exact_cpu_queries": 2123,
+      "query_rows": 7510,
+      "candidate_visits": 4984,
+      "direct_gpu_hits": 1358,
+      "declared_gpu_misses": 4029,
+      "audited_hits": 1358,
+      "audited_misses": 4029,
+      "audit_index_mismatches": 0,
+      "audit_false_misses": 0,
+      "uncertain_queries": 42,
+      "unsupported_queries": 2081,
+      "cache_evictions": 3,
+      "cache_budget_bypasses": 0,
+      "peak_retained_gpu_bytes": 1734486,
+      "proof_membership_cpu_clouds": 0,
+      "dataset_hash_s": 0.0005699000394088216,
+      "index_build_s": 0.07897359997878084,
+      "gpu_search_transfer_s": 0.027352000048267655,
+      "cpu_fallback_s": 0.006986799940932542,
+      "cpu_audit_s": 0.015383400008431636,
+      "dataset_wall_s": 0.08375460001843749,
+      "correspondence_wall_s": 0.0,
+      "icp_wall_s": 0.0,
+      "cpu_tree_build_s": 0.0028965999954380095,
+      "icp_calls": 0,
+      "stage0_rows": 4304,
+      "stage0_candidate_visits": 336,
+      "stage0_pruned_candidates": 75,
+      "stage0_double_evaluations": 261,
+      "stage0_early_certificates": 195,
+      "stage1_rows": 5137,
+      "stage1_candidate_visits": 1529,
+      "stage1_pruned_candidates": 390,
+      "stage1_double_evaluations": 1139,
+      "stage1_early_certificates": 561,
+      "stage2_rows": 4673,
+      "stage2_candidate_visits": 3119,
+      "stage2_pruned_candidates": 1932,
+      "stage2_double_evaluations": 1187,
+      "stage2_early_certificates": 0,
+      "pruned_candidates": 2397,
+      "double_evaluations": 2587,
+      "grid_slot_evictions": 0,
+      "pointer_table_evictions": 0,
+      "peak_grids_per_cloud": 3,
+      "peak_tables_per_cloud": 1
+    },
+    "interval_guards": [
+      {
+        "case": "float-normal-minimum-and-adjacent-doubles",
+        "queries": 3,
+        "index_mismatches": 0
+      },
+      {
+        "case": "inner-stage-boundary-full-radius-margin",
+        "queries": 3,
+        "index_mismatches": 0
+      },
+      {
+        "case": "distinct-tie-at-inner-stage-boundary",
+        "queries": 3,
+        "index_mismatches": 0
+      },
+      {
+        "case": "negative-large-coordinate-outward-float-bounds",
+        "queries": 3,
+        "index_mismatches": 0
+      },
+      {
+        "case": "mixed-original-coordinate-below-FLT_MIN-exact-path",
+        "queries": 3,
+        "index_mismatches": 0
+      },
+      {
+        "case": "unsupported-full-radius-supported-inner-stages-forced-CPU",
+        "queries": 3,
+        "index_mismatches": 0
+      },
+      {
+        "case": "inner-query-unsupported-full-stage-supported-uniform-barrier",
+        "queries": 1028,
+        "index_mismatches": 0,
+        "inner_query_unsupported_full_supported": true
+      }
+    ],
+    "budget_fallback": {
+      "passed": true,
+      "queries": 4,
+      "index_mismatches": 0,
+      "retained_bytes": 0,
+      "complete_original_CPU_fallback_queries": 4
+    },
+    "ownership_guards": {
+      "passed": true,
+      "queries_per_radius": 4,
+      "radii_tested": 9,
+      "absent_final_kernel_guard_passed": true,
+      "grid_slot_evictions": 11,
+      "pointer_table_evictions": 10,
+      "global_cache_evictions": 1,
+      "four_table_cap_exercised": true,
+      "peak_grids_per_cloud": 5,
+      "peak_tables_per_cloud": 4
+    }
+  },
+  "real_audit": {
+    "elapsed_s": 438.3313135999997,
+    "statistics": {
+      "cloud_uploads": 90,
+      "index_builds": 150,
+      "cache_hits": 678,
+      "searches": 11569,
+      "pose_iterations": 10861,
+      "exact_cpu_queries": 0,
+      "query_rows": 104123989,
+      "candidate_visits": 3190640058,
+      "direct_gpu_hits": 58809404,
+      "declared_gpu_misses": 45314585,
+      "audited_hits": 58809404,
+      "audited_misses": 45314585,
+      "audit_index_mismatches": 0,
+      "audit_false_misses": 0,
+      "uncertain_queries": 0,
+      "unsupported_queries": 0,
+      "cache_evictions": 0,
+      "cache_budget_bypasses": 0,
+      "peak_retained_gpu_bytes": 85665372,
+      "proof_membership_cpu_clouds": 0,
+      "dataset_hash_s": 0.0962582999636652,
+      "index_build_s": 0.34402279997448204,
+      "gpu_search_transfer_s": 81.07291510018695,
+      "cpu_fallback_s": 0.11552220004523406,
+      "cpu_audit_s": 343.5977774001294,
+      "dataset_wall_s": 0.5265987997991033,
+      "correspondence_wall_s": 431.9990038995893,
+      "icp_wall_s": 435.8742912000016,
+      "cpu_tree_build_s": 0.06823019999137614,
+      "icp_calls": 236,
+      "stage0_rows": 104123989,
+      "stage0_candidate_visits": 770371795,
+      "stage0_pruned_candidates": 586164394,
+      "stage0_double_evaluations": 184207401,
+      "stage0_early_certificates": 36317734,
+      "stage1_rows": 67806255,
+      "stage1_candidate_visits": 466783621,
+      "stage1_pruned_candidates": 411215795,
+      "stage1_double_evaluations": 55567826,
+      "stage1_early_certificates": 12883179,
+      "stage2_rows": 54923076,
+      "stage2_candidate_visits": 1953484642,
+      "stage2_pruned_candidates": 1802071082,
+      "stage2_double_evaluations": 151413560,
+      "stage2_early_certificates": 0,
+      "pruned_candidates": 2799451271,
+      "double_evaluations": 391188787,
+      "grid_slot_evictions": 0,
+      "pointer_table_evictions": 0,
+      "peak_grids_per_cloud": 2,
+      "peak_tables_per_cloud": 2
+    },
+    "all_nine_original_proposals_passed": true
+  },
+  "timing": {
+    "native_elapsed_s": 11.136031399997592,
+    "grid": [
+      {
+        "repeat": 0,
+        "elapsed_s": 23.23383649999596,
+        "ratio_to_native": 2.086365929248456,
+        "self_groups_s": {
+          "gpu_search_and_host_transfers": 12.395835900235397,
+          "cpu_fallback_loop_overhead_no_queries": 0.09432100005506072,
+          "cpu_shadow_loop_overhead_no_queries": 0.0713435001380276,
+          "other_correspondence_work": 6.247347199700016,
+          "dataset_preparation": 0.5212362998790923,
+          "cpu_estimator_transform_and_icp_loop_combined": 1.7761052999048843,
+          "bridge_work_outside_icp": 2.1276473000834812
+        },
+        "self_sum_s": 23.23383649999596,
+        "inclusive_groups_s": {
+          "icp_wall_s": 21.106189199912478,
+          "correspondence_wall_s": 18.8088476001285,
+          "dataset_wall_s": 0.5212362998790923
+        },
+        "counters": {
+          "query_rows": 104123989,
+          "candidate_visits": 3190640058,
+          "searches": 11569,
+          "pose_iterations": 10861,
+          "icp_calls": 236,
+          "direct_gpu_hits": 58809404,
+          "declared_gpu_misses": 45314585,
+          "index_builds": 150,
+          "cloud_uploads": 90,
+          "cache_hits": 678,
+          "cache_evictions": 0,
+          "exact_cpu_queries": 0,
+          "audited_hits": 0,
+          "audited_misses": 0,
+          "proof_membership_cpu_clouds": 0,
+          "pruned_candidates": 2799451271,
+          "double_evaluations": 391188787,
+          "grid_slot_evictions": 0,
+          "pointer_table_evictions": 0,
+          "stage0_rows": 104123989,
+          "stage0_candidate_visits": 770371795,
+          "stage0_pruned_candidates": 586164394,
+          "stage0_double_evaluations": 184207401,
+          "stage0_early_certificates": 36317734,
+          "stage1_rows": 67806255,
+          "stage1_candidate_visits": 466783621,
+          "stage1_pruned_candidates": 411215795,
+          "stage1_double_evaluations": 55567826,
+          "stage1_early_certificates": 12883179,
+          "stage2_rows": 54923076,
+          "stage2_candidate_visits": 1953484642,
+          "stage2_pruned_candidates": 1802071082,
+          "stage2_double_evaluations": 151413560,
+          "stage2_early_certificates": 0
+        },
+        "gpu_memory_snapshot": {
+          "driver_free_bytes": 11544821760,
+          "driver_total_bytes": 12884377600,
+          "driver_used_bytes": 1339555840,
+          "cupy_pool_used_bytes": 87708160,
+          "cupy_pool_total_bytes": 90462720,
+          "scope": "Post-stage snapshot, not a peak; driver usage includes desktop/other processes and temporary build workspace has already been freed."
+        }
+      },
+      {
+        "repeat": 1,
+        "elapsed_s": 22.19235829999525,
+        "ratio_to_native": 1.9928426476958432,
+        "self_groups_s": {
+          "gpu_search_and_host_transfers": 11.762238599796547,
+          "cpu_fallback_loop_overhead_no_queries": 0.09558410041790921,
+          "cpu_shadow_loop_overhead_no_queries": 0.07187569976667874,
+          "other_correspondence_work": 6.25363589990593,
+          "dataset_preparation": 0.10219700013840338,
+          "cpu_estimator_transform_and_icp_loop_combined": 1.7797557000158122,
+          "bridge_work_outside_icp": 2.1270712999539683
+        },
+        "self_sum_s": 22.19235829999525,
+        "inclusive_groups_s": {
+          "icp_wall_s": 20.06528700004128,
+          "correspondence_wall_s": 18.183334299887065,
+          "dataset_wall_s": 0.10219700013840338
+        },
+        "counters": {
+          "query_rows": 104123989,
+          "candidate_visits": 3190640058,
+          "searches": 11569,
+          "pose_iterations": 10861,
+          "icp_calls": 236,
+          "direct_gpu_hits": 58809404,
+          "declared_gpu_misses": 45314585,
+          "index_builds": 0,
+          "cloud_uploads": 0,
+          "cache_hits": 708,
+          "cache_evictions": 0,
+          "exact_cpu_queries": 0,
+          "audited_hits": 0,
+          "audited_misses": 0,
+          "proof_membership_cpu_clouds": 0,
+          "pruned_candidates": 2799451271,
+          "double_evaluations": 391188787,
+          "grid_slot_evictions": 0,
+          "pointer_table_evictions": 0,
+          "stage0_rows": 104123989,
+          "stage0_candidate_visits": 770371795,
+          "stage0_pruned_candidates": 586164394,
+          "stage0_double_evaluations": 184207401,
+          "stage0_early_certificates": 36317734,
+          "stage1_rows": 67806255,
+          "stage1_candidate_visits": 466783621,
+          "stage1_pruned_candidates": 411215795,
+          "stage1_double_evaluations": 55567826,
+          "stage1_early_certificates": 12883179,
+          "stage2_rows": 54923076,
+          "stage2_candidate_visits": 1953484642,
+          "stage2_pruned_candidates": 1802071082,
+          "stage2_double_evaluations": 151413560,
+          "stage2_early_certificates": 0
+        },
+        "gpu_memory_snapshot": {
+          "driver_free_bytes": 11542724608,
+          "driver_total_bytes": 12884377600,
+          "driver_used_bytes": 1341652992,
+          "cupy_pool_used_bytes": 87708160,
+          "cupy_pool_total_bytes": 91282944,
+          "scope": "Post-stage snapshot, not a peak; driver usage includes desktop/other processes and temporary build workspace has already been freed."
+        }
+      }
+    ],
+    "peak_retained_gpu_bytes": 87399858,
+    "required_warm_search_budget_to_match_native_s": 0.7059116997988895,
+    "required_warm_search_improvement_factor": 16.662478611910736,
+    "candidate_visit_ratio_to_full_radius": 0.2263242297695434,
+    "FP64_evaluation_ratio_to_full_radius": 0.02774850791779816,
+    "peak_grids_per_cloud": 5,
+    "peak_tables_per_cloud": 3
+  },
+  "quality": {
+    "accepted_and_rejected_decisions_unchanged": true,
+    "all_original_witness_fields_unchanged": true,
+    "max_pose_coefficient_delta": 1.8318679906315083e-15,
+    "max_information_delta": 7.275957614183426e-12,
+    "arrays_raw_inputs_fixture_reference_source_gpu_unchanged": true,
+    "cleanup_passed": true
+  },
+  "timer_limits": "Inclusive groups overlap; self groups subtract nested timers and sum to wall. Native C++ NN/solve internals are unexposed. GPU search includes launches, host/device transfers and synchronization; no kernel-only claim. Disabled fallback/shadow timers still include empty-loop setup overhead.",
+  "authority_limits": "Original-raw fixed bridge component with measured local poses only; no archived live seeds, camera-FPS or whole-Finish improvement claim. Timing reuses independently audited proofs; no fresh timing-phase synthetic GPU coverage.",
+  "source_snapshot_directory": "benchmark-output/cuda-pipeline/uniform-grid-nearest/staged-pruned-v1/source",
+  "summary_script_sha256": "f7ee066ca6154e647eefe96a49d9f3a0f4f61c44310b45ae2e50666456909b29"
+}

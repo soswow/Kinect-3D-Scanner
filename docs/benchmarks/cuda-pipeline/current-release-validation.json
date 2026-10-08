@@ -1,0 +1,133 @@
+{
+  "success": true,
+  "runs": 12,
+  "cpu_control_repeats_per_mode_and_archive": 1,
+  "cuda_repeats_per_mode_and_archive": 2,
+  "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "all_quality_backend_provenance_gates_passed": true,
+  "quality_bound_to_exact_report_bytes": true,
+  "clean_control_replacement": {
+    "incidental_activity": "Read-only filename enumeration for Eigen headers; no numerical work or compilation",
+    "activity_interval_utc": [
+      "2026-10-08 05:01:50",
+      "2026-10-08 05:02:01"
+    ],
+    "excluded_from_current_release_summary": true,
+    "original_report": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\current-release-control\\chest-3-scan-session_20261006_215208-cpu-baseline-0.json",
+    "original_report_sha256": "3daf47312b7ce5e7bab1b5200f2df415d9578d0010a0e8043f13b33f7126c0f0",
+    "replacement_report": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\current-release-clean-control\\chest-3-scan-session_20261006_215208-cpu-baseline-0.json",
+    "replacement_report_sha256": "60e1221587f2194d6822b7aafd843bb6cc8a54432a6fa2553b4ab011a7dae0ef",
+    "initial_control_index": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\current-release-control\\initial-experiments.json",
+    "measured_artifacts_preserved": true
+  },
+  "reports": [
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "mode": "cpu-baseline",
+      "report_sha256": "60e1221587f2194d6822b7aafd843bb6cc8a54432a6fa2553b4ab011a7dae0ef",
+      "quality_sha256": "111414c697799eacf13e04bca1ffa947538dfe91a561b27c78adb93868c626f2",
+      "quality_candidate_report_sha256": "60e1221587f2194d6822b7aafd843bb6cc8a54432a6fa2553b4ab011a7dae0ef",
+      "quality_baseline_report_sha256": "0d44e99a08c08cdef8dbb1c28279d11a0d4fa8acbdad5e10687e0a3e1526fe59",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "mode": "cpu-adaptive-preview-10mm",
+      "report_sha256": "9645e7fd9107bef35645db87589157c2760fea6341c9e2a5a774a5dc85aacd6d",
+      "quality_sha256": "1dd09fb6d765f7f33fa10e4fe121d272c0c5265d33feb13d60e661572c2a0ebc",
+      "quality_candidate_report_sha256": "9645e7fd9107bef35645db87589157c2760fea6341c9e2a5a774a5dc85aacd6d",
+      "quality_baseline_report_sha256": "0d44e99a08c08cdef8dbb1c28279d11a0d4fa8acbdad5e10687e0a3e1526fe59",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "mode": "cpu-baseline",
+      "report_sha256": "26ab25ab6e7d0a121c52158caa2271dcce36d2c22edcc22bb0fd8e26469ee9a3",
+      "quality_sha256": "05975755cefa5353cddadb2446c340b0a2bfa668b80a9991bb89f780f0ac292b",
+      "quality_candidate_report_sha256": "26ab25ab6e7d0a121c52158caa2271dcce36d2c22edcc22bb0fd8e26469ee9a3",
+      "quality_baseline_report_sha256": "7c0490d3b97d81b975d5ff30a1ffff0f0d443318df46788347a2f2ad1010eed4",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "mode": "cpu-adaptive-preview-10mm",
+      "report_sha256": "47cb76da30d8943f4f479b3d38f29d24b914c20b76bb4688e859ccf67dfaf680",
+      "quality_sha256": "661cddbec6cb77b2123455631ba143779345a81c1f977e8626df40ab4626473a",
+      "quality_candidate_report_sha256": "47cb76da30d8943f4f479b3d38f29d24b914c20b76bb4688e859ccf67dfaf680",
+      "quality_baseline_report_sha256": "7c0490d3b97d81b975d5ff30a1ffff0f0d443318df46788347a2f2ad1010eed4",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input",
+      "report_sha256": "e3feb0bc0ec64487c728a042d6f36ecf33cc7465c6465d1cc4c7887be7839590",
+      "quality_sha256": "15d4483d7b91b9f5ebad97b604b26e392dbc2dc54e6ca8949955668ec4cfacd3",
+      "quality_candidate_report_sha256": "e3feb0bc0ec64487c728a042d6f36ecf33cc7465c6465d1cc4c7887be7839590",
+      "quality_baseline_report_sha256": "0d44e99a08c08cdef8dbb1c28279d11a0d4fa8acbdad5e10687e0a3e1526fe59",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input-confidence",
+      "report_sha256": "f541d94e47eacf55d9f4770d6be7c685dd37e15c0ddb1065e037428a7d7d7e78",
+      "quality_sha256": "7dd903a29a81a74750c62114e97cc0a4b12148c3fe80d805e4c69feb016a4095",
+      "quality_candidate_report_sha256": "f541d94e47eacf55d9f4770d6be7c685dd37e15c0ddb1065e037428a7d7d7e78",
+      "quality_baseline_report_sha256": "0d44e99a08c08cdef8dbb1c28279d11a0d4fa8acbdad5e10687e0a3e1526fe59",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input-confidence",
+      "report_sha256": "8f9ddb5cb74a202a0dc0a8b8cc9b8697814a5c49ced355b8c140a88f0bf6a357",
+      "quality_sha256": "9e684d6c8e71398083cf9c3ea72515e6b82e5093b5c19bbb02d38b7dc984b3b8",
+      "quality_candidate_report_sha256": "8f9ddb5cb74a202a0dc0a8b8cc9b8697814a5c49ced355b8c140a88f0bf6a357",
+      "quality_baseline_report_sha256": "0d44e99a08c08cdef8dbb1c28279d11a0d4fa8acbdad5e10687e0a3e1526fe59",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-3-scan-session_20261006_215208.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input",
+      "report_sha256": "830b75206cc865612fe5f0579147bec91e6207bddaf9a6085b1b7f22d9bbf18b",
+      "quality_sha256": "96da125c3266719459cc4874e0c4e7e2db64ca3a8e46c7c5e61e1ac14b28e815",
+      "quality_candidate_report_sha256": "830b75206cc865612fe5f0579147bec91e6207bddaf9a6085b1b7f22d9bbf18b",
+      "quality_baseline_report_sha256": "0d44e99a08c08cdef8dbb1c28279d11a0d4fa8acbdad5e10687e0a3e1526fe59",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input",
+      "report_sha256": "a4fc35ae1daa384e3a5879f0483a8503ae781aa1ed625e2613cc5232e3b586cc",
+      "quality_sha256": "92e9526118c6e00a9404c8bf78a9b037d7495ea8bf274bc523d04be8b83e6dd0",
+      "quality_candidate_report_sha256": "a4fc35ae1daa384e3a5879f0483a8503ae781aa1ed625e2613cc5232e3b586cc",
+      "quality_baseline_report_sha256": "7c0490d3b97d81b975d5ff30a1ffff0f0d443318df46788347a2f2ad1010eed4",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input-confidence",
+      "report_sha256": "d884760786450ae014602108c681cd9fb153495005351345f3b098b85657242e",
+      "quality_sha256": "40af3a47ba67736a0f6ee54891364374f6afd0ec0c414c656bc8d831e0728406",
+      "quality_candidate_report_sha256": "d884760786450ae014602108c681cd9fb153495005351345f3b098b85657242e",
+      "quality_baseline_report_sha256": "7c0490d3b97d81b975d5ff30a1ffff0f0d443318df46788347a2f2ad1010eed4",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input-confidence",
+      "report_sha256": "bcbef9f29ef1ac5fb5b3fe052975d56e9a0536cf8be621c2f068f83a41b51e2e",
+      "quality_sha256": "e24f5cba8f5a8869d7a85f98b43103a349e6fea55d98569a701d9cee7e6c2b65",
+      "quality_candidate_report_sha256": "bcbef9f29ef1ac5fb5b3fe052975d56e9a0536cf8be621c2f068f83a41b51e2e",
+      "quality_baseline_report_sha256": "7c0490d3b97d81b975d5ff30a1ffff0f0d443318df46788347a2f2ad1010eed4",
+      "quality_status": "passed"
+    },
+    {
+      "session": "chest-4-scan-session_20261007_173028.zip",
+      "mode": "legacy-adaptive-preview-10mm-gpu-input",
+      "report_sha256": "c9bbe2aef11cfa1f01f132f6feb9e7e8f137088c7a1a504ab15208d890b38fd6",
+      "quality_sha256": "6909a7241897fee91974f0136adf6b0853e2cf7c1be6344287e37732a25158d8",
+      "quality_candidate_report_sha256": "c9bbe2aef11cfa1f01f132f6feb9e7e8f137088c7a1a504ab15208d890b38fd6",
+      "quality_baseline_report_sha256": "7c0490d3b97d81b975d5ff30a1ffff0f0d443318df46788347a2f2ad1010eed4",
+      "quality_status": "passed"
+    }
+  ]
+}

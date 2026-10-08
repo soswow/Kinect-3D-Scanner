@@ -1,0 +1,288 @@
+{
+  "kind": "flat-grid-host-bridge-research-summary",
+  "status": "passed",
+  "producer": {
+    "path": "scripts\\summarize_flat_grid_research.py",
+    "sha256": "2474149a068aa44d6e092d007de3840b2b094d0e13af4791cc0aa4d1b76270fd"
+  },
+  "claim": "Fresh flat-specific synthetic and complete CPU hit/miss proofs pass; both full host bridge timings are slower than contemporary native CPU.",
+  "whole_archive_speedup_measured": false,
+  "production_promotion": false,
+  "reports": {
+    "synthetic": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\flat-v1\\synthetic-proof.json",
+      "sha256": "df8d6f8ff483ebc446eefee3e1d5d6d46621be5e796b72a7c168367b9f8ddd6b"
+    },
+    "audit": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\flat-v1\\bridge-audit.json",
+      "sha256": "5e8cff5d9ff51c4ea72baa6eb952885fedad10f50c9152f148b8517065cb0dad"
+    },
+    "timing": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\flat-v1\\timing.json",
+      "sha256": "2c0b43c043670e31e9a2d01d547ca80ddc67349d933d8257f624a360a0e8964a"
+    }
+  },
+  "proof_bindings": {
+    "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "artifacts_sha256": {
+      "scripts\\benchmark_flat_grid_nn.py": "85ed28ea8592816a129b988e1d2f8084d77eb706c04f17fd9185170d10316fde",
+      "scripts\\cuda_flat_grid_registration.py": "ecdf643ebfd8b79f02f0442363694f5bb15a6e7e8672641afde789f16b104b82",
+      "scripts\\research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+      "scripts\\validate_flat_grid_proof.py": "d1fccfdebec963e08c033e0abe3c32e5eadb3851bfe47bd987ce43425f7a8882",
+      "scripts\\benchmark_flat_grid_timing.py": "e0a6d4276b1a6c955bb3004679b15d50d57c5f649affcdee3644ab4a4d48a4b7",
+      "scripts\\FLAT_GRID_RESEARCH.md": "d8671232a81280d6975ee424f7b513ea113d3ef9c254af96a493c7ff68e8822c",
+      "scripts\\benchmark_uniform_grid_nn.py": "85e71c0e46e9eaf96ffce2bec8f7f743c60ea8ce2e8a7eb2d7882fac0c4b0233",
+      "scripts\\cuda_uniform_grid_registration.py": "0c034d72f31e82d0b9a0c9ea2fcd1bdd0b5e3667d52850a594db66d3b139f883",
+      "scripts\\research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+      "scripts\\UNIFORM_GRID_RESEARCH.md": "86b63bbc8f1907c3276e7ce2b4b142fb8529654a777b9c1add75a891ac8c5e55",
+      "scripts\\benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+      "scripts\\benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+      "scripts\\benchmark_selective_fragment_threads.py": "9e0a806077bda62ef2ade96de8d1a67cc013ef3f15de3171e50320327de0dcfe",
+      "scripts\\profile_fragment_verification.py": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+      "scanner_server\\cuda_nn_registration.py": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "scripts\\validate_uniform_grid_proof.py": "ec3c22c98e7c8610debb3492d12f778013c672f58576f3a55ad3f96f1915a302"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "domain": {
+      "version": "flat-dyadic27-original-double-v1",
+      "radius_m": "2^-20 <= radius <= 1",
+      "cell_width": "smallest power of two >=radius; reversible finite ldexp scaling",
+      "cells": "floor(scaled coordinate) in signed21-bit range [-1048576,1048575]",
+      "packing": "bias each axis by1048576; x<<42|y<<21|z, no collisions in declared domain",
+      "enclosure": "CPU strict squared-distance hit implies every absolute coordinate difference<cell_width; at most one floor cell apart",
+      "distance": "original float64 points; explicit RN subtraction, multiply and left-associated add; --fmad=false; CuPy injects -ftz=true for single precision only",
+      "uncertainty": "64epsilon relative metric margin for nearest/second/radius; CPU ties and boundary/unsupported fallback",
+      "missing_policy": "original CPU tree unless explicitly research-certified and CPU hit/miss proof bound to helper/source/kernel/input",
+      "traversal": "27 parallel cell lookups; exclusive shared prefix of disjoint ranges; ordinal tid+128*k; upper_bound maps every original candidate exactly once",
+      "output": "unchanged original five-column first/second IDs, FP64 squared distances and visits; fixed128 threads"
+    },
+    "domain_sha256": "d50ab403506afc8502b47a655bd69438a8ae3d8eec8d68b7b5f0c8ac72053e76",
+    "versions": {
+      "numpy": "2.5.3",
+      "open3d": "0.20.0",
+      "opencv": "5.0.0",
+      "cupy": "13.6.0"
+    },
+    "thread_policy": {
+      "open3d": 20,
+      "opencv": 20,
+      "omp": "8"
+    },
+    "cache_policy": {
+      "max_clouds": 64,
+      "retained_gpu_bytes": 268435456,
+      "limit": "Retained grid arrays only; transient launch/transfer buffers and CuPy pools separately observed"
+    },
+    "policy": "direct-miss-research-v1",
+    "kernel_options": [
+      "--std=c++11",
+      "--fmad=false"
+    ],
+    "cupy_injected_compiler_options": [
+      "-ftz=true; single precision only; original geometry is explicit FP64"
+    ],
+    "cuda_driver_version": 13030,
+    "cuda_runtime_version": 12090,
+    "nvrtc_version": [
+      12,
+      4
+    ],
+    "cuda_compute_capability": "86",
+    "open3d_backend_binary_sha256": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+    "numpy_core_binary_sha256": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+    "numpy_build_configuration_sha256": "853393fd18a6f78e0f4c95ac3154d889032290093edc9ef5fa0cd701d0069fc8",
+    "numpy_cpu_features": {
+      "MMX": true,
+      "SSE": true,
+      "SSE2": true,
+      "SSE3": true,
+      "SSSE3": true,
+      "SSE41": true,
+      "POPCNT": true,
+      "SSE42": true,
+      "X86_V2": true,
+      "AVX": true,
+      "F16C": true,
+      "XOP": false,
+      "FMA4": false,
+      "FMA3": true,
+      "AVX2": true,
+      "LAHF": true,
+      "CX16": true,
+      "MOVBE": true,
+      "BMI": true,
+      "BMI2": true,
+      "LZCNT": true,
+      "GFNI": true,
+      "VPCLMULQDQ": true,
+      "VAES": true,
+      "X86_V3": true,
+      "AVX512F": false,
+      "AVX512CD": false,
+      "AVX512ER": false,
+      "AVX512PF": false,
+      "AVX5124FMAPS": false,
+      "AVX5124VNNIW": false,
+      "AVX512VPOPCNTDQ": false,
+      "AVX512VL": false,
+      "AVX512BW": false,
+      "AVX512DQ": false,
+      "AVX512VNNI": false,
+      "AVX512IFMA": false,
+      "AVX512VBMI": false,
+      "AVX512VBMI2": false,
+      "AVX512BITALG": false,
+      "AVX512FP16": false,
+      "AVX512BF16": false,
+      "AVX512_KNL": false,
+      "AVX512_KNM": false,
+      "AVX512_SKX": false,
+      "X86_V4": false,
+      "AVX512_CLX": false,
+      "AVX512_CNL": false,
+      "AVX512_ICL": false,
+      "AVX512_SPR": false,
+      "VSX": false,
+      "VSX2": false,
+      "VSX3": false,
+      "VSX4": false,
+      "VX": false,
+      "VXE": false,
+      "VXE2": false,
+      "NEON": false,
+      "NEON_FP16": false,
+      "NEON_VFPV4": false,
+      "ASIMD": false,
+      "FPHP": false,
+      "ASIMDHP": false,
+      "ASIMDDP": false,
+      "ASIMDFHM": false,
+      "SVE": false,
+      "RVV": false,
+      "LSX": false
+    }
+  },
+  "fixture_binding": {
+    "fixture_sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "reference_sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3",
+    "original_raw_input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+    "local_pose_source": "measured Finish fragment report; no archived ZIP poses",
+    "tasks": [
+      {
+        "position": 0,
+        "pair": [
+          8,
+          12
+        ],
+        "proposal_sha256": [
+          "163c3b8c34a5089a703ed0eaa22d472fb534858a5c52ead7e49e129f289698ac",
+          "4a8d6e0be023f239c22fd61b332a107b7bb705e8cb4550a16aed1f5e92e382d8",
+          "df19003966889bca7578a8b58b9ea7d6270a5d04816e252e1d88891a104a82a9",
+          "b7e55e2e821dd88d79ba8b6a9d6ca865f89afd86d794c1e48a2a0d73911e862f",
+          "df1990d547d07e6155b1c5be3cc11545cffb66ab08c959151837ed3d72e7ad77"
+        ]
+      },
+      {
+        "position": 4,
+        "pair": [
+          0,
+          2
+        ],
+        "proposal_sha256": [
+          "b692a4645909476fab4c77e549d0220e0f433457d92b01b115f7f8848f4da5b3",
+          "ccc7977ae7987f37c2235e57c320a5142d6b58413825b6457a4a1c9fe469ac1c",
+          "8d1a3625dea25bd459a846fd231518cdea7ec059ca9b63191c0c8a6469deec78",
+          "0e69129ce7f988d366e2272a86d712df84ee7a6afd7beb23c3e458ae48018333"
+        ]
+      }
+    ]
+  },
+  "native_cpu_full_bridge_s": 11.279612099999213,
+  "flat_runs": [
+    {
+      "repeat": 0,
+      "cache_state": "first",
+      "full_bridge_wall_s": 17.515035199998238,
+      "slower_than_native_ratio": 1.5528047458298198,
+      "native_over_flat_speed_ratio": 0.6439959709587308,
+      "disjoint_partition_s": {
+        "gpu_search_transfer_output_parse_s": 9.084169899346307,
+        "empty_cpu_fallback_bookkeeping_s": 0.10487799988186453,
+        "empty_cpu_audit_bookkeeping_s": 0.07206519963074243,
+        "other_correspondence_s": 4.226065500966797,
+        "dataset_s": 0.27004039994062623,
+        "cpu_estimator_transform_loop_s": 1.615535200209706,
+        "outside_icp_verification_s": 2.1422810000221943
+      },
+      "non_search_floor_s": 8.43086530065193,
+      "search_budget_to_equal_native_s": 2.848746799347282,
+      "query_rows": 104123989,
+      "candidate_visits": 14097651238,
+      "index_builds": 90,
+      "cache_hits": 678
+    },
+    {
+      "repeat": 1,
+      "cache_state": "warm",
+      "full_bridge_wall_s": 16.485717199997453,
+      "slower_than_native_ratio": 1.4615500119900935,
+      "native_over_flat_speed_ratio": 0.6842051190833818,
+      "disjoint_partition_s": {
+        "gpu_search_transfer_output_parse_s": 8.463356600179395,
+        "empty_cpu_fallback_bookkeeping_s": 0.09986280004522996,
+        "empty_cpu_audit_bookkeeping_s": 0.06988440000714036,
+        "other_correspondence_s": 4.071464299187937,
+        "dataset_s": 0.09569170012400718,
+        "cpu_estimator_transform_loop_s": 1.5282420004878077,
+        "outside_icp_verification_s": 2.157215399965935
+      },
+      "non_search_floor_s": 8.022360599818057,
+      "search_budget_to_equal_native_s": 3.2572515001811553,
+      "query_rows": 104123989,
+      "candidate_visits": 14097651238,
+      "index_builds": 0,
+      "cache_hits": 708
+    }
+  ],
+  "audit": {
+    "query_rows": 104123989,
+    "direct_hits": 58809404,
+    "audited_hits": 58809404,
+    "direct_misses": 45314585,
+    "audited_misses": 45314585,
+    "index_mismatches": 0,
+    "false_misses": 0,
+    "candidate_visits": 14097651238,
+    "target_membership_count": 30,
+    "wall_s": 385.15128999999433,
+    "cpu_shadow_s": 347.40917749994696,
+    "performance_attribution_valid": false
+  },
+  "quality": {
+    "all_nine_original_gates_per_run_passed": true,
+    "max_pose_coefficient_difference": 9.71445146547012e-16,
+    "max_information_matrix_difference": 1.4551915228366852e-11,
+    "metric_scope": "Available accepted-proposal pose/information matrices; rejected None evidence agrees exactly and has no such matrix."
+  },
+  "solver_setup": {
+    "inherited_serial_adapter_setup_s": 0.023124300001654774,
+    "flat_shader_compile_setup_s": 0.000527900003362447,
+    "scope": "Includes inherited original kernel construction plus replacement compilation; imports are outside solver setup"
+  },
+  "memory": {
+    "retained_index_cap_bytes": 268435456,
+    "peak_retained_index_bytes": 27087708,
+    "peak_retained_index_MiB": 25.83285140991211,
+    "peak_process_rss_bytes": 1030696960,
+    "peak_process_rss_MiB": 982.94921875,
+    "scope": "Retained index arrays exclude transient query/output buffers and CuPy pools; process RSS and GPU snapshots are separate."
+  },
+  "limits": "Fixed original-raw component with measured local poses; accepted/rejected nine-proposal gates, not complete Finish/live tracking/mesh. Inclusive timers overlap. GPU-search timer includes host upload/download/enqueue/output extraction, not pure shader instruction time. CPU native search/solve internals are unexposed. Different resident methods/trajectories require separate fresh proofs.",
+  "cleanup_passed": true
+}
