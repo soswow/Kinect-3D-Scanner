@@ -151,6 +151,15 @@ sets the profile identity instead of prompting for a name. Native USB acquisitio
 runs in a spawned process with bounded waits and shutdown; RGB/depth images are
 not recorded and the tilt motor is never commanded.
 
+Individual stationary readings can fluctuate because of sensor noise. The guide
+checks sustained linear drift and differences between three interval averages
+separately from individual scatter. It accepts scatter up to 0.35 m/s² and peaks
+up to 0.8 m/s², while rejecting drift or interval shifts above 0.2 m/s². These
+are practical capture-quality limits, not proof of motion or physical accuracy;
+the fitter's 0.25 m/s² and 2° residual limits still apply. Unstable-read messages
+identify motion, vibration, and sensor noise as possible causes. Accepted
+observations retain scatter, peak, drift, and interval-shift diagnostics.
+
 Move and securely support the **whole Kinect**, preserving the head/base
 relationship throughout. Do not force the tilt joint. Align the actual camera
 axes using a level/square or an independently measured fixture; a level base

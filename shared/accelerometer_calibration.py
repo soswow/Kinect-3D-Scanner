@@ -166,8 +166,19 @@ def stationary_observation(samples, up_camera, seconds):
     deviations = np.linalg.norm(vectors - mean, axis=1)
     rms = float(np.sqrt(np.mean(deviations ** 2)))
     maximum = float(deviations.max())
-    if rms > 0.12 or maximum > 0.35:
-        raise ValueError(f"Camera moved or vibrated (scatter {rms:.3f} m/s², peak {maximum:.3f}). Support it and retry.")
+    # Individual driver readings are noisy even on a supported Kinect. Check
+    # changes in the mean separately instead of calling all scatter movement.
+    # These are capture-quality heuristics; the independent fit/validation
+    # residual limits remain the final calibration accuracy check.
+    centered_time = stamps - stamps.mean()
+    slope = np.linalg.lstsq(np.column_stack((centered_time, np.ones(len(stamps)))), vectors, rcond=None)[0][0]
+    drift = float(np.linalg.norm(slope * (stamps[-1] - stamps[0])))
+    blocks = np.asarray([block.mean(axis=0) for block in np.array_split(vectors, 3)])
+    block_shift = float(np.linalg.norm(blocks[:, None, :] - blocks[None, :, :], axis=2).max())
+    if rms > 0.35 or maximum > 0.8 or drift > 0.2 or block_shift > 0.2:
+        raise ValueError(f"Readings are unstable (scatter {rms:.3f} m/s², peak {maximum:.3f}, "
+                         f"drift {drift:.3f}, block shift {block_shift:.3f}). "
+                         "This can be motion, vibration, or sensor noise. Let it settle and retry.")
     if not 0.5 * G < np.linalg.norm(mean) < 1.5 * G:
         raise ValueError("Stationary acceleration is implausible. Check the sensor and retry.")
     generations = {s.get("capture_generation") for s in good}
@@ -176,4 +187,5 @@ def stationary_observation(samples, up_camera, seconds):
     return {"acceleration_m_s2": mean.tolist(), "up_camera": list(up_camera),
             "capture_summary": {"sample_count": len(good), "rejected_reads": len(measured) - len(good),
                                 "duration_s": float(stamps[-1] - stamps[0]),
-                                "scatter_rms_m_s2": rms, "peak_deviation_m_s2": maximum}}
+                                "scatter_rms_m_s2": rms, "peak_deviation_m_s2": maximum,
+                                "linear_drift_m_s2": drift, "block_shift_m_s2": block_shift}}

@@ -118,7 +118,8 @@ class GuidedCalibrationTests(unittest.TestCase):
             self.assertTrue(profile["verified"])
             self.assertEqual(capture.calls, 10)
             self.assertFalse(data["attempts"][0]["accepted"])
-            self.assertIn("moved", data["attempts"][0]["error"])
+            self.assertIn("unstable", data["attempts"][0]["error"])
+            self.assertIn("sensor noise", data["attempts"][0]["error"])
             self.assertTrue(data["attempts"][1]["accepted"])
 
     def test_failed_validation_can_be_replaced_without_reusing_fit_samples(self):
@@ -181,6 +182,40 @@ class GuidedCalibrationTests(unittest.TestCase):
                         sample["acceleration_m_s2"][0] += index * 0.01
                 with self.assertRaises(ValueError):
                     stationary_observation(samples, (0, -1, 0), 3)
+
+    def test_stationary_sensor_noise_is_averaged_instead_of_called_motion(self):
+        for scatter in (0.161, 0.178):
+            with self.subTest(scatter=scatter):
+                samples = samples_for((0, -1, 0))
+                original = np.asarray(samples[0]["acceleration_m_s2"])
+                noise = np.random.default_rng(42).normal(size=(len(samples), 3))
+                noise -= noise.mean(axis=0)
+                noise *= scatter / np.sqrt(np.mean(np.sum(noise ** 2, axis=1)))
+                for sample, variation in zip(samples, noise):
+                    sample["acceleration_m_s2"] = (original + variation).tolist()
+                observation = stationary_observation(samples, (0, -1, 0), 3)
+                np.testing.assert_allclose(observation["acceleration_m_s2"], original)
+                summary = observation["capture_summary"]
+                self.assertAlmostEqual(summary["scatter_rms_m_s2"], scatter)
+                self.assertLess(summary["linear_drift_m_s2"], 0.2)
+                self.assertLess(summary["block_shift_m_s2"], 0.2)
+
+    def test_slow_drift_and_a_step_are_rejected_despite_small_scatter(self):
+        for kind in ("drift", "step"):
+            with self.subTest(kind=kind):
+                samples = samples_for((0, -1, 0))
+                for index, sample in enumerate(samples):
+                    change = (index / (len(samples) - 1) * 0.3 if kind == "drift"
+                              else (0.3 if index >= len(samples) // 2 else 0))
+                    sample["acceleration_m_s2"][0] += change
+                with self.assertRaisesRegex(ValueError, "Readings are unstable"):
+                    stationary_observation(samples, (0, -1, 0), 3)
+
+    def test_large_isolated_disturbance_is_rejected(self):
+        samples = samples_for((0, -1, 0))
+        samples[15]["acceleration_m_s2"][0] += 1
+        with self.assertRaisesRegex(ValueError, "Readings are unstable"):
+            stationary_observation(samples, (0, -1, 0), 3)
 
     def test_settling_samples_are_excluded(self):
         samples = samples_for((0, -1, 0))
