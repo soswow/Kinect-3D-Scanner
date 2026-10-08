@@ -648,7 +648,7 @@ class MainWindow(QMainWindow):
         self.flow_debug_cb = QCheckBox("Show tracking flow")
         self.flow_debug_cb.setToolTip(
             "Show camera-side feature motion during scans with live reconstruction and color-assisted tracking. "
-            "Uses the calibrated RGB image on the depth grid."
+            "Includes trails across the last 20 camera frames on the calibrated depth grid."
         )
         self.flow_windows_cb = QCheckBox("Show LK patch windows")
         self.flow_windows_cb.setToolTip(
@@ -658,7 +658,7 @@ class MainWindow(QMainWindow):
         dv.addWidget(self.flow_debug_cb)
         dv.addWidget(self.flow_windows_cb)
         legend = QLabel(
-            "Green: verified motion · cyan: new corners · red: flow lost · "
+            "Green: verified motion · fading green: 20-frame trails · cyan: new corners · red: flow lost · "
             "orange: round-trip rejection · purple: depth rejection · yellow: geometry rejection. "
             "Camera motion is checked independently by the server before fusion."
         )

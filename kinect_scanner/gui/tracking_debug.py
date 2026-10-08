@@ -1,7 +1,7 @@
 """Paint the actual camera-side flow on its calibrated RGB image."""
 
 import numpy as np
-from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtCore import QLineF, QPointF, QRectF
 from PyQt6.QtGui import QColor, QPainter, QPen
 
 from shared.visual_tracking import VisualTracker
@@ -24,6 +24,19 @@ def flow_image(snapshot, *, show_windows=False):
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     try:
+        segments = snapshot.get("trail_segments", np.empty((0, 2, 2)))
+        ages = snapshot.get("trail_age_frames", np.empty(0, np.uint8))
+        finite = np.isfinite(segments).all(axis=(1, 2))
+        limit = snapshot.get("trail_frame_limit", VisualTracker.DEBUG_TRAIL_FRAMES)
+        # Batch equal-age segments, oldest first, beneath current flow markers.
+        for age in np.unique(ages)[::-1]:
+            color = QColor(COLORS[VisualTracker.VERIFIED])
+            color.setAlpha(round(35 + 110 * (1 - age / max(1, limit - 1))))
+            painter.setPen(QPen(color, 1.1))
+            painter.drawLines([
+                QLineF(float(a[0]), float(a[1]), float(b[0]), float(b[1]))
+                for a, b in segments[(ages == age) & finite]
+            ])
         corners = snapshot.get("corners")
         if corners is not None:
             painter.setPen(QPen(QColor(SEED_COLOR), 2))
@@ -83,12 +96,15 @@ def flow_summary(snapshot):
         f"Coverage {tracks['occupied_cells']} / {tracks['eligible_cells']} depth cells · "
         f"replenishment: {tracks['replenishment']}\n" if tracks else ""
     )
+    trails = (f"Trails: {snapshot['trail_frame_count']} / {snapshot['trail_frame_limit']} camera frames "
+              f"· older segments fade\n" if "trail_frame_limit" in snapshot else "")
     return (
         f"{snapshot['reason']}\n"
         f"Verified {counts[4]} / {len(status)} · flow lost {counts[0]} · "
         f"round-trip {counts[1]} · depth {counts[2]} · geometry {counts[3]}\n"
         f"New candidates {snapshot['detected']} · {snapshot['elapsed_ms']:.1f} ms{reference}\n"
         f"{field}"
+        f"{trails}"
         f"LK {snapshot['window_size']} × {snapshot['window_size']} px · "
         f"pyramid 0–{snapshot['pyramid_level']} · surviving identities retained"
     )
