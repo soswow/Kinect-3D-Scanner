@@ -107,6 +107,42 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertTrue(self.window._scanning)
         self.assertTrue(self.window.auto_capture_cb.isChecked())
 
+    def test_open_protects_current_scan_and_waits_for_save(self):
+        self.retain_scan()
+        self.window._refresh_controls()
+        self.protection("save")
+        self.window._open_project(path="/tmp/next-project.zip")
+        self.assertEqual(ServerTaskType.EXPORT_SESSION, self.window.task_worker.tasks[-1].task_type)
+        self.assertNotIn(ServerTaskType.OPEN_PROJECT, self.task_types())
+        self.window._on_export_done(True, "/tmp/workflow-session.zip")
+        self.assertEqual(ServerTaskType.OPEN_PROJECT, self.window.task_worker.tasks[-1].task_type)
+        self.assertEqual("/tmp/next-project.zip", self.window.task_worker.tasks[-1].kwargs["path"])
+
+    def test_open_failure_retains_counts_and_success_restores_paused_project(self):
+        self.retain_scan()
+        self.window._session_dirty = False
+        self.window._refresh_controls()
+        self.window._open_project(path="/tmp/project.zip")
+        self.window._on_task_failed("OPEN_PROJECT", "Invalid project")
+        self.assertEqual(3, self.window._server_stored)
+        self.assertEqual("retained", self.window._session_id)
+        self.assertTrue(self.window._scanning)
+        self.window._on_project_opened({"session_id": "opened", "stored_count": 5,
+                                       "frame_count": 4, "has_mesh": False, "settings": {}}, "/tmp/project.zip")
+        self.assertEqual(5, self.window._server_stored)
+        self.assertEqual("opened", self.window._session_id)
+        self.assertTrue(self.window._paused)
+        self.assertFalse(self.window._session_dirty)
+        self.assertEqual("/tmp/project.zip", self.window._project_path)
+
+    def test_retry_build_submits_changed_final_block_budget(self):
+        self.retain_scan()
+        self.window.final_blocks_spin.setValue(25000)
+        self.window._stop_and_build()
+        task = self.window.task_worker.tasks[-1]
+        self.assertEqual(ServerTaskType.BUILD_MESH, task.task_type)
+        self.assertEqual(25000, task.kwargs["options"]["final_block_count"])
+
     def test_invalid_range_stays_disabled_after_camera_update(self):
         self.window.depth_near_spin.setValue(2000)
         self.window.depth_far_spin.setValue(1000)

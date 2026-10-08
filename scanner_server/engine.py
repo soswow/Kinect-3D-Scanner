@@ -74,6 +74,7 @@ class ScanEngine:
     def reset(
         self, preset: ScanPreset | None = None, settings: ScanSettings | None = None
     ):
+        self._discard_project_archive()
         if preset is not None:
             self.preset = preset
         if settings is not None:
@@ -120,6 +121,7 @@ class ScanEngine:
         self._refined_count = None
         self._reconnection_count = None
         self._pose_seeds_only = False
+        self._project_processing_paused = False
         self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
         self.model_pcd = None
         self._live_points = np.empty((0, 3), dtype=np.float32)
@@ -1248,6 +1250,7 @@ class ScanEngine:
             }
         idx = len(self.raw_frames)
         self.raw_frames.append((rgb.copy(), depth.copy()))
+        self._project_processing_paused = False
         self._stored_monotonic.append(time.monotonic())
         self._final_vbg = None
         self.final_reconstruction = {"applied": False, "reason": "Awaiting final build"}
@@ -1952,3 +1955,13 @@ class ScanEngine:
 
     def shutdown(self):
         """Clean up resources. Call on application exit."""
+        self._discard_project_archive()
+
+    def _discard_project_archive(self):
+        path = getattr(self, "_project_archive_path", None)
+        if path:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        self._project_archive_path = None

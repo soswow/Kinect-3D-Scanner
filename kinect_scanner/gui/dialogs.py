@@ -97,18 +97,19 @@ class SessionProtectionDialog(QDialog):
         layout = QVBoxLayout(self)
         closing = reason in ("close", "closing", "quit", "exit")
         action = "closing the scanner" if closing else (
+            "opening another project" if reason == "open_project" else
             "cancelling the scan" if reason == "cancel_scan" else "starting a new scan"
         )
         self.message_label = QLabel(
             f"Save the current scan before {action}?\n\n"
-            "Save session preserves the captured RGB-D frames so you can rebuild later. "
-            "Discard continues without saving a session."
+            "Save project preserves captured RGB-D frames, settings and the final model so you can reopen it later. "
+            "Discard continues without saving a project."
         )
         self.message_label.setWordWrap(True)
         layout.addWidget(self.message_label)
         self.buttons = QDialogButtonBox()
         self.save_button = self.buttons.addButton(
-            "Save session", QDialogButtonBox.ButtonRole.AcceptRole
+            "Save project", QDialogButtonBox.ButtonRole.AcceptRole
         )
         self.discard_button = self.buttons.addButton(
             "Discard", QDialogButtonBox.ButtonRole.DestructiveRole

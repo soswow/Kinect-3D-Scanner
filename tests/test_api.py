@@ -6,6 +6,8 @@ os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 import asyncio
 import threading
+import tempfile
+from pathlib import Path
 import unittest
 
 import httpx
@@ -38,6 +40,56 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             "A00363W00948202A", settings["sensor_calibration"]["camera_serial"]
         )
         self.assertEqual(1280, server.engine.settings.rgb_camera.width)
+
+    async def test_invalid_project_preserves_active_scan(self):
+        before = server.engine
+        volume = before.vbg
+        response = await self.http.post("/api/scan/project", content=b"not a ZIP")
+        self.assertEqual(422, response.status_code)
+        self.assertIs(before, server.engine)
+        self.assertIs(volume, server.engine.vbg)
+        self.assertIsNone(server._exclusive_kind)
+
+    async def test_project_open_and_save_roundtrip(self):
+        from scanner_server.engine import ScanEngine
+        from scanner_server.session import export_session
+        from shared.settings import ScanSettings
+        import io
+        import json
+        import zipfile
+
+        source = ScanEngine(device="cpu")
+        self.addCleanup(source.shutdown)
+        source.reset(settings=ScanSettings())
+        source.store_frame(np.full((480, 640, 3), 128, np.uint8),
+                           np.full((480, 640), 1000, np.uint16), {"frame_id": "saved"})
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "project.zip"
+            export_session(source, path)
+            response = await self.http.post("/api/scan/project", content=path.read_bytes())
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, response.json()["stored_count"])
+        self.assertEqual(1, response.json()["unprocessed_count"])
+        self.assertIsNot(self.original, server.engine)
+        opened = server.engine
+        try:
+            saved = await self.http.get("/api/scan/export/session")
+            self.assertEqual(200, saved.status_code)
+            with zipfile.ZipFile(io.BytesIO(saved.content)) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+                self.assertEqual("saved", manifest["frames"][0]["metadata"]["frame_id"])
+            archive_path = opened._project_archive_path
+            await self.http.post("/api/scan/reset", json={})
+            self.assertFalse(Path(archive_path).exists())
+        finally:
+            opened.shutdown()
+
+    async def test_invalid_final_build_overrides_preserve_settings(self):
+        before = server.engine.settings
+        for overrides in ({"near_m": 1}, {"final_block_count": -1}):
+            response = await self.http.post("/api/scan/build", json=overrides)
+            self.assertEqual(422, response.status_code)
+            self.assertEqual(before, server.engine.settings)
 
     async def test_invalid_settings_do_not_reset_session(self):
         before = server.engine.vbg

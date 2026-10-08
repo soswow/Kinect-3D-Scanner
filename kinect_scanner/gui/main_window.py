@@ -87,6 +87,8 @@ class MainWindow(QMainWindow):
         self._capture_run_id = uuid.uuid4().hex[:12]
         self._pending_action = None
         self._export_pending = None
+        self._project_path = None
+        self._project_to_open = None
         self._connect_pending = False
         self._restore_on_status = False
         self._session_settings = None
@@ -145,6 +147,8 @@ class MainWindow(QMainWindow):
         self.server_client.task_failed.connect(self._on_task_failed)
         self.server_client.websocket_status.connect(self._on_websocket_status)
         self.server_client.export_done.connect(self._on_export_done)
+        self.server_client.project_opened.connect(self._on_project_opened)
+        self.server_client.transfer_progress.connect(self._on_transfer_progress)
         self.server_client.save_mesh_done.connect(self._on_save_mesh_done)
         self.server_client.task_started.connect(self._on_task_started)
         self.server_client.task_error.connect(self._on_task_error)
@@ -343,6 +347,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.splitter, stretch=1)
 
     def _build_toolbar(self):
+        menu = self.menuBar().addMenu("File")
+        self.open_project_action = menu.addAction("Open Project…", self._open_project)
+        self.open_project_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.save_project_action = menu.addAction("Save Project", self._save_project)
+        self.save_project_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_project_as_action = menu.addAction("Save Project As…", self._export_session)
+        self.save_project_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         toolbar = QToolBar("Views")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
@@ -445,10 +456,14 @@ class MainWindow(QMainWindow):
         output_row = QHBoxLayout()
         self.btn_export = QPushButton("Export…")
         self.btn_export.clicked.connect(self._choose_export)
-        self.btn_export_session = QPushButton("Save Session…")
-        self.btn_export_session.clicked.connect(self._export_session)
+        self.btn_export_session = QPushButton("Save Project…")
+        self.btn_export_session.setToolTip("Save captures, calibration, reconstruction and final model in a reopenable ZIP project.")
+        self.btn_export_session.clicked.connect(self._save_project)
+        self.btn_open_project = QPushButton("Open Project…")
+        self.btn_open_project.clicked.connect(self._open_project)
         output_row.addWidget(self.btn_export)
         output_row.addWidget(self.btn_export_session)
+        layout.addWidget(self.btn_open_project)
         layout.addLayout(output_row)
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
@@ -746,6 +761,11 @@ class MainWindow(QMainWindow):
         self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
         self.btn_export.setEnabled(connected and self._has_mesh and not busy)
         self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy)
+        self.btn_open_project.setEnabled(connected and not busy)
+        if hasattr(self, "open_project_action"):
+            self.open_project_action.setEnabled(self.btn_open_project.isEnabled())
+            self.save_project_action.setEnabled(self.btn_export_session.isEnabled())
+            self.save_project_as_action.setEnabled(self.btn_export_session.isEnabled())
         for button in (self.btn_export_ply, self.btn_export_obj, self.btn_export_glb,
                        self.btn_export_texture_obj, self.btn_save_mesh):
             button.setEnabled(connected and self._has_mesh and not busy)
@@ -792,7 +812,7 @@ class MainWindow(QMainWindow):
         elif self._build_pending:
             state = "Building final surface…"
         elif self._export_pending:
-            state = "Saving captured session…" if self._export_pending["kind"] == "session" else "Exporting final model…"
+            state = {"session": "Saving project…", "open": "Opening project…"}.get(self._export_pending["kind"], "Exporting final model…")
         elif self._final_preview_pending:
             state = "Loading final model for inspection…"
         elif self._preview_pending:
@@ -1246,6 +1266,7 @@ class MainWindow(QMainWindow):
         self._session_id = None if cancelled else result.get("session_id")
         self._session_settings = None if cancelled else result.get("settings")
         self._session_dirty = False
+        self._project_path = None
         self._capture_revision = self._saved_revision = 0
         self._sensor_counts_seen = {}
         self.sensor_recording_label.setText("" if cancelled else "Starting sensor recording…")
@@ -1470,7 +1491,13 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
         self.progress_bar.setVisible(True)
 
-        self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH))
+        options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None,
+                   "final_block_count": self.final_blocks_spin.value()}
+        if self._session_settings:
+            self._session_settings = {**self._session_settings, **options}
+        self._session_dirty = True
+        self._capture_revision += 1
+        self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH, {"options": options}))
         self._refresh_controls()
 
     def _preview_scan(self):
@@ -1537,19 +1564,65 @@ class MainWindow(QMainWindow):
             })
         self._begin_export("mesh", path, ServerTask(task_type, kwargs))
 
-    def _export_session(self, checked=False):
+    def _save_project(self, checked=False):
+        return self._export_session(path=self._project_path)
+
+    def _export_session(self, checked=False, path=None):
         if self._export_pending or not self.server_client.is_connected:
             return False
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save captured session", os.path.join(self._ensure_export_dir(), "scan-session.zip"),
-            "ZIP files (*.zip)",
-        )
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save Project", self._project_path or os.path.join(self._ensure_export_dir(), "scan-project.zip"),
+                "Scanner projects and sessions (*.zip)",
+            )
         if not path:
             return False
         options = {"path": path}
         if self._sensor_recording_path and hasattr(self.worker, "flush_sensor_recording"):
             options.update(sensor_recorder=self.worker, sensor_path=self._sensor_recording_path)
         return self._begin_export("session", path, ServerTask(ServerTaskType.EXPORT_SESSION, options))
+
+    def _open_project(self, checked=False, *, path=None, protected=False):
+        if not self.btn_open_project.isEnabled():
+            return
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(self, "Open Project or Session", self._ensure_export_dir(),
+                                                "Scanner projects and sessions (*.zip)")
+        if not path:
+            return
+        self._project_to_open = path
+        if not protected and not self._protect_session("open_project"):
+            return
+        self.auto_capture_cb.setChecked(False)
+        self._begin_export("open", path, ServerTask(ServerTaskType.OPEN_PROJECT, {"path": path}))
+
+    def _on_project_opened(self, status, path):
+        self._export_pending = None
+        self._pending_action = None
+        self._project_to_open = None
+        self.progress_bar.hide()
+        self._sensor_recording_path = None
+        self._sensor_counts_seen = {}
+        self._build_failed = False
+        self._restore_server_session(status)
+        self._scanning = False
+        self._project_path = path
+        self._saved_revision = self._capture_revision
+        self._session_dirty = False
+        self._configure_sensor_recording()
+        self.statusBar().showMessage(f"Opened project: {path}", 10000)
+        self._refresh_controls()
+
+    def _on_transfer_progress(self, phase, done, total):
+        if not self._export_pending:
+            return
+        self.progress_bar.setRange(0, 100 if total else 0)
+        self.progress_bar.setValue(int(done / total * 100) if total else 0)
+        self.progress_bar.setFormat(f"{phase}: %p%")
+        self.progress_bar.show()
+        detail = f"{phase}: {done / 1024**2:.1f}"
+        detail += f" / {total / 1024**2:.1f} MB" if total else " MB"
+        self.statusBar().showMessage(detail)
 
     def _begin_export(self, kind, path, task):
         restore_capture = (self._scanning, self._paused)
@@ -1585,7 +1658,7 @@ class MainWindow(QMainWindow):
             return True
         if dialog.choice == "save":
             self._pending_action = reason
-            if self._export_session():
+            if self._save_project():
                 self._export_pending["restore_capture"] = restore_capture
                 return False  # Continue only after the saved session is confirmed.
             self._pending_action = None
@@ -1893,12 +1966,13 @@ class MainWindow(QMainWindow):
         action, self._pending_action = self._pending_action, None
         if success:
             if pending and pending["kind"] == "session":
+                self._project_path = path
                 self._saved_revision = pending["revision"]
                 self._session_dirty = self._capture_revision != self._saved_revision
             self.statusBar().showMessage(f"Saved: {path}", 10000)
             self._operation_error = ""
         else:
-            self._operation_error = "Save failed · scan retained; choose Save Session to retry"
+            self._operation_error = "Save failed · scan retained; choose Save Project to retry"
             self.statusBar().showMessage(f"Could not save {path}; current scan is retained.")
         if pending and (not action or not success):
             self._scanning, self._paused = pending["restore_capture"]
@@ -1912,6 +1986,8 @@ class MainWindow(QMainWindow):
         elif success and action == "close":
             self._close_approved = True
             self.close()
+        elif success and action == "open_project":
+            self._open_project(path=self._project_to_open, protected=True)
 
     def _on_save_mesh_done(self, success: bool, path: str):
         self.statusBar().showMessage(f"Saved: {path}" if success else f"Save failed: {path}", 10000)
@@ -1919,6 +1995,9 @@ class MainWindow(QMainWindow):
 
     def _on_task_started(self, msg: str):
         self.statusBar().showMessage(msg)
+        if self._export_pending:
+            self.progress_bar.setRange(0, 0)
+            self.progress_bar.show()
 
     def _on_task_error(self, msg: str):
         # Recording/report warnings are independent of build or inspection success.
@@ -1949,6 +2028,11 @@ class MainWindow(QMainWindow):
             self._resume_capture()
         elif task_type == "FINAL_PREVIEW":
             self._final_preview_pending = False
+        elif task_type == "OPEN_PROJECT":
+            pending, self._export_pending = self._export_pending, None
+            if pending:
+                self._scanning, self._paused = pending["restore_capture"]
+            self._configure_sensor_recording()
         elif task_type in ("EXPORT_PLY", "EXPORT_OBJ", "EXPORT_TEXTURE", "EXPORT_SESSION"):
             if self._export_pending:
                 self._on_export_done(False, self._export_pending["path"])

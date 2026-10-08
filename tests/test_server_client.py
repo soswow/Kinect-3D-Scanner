@@ -19,6 +19,7 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
     result.json.return_value = data
     result.content = content
     result.headers = {"content-type": content_type}
+    result.iter_bytes.return_value = [content]
     return result
 
 
@@ -136,7 +137,8 @@ class ServerClientTests(unittest.TestCase):
     def test_atomic_export_keeps_previous_file_if_replace_fails(self):
         client = ServerClient()
         client._http = Mock()
-        client._http.get.return_value = response()
+        client._http.stream.return_value.__enter__ = Mock(return_value=response())
+        client._http.stream.return_value.__exit__ = Mock(return_value=False)
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "existing.ply"
             destination.write_bytes(b"previous final mesh")
@@ -153,12 +155,34 @@ class ServerClientTests(unittest.TestCase):
     def test_json_export_error_does_not_modify_destination(self):
         client = ServerClient()
         client._http = Mock()
-        client._http.get.return_value = response(content_type="application/json")
+        client._http.stream.return_value.__enter__ = Mock(return_value=response(content_type="application/json"))
+        client._http.stream.return_value.__exit__ = Mock(return_value=False)
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "existing.ply"
             destination.write_bytes(b"previous")
             self.assertFalse(client.request_export("ply", str(destination)))
             self.assertEqual(destination.read_bytes(), b"previous")
+
+    def test_interrupted_and_truncated_downloads_preserve_existing_project(self):
+        for interrupted in (False, True):
+            client = ServerClient()
+            client._http = Mock()
+            resp = response(content=b"partial")
+            resp.headers["content-length"] = "100"
+            if interrupted:
+                def chunks(**kwargs):
+                    yield b"partial"
+                    raise OSError("connection lost")
+                resp.iter_bytes.side_effect = chunks
+            client._http.stream.return_value.__enter__ = Mock(return_value=resp)
+            client._http.stream.return_value.__exit__ = Mock(return_value=False)
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "project.zip"
+                path.write_bytes(b"original")
+                with self.assertRaises(OSError):
+                    client.request_export("session", str(path))
+                self.assertEqual(b"original", path.read_bytes())
+                self.assertEqual([path], list(Path(directory).iterdir()))
 
 
 if __name__ == "__main__":
