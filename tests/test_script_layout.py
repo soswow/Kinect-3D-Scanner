@@ -119,7 +119,13 @@ class ScriptLayoutTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
-        cls.entries = cls.catalog["entries"]
+        # Earlier component proofs pin the original relocation catalog bytes.
+        # New, unrelocated field tools use an additive current-path inventory.
+        field_catalog = json.loads((ROOT / "scripts/research/field-tool-catalog.json").read_text(encoding="utf-8"))
+        if field_catalog["schema_version"] != 1:
+            raise ValueError("Unsupported additive field-tool catalog")
+        cls.entries = cls.catalog["entries"] + field_catalog["entries"]
+        cls.field_paths = {e["path"] for e in field_catalog["entries"]}
         cls.mapping = {e["legacy_path"]: e["path"] for e in cls.entries}
 
     def python_sources(self):
@@ -289,7 +295,10 @@ class ScriptLayoutTests(unittest.TestCase):
             try:
                 os.chdir(folder)
                 for old, new in self.mapping.items():
-                    for spelling in (old, new, PurePosixPath(old).name, old.replace("/", "\\")):
+                    # New field tools have current paths, without historical basename aliases.
+                    spellings = (new, new.replace("/", "\\")) if new in self.field_paths else (
+                        old, new, PurePosixPath(old).name, old.replace("/", "\\"))
+                    for spelling in spellings:
                         with self.subTest(resource=spelling):
                             self.assertEqual((ROOT / new).resolve(), Path(resolver(spelling)).resolve())
             finally:

@@ -1,0 +1,1561 @@
+{
+  "schema_version": 1,
+  "kind": "publishable-scalar-field-cuda-study-v1",
+  "authority": false,
+  "privacy": "Explicit scalar allowlist only; no images, poses, per-view arrays, graph inventories, native paths or raw ZIP contents.",
+  "scope": "Retrospective stored evidence, not current proof-token validation. Raw rows are one selected-view replay per mode; no camera FPS or statistical interval. Component gains cannot be applied to total scanning.",
+  "raw_cpu_cuda_pairs": [
+    {
+      "session": "chest-5",
+      "cpu": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cpu-0.json",
+          "sha256": "6e166b5eba52c1de00d63f1b30b51b0a541ce6bbc22a2959c6a9dd593b317eb2",
+          "bytes": 391706,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "599eae75263c7398cda0cef84efe2ef23b87391b269c988ec8a2dbf60ed1907a",
+        "settings_sha256": "e992961bbf336f0f0010544af0ad96edb5b9c85bcea16e341503233527afeba4",
+        "selected_indices_sha256": "072fe8f2d041ae930b93919ae6b2d30f7196363e87d5e10eb3c5b94eb76dc1af",
+        "frames": 27,
+        "live_views": 21,
+        "final_views": 7,
+        "mesh_built": true,
+        "live_s": 14.894561099994462,
+        "finish_s": 14.044863199989777,
+        "processing_s": 28.93942429998424,
+        "live_latency_ms": {
+          "p50": 358.99999999674037,
+          "p95": 1505.6999999986147,
+          "maximum": 1937.999999994645,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "cuda": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.json",
+          "sha256": "e5b41a6363e2741850aeef8572c8385263867dfb49c92900eb7c2ae956d9bc10",
+          "bytes": 392162,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "599eae75263c7398cda0cef84efe2ef23b87391b269c988ec8a2dbf60ed1907a",
+        "settings_sha256": "e992961bbf336f0f0010544af0ad96edb5b9c85bcea16e341503233527afeba4",
+        "selected_indices_sha256": "072fe8f2d041ae930b93919ae6b2d30f7196363e87d5e10eb3c5b94eb76dc1af",
+        "frames": 27,
+        "live_views": 21,
+        "final_views": 7,
+        "mesh_built": true,
+        "live_s": 12.465281400000094,
+        "finish_s": 11.636186700008693,
+        "processing_s": 24.101468100008788,
+        "live_latency_ms": {
+          "p50": 250.0,
+          "p95": 1375.0,
+          "maximum": 1764.999999999418,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-quality.json",
+          "sha256": "704ddb1e7940132591218b5e7294d377fbf8c70ea802cc4e5b7f8bdd676a691e",
+          "bytes": 1292,
+          "reported_status": "profile"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 6.143906006172983e-08,
+          "surface_rmse_m": 9.345937712623709e-08,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "baseline_over_candidate": 1.2007328424932624,
+      "less_processing_percent": 16.717527445693126
+    },
+    {
+      "session": "chest-6",
+      "cpu": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cpu-0.json",
+          "sha256": "96e05d85363a8d9c2595c1b68c16a301168c4f403bfb7e64f283ee4f7ced350c",
+          "bytes": 611516,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "53b15492e2df455392b2b322d97a67c8a76fab3151ea4535c047d05734f53642",
+        "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+        "selected_indices_sha256": "7257493e0441a417c00e19a7ab5466c8c4091963819b9bc39ef716795b4b5764",
+        "frames": 38,
+        "live_views": 33,
+        "final_views": 38,
+        "mesh_built": true,
+        "live_s": 16.919360300002154,
+        "finish_s": 26.810039599993615,
+        "processing_s": 43.72939989999577,
+        "live_latency_ms": {
+          "p50": 343.99999999732245,
+          "p95": 1253.6000000000056,
+          "maximum": 1438.0000000091968,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "cuda": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.json",
+          "sha256": "d25c650afc004b85802f23c582d2ef5d5417628db99066b060848a20fd3b2970",
+          "bytes": 611898,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "53b15492e2df455392b2b322d97a67c8a76fab3151ea4535c047d05734f53642",
+        "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+        "selected_indices_sha256": "7257493e0441a417c00e19a7ab5466c8c4091963819b9bc39ef716795b4b5764",
+        "frames": 38,
+        "live_views": 33,
+        "final_views": 38,
+        "mesh_built": true,
+        "live_s": 12.470888600000762,
+        "finish_s": 18.55899930000305,
+        "processing_s": 31.029887900003814,
+        "live_latency_ms": {
+          "p50": 242.00000000564614,
+          "p95": 1123.1000000108904,
+          "maximum": 1250.0,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-quality.json",
+          "sha256": "0e4a05032cda3548863c9c4d5ee1456ec08bdf7191c5be9a95ab603af25b8099",
+          "bytes": 1332,
+          "reported_status": "profile"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 1.1944189282075968e-07,
+          "surface_rmse_m": 6.610064247070113e-06,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "baseline_over_candidate": 1.4092670924534791,
+      "less_processing_percent": 29.04113028999784
+    },
+    {
+      "session": "chest-7",
+      "cpu": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-20k-v1/chest-7-scan-session_20261009_003259-cpu-0.json",
+          "sha256": "cbde658b2a499a20ae213b2d1a8a941df30b7190255ab5a3540ffc23be65631a",
+          "bytes": 1632654,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+        "settings_sha256": "4a237f878d3d13487c458ab8e726e91d01c20537ac4166e4f3b14d71a6158047",
+        "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+        "frames": 115,
+        "live_views": 82,
+        "final_views": 108,
+        "mesh_built": true,
+        "live_s": 93.15371130000858,
+        "finish_s": 293.0900377000071,
+        "processing_s": 386.24374900001567,
+        "live_latency_ms": {
+          "p50": 468.00000000803266,
+          "p95": 2102.0999999993364,
+          "maximum": 3157.0000000065193,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 20000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "cuda": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+          "sha256": "9cf1c101eaddc04345a055f8fc9041b07552ab63306c087e2b3a81cc664e2f0b",
+          "bytes": 1633362,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+        "settings_sha256": "4a237f878d3d13487c458ab8e726e91d01c20537ac4166e4f3b14d71a6158047",
+        "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+        "frames": 115,
+        "live_views": 82,
+        "final_views": 108,
+        "mesh_built": true,
+        "live_s": 76.47972909999953,
+        "finish_s": 250.72987809999904,
+        "processing_s": 327.2096071999986,
+        "live_latency_ms": {
+          "p50": 312.0000000053551,
+          "p95": 1946.6000000029453,
+          "maximum": 2985.000000000582,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 20000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-quality.json",
+          "sha256": "83e731e20ca81ebc65e4f62ad171cb1a011ca71abc5cf5702cb12f6aceb473f2",
+          "bytes": 1338,
+          "reported_status": "profile"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 1.2013700256829907e-07,
+          "surface_rmse_m": 2.8874503641418414e-06,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "baseline_over_candidate": 1.1804168963900072,
+      "less_processing_percent": 15.28416756332145
+    }
+  ],
+  "deferred_recovery_pairs": [
+    {
+      "session": "chest-5",
+      "full": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.json",
+          "sha256": "e5b41a6363e2741850aeef8572c8385263867dfb49c92900eb7c2ae956d9bc10",
+          "bytes": 392162,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "599eae75263c7398cda0cef84efe2ef23b87391b269c988ec8a2dbf60ed1907a",
+        "settings_sha256": "e992961bbf336f0f0010544af0ad96edb5b9c85bcea16e341503233527afeba4",
+        "selected_indices_sha256": "072fe8f2d041ae930b93919ae6b2d30f7196363e87d5e10eb3c5b94eb76dc1af",
+        "frames": 27,
+        "live_views": 21,
+        "final_views": 7,
+        "mesh_built": true,
+        "live_s": 12.465281400000094,
+        "finish_s": 11.636186700008693,
+        "processing_s": 24.101468100008788,
+        "live_latency_ms": {
+          "p50": 250.0,
+          "p95": 1375.0,
+          "maximum": 1764.999999999418,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "deferred": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-5-scan-session-deferred.json",
+          "sha256": "0bfe00284b26e8ee5401e8320fd0d0afc513aea5fcb411d59b4d328615353f78",
+          "bytes": 391334,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "599eae75263c7398cda0cef84efe2ef23b87391b269c988ec8a2dbf60ed1907a",
+        "settings_sha256": "e992961bbf336f0f0010544af0ad96edb5b9c85bcea16e341503233527afeba4",
+        "selected_indices_sha256": "072fe8f2d041ae930b93919ae6b2d30f7196363e87d5e10eb3c5b94eb76dc1af",
+        "frames": 27,
+        "live_views": 21,
+        "final_views": 7,
+        "mesh_built": true,
+        "live_s": 5.492593000002671,
+        "finish_s": 11.183989900004235,
+        "processing_s": 16.676582900006906,
+        "live_latency_ms": {
+          "p50": 202.99999999406282,
+          "p95": 346.79999999643763,
+          "maximum": 452.9999999940628,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-5-quality.json",
+          "sha256": "1eb4360200bb948a697e4b38869c8ebee2026df446533b9b0f49617b01934ea9",
+          "bytes": 3122,
+          "reported_status": "complete"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 6.006850128414953e-08,
+          "surface_rmse_m": 2.8698536880256142e-08,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "baseline_over_candidate": 1.4452282127892524,
+      "less_processing_percent": 30.80677562541999,
+      "tradeoff": "Faster stored-view rejection may make Live preview sparser; Final coverage checked only for this replay."
+    },
+    {
+      "session": "chest-6",
+      "full": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.json",
+          "sha256": "d25c650afc004b85802f23c582d2ef5d5417628db99066b060848a20fd3b2970",
+          "bytes": 611898,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "53b15492e2df455392b2b322d97a67c8a76fab3151ea4535c047d05734f53642",
+        "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+        "selected_indices_sha256": "7257493e0441a417c00e19a7ab5466c8c4091963819b9bc39ef716795b4b5764",
+        "frames": 38,
+        "live_views": 33,
+        "final_views": 38,
+        "mesh_built": true,
+        "live_s": 12.470888600000762,
+        "finish_s": 18.55899930000305,
+        "processing_s": 31.029887900003814,
+        "live_latency_ms": {
+          "p50": 242.00000000564614,
+          "p95": 1123.1000000108904,
+          "maximum": 1250.0,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "deferred": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-6-scan-session_20261009_002019-deferred.json",
+          "sha256": "3a72bda55ab9a2c79bbe9d45e98d09f8f273fc9965f1f3a9d1807ab099c3927f",
+          "bytes": 607876,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "53b15492e2df455392b2b322d97a67c8a76fab3151ea4535c047d05734f53642",
+        "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+        "selected_indices_sha256": "7257493e0441a417c00e19a7ab5466c8c4091963819b9bc39ef716795b4b5764",
+        "frames": 38,
+        "live_views": 31,
+        "final_views": 38,
+        "mesh_built": true,
+        "live_s": 6.667479800002184,
+        "finish_s": 17.833281100000022,
+        "processing_s": 24.500760900002206,
+        "live_latency_ms": {
+          "p50": 172.00000000593718,
+          "p95": 263.9500000012048,
+          "maximum": 406.99999999196734,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 10000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-6-quality.json",
+          "sha256": "ff8bafad1b237e7e42cc056c18f7274e50b81bd77d4bb0ca6b30c8b5b34d73c5",
+          "bytes": 3257,
+          "reported_status": "complete"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 1.1920928955078125e-07,
+          "surface_rmse_m": 4.578205192729001e-08,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "baseline_over_candidate": 1.2664867032762652,
+      "less_processing_percent": 21.041413430310218,
+      "tradeoff": "Faster stored-view rejection may make Live preview sparser; Final coverage checked only for this replay."
+    },
+    {
+      "session": "chest-7",
+      "full": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+          "sha256": "9cf1c101eaddc04345a055f8fc9041b07552ab63306c087e2b3a81cc664e2f0b",
+          "bytes": 1633362,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+        "settings_sha256": "4a237f878d3d13487c458ab8e726e91d01c20537ac4166e4f3b14d71a6158047",
+        "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+        "frames": 115,
+        "live_views": 82,
+        "final_views": 108,
+        "mesh_built": true,
+        "live_s": 76.47972909999953,
+        "finish_s": 250.72987809999904,
+        "processing_s": 327.2096071999986,
+        "live_latency_ms": {
+          "p50": 312.0000000053551,
+          "p95": 1946.6000000029453,
+          "maximum": 2985.000000000582,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 20000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "deferred": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/deferred-policy-20k-v1/chest-7-scan-session_20261009_003259-deferred.json",
+          "sha256": "31805b2c81c26ad86f9b49a992ed2a4c4bddcfaa06b1b0648c0e86642a2d17bf",
+          "bytes": 1468695,
+          "reported_status": "profile"
+        },
+        "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+        "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+        "settings_sha256": "4a237f878d3d13487c458ab8e726e91d01c20537ac4166e4f3b14d71a6158047",
+        "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+        "frames": 115,
+        "live_views": 38,
+        "final_views": 108,
+        "mesh_built": true,
+        "live_s": 16.581743200003984,
+        "finish_s": 243.78367649999564,
+        "processing_s": 260.3654196999996,
+        "live_latency_ms": {
+          "p50": 109.00000001129229,
+          "p95": 250.0,
+          "maximum": 889.9999999994179,
+          "quantile_method": "R7 linear interpolation"
+        },
+        "final_block_limit": 20000,
+        "confidence_fusion": true,
+        "cuda_confidence_acceleration": "off"
+      },
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/deferred-policy-20k-v1/chest-7-quality.json",
+          "sha256": "bc3704471364f0658aff72696921fe36f361b4ac871a06f4cd9c63394e5e14e4",
+          "bytes": 3359,
+          "reported_status": "complete"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 7.431260655721417e-06,
+          "surface_rmse_m": 3.143733920296654e-05,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "baseline_over_candidate": 1.256732201906915,
+      "less_processing_percent": 20.42855283865248,
+      "tradeoff": "Faster stored-view rejection may make Live preview sparser; Final coverage checked only for this replay."
+    }
+  ],
+  "failed_original_10k_chest7": [
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-7-scan-session_20261009_003259-cpu-0.json",
+        "sha256": "9587bf5e3ddbcd6edc2f776f9d771d5342b3f3352216494ee1d355a4c63ec5d9",
+        "bytes": 1632287,
+        "reported_status": "profile"
+      },
+      "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+      "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+      "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+      "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+      "frames": 115,
+      "live_views": 82,
+      "final_views": 108,
+      "mesh_built": false,
+      "live_s": 95.73844739999913,
+      "finish_s": 297.4854514999897,
+      "processing_s": 393.22389889998885,
+      "live_latency_ms": {
+        "p50": 483.99999999674037,
+        "p95": 2195.400000004156,
+        "maximum": 3171.9999999913853,
+        "quantile_method": "R7 linear interpolation"
+      },
+      "final_block_limit": 10000,
+      "confidence_fusion": true,
+      "cuda_confidence_acceleration": "off"
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+        "sha256": "2f510f11c0ecfd8c120c504c4a8b230c6247bdf45443fb44d8c98f59719df631",
+        "bytes": 1636647,
+        "reported_status": "profile"
+      },
+      "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+      "input_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+      "settings_sha256": "702a39e12ba4f2bf22e98fca4057d97ee00773264e0d727ec269c2e1f95fd5d2",
+      "selected_indices_sha256": "a350b909b54f6799bf681af77ba87358d90d9f6a335d7ef8234a005afbb24949",
+      "frames": 115,
+      "live_views": 82,
+      "final_views": 108,
+      "mesh_built": false,
+      "live_s": 83.55965519999154,
+      "finish_s": 251.69019859998662,
+      "processing_s": 335.24985379997815,
+      "live_latency_ms": {
+        "p50": 344.00000001187436,
+        "p95": 2095.700000003853,
+        "maximum": 3187.000000005355,
+        "quantile_method": "R7 linear interpolation"
+      },
+      "final_block_limit": 10000,
+      "confidence_fusion": true,
+      "cuda_confidence_acceleration": "off"
+    }
+  ],
+  "parent_executions": [
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-v1/execution.json",
+        "sha256": "6328a84bd6e140bbf7125913212e9adb7ca5e77d57f3301f6824f51a22e0b20a",
+        "bytes": 18359,
+        "reported_status": "complete"
+      },
+      "status": "complete",
+      "child_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "failure_type": null,
+      "note": null
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-20k-v1/execution.json",
+        "sha256": "b06ba80bd8b0f41bb0e9dac526fa0635df52943d88a9a813d93f7fc1578042fa",
+        "bytes": 4246,
+        "reported_status": "failed"
+      },
+      "status": "failed",
+      "child_exit_codes": [
+        0
+      ],
+      "failure_type": "UnicodeEncodeError",
+      "note": "The successful20k CPU child closed; its parent Unicode console-print failure remains failed."
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/execution.json",
+        "sha256": "f0561e093391cd6fa42860f6fa099866acce20704520086b15c2ba3490ffa565",
+        "bytes": 4099,
+        "reported_status": "complete"
+      },
+      "status": "complete",
+      "child_exit_codes": [
+        0
+      ],
+      "failure_type": null,
+      "note": null
+    }
+  ],
+  "exact_corner_component": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/native-corner-cpu-cuda-v2/report.json",
+      "sha256": "782e63fb030da83d9c0428bd3c21f77cb75d7430ddd036cae66039fde12e3db1",
+      "bytes": 766315,
+      "reported_status": "passed"
+    },
+    "actual_queries": 19280,
+    "synthetic_queries": 20,
+    "whole_scan_speed_claim": false,
+    "scope": "All-in efficient CPU versus CUDA lookup; fresh original brute shadow once/view; detection/support/ICP/Finish excluded.",
+    "sessions": [
+      {
+        "session": "chest-5",
+        "queries": 1988,
+        "cpu_fast_all_in_s": 1.7473054000001866,
+        "cuda_all_in_s": 0.21559299998625647,
+        "original_brute_shadow_s": 10.189819699982763,
+        "cuda_gain_over_improved_cpu": 8.104648110613857
+      },
+      {
+        "session": "chest-6",
+        "queries": 984,
+        "cpu_fast_all_in_s": 1.0716229999961797,
+        "cuda_all_in_s": 0.16042259999085218,
+        "original_brute_shadow_s": 5.193471399994451,
+        "cuda_gain_over_improved_cpu": 6.680000199830244
+      },
+      {
+        "session": "chest-7",
+        "queries": 16308,
+        "cpu_fast_all_in_s": 9.033596200024476,
+        "cuda_all_in_s": 1.9100437000597594,
+        "original_brute_shadow_s": 88.81702629991923,
+        "cuda_gain_over_improved_cpu": 4.729523308677096
+      }
+    ]
+  },
+  "combined_sync_component": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/combined-sync-timing-v1/report.json",
+      "sha256": "38a388aced773b57ca88fa9e253df89b481d7710c1a2b295b55c0dd4cec33ff0",
+      "bytes": 410849,
+      "reported_status": "passed"
+    },
+    "whole_finish_authority": false,
+    "runs": [
+      {
+        "mode": "native_cpu",
+        "repeat": 0,
+        "wall_s": 11.22189800000342
+      },
+      {
+        "mode": "device_resident",
+        "repeat": 0,
+        "wall_s": 8.062944899997092
+      },
+      {
+        "mode": "combined_sync",
+        "repeat": 0,
+        "wall_s": 9.589109399996232
+      },
+      {
+        "mode": "combined_sync",
+        "repeat": 1,
+        "wall_s": 9.331016299998737
+      },
+      {
+        "mode": "native_cpu",
+        "repeat": 1,
+        "wall_s": 11.555512000006274
+      },
+      {
+        "mode": "device_resident",
+        "repeat": 1,
+        "wall_s": 7.679424400004791
+      },
+      {
+        "mode": "device_resident",
+        "repeat": 2,
+        "wall_s": 7.475249900002382
+      },
+      {
+        "mode": "combined_sync",
+        "repeat": 2,
+        "wall_s": 9.485771100007696
+      },
+      {
+        "mode": "native_cpu",
+        "repeat": 2,
+        "wall_s": 11.417784200006281
+      }
+    ],
+    "scope": "Contemporary native/device/combined all-nine component, three rotating orders. Preflight/setup excluded and separately recorded.",
+    "conclusion": "Combined sync was slower than original device-resident in all three rounds; no promotion."
+  },
+  "combined_source_guard_component": {
+    "variants": [
+      {
+        "mode": "original-ast",
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/combined-sync-source-guard-v1/original-ast.json",
+          "sha256": "bb7791fe525889ea6df7efc1e3e6c200128ed9d1b2b7c97bc96047de2fdfe7f9",
+          "bytes": 422163,
+          "reported_status": "passed"
+        },
+        "component_median_s": {
+          "native_cpu": 11.341281599990907,
+          "device_resident": 7.999397100007627,
+          "combined_sync": 9.515283000000636
+        },
+        "runs": [
+          {
+            "mode": "native_cpu",
+            "repeat": 0,
+            "wall_s": 11.285087600001134
+          },
+          {
+            "mode": "device_resident",
+            "repeat": 0,
+            "wall_s": 8.085311500006355
+          },
+          {
+            "mode": "combined_sync",
+            "repeat": 0,
+            "wall_s": 9.515283000000636
+          },
+          {
+            "mode": "combined_sync",
+            "repeat": 1,
+            "wall_s": 9.563419799989788
+          },
+          {
+            "mode": "native_cpu",
+            "repeat": 1,
+            "wall_s": 12.164515299999039
+          },
+          {
+            "mode": "device_resident",
+            "repeat": 1,
+            "wall_s": 7.999397100007627
+          },
+          {
+            "mode": "device_resident",
+            "repeat": 2,
+            "wall_s": 7.529904600000009
+          },
+          {
+            "mode": "combined_sync",
+            "repeat": 2,
+            "wall_s": 9.371837500002584
+          },
+          {
+            "mode": "native_cpu",
+            "repeat": 2,
+            "wall_s": 11.341281599990907
+          }
+        ]
+      },
+      {
+        "mode": "whole-file-sha",
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/combined-sync-source-guard-v1/whole-file-sha.json",
+          "sha256": "84512869c4aec99f003c96e9e582ac13b77d6724d9734ba5d60b9f22b98e9b78",
+          "bytes": 422179,
+          "reported_status": "passed"
+        },
+        "component_median_s": {
+          "native_cpu": 11.130056499998318,
+          "device_resident": 7.614909500000067,
+          "combined_sync": 7.172588300003554
+        },
+        "runs": [
+          {
+            "mode": "native_cpu",
+            "repeat": 0,
+            "wall_s": 11.127837000007275
+          },
+          {
+            "mode": "device_resident",
+            "repeat": 0,
+            "wall_s": 8.357064299998456
+          },
+          {
+            "mode": "combined_sync",
+            "repeat": 0,
+            "wall_s": 7.4648173000023235
+          },
+          {
+            "mode": "combined_sync",
+            "repeat": 1,
+            "wall_s": 7.172588300003554
+          },
+          {
+            "mode": "native_cpu",
+            "repeat": 1,
+            "wall_s": 11.271747899998445
+          },
+          {
+            "mode": "device_resident",
+            "repeat": 1,
+            "wall_s": 7.614909500000067
+          },
+          {
+            "mode": "device_resident",
+            "repeat": 2,
+            "wall_s": 7.345485400001053
+          },
+          {
+            "mode": "combined_sync",
+            "repeat": 2,
+            "wall_s": 7.1576712999958545
+          },
+          {
+            "mode": "native_cpu",
+            "repeat": 2,
+            "wall_s": 11.130056499998318
+          }
+        ]
+      }
+    ],
+    "cpu_over_sha_component": 1.551748969056652,
+    "device_over_sha_component": 1.0616682822846941,
+    "less_component_wall_vs_contemporary_device_percent": 5.808620575156009,
+    "whole_finish_authority": false,
+    "whole_scan_speed_claim": false,
+    "scope": "Separate source-guard A/B, each with contemporary native/device/combined three rotating all-nine rounds. Same numerical kernels/iteration and inclusive clocks; median is descriptive, not a statistical confidence interval. AST parsing cost is a research safety overhead."
+  },
+  "marker_proposal_trials": [
+    {
+      "session": "chest-5",
+      "original_evidence": {
+        "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-5-global-original.json",
+        "sha256": "e96e6242e5a172f2e5414c515802f154421e5d89638d5ac2eac55f38a8c43f6f",
+        "bytes": 396050,
+        "reported_status": "profile"
+      },
+      "marker_evidence": {
+        "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-5-global-marker-audit.json",
+        "sha256": "d0315240819b3bd41c7d3f7b3c3e476981e25bfa80246ff49382e192bc656d1c",
+        "bytes": 396066,
+        "reported_status": "profile"
+      },
+      "original_finish_s": 13.510884699993767,
+      "marker_audited_finish_s": 25.174741900002118,
+      "final_views": 7,
+      "whole_backend_authority": false,
+      "production_speed_claim": false,
+      "scope": "Marker proposals add original verification work. Original brute corner shadows remain charged in this audit; no live-tracking or scan-throughput claim."
+    },
+    {
+      "session": "chest-7",
+      "original_evidence": {
+        "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-7-global-original.json",
+        "sha256": "ac55f95afdb0e88f7b30d740c46a55afd65b7c69c8196f21dc1a9d464b045af0",
+        "bytes": 1636708,
+        "reported_status": "profile"
+      },
+      "marker_evidence": {
+        "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-7-global-marker-audit.json",
+        "sha256": "4e37b0f26f04834a4ed372b85fa4806fc2f31c23db35093a4682dddc9dcf85ae",
+        "bytes": 1636756,
+        "reported_status": "profile"
+      },
+      "original_finish_s": 279.8495774000039,
+      "marker_audited_finish_s": 433.7116285000084,
+      "final_views": 108,
+      "whole_backend_authority": false,
+      "production_speed_claim": false,
+      "scope": "Marker proposals add original verification work. Original brute corner shadows remain charged in this audit; no live-tracking or scan-throughput claim."
+    }
+  ],
+  "device_solve_component": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/device-ldlt-v4/actual-and-synthetic.json",
+      "sha256": "15fe9f427d5c98c28f8931e8cc7aa3f1ffdc833fa914a9b59ade870e0818d10e",
+      "bytes": 4289080,
+      "reported_status": "passed"
+    },
+    "synthetic_systems": 93,
+    "actual_systems": 10861,
+    "fresh_cpu_dll_s": 0.04964960001234431,
+    "gpu_singleton_launch_and_sync_mean_us": 53.66799989133142,
+    "scope": "Independent systems/identity previous pose only; batch/singleton micro-scopes exclude different overheads; no full ICP/trajectory claim.",
+    "conclusion": "Moving only the small solver to GPU is not supported by this observation."
+  },
+  "bulk_cpu_audit_infrastructure": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/bulk-nn-audit/old-trajectory-dual-proof.json",
+      "sha256": "61126101d2c50bea67fa1a8151182b0c4b8bcdda549cd74d66d169d49602d62b",
+      "bytes": 26467164,
+      "reported_status": "passed"
+    },
+    "original_queries": 104123989,
+    "hits": 58809404,
+    "misses": 45314585,
+    "id_mismatches": 0,
+    "metric_bit_mismatches": 0,
+    "scan_speed_claim": false,
+    "scope": "Complete old all-nine original resident trajectory dual scalar/bulk shadow; new field audits still require actual input proofs."
+  },
+  "preserved_failures": [
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/resident-finish-v4/chest-5-serial-quality.json",
+        "sha256": "65f5c2caa4f42f68f577d809bf277d9a9b7c7ea0c680b532f8d57805761d4fec",
+        "bytes": 3698,
+        "reported_status": "failed"
+      },
+      "status": "failed",
+      "failure_type": "GridProofError",
+      "scope": "Strict ordered native/GPU history differs; no old Finish timing authority."
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/resident-finish-v4/chest-6-serial-quality.json",
+        "sha256": "ba67bf364f5a58f0f522f83e9c1ec79627f13de4b4b37f8f9634485877606546",
+        "bytes": 3742,
+        "reported_status": "failed"
+      },
+      "status": "failed",
+      "failure_type": "GridProofError",
+      "scope": "Strict intermediate evidence differs despite matching final observables; no old authority."
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/final-allocation-v1/chest-5-rightsized.allocation.json",
+        "sha256": "c70ddbcf5ac86161bc77ee5cf88d7e062a300d44d2d3f97ad98b245de486853f",
+        "bytes": 129040,
+        "reported_status": "failed"
+      },
+      "status": "failed",
+      "failure_type": "FinishResearchFailure",
+      "scope": "Original activation grew exact3328 candidate to6656; trial rejected growth."
+    }
+  ],
+  "reserve_headroom_memory": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v2/chest-5-headroom.allocation.json",
+      "sha256": "a93d4a6488aa55f2a9fd21e3d53434c8c08dee6ca1d7fd4d21cc4d807fd9078e",
+      "bytes": 133215,
+      "reported_status": "complete"
+    },
+    "quality_evidence": {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v2/chest-5-headroom-quality.json",
+      "sha256": "d4b39b7a91753015dc33b3d05b853b7812d1c0769bbca511e28d20c198f07e8e",
+      "bytes": 3097,
+      "reported_status": "complete"
+    },
+    "logical_limit": 10000,
+    "unique_blocks": 3328,
+    "initial_capacity": 4619,
+    "final_capacity": 4619,
+    "attribute_mib": 360.859375,
+    "configured_attribute_mib": 781.25,
+    "surface": {
+      "threshold_m": 0.005,
+      "samples_per_surface": 30000,
+      "precision": 1.0,
+      "completeness": 1.0,
+      "surface_p95_m": 6.006850128414953e-08,
+      "surface_rmse_m": 3.2031682195565736e-08,
+      "alignment": "fixed input coordinates; no fitting"
+    },
+    "scope": "TSDF/weight/colour attribute floor only; hashmap, Live, scratch and pools additional. Observable quality is not new backend authority."
+  },
+  "activation_proofs": [
+    {
+      "version": "v1",
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/missing-activation-v1/weighted-proof.json",
+        "sha256": "0edf57894b8a404d94fc9f62e17de605f733aaf456222e2d1464437334844004",
+        "bytes": 66939,
+        "reported_status": "passed"
+      },
+      "status": "passed",
+      "whole_session_quality": false,
+      "scan_speed_claim": false,
+      "backends": [
+        {
+          "backend": "cpu-original",
+          "original_capacity": 8,
+          "missing_only_capacity": 4,
+          "nonzero_weight_voxels": 16384,
+          "compared_float32_values": 81920,
+          "bit_mismatches": 0
+        },
+        {
+          "backend": "cuda-tensor",
+          "original_capacity": 8,
+          "missing_only_capacity": 4,
+          "nonzero_weight_voxels": 16384,
+          "compared_float32_values": 81920,
+          "bit_mismatches": 0
+        },
+        {
+          "backend": "cuda-fused",
+          "original_capacity": 8,
+          "missing_only_capacity": 4,
+          "nonzero_weight_voxels": 16384,
+          "compared_float32_values": 81920,
+          "bit_mismatches": 0
+        }
+      ]
+    },
+    {
+      "version": "v2",
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/missing-activation-v2/weighted-proof.json",
+        "sha256": "12aae664a1f2208ae9108cc6430e8cbed577fb4c7823c5896896db85615cf230",
+        "bytes": 66938,
+        "reported_status": "passed"
+      },
+      "status": "passed",
+      "whole_session_quality": false,
+      "scan_speed_claim": false,
+      "backends": [
+        {
+          "backend": "cpu-original",
+          "original_capacity": 8,
+          "missing_only_capacity": 4,
+          "nonzero_weight_voxels": 16384,
+          "compared_float32_values": 81920,
+          "bit_mismatches": 0
+        },
+        {
+          "backend": "cuda-tensor",
+          "original_capacity": 8,
+          "missing_only_capacity": 4,
+          "nonzero_weight_voxels": 16384,
+          "compared_float32_values": 81920,
+          "bit_mismatches": 0
+        },
+        {
+          "backend": "cuda-fused",
+          "original_capacity": 8,
+          "missing_only_capacity": 4,
+          "nonzero_weight_voxels": 16384,
+          "compared_float32_values": 81920,
+          "bit_mismatches": 0
+        }
+      ]
+    }
+  ],
+  "preserved_observer_failure": {
+    "evidence": {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v1/chest-5-exact.missing-activation.json",
+      "sha256": "aead21110693187545bfdf2921e4898d8c813c1b4f9719b8404385112218d12e",
+      "bytes": 42156,
+      "reported_status": "failed"
+    },
+    "status": "failed",
+    "failure_type": "FinishResearchFailure",
+    "cause": "v1 observer treated module.shape function as array metadata before planner/candidate; v2 needs fresh proofs."
+  },
+  "new_whole_activation_trials": [
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-exact.missing-activation.json",
+        "sha256": "e9f5bfa41ce6304026a14a40f0255dfe0afd72f3f2534791f57a623e2f3054df",
+        "bytes": 65540,
+        "reported_status": "complete"
+      },
+      "reported_status": "complete",
+      "whole_mesh_quality_authority": false,
+      "failure_type": null,
+      "mode": "exact-missing-key",
+      "outcome": "mesh-built-quality-unproven",
+      "finish_s": 13.423830800005817,
+      "capacity_evidence": {
+        "required_blocks": 3328,
+        "initial_capacity": 3328,
+        "final_capacity": 3328,
+        "exact_key_union": true
+      },
+      "attribute_mib": 260.0
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-original.missing-activation.json",
+        "sha256": "c83794d3ecf9fb2513dc5d9ea4aa4ec6891388279b167a8eb6add2739e87d301",
+        "bytes": 43938,
+        "reported_status": "complete"
+      },
+      "reported_status": "complete",
+      "whole_mesh_quality_authority": false,
+      "failure_type": null,
+      "mode": "native-original",
+      "outcome": "mesh-built-quality-unproven",
+      "finish_s": 13.727879099998972
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-exact.missing-activation.json",
+        "sha256": "2c94a2fb38406808d0e29db335f07249d60654aacc5a3d1f4cee04da7709bd05",
+        "bytes": 119251,
+        "reported_status": "complete"
+      },
+      "reported_status": "complete",
+      "whole_mesh_quality_authority": false,
+      "failure_type": null,
+      "mode": "exact-missing-key",
+      "outcome": "mesh-built-quality-unproven",
+      "finish_s": 288.9756958999933,
+      "capacity_evidence": {
+        "required_blocks": 13302,
+        "initial_capacity": 13302,
+        "final_capacity": 13302,
+        "exact_key_union": true
+      },
+      "attribute_mib": 1039.21875
+    },
+    {
+      "evidence": {
+        "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-original.missing-activation.json",
+        "sha256": "28a607877baebf9bf285514db16ed8d8fb7b1e87150359047dfb914cd5c4f345",
+        "bytes": 43945,
+        "reported_status": "complete"
+      },
+      "reported_status": "complete",
+      "whole_mesh_quality_authority": false,
+      "failure_type": null,
+      "mode": "native-original",
+      "outcome": "mesh-built-quality-unproven",
+      "finish_s": 293.91073410000536
+    }
+  ],
+  "new_whole_activation_comparisons": [
+    {
+      "session": "chest-5",
+      "independent_quality_status": "complete",
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-quality.json",
+          "sha256": "a3ba6d664939032630bb2d642ecfe9131bfae2d9ca20f2082c85d5017e83a96b",
+          "bytes": 3102,
+          "reported_status": "complete"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 6.006850128414953e-08,
+          "surface_rmse_m": 2.9057096284645922e-08,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "original_finish_s": 13.727879099998972,
+      "exact_finish_s": 13.423830800005817,
+      "final_views": 7,
+      "capacity_evidence": {
+        "required_blocks": 3328,
+        "initial_capacity": 3328,
+        "final_capacity": 3328,
+        "exact_key_union": true
+      },
+      "attribute_mib": 260.0,
+      "configured_attribute_mib": 781.25,
+      "bit_identical_unrounded_final_poses_proven": true,
+      "max_final_translation_delta_m": 5.56803001126317e-17,
+      "max_final_rotation_delta_deg": 0.0,
+      "declared_pose_limits": {
+        "translation_m": 0.0005,
+        "rotation_deg": 0.1
+      },
+      "whole_mesh_quality_authority": false,
+      "production_speed_claim": false,
+      "scope": "One paired original-CPU checkpoint Finish, including planner/observers. Attribute floor excludes hashmap, Live, scratch and pools; independent observed geometry only."
+    },
+    {
+      "session": "chest-7",
+      "independent_quality_status": "complete",
+      "quality": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-quality-1.json",
+          "sha256": "bd014f834440fe0e11f88623ba967ffc173ca0c59eb601e16e8b5c7d84bc84ac",
+          "bytes": 3080,
+          "reported_status": "complete"
+        },
+        "surface": {
+          "threshold_m": 0.005,
+          "samples_per_surface": 30000,
+          "precision": 1.0,
+          "completeness": 1.0,
+          "surface_p95_m": 1.1920928955078125e-07,
+          "surface_rmse_m": 4.492704519520885e-08,
+          "alignment": "fixed input coordinates; no fitting"
+        },
+        "whole_pipeline_equivalence_authority": false
+      },
+      "original_finish_s": 293.91073410000536,
+      "exact_finish_s": 288.9756958999933,
+      "final_views": 108,
+      "capacity_evidence": {
+        "required_blocks": 13302,
+        "initial_capacity": 13302,
+        "final_capacity": 13302,
+        "exact_key_union": true
+      },
+      "attribute_mib": 1039.21875,
+      "configured_attribute_mib": 1562.5,
+      "bit_identical_unrounded_final_poses_proven": false,
+      "max_final_translation_delta_m": 5.078284388188873e-15,
+      "max_final_rotation_delta_deg": 3.1945284701301985e-06,
+      "declared_pose_limits": {
+        "translation_m": 0.0005,
+        "rotation_deg": 0.1
+      },
+      "whole_mesh_quality_authority": false,
+      "production_speed_claim": false,
+      "scope": "One paired original-CPU checkpoint Finish, including planner/observers. Attribute floor excludes hashmap, Live, scratch and pools; independent observed geometry only.",
+      "preserved_strict_pose_failure": {
+        "evidence": {
+          "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-quality.json",
+          "sha256": "0c3d6a331bc0589a99315598f6cf1a50d8dc9f886d4612a4bd19f3d166db00b7",
+          "bytes": 1233,
+          "reported_status": "failed"
+        },
+        "reported_status": "failed",
+        "scope": "Bit-identical unrounded pose requirement failed; separately named declared geometry comparison does not relabel it."
+      }
+    }
+  ],
+  "new_whole_activation_status": "See closed scalar trial statuses; independent whole mesh/pose quality is never inferred from allocation.",
+  "evidence_files": [
+    {
+      "path": "benchmark-output/field-cuda-study/bulk-nn-audit/old-trajectory-dual-proof.json",
+      "sha256": "61126101d2c50bea67fa1a8151182b0c4b8bcdda549cd74d66d169d49602d62b",
+      "bytes": 26467164,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/combined-sync-source-guard-v1/original-ast.json",
+      "sha256": "bb7791fe525889ea6df7efc1e3e6c200128ed9d1b2b7c97bc96047de2fdfe7f9",
+      "bytes": 422163,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/combined-sync-source-guard-v1/whole-file-sha.json",
+      "sha256": "84512869c4aec99f003c96e9e582ac13b77d6724d9734ba5d60b9f22b98e9b78",
+      "bytes": 422179,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/combined-sync-timing-v1/report.json",
+      "sha256": "38a388aced773b57ca88fa9e253df89b481d7710c1a2b295b55c0dd4cec33ff0",
+      "bytes": 410849,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/deferred-policy-20k-v1/chest-7-quality.json",
+      "sha256": "bc3704471364f0658aff72696921fe36f361b4ac871a06f4cd9c63394e5e14e4",
+      "bytes": 3359,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/deferred-policy-20k-v1/chest-7-scan-session_20261009_003259-deferred.json",
+      "sha256": "31805b2c81c26ad86f9b49a992ed2a4c4bddcfaa06b1b0648c0e86642a2d17bf",
+      "bytes": 1468695,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-5-quality.json",
+      "sha256": "1eb4360200bb948a697e4b38869c8ebee2026df446533b9b0f49617b01934ea9",
+      "bytes": 3122,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-5-scan-session-deferred.json",
+      "sha256": "0bfe00284b26e8ee5401e8320fd0d0afc513aea5fcb411d59b4d328615353f78",
+      "bytes": 391334,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-6-quality.json",
+      "sha256": "ff8bafad1b237e7e42cc056c18f7274e50b81bd77d4bb0ca6b30c8b5b34d73c5",
+      "bytes": 3257,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/deferred-policy-v1/chest-6-scan-session_20261009_002019-deferred.json",
+      "sha256": "3a72bda55ab9a2c79bbe9d45e98d09f8f273fc9965f1f3a9d1807ab099c3927f",
+      "bytes": 607876,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/device-ldlt-v4/actual-and-synthetic.json",
+      "sha256": "15fe9f427d5c98c28f8931e8cc7aa3f1ffdc833fa914a9b59ade870e0818d10e",
+      "bytes": 4289080,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v1/chest-5-original.json",
+      "sha256": "7593abbd20ff29c48089abc9957e57837fbab97f4cd1861ed55ffe9c1a6efd75",
+      "bytes": 396421,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v1/chest-5-rightsized.allocation.json",
+      "sha256": "c70ddbcf5ac86161bc77ee5cf88d7e062a300d44d2d3f97ad98b245de486853f",
+      "bytes": 129040,
+      "reported_status": "failed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v2/chest-5-headroom-quality.json",
+      "sha256": "d4b39b7a91753015dc33b3d05b853b7812d1c0769bbca511e28d20c198f07e8e",
+      "bytes": 3097,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v2/chest-5-headroom.allocation.json",
+      "sha256": "a93d4a6488aa55f2a9fd21e3d53434c8c08dee6ca1d7fd4d21cc4d807fd9078e",
+      "bytes": 133215,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/final-allocation-v2/chest-5-headroom.json",
+      "sha256": "830bad535531ee625189e96610182779da31d03908d7b02eebf6667b416615e6",
+      "bytes": 397427,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-5-global-marker-audit.json",
+      "sha256": "d0315240819b3bd41c7d3f7b3c3e476981e25bfa80246ff49382e192bc656d1c",
+      "bytes": 396066,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-5-global-original.json",
+      "sha256": "e96e6242e5a172f2e5414c515802f154421e5d89638d5ac2eac55f38a8c43f6f",
+      "bytes": 396050,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-7-global-marker-audit.json",
+      "sha256": "4e37b0f26f04834a4ed372b85fa4806fc2f31c23db35093a4682dddc9dcf85ae",
+      "bytes": 1636756,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/marker-finish-v2/chest-7-global-original.json",
+      "sha256": "ac55f95afdb0e88f7b30d740c46a55afd65b7c69c8196f21dc1a9d464b045af0",
+      "bytes": 1636708,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v1/chest-5-exact.missing-activation.json",
+      "sha256": "aead21110693187545bfdf2921e4898d8c813c1b4f9719b8404385112218d12e",
+      "bytes": 42156,
+      "reported_status": "failed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v1/weighted-proof.json",
+      "sha256": "0edf57894b8a404d94fc9f62e17de605f733aaf456222e2d1464437334844004",
+      "bytes": 66939,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-exact.allocation.json",
+      "sha256": "0bcc87a7b5dba825bff4b6bbf5428d80c58373fab0ea2c557acfbcc13affc03d",
+      "bytes": 152225,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-exact.json",
+      "sha256": "33a90e11c15420f786cfad2e877980fa3a2b598161c5fb5eb8e674b364c52f02",
+      "bytes": 398335,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-exact.missing-activation.json",
+      "sha256": "e9f5bfa41ce6304026a14a40f0255dfe0afd72f3f2534791f57a623e2f3054df",
+      "bytes": 65540,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-original.allocation.json",
+      "sha256": "17e0bf0f9e49ba343bea40ae8326c119fba6f77c4d6777bbd9bf42369f2e069a",
+      "bytes": 130621,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-original.json",
+      "sha256": "11f4e01c85b6d5487ee88afd25d25b1dde5183773092269ce0c79f9bb506d4ef",
+      "bytes": 396938,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-original.missing-activation.json",
+      "sha256": "c83794d3ecf9fb2513dc5d9ea4aa4ec6891388279b167a8eb6add2739e87d301",
+      "bytes": 43938,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-5-quality.json",
+      "sha256": "a3ba6d664939032630bb2d642ecfe9131bfae2d9ca20f2082c85d5017e83a96b",
+      "bytes": 3102,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-exact.allocation.json",
+      "sha256": "72e187f8188a20ed1a9c5d70d6940b62813a0ca6e50ae276a822b2aa2d4d737e",
+      "bytes": 443745,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-exact.json",
+      "sha256": "a7593718bca8f150170c8f9b95accbca790ef283641ebcc8e87d17f27809cee2",
+      "bytes": 1639037,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-exact.missing-activation.json",
+      "sha256": "2c94a2fb38406808d0e29db335f07249d60654aacc5a3d1f4cee04da7709bd05",
+      "bytes": 119251,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-original.allocation.json",
+      "sha256": "ef4c6b442ccae3b0ba81e9d3f19a6006a37edfb50f3fa775c17c0e3373aab85e",
+      "bytes": 384557,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-original.json",
+      "sha256": "bc64b0845b20b49d528e4ff53e7bf22ac027da5c4426d4caf8020b2b0fe9f7c4",
+      "bytes": 1637599,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-original.missing-activation.json",
+      "sha256": "28a607877baebf9bf285514db16ed8d8fb7b1e87150359047dfb914cd5c4f345",
+      "bytes": 43945,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-quality-1.json",
+      "sha256": "bd014f834440fe0e11f88623ba967ffc173ca0c59eb601e16e8b5c7d84bc84ac",
+      "bytes": 3080,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/chest-7-quality.json",
+      "sha256": "0c3d6a331bc0589a99315598f6cf1a50d8dc9f886d4612a4bd19f3d166db00b7",
+      "bytes": 1233,
+      "reported_status": "failed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/missing-activation-v2/weighted-proof.json",
+      "sha256": "12aae664a1f2208ae9108cc6430e8cbed577fb4c7823c5896896db85615cf230",
+      "bytes": 66938,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/native-corner-cpu-cuda-v2/report.json",
+      "sha256": "782e63fb030da83d9c0428bd3c21f77cb75d7430ddd036cae66039fde12e3db1",
+      "bytes": 766315,
+      "reported_status": "passed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-quality.json",
+      "sha256": "83e731e20ca81ebc65e4f62ad171cb1a011ca71abc5cf5702cb12f6aceb473f2",
+      "bytes": 1338,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+      "sha256": "9cf1c101eaddc04345a055f8fc9041b07552ab63306c087e2b3a81cc664e2f0b",
+      "bytes": 1633362,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-cuda-v1/execution.json",
+      "sha256": "f0561e093391cd6fa42860f6fa099866acce20704520086b15c2ba3490ffa565",
+      "bytes": 4099,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-v1/chest-7-scan-session_20261009_003259-cpu-0.json",
+      "sha256": "cbde658b2a499a20ae213b2d1a8a941df30b7190255ab5a3540ffc23be65631a",
+      "bytes": 1632654,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-20k-v1/execution.json",
+      "sha256": "b06ba80bd8b0f41bb0e9dac526fa0635df52943d88a9a813d93f7fc1578042fa",
+      "bytes": 4246,
+      "reported_status": "failed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cpu-0.json",
+      "sha256": "6e166b5eba52c1de00d63f1b30b51b0a541ce6bbc22a2959c6a9dd593b317eb2",
+      "bytes": 391706,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-cuda-0.json",
+      "sha256": "e5b41a6363e2741850aeef8572c8385263867dfb49c92900eb7c2ae956d9bc10",
+      "bytes": 392162,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-5-scan-session-quality.json",
+      "sha256": "704ddb1e7940132591218b5e7294d377fbf8c70ea802cc4e5b7f8bdd676a691e",
+      "bytes": 1292,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cpu-0.json",
+      "sha256": "96e05d85363a8d9c2595c1b68c16a301168c4f403bfb7e64f283ee4f7ced350c",
+      "bytes": 611516,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-cuda-0.json",
+      "sha256": "d25c650afc004b85802f23c582d2ef5d5417628db99066b060848a20fd3b2970",
+      "bytes": 611898,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-6-scan-session_20261009_002019-quality.json",
+      "sha256": "0e4a05032cda3548863c9c4d5ee1456ec08bdf7191c5be9a95ab603af25b8099",
+      "bytes": 1332,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-7-scan-session_20261009_003259-cpu-0.json",
+      "sha256": "9587bf5e3ddbcd6edc2f776f9d771d5342b3f3352216494ee1d355a4c63ec5d9",
+      "bytes": 1632287,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/chest-7-scan-session_20261009_003259-cuda-0.json",
+      "sha256": "2f510f11c0ecfd8c120c504c4a8b230c6247bdf45443fb44d8c98f59719df631",
+      "bytes": 1636647,
+      "reported_status": "profile"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/raw-baselines-v1/execution.json",
+      "sha256": "6328a84bd6e140bbf7125913212e9adb7ca5e77d57f3301f6824f51a22e0b20a",
+      "bytes": 18359,
+      "reported_status": "complete"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/resident-finish-v4/chest-5-serial-quality.json",
+      "sha256": "65f5c2caa4f42f68f577d809bf277d9a9b7c7ea0c680b532f8d57805761d4fec",
+      "bytes": 3698,
+      "reported_status": "failed"
+    },
+    {
+      "path": "benchmark-output/field-cuda-study/resident-finish-v4/chest-6-serial-quality.json",
+      "sha256": "ba67bf364f5a58f0f522f83e9c1ec79627f13de4b4b37f8f9634485877606546",
+      "bytes": 3742,
+      "reported_status": "failed"
+    }
+  ],
+  "summary_producer": {
+    "path": "scripts/research/summarize_field_study.py",
+    "sha256": "df85a41bbcdb45aa444c194c04acae20187f2374565187c4fcbcc382d1e2ba1d"
+  },
+  "summary_dependencies_sha256": {
+    "scripts/research/summarize_field_study.py": "df85a41bbcdb45aa444c194c04acae20187f2374565187c4fcbcc382d1e2ba1d",
+    "scripts/research/summarize_field_latency.py": "dbe3bba68779b0c20c8e52d4de0dcbfb869f777f3577f4256e09c6ec37f47b98"
+  }
+}

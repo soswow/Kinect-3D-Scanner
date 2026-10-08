@@ -5,6 +5,7 @@ param(
     [ValidateSet('baseline', 'hybrid', 'adaptive')][string]$Recipe = 'hybrid',
     [ValidateSet('off', 'auto', 'on')][string]$CudaInput = 'off',
     [ValidateSet('off', 'auto', 'on')][string]$CudaConfidence = 'off',
+    [ValidateSet('full', 'deferred')][string]$LiveRecovery = 'full',
     [ValidateRange(1024, 65535)][int]$Port = 8000,
     [string]$BindAddress = '0.0.0.0'
 )
@@ -123,7 +124,7 @@ $env:KINECT_MAX_FRAMES = '500'
 $env:KINECT_CUDA_FUSION = 'fused'
 $env:KINECT_CUDA_REGISTRATION = 'cpu'
 $env:KINECT_CUDA_ODOMETRY = 'off'
-$env:KINECT_LIVE_RECOVERY = 'full'
+$env:KINECT_LIVE_RECOVERY = $LiveRecovery
 $env:KINECT_VISUAL_FEATURES = 'orb'
 $env:KINECT_ADAPTIVE_EXPERIMENTAL = 'off'
 $env:KINECT_CUDA_INPUT = $CudaInput

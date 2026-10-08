@@ -25,6 +25,15 @@ See the [scanner README](../README.md) and
 [current performance report](../docs/CUDA_EXPERIMENTS.md) for requirements,
 quality limits and the contribution from the preview/tracking changes.
 
+For a more responsive field trial, add `-LiveRecovery deferred`. In three new
+raw session replays this reduced Live processing by 47–78% and retained the same
+Final views with passing surface comparisons. It fuses fewer views during Live,
+so the preview can be sparser; Finish still runs the original recovery and
+verification. The default remains `full`. For the larger chest-7 scan, select
+a **20,000-block final budget**: its exact 5 mm volume needed 13,302 unique
+blocks and could not fit the original 10,000-block limit. Read the
+[field measurements and tradeoffs](../docs/FIELD_CUDA_RESEARCH.md).
+
 The launcher checks ownership of an existing listener. Server validation tools
 perform synthetic captures and settings/reset operations; use them only with
 an empty test server. They refuse an existing scan and restore test settings.

@@ -7,6 +7,44 @@ architecture prototype. Run commands from the repository root. The
 [archive index](archive/README.md) explains retained dependencies and earlier
 negative results.
 
+## Current field study
+
+The chest-5/6/7 findings and field tradeoffs are in
+[Field CUDA research](../../docs/FIELD_CUDA_RESEARCH.md). The existing deferred
+recovery workflow reduced selected-view Live work by 47–78% with matching Final
+coverage and passing physical surface comparisons, while producing a sparser
+Live preview. It is available through the launcher `-LiveRecovery deferred`;
+the default stays `full`. The client still shows `legacy` because production ICP
+and geometric verification remain on CPU.
+
+The [additive field-tool inventory](field-tool-catalog.json) lists the new
+protocols and their supporting modules. The original relocation catalog stays
+unchanged because measured earlier component proofs bind its exact bytes.
+
+| Entry point or protocol | Future use |
+|---|---|
+| [analyze_field_sessions.py](analyze_field_sessions.py) | Inspect raw ZIP metadata/settings/coverage without initializing numerical libraries |
+| [benchmark_field_sessions.py](benchmark_field_sessions.py) | Historical matched CPU/CUDA raw selected-view baseline producer |
+| [benchmark_field_policy.py](benchmark_field_policy.py) | Compare existing full/deferred CUDA recovery with owned Windows worker cleanup and complete settings/backend closure |
+| [summarize_field_latency.py](summarize_field_latency.py) | Recompute latency quantiles from closed raw profiles without importing CUDA |
+| [compare_field_experiment.py](compare_field_experiment.py) | Fixed-coordinate observable mesh comparison; no backend or graph authority |
+| [CHECKPOINT_RESIDENT_FINISH_RESEARCH.md](CHECKPOINT_RESIDENT_FINISH_RESEARCH.md) | Same measured Live checkpoint and strict ordered-history experiments; failed field comparisons remain evidence |
+| [FIELD_FINISH_CONFORMANCE.md](FIELD_FINISH_CONFORMANCE.md) | Distinct actual-input CPU shadows, original graph/witness decisions and physical Final quality protocol |
+| [BULK_LEGACY_NN_AUDIT.md](BULK_LEGACY_NN_AUDIT.md) | Full legacy CPU nearest auditing through a separately proven native bulk interface |
+| [COMBINED_SYNC_RESEARCH.md](COMBINED_SYNC_RESEARCH.md) | Audited one-copy ICP orchestration and separate contemporary three-way timing; does not select a production backend |
+| [DEVICE_LDLT_RESEARCH.md](DEVICE_LDLT_RESEARCH.md) | Captured original systems and CUDA solver numerical/micro-scope tests; isolated GPU solve was slower |
+| [CANONICAL_FPFH_RESEARCH.md](CANONICAL_FPFH_RESEARCH.md) | Diagnose and test proposal-input stability without changing original training/verification points |
+| [MARKER_PROPOSAL_RESEARCH.md](MARKER_PROPOSAL_RESEARCH.md) | Exact native marker lookup and proposal experiments; appending more seeds did not help whole Finish |
+| [FINAL_HEADROOM_RESEARCH.md](FINAL_HEADROOM_RESEARCH.md) | Reproduce Open3D repeated-key reserve growth and distinguish logical limits from actual allocation |
+| [benchmark_missing_activation.py](benchmark_missing_activation.py) | Compare original and missing-key activation with per-key CPU/tensor/fused voxel-bit checks |
+
+These files have different jobs: runnable experiments, bounded adapters,
+independent validators, fault contracts and negative-result diagnostics. They
+are retained to reproduce a result or test a concrete next change. A component
+speedup, source-only test or partial native surface reference never enables an
+unaudited whole-scanner path. Private captures, checkpoint arrays and compiled
+libraries stay under ignored output folders and must be rebuilt locally.
+
 ## Device-resident nearest queries and ICP
 
 The latest fixed-component experiment measured **8.339 seconds first / 7.450
