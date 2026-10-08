@@ -197,7 +197,6 @@ class MainWindow(QMainWindow):
                 (self.orientation_combo, "camera/orientation"),
                 (self.gravity_tracking_cb, "scan/gravity_assistance"),
                 (self.final_voxel_spin, "scan/final_voxel_mm"),
-                (self.final_blocks_spin, "scan/final_blocks"),
                 (self.weight_spin, "scan/final_weight"),
                 (self.live_cb, "scan/live_reconstruction"),
                 (self.color_tracking_cb, "scan/color_tracking"),
@@ -599,15 +598,12 @@ class MainWindow(QMainWindow):
         self.final_voxel_spin.setValue(0)
         self.final_voxel_spin.setSuffix(" mm")
         self.final_voxel_spin.setSpecialValueText("Use live resolution")
-        self.final_blocks_spin = QSpinBox()
-        self.final_blocks_spin.setRange(128, 50000)
-        self.final_blocks_spin.setValue(5000)
-        self.final_blocks_spin.setToolTip("5000 blocks uses about 391 MiB, plus live reconstruction and working memory.")
+        self.final_voxel_spin.setToolTip("Controls reconstruction detail. Storage is allocated automatically for the scanned surface.")
         self.weight_spin = QDoubleSpinBox()
         self.weight_spin.setRange(0.5, 20)
         self.weight_spin.setValue(2)
         self.weight_spin.setSingleStep(0.5)
-        for title, control in (("Live voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final memory budget (blocks)", self.final_blocks_spin), ("Final surface confidence", self.weight_spin)):
+        for title, control in (("Live voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final surface confidence", self.weight_spin)):
             label = QLabel(title)
             label.setBuddy(control)
             av.addWidget(label)
@@ -1234,7 +1230,6 @@ class MainWindow(QMainWindow):
                 final_voxel_m=self.final_voxel_spin.value() / 1000
                 if self.final_voxel_spin.value()
                 else None,
-                final_block_count=self.final_blocks_spin.value(),
                 roi=roi,
             )
         except ValueError as exc:
@@ -1491,8 +1486,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
         self.progress_bar.setVisible(True)
 
-        options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None,
-                   "final_block_count": self.final_blocks_spin.value()}
+        options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None}
         if self._session_settings:
             self._session_settings = {**self._session_settings, **options}
         self._session_dirty = True
@@ -1766,7 +1760,7 @@ class MainWindow(QMainWindow):
             self._operation_error = f"Cannot restore scan settings: {exc}"
             return
         controls = (self.depth_near_spin, self.depth_far_spin, self.voxel_spin,
-                    self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
+                    self.final_voxel_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
                     self.orientation_combo, self.gravity_tracking_cb, self.full_camera_recording_cb,
@@ -1784,7 +1778,6 @@ class MainWindow(QMainWindow):
             self.voxel_spin.setValue(profile.voxel_m * 1000)
             self.final_voxel_spin.setMaximum(profile.voxel_m * 1000)
             self.final_voxel_spin.setValue((profile.final_voxel_m or 0) * 1000)
-            self.final_blocks_spin.setValue(profile.final_block_count)
             self.weight_spin.setValue(profile.final_weight)
             self.rgb_mode_combo.setCurrentIndex(self.rgb_mode_combo.findData(profile.rgb_mode))
             self.rgb_exposure_combo.setCurrentIndex(self.rgb_exposure_combo.findData(profile.rgb_exposure_mode))

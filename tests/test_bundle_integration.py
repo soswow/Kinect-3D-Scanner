@@ -48,7 +48,7 @@ class BundleIntegrationTests(unittest.TestCase):
             self.assertTrue(ok, report)
             self.assertTrue(report["bundle_adjustment"]["applied"])
             self.assertIsNot(old_volume, engine.vbg)
-            self.assertLessEqual(engine.vbg.hashmap().size(), engine.settings.final_block_count)
+            self.assertLessEqual(engine.vbg.hashmap().size(), engine.bundle_adjustment["allocated_blocks"])
             committed = engine.vbg
             self.assertTrue(engine.build_mesh()[0])
             self.assertEqual(1, solver.call_count)
@@ -91,7 +91,9 @@ class BundleIntegrationTests(unittest.TestCase):
                 else:
                     engine.settings = replace(engine.settings, final_block_count=1)
                 with patch("scanner_server.bundle_adjustment.propose_bundle_poses",
-                           return_value=(poses, {"applied": False})):
+                           return_value=(poses, {"applied": False})), \
+                        patch("scanner_server.fusion_memory.available_memory",
+                              return_value={"RAM": (16 if failure == "budget" else 16384) * 1024**2}):
                     self.assertFalse(engine._bundle_volume())
                 self.assertIs(volume, engine.vbg)
                 self.assertIsNone(engine.original_poses)

@@ -129,7 +129,7 @@ class GuiPreferencesTests(unittest.TestCase):
         values = {
             "depth_near_spin": 700, "depth_far_spin": 2800,
             "crop_spin": 65, "voxel_spin": 8, "final_voxel_spin": 6,
-            "final_blocks_spin": 6200, "weight_spin": 3.5,
+            "weight_spin": 3.5,
             "server_port_spin": 8123,
         }
         for name, value in values.items():
@@ -279,7 +279,7 @@ class GuiPreferencesTests(unittest.TestCase):
         self.assertEqual(0, window.final_voxel_spin.value())
         self.assertAlmostEqual(0.5, window.auto_capture_spin.interval_seconds)
         self.assertEqual(8000, window.server_port_spin.value())
-        self.assertEqual(5000, window.final_blocks_spin.value())
+        self.assertFalse(hasattr(window, "final_blocks_spin"))
         self.assertFalse(window.crop_cb.isChecked())
         self.assertEqual(load_calibration().to_dict(), window._sensor_calibration.to_dict())
 
