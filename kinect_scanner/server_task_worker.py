@@ -8,6 +8,8 @@ import queue
 import os
 import traceback
 import tempfile
+import time
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
@@ -32,6 +34,7 @@ class ServerTaskType(Enum):
     EXPORT_OBJ = auto()
     EXPORT_TEXTURE = auto()
     EXPORT_SESSION = auto()
+    OPEN_PROJECT = auto()
     SAVE_MESH = auto()
     RESET = auto()
 
@@ -214,12 +217,22 @@ class ServerTaskWorker(QThread):
 
         elif tt == ServerTaskType.BUILD_MESH:
             self._client.task_started.emit("Building mesh on server...")
-            result = self._client.request_build()
+            options = task.kwargs.get("options")
+            result = self._client.request_build(options) if options else self._client.request_build()
             self._save_reconstruction()
             success = result.get("success", False)
             detail = result.get("detail", "Build complete")
             # Only the final-build HTTP response enables exports.
             self._client.build_mesh_done.emit(success, detail)
+
+        elif tt == ServerTaskType.OPEN_PROJECT:
+            path = task.kwargs["path"]
+            self._client.task_started.emit("Opening project…")
+            result = self._client.request_open_project(path)
+            self._recording = None
+            self._recording_session_id = None
+            self._live = result["settings"].get("live_reconstruction", False)
+            self._client.project_opened.emit(result, path)
 
         elif tt == ServerTaskType.PREVIEW:
             self._client.task_started.emit("Generating preview on server...")
@@ -249,7 +262,9 @@ class ServerTaskWorker(QThread):
             snapshot = None
             recorder = task.kwargs.get("sensor_recorder")
             if tt == ServerTaskType.EXPORT_SESSION and recorder is not None:
+                self._client.task_started.emit("Finishing sensor recording…")
                 snapshot = recorder.flush_sensor_recording(task.kwargs.get("sensor_path"), stop=True)
+            self._client.task_started.emit("Preparing project on server…" if tt == ServerTaskType.EXPORT_SESSION else "Preparing textured model…")
             if snapshot is None:
                 success = self._client.request_export(fmt, path, options=task.kwargs.get("options"))
             else:
@@ -260,7 +275,10 @@ class ServerTaskWorker(QThread):
                 try:
                     success = self._client.request_export(fmt, temporary, options=task.kwargs.get("options"))
                     if success:
+                        self._client.task_started.emit("Adding sensor recording…")
+                        started = time.monotonic()
                         augment_session_archive(temporary, snapshot)
+                        logging.getLogger(__name__).info("Sensor archive merge: %.2f s", time.monotonic() - started)
                         Path(temporary).replace(path)
                         if not snapshot["complete"]:
                             self._client.task_error.emit("Session saved with incomplete sensor recording; see sensor_archive and per-stream drop/error reports.")

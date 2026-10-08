@@ -138,8 +138,11 @@ view reports tracks kept/added/retired and their lifetimes.
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
 or plain OBJ; texture choices appear in that dialog. **Inspect Scan** previews the current scan.
-**Save Session…** preserves lossless observations for replay. New Scan, Cancel Scan and close
-offer Save Session / Discard / Cancel for unsaved captures, and continue only
+**Open Project…** reopens a saved ZIP, including older session ZIPs, without a Kinect connected.
+**Save Project** (Cmd/Ctrl+S) keeps lossless captures, calibration, settings, poses, diagnostics,
+sensor observations and the finished mesh. **File → Save Project As…** saves another copy.
+Projects use the same ZIP format as sessions; the finished mesh is an additional optional member.
+New Scan, Open Project, Cancel Scan and close offer Save project / Discard / Cancel, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
 paused; a failed build offers retry or resumed capture without resetting frames.
 
@@ -162,7 +165,7 @@ synthetic input and an offscreen Qt platform; it does not open a 3D viewer.
 Configure near/far clipping, voxel size, final surface confidence, optional central
 crop, RGB capture mode, and calibration **before starting a scan**. These settings
 now affect reconstruction. Capture fresh overlapping views while moving the
-Kinect around a stationary subject. **Save Session** keeps selected RGB-D images
+Kinect around a stationary subject. **Save Project** keeps selected RGB-D images
 and a continuous accelerometer/timing log for later reanalysis. Full camera-stream
 recording is optional and off by default. “Also keep selected captures locally”
 creates a separate local recording too. Recordings stay outside Git.
@@ -318,12 +321,17 @@ texture. PLY preserves vertex colors. Textured exports use a separately simplifi
 mesh, defaulting to 50,000 triangles, a 1024-pixel atlas, and up to 24 RGB views.
 They preserve the full final mesh for PLY/plain OBJ export.
 
-**Save Session** packages lossless selected images, calibration, settings,
-estimated poses, diagnostics, and the client's continuous accelerometer log,
+**Save Project** packages lossless selected images, calibration, settings,
+estimated poses, diagnostics, the finished mesh when available, and the client's continuous accelerometer log,
 including failed reads. Camera images are saved only for selected captures by
 default. Live visual tracking can process intermediate images without retaining
 them all on disk. Normal archive size depends on the selected captures; the motion
-log adds a small amount of text data.
+log adds a small amount of text data. Opening restores saved poses by fresh fusion and keeps capture paused; a saved final mesh is immediately available for export. Independent sensor observations remain in the project when it is saved again.
+
+Saving reports preparation, download progress in MB, disk completion and sensor merging.
+Downloads stream into a temporary file and replace the destination only after completion.
+Client logs record preparation/download/disk timings; server logs record image encoding.
+A slow connection can take much longer to download an archive than it takes to encode it.
 
 **Record all camera frames (large files)** is an explicit, off-by-default option
 for research requiring exact intermediate-frame replay. Only this option adds
@@ -445,7 +453,8 @@ Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> I
 3. Click **Start Scan** and move the Kinect around the stationary subject. In Manual, use **Capture Frame**.
 4. Pause/resume as needed, or **Cancel Scan** to return to setup without building. **Inspect Scan** temporarily suspends capture to prepare a mesh snapshot.
 5. Click **Finish Scan**. The finished mesh opens for inspection; failed builds retain captures for retry/resume.
-6. Use **Export…** for a model or **Save Session…** for replayable source captures.
+6. Use **Export…** for a model or **Save Project…** for a reopenable ZIP. **Open Project…** accepts existing session recordings too.
+7. If final fusion exceeds its block budget, increase **Final block budget** or use a coarser final voxel and choose **Retry Build**. These final settings now apply to the retained captures without starting a new scan.
 
 ---
 
@@ -620,7 +629,8 @@ is a separate research tool for measured CUDA recipes, not the normal server ent
 | `GET` | `/api/scan/export/obj` | Download mesh as vertex-colored OBJ |
 | `GET` | `/api/scan/export/glb` | Download UV-textured GLB |
 | `GET` | `/api/scan/export/obj.zip` | Download OBJ/MTL/PNG texture bundle |
-| `GET` | `/api/scan/export/session` | Download lossless RGB-D session ZIP |
+| `GET` | `/api/scan/export/session` | Download project ZIP with lossless RGB-D captures and optional final mesh |
+| `POST` | `/api/scan/project` | Upload and open a project/session ZIP; invalid archives retain the active scan |
 | `WebSocket` | `/ws/progress` | Build/preview progress and bounded live geometry |
 
 ---

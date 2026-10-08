@@ -229,9 +229,12 @@ def augment_session_archive(path, snapshot, portrait=True):
                         relative = f"display/{frame[stream]}"
                         target.writestr(relative, encoded.tobytes())
                         frame["display_" + stream] = relative
-            manifest.update(version=2, sensor_archive={
-                "version": 1, "root": "sensors", "segments": snapshot["segments"],
-                "complete": snapshot["complete"], "scope": "All accelerometer read attempts and orientation events; full RGB/depth streams only in explicitly enabled recording segments",
+            previous = manifest.get("sensor_archive", {})
+            segments = {s["generation"]: s for s in previous.get("segments", [])}
+            segments.update({s["generation"]: s for s in snapshot["segments"]})
+            manifest.update(version=max(2, manifest.get("version", 1)), sensor_archive={
+                "version": 1, "root": "sensors", "segments": list(segments.values()),
+                "complete": snapshot["complete"] and previous.get("complete", True), "scope": "All accelerometer read attempts and orientation events; full RGB/depth streams only in explicitly enabled recording segments",
                 "control_error": snapshot.get("control_error"),
             })
             target.writestr("manifest.json", json.dumps(manifest, indent=2, allow_nan=False))
