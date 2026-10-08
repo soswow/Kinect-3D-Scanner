@@ -603,6 +603,12 @@ cd ../wrappers/python && pip install .
 python -m kinect_scanner
 ```
 
+On macOS, double-click **Start Client.command** in Finder to open only the client.
+It uses the repository's `.venv/`, the parent folder's `.venv/`, an activated
+virtual environment, or `python3` from PATH, in that order. Enter the server's
+LAN IP address and port in the GUI, then click **Connect**. **Start Scanner.command**
+continues to start both the client and a local server.
+
 ### View Modes
 
 | Mode | Description |
