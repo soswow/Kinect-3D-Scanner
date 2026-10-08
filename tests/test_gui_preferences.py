@@ -306,15 +306,15 @@ class GuiPreferencesTests(unittest.TestCase):
 
     def test_sound_toggle_is_remembered_in_injected_backing_store(self):
         first = self.window()
-        self.assertTrue(first.sound_action.isChecked())
-        first.sound_action.setChecked(False)
+        self.assertTrue(first.scan_sounds_cb.isChecked())
+        first.scan_sounds_cb.setChecked(False)
         self.assertFalse(first.capture_sound.enabled)
         second = self.window()
-        self.assertFalse(second.sound_action.isChecked())
+        self.assertFalse(second.scan_sounds_cb.isChecked())
         self.assertFalse(second.capture_sound.enabled)
-        second.sound_action.setChecked(True)
+        second.scan_sounds_cb.setChecked(True)
         third = self.window()
-        self.assertTrue(third.sound_action.isChecked())
+        self.assertTrue(third.scan_sounds_cb.isChecked())
         self.assertTrue(third.capture_sound.enabled)
 
     def test_custom_calibration_snapshot_restores_without_source_file(self):

@@ -203,7 +203,7 @@ With the scanner closed, test a manual shutter and gain directly:
 python scripts/check_camera.py --exposure manual --shutter-speed 250 --gain 2
 ```
 
-**Scan sounds** in the toolbar plays a short confirmation when captured
+**Scan sounds** in the sidebar’s **Feedback** section plays a short confirmation when captured
 frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
 do not overlap. Skipped, rejected or failed uploads stay silent. Tracking loss

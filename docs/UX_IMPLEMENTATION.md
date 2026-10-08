@@ -94,7 +94,7 @@ cloud details, paused capture, full Depth view and scrolled setup.
 ## Follow-up: capture sound
 
 A bundled 70 ms cue confirms successful captured-frame upload in Automatic and
-Manual modes. **Capture sound** in the toolbar toggles it and remembers mute
+Manual modes. **Scan sounds** in the sidebar’s **Feedback** section toggles it and remembers mute
 across launches. Failed/rejected uploads and old-session acknowledgements stay
 silent. Batches use one cue, rapid confirmations do not overlap, and mute,
 reset, cancellation and shutdown clear any cue waiting for its audio file to load.
