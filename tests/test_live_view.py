@@ -9,6 +9,8 @@ from dataclasses import asdict
 from unittest.mock import patch
 
 import numpy as np
+from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication
 
 from kinect_scanner.gui.live_view import LiveView
@@ -139,12 +141,83 @@ class LiveViewTests(unittest.TestCase):
         self.snapshot([[0, 0, 1], [0.2, 0, 1]])
         self.snapshot([[0, 0, 1], [10, 0, 1]])
         self.view.yaw, self.view.pitch, self.view.zoom = 1, 1, 3
+        self.view.pan[:] = [2, -3]
         self.view.fit_button.click()
         np.testing.assert_array_equal(self.view.center, [5, 0, 1])
         self.assertEqual(self.view.radius, 5)
         self.assertEqual((self.view.yaw, self.view.pitch, self.view.zoom), (0, 0, 1))
+        np.testing.assert_array_equal(self.view.pan, [0, 0])
         self.assertFalse(self.view.follow_cb.isChecked())
         self.assertEqual(len(self.view._project_points(300, 240)[0]), 2)
+
+    def drag(self, button, modifiers=Qt.KeyboardModifier.NoModifier, delta=(20, 15)):
+        start = QPointF(self.view.drawing_rect.center())
+        end = start + QPointF(*delta)
+        for kind, position, changed_button, held_buttons in (
+            (QEvent.Type.MouseButtonPress, start, button, button),
+            (QEvent.Type.MouseMove, end, Qt.MouseButton.NoButton, button),
+            (QEvent.Type.MouseButtonRelease, end, button, Qt.MouseButton.NoButton),
+        ):
+            self.app.sendEvent(self.view, QMouseEvent(
+                kind, position, position, changed_button, held_buttons, modifiers,
+            ))
+
+    def test_left_drag_orbits_and_other_drags_pan_in_screen_plane(self):
+        self.snapshot([[-0.1, -0.1, 1], [0.1, 0.1, 1.1]])
+        self.view.fit_view()
+        # Leave room to pan at both zoom levels without clipping the samples.
+        self.view.radius *= 2
+        self.drag(Qt.MouseButton.LeftButton)
+        self.assertAlmostEqual(self.view.yaw, 0.16)
+        self.assertAlmostEqual(self.view.pitch, 0.12)
+        np.testing.assert_array_equal(self.view.pan, [0, 0])
+        for button, modifiers in (
+            (Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier),
+            (Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier),
+            (Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier),
+        ):
+            for zoom in (0.5, 2):
+                with self.subTest(button=button, zoom=zoom):
+                    self.view.pan[:] = 0
+                    self.view.zoom = zoom
+                    # Pan must stay horizontal/vertical even after rotation.
+                    self.view.yaw, self.view.pitch = 0.8, -0.3
+                    viewport = self.view.drawing_rect
+                    before, depth, indices = self.view._project_points(viewport.width(), viewport.height())
+                    self.drag(button, modifiers)
+                    after, new_depth, new_indices = self.view._project_points(viewport.width(), viewport.height())
+                    np.testing.assert_array_equal(after - before, [[20, 15], [20, 15]])
+                    np.testing.assert_array_equal(new_depth, depth)
+                    np.testing.assert_array_equal(new_indices, indices)
+                    self.assertEqual((self.view.yaw, self.view.pitch), (0.8, -0.3))
+                    self.assertIsNone(self.view._drag)
+
+    def test_follow_ignores_navigation_and_snapshot_preserves_pan(self):
+        self.snapshot([[0, 0, 1], [0.2, 0, 1]])
+        for button in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
+            self.drag(button)
+        np.testing.assert_array_equal(self.view.pan, [0, 0])
+        self.assertEqual((self.view.yaw, self.view.pitch), (0, 0))
+        self.view.fit_view()
+        self.drag(Qt.MouseButton.RightButton)
+        pan = self.view.pan.copy()
+        before = self.view._project_points(640, 480)[0]
+        self.snapshot([[0, 0, 1], [0.2, 0, 1], [0.1, 0, 1]])
+        np.testing.assert_array_equal(self.view.pan, pan)
+        np.testing.assert_array_equal(self.view._project_points(640, 480)[0][:2], before)
+        self.view.reset()
+        np.testing.assert_array_equal(self.view.pan, [0, 0])
+
+    def test_drag_outside_cloud_viewport_does_not_navigate(self):
+        self.snapshot([[0, 0, 1]])
+        self.view.fit_view()
+        position = QPointF(5, 5)
+        self.app.sendEvent(self.view, QMouseEvent(
+            QEvent.Type.MouseButtonPress, position, position,
+            Qt.MouseButton.RightButton, Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        ))
+        self.assertIsNone(self.view._drag)
 
     def test_fit_includes_points_omitted_from_bounded_display(self):
         with patch("kinect_scanner.gui.live_view.LIVE_MAX_POINTS", 2):

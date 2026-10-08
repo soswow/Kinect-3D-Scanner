@@ -114,7 +114,9 @@ finished mesh after a build. Final inspection downloads the actual final mesh,
 including any enabled final refinement, rather than an earlier preview.
 
 The point cloud offers visible **Follow**, **Orbit**, **Color**, **Shape**, and
-**Fit View** controls. In Orbit, drag to rotate and scroll to zoom. **Details**
+**Fit View** controls. In Orbit, left drag to rotate and scroll to zoom. Pan with
+right drag (secondary-click and drag on a trackpad), middle drag, or Shift+left
+drag. **Fit View** resets rotation, zoom, and pan. **Details**
 shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
 crop. **Minimum capture interval** sets the fastest automatic cadence. Live
