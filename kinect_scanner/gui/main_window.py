@@ -360,14 +360,6 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
             self._mode_actions.append(action)
         toolbar.addSeparator()
-        self.orientation_combo = QComboBox()
-        for label, mode in (("Orientation: Auto", "auto"), ("Landscape lock", "landscape"),
-                            ("Portrait left lock", "portrait_left"), ("Portrait right lock", "portrait_right")):
-            self.orientation_combo.addItem(label, mode)
-        self.orientation_combo.setToolTip("Auto follows gravity. Lock portrait when looking up/down or while recording.")
-        self.orientation_combo.currentIndexChanged.connect(self._change_orientation)
-        toolbar.addWidget(self.orientation_combo)
-        toolbar.addSeparator()
         open_action = QAction("Open Model…", self)
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self._view_3d_file)
@@ -532,6 +524,16 @@ class MainWindow(QMainWindow):
         self.full_camera_recording_cb = QCheckBox("Record all camera frames (large files)")
         self.full_camera_recording_cb.setToolTip("Optional research recording of every RGB/depth frame: about 3.5 GB/min at high resolution, or 2.8 GB/min at VGA. Leave off for selected images plus the small accelerometer log.")
         vg.addWidget(self.full_camera_recording_cb)
+        self.orientation_combo = QComboBox()
+        for label, mode in (("Auto", "auto"), ("Landscape lock", "landscape"),
+                            ("Portrait left lock", "portrait_left"), ("Portrait right lock", "portrait_right")):
+            self.orientation_combo.addItem(label, mode)
+        self.orientation_combo.setToolTip("Auto follows gravity. Lock portrait when looking up/down or while recording.")
+        self.orientation_combo.currentIndexChanged.connect(self._change_orientation)
+        orientation_label = QLabel("Camera orientation")
+        orientation_label.setBuddy(self.orientation_combo)
+        vg.addWidget(orientation_label)
+        vg.addWidget(self.orientation_combo)
         self.gravity_tracking_cb = QCheckBox("Use accelerometer to assist tracking")
         self.gravity_tracking_cb.setToolTip("Optional gravity assistance for the RGB-D motion prediction. Auto portrait orientation works independently of this setting.")
         vg.addWidget(self.gravity_tracking_cb)
