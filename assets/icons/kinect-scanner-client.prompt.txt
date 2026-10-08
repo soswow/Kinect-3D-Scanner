@@ -1,0 +1,10 @@
+Generated with the built-in image_gen tool. This PNG is the source artwork for the client application icon; app-bundle integration is handled separately.
+
+Use case: logo-brand
+Asset type: macOS application icon for the Kinect 3D Scanner client; one square icon master.
+Primary request: Design a polished, distinctive application icon communicating Kinect-based 3D capture and reconstruction. A single large isometric cube is being reconstructed above a small stylized Kinect v1 depth-camera sensor bar. The cube is the dominant symbol: its upper portion is smooth softly lit ivory, its lower portion becomes a clean cyan triangular wireframe with a few purposeful point-cloud nodes. The sensor below is a simple dark horizontal bar with three subtly visible lenses and a short central pedestal, recognizable by silhouette. Keep both elements coherent and uncluttered.
+Style/medium: premium restrained three-dimensional macOS icon illustration, crisp geometry, subtle depth, excellent readability at small Dock sizes.
+Scene/backdrop: rounded-square deep graphite icon tile with gentle soft edge lighting; genuine transparent canvas outside the tile and rounded corners.
+Composition/framing: square 1024 x 1024 master; icon tile centered with approximately 7 percent transparent margin on each edge; cube fills the central upper area, compact sensor sits below; balanced optical weight; no external scene or mockup.
+Lighting/mood: soft studio lighting, a restrained cyan glow where the cube becomes wireframe.
+Constraints: one icon only, no lettering, no numerals, no wordmark, no Xbox emblem, no watermark, no extra objects, no tiny decorative particles, no elaborate background, no surrounding UI. Preserve bold shapes and clean alpha edges.
