@@ -1,0 +1,5 @@
+# Published reports use LF text; manifests also preserve original source hashes.
+docs/benchmarks/cuda-pipeline/** text eol=lf
+docs/benchmarks/cuda-pipeline/*.png -text
+docs/benchmarks/cuda-study/** text eol=lf
+docs/benchmarks/cuda-study/*.png -text

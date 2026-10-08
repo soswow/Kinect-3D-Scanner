@@ -1,0 +1,271 @@
+{
+  "kind": "derived-bounded-host-stage-diagnostics-summary",
+  "status": "passed",
+  "result": "Measurable approximately3percent sampled adapter saving; insufficient evidence to justify full parallel-staged audit",
+  "production_integration": false,
+  "new_kernel_full_bridge_authority": false,
+  "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "raw_report_sha256": "8aa5450a7c76e7ce9d0f7bf9fa080d2cab844b2c3e44545a3a8dbdf97100a66a",
+  "execution_report_sha256": "688383026f365a16dd2359f147e0f51f4a6f065a8f85bb4011315979d0bb369d",
+  "actual_process_exit_code": 0,
+  "process_elapsed_s": 6.378058499998588,
+  "helper": {
+    "artifacts_sha256": {
+      "scripts\\benchmark_grid_host_diagnostics.py": "db2cde601b5d6420d88f8ce58b96fdf6534d7fd38ba0a77c68e28fd04e600e70",
+      "scripts\\cuda_parallel_staged_grid_registration.py": "1a985235cd0a3a3058888133978527487ad0526feb68197be67c2e75658a9d0d",
+      "scripts\\validate_parallel_staged_grid_proof.py": "d9b085165bd6df843b36810aa938cdfe23c36d7b1ea5ef1a02053e1061c6675d",
+      "scripts\\benchmark_grid_lookup_ablation.py": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+      "scripts\\research_parallel_staged_grid_nn.cu": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+      "scripts\\research_staged_grid_nn.cu": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1"
+    },
+    "artifacts_sha256_after": {
+      "scripts\\benchmark_grid_host_diagnostics.py": "db2cde601b5d6420d88f8ce58b96fdf6534d7fd38ba0a77c68e28fd04e600e70",
+      "scripts\\cuda_parallel_staged_grid_registration.py": "1a985235cd0a3a3058888133978527487ad0526feb68197be67c2e75658a9d0d",
+      "scripts\\validate_parallel_staged_grid_proof.py": "d9b085165bd6df843b36810aa938cdfe23c36d7b1ea5ef1a02053e1061c6675d",
+      "scripts\\benchmark_grid_lookup_ablation.py": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+      "scripts\\research_parallel_staged_grid_nn.cu": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+      "scripts\\research_staged_grid_nn.cu": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1"
+    },
+    "unchanged": true,
+    "scope": "Replace sampled lookup loop only; unchanged closed trace/source/raw/runtime/proof guards retained; no full new-shader authority"
+  },
+  "fixture_binding": {
+    "fixture_sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "reference_sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3",
+    "original_raw_input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+    "local_pose_source": "measured Finish fragment report; no archived ZIP poses",
+    "tasks": [
+      {
+        "position": 0,
+        "pair": [
+          8,
+          12
+        ],
+        "proposal_sha256": [
+          "163c3b8c34a5089a703ed0eaa22d472fb534858a5c52ead7e49e129f289698ac",
+          "4a8d6e0be023f239c22fd61b332a107b7bb705e8cb4550a16aed1f5e92e382d8",
+          "df19003966889bca7578a8b58b9ea7d6270a5d04816e252e1d88891a104a82a9",
+          "b7e55e2e821dd88d79ba8b6a9d6ca865f89afd86d794c1e48a2a0d73911e862f",
+          "df1990d547d07e6155b1c5be3cc11545cffb66ab08c959151837ed3d72e7ad77"
+        ]
+      },
+      {
+        "position": 4,
+        "pair": [
+          0,
+          2
+        ],
+        "proposal_sha256": [
+          "b692a4645909476fab4c77e549d0220e0f433457d92b01b115f7f8848f4da5b3",
+          "ccc7977ae7987f37c2235e57c320a5142d6b58413825b6457a4a1c9fe469ac1c",
+          "8d1a3625dea25bd459a846fd231518cdea7ec059ca9b63191c0c8a6469deec78",
+          "0e69129ce7f988d366e2272a86d712df84ee7a6afd7beb23c3e458ae48018333"
+        ]
+      }
+    ]
+  },
+  "proof_report_hashes": {
+    "synthetic": "0fb2606f0f6928e6136380ffeb2f53e5903c2c4924fa4636ef4ad57bbf5b0406",
+    "bridge": "31057a3b5eba202f822e0bbc0c7efc136f8c73893ac1d95f24d011ae6b80d18f"
+  },
+  "runtime_binding": {
+    "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "artifacts_sha256": {
+      "scripts\\benchmark_uniform_grid_nn.py": "85e71c0e46e9eaf96ffce2bec8f7f743c60ea8ce2e8a7eb2d7882fac0c4b0233",
+      "scripts\\cuda_uniform_grid_registration.py": "0c034d72f31e82d0b9a0c9ea2fcd1bdd0b5e3667d52850a594db66d3b139f883",
+      "scripts\\research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+      "scripts\\UNIFORM_GRID_RESEARCH.md": "86b63bbc8f1907c3276e7ce2b4b142fb8529654a777b9c1add75a891ac8c5e55",
+      "scripts\\benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+      "scripts\\benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+      "scripts\\benchmark_selective_fragment_threads.py": "9e0a806077bda62ef2ade96de8d1a67cc013ef3f15de3171e50320327de0dcfe",
+      "scripts\\profile_fragment_verification.py": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+      "scanner_server\\cuda_nn_registration.py": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "scripts\\validate_uniform_grid_proof.py": "ec3c22c98e7c8610debb3492d12f778013c672f58576f3a55ad3f96f1915a302"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "domain": {
+      "version": "dyadic27-original-double-v1",
+      "radius_m": "2^-20 <= radius <= 1",
+      "cell_width": "smallest power of two >=radius; reversible finite ldexp scaling",
+      "cells": "floor(scaled coordinate) in signed21-bit range [-1048576,1048575]",
+      "packing": "bias each axis by1048576; x<<42|y<<21|z, no collisions in declared domain",
+      "enclosure": "CPU strict squared-distance hit implies every absolute coordinate difference<cell_width; at most one floor cell apart",
+      "distance": "original float64 points; explicit RN subtraction, multiply and left-associated add; --fmad=false; CuPy injects -ftz=true for single precision only",
+      "uncertainty": "64epsilon relative metric margin for nearest/second/radius; CPU ties and boundary/unsupported fallback",
+      "missing_policy": "original CPU tree unless explicitly research-certified and CPU hit/miss proof bound to helper/source/kernel/input"
+    },
+    "domain_sha256": "2d32b4fb40dacde39c62ddf3f7d68e0c8cad783a57669b4fdb668d6551d4cbcb",
+    "versions": {
+      "numpy": "2.5.3",
+      "open3d": "0.20.0",
+      "opencv": "5.0.0",
+      "cupy": "13.6.0"
+    },
+    "thread_policy": {
+      "open3d": 20,
+      "opencv": 20,
+      "omp": "8"
+    },
+    "cache_policy": {
+      "max_clouds": 64,
+      "retained_gpu_bytes": 268435456,
+      "limit": "Retained grid arrays only; transient launch/transfer buffers and CuPy pools separately observed"
+    },
+    "policy": "direct-miss-research-v1",
+    "kernel_options": [
+      "--std=c++11",
+      "--fmad=false"
+    ],
+    "cupy_injected_compiler_options": [
+      "-ftz=true; single precision only; original geometry is explicit FP64"
+    ],
+    "cuda_driver_version": 13030,
+    "cuda_runtime_version": 12090,
+    "nvrtc_version": [
+      12,
+      4
+    ],
+    "cuda_compute_capability": "86",
+    "open3d_backend_binary_sha256": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+    "numpy_core_binary_sha256": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+    "numpy_build_configuration_sha256": "853393fd18a6f78e0f4c95ac3154d889032290093edc9ef5fa0cd701d0069fc8",
+    "numpy_cpu_features": {
+      "MMX": true,
+      "SSE": true,
+      "SSE2": true,
+      "SSE3": true,
+      "SSSE3": true,
+      "SSE41": true,
+      "POPCNT": true,
+      "SSE42": true,
+      "X86_V2": true,
+      "AVX": true,
+      "F16C": true,
+      "XOP": false,
+      "FMA4": false,
+      "FMA3": true,
+      "AVX2": true,
+      "LAHF": true,
+      "CX16": true,
+      "MOVBE": true,
+      "BMI": true,
+      "BMI2": true,
+      "LZCNT": true,
+      "GFNI": true,
+      "VPCLMULQDQ": true,
+      "VAES": true,
+      "X86_V3": true,
+      "AVX512F": false,
+      "AVX512CD": false,
+      "AVX512ER": false,
+      "AVX512PF": false,
+      "AVX5124FMAPS": false,
+      "AVX5124VNNIW": false,
+      "AVX512VPOPCNTDQ": false,
+      "AVX512VL": false,
+      "AVX512BW": false,
+      "AVX512DQ": false,
+      "AVX512VNNI": false,
+      "AVX512IFMA": false,
+      "AVX512VBMI": false,
+      "AVX512VBMI2": false,
+      "AVX512BITALG": false,
+      "AVX512FP16": false,
+      "AVX512BF16": false,
+      "AVX512_KNL": false,
+      "AVX512_KNM": false,
+      "AVX512_SKX": false,
+      "X86_V4": false,
+      "AVX512_CLX": false,
+      "AVX512_CNL": false,
+      "AVX512_ICL": false,
+      "AVX512_SPR": false,
+      "VSX": false,
+      "VSX2": false,
+      "VSX3": false,
+      "VSX4": false,
+      "VX": false,
+      "VXE": false,
+      "VXE2": false,
+      "NEON": false,
+      "NEON_FP16": false,
+      "NEON_VFPV4": false,
+      "ASIMD": false,
+      "FPHP": false,
+      "ASIMDHP": false,
+      "ASIMDDP": false,
+      "ASIMDFHM": false,
+      "SVE": false,
+      "RVV": false,
+      "LSX": false
+    }
+  },
+  "trace_sha256": "735315cfb2123b67d12fde95782e894d50db7e16eb2ed9a4b2e2054162c6e65f",
+  "trace_manifest_sha256": "da6075211ef5edebd748708487c9036288bf965acb839ac077160bf710dcaac4",
+  "families": [
+    {
+      "kernel_family": "serial_staged",
+      "sampled_batch_count": 12,
+      "repetitions": 20,
+      "adapter_per_12_batches_s": {
+        "collect": 0.03100929499778431,
+        "skip": 0.03017548999887367
+      },
+      "wall_saved_per_12_batches_s": 0.0008338049989106367,
+      "collect_to_skip_wall_ratio": 1.0276318627780945,
+      "host_decode_per_12_batches_s": 0.001015670000197133,
+      "mean_host_decode_per_sampled_call_s": 8.463916668309442e-05,
+      "nested_search_transfer_per_12_batches_s": {
+        "collect": 0.005607489997055381,
+        "skip": 0.005695399997784989
+      },
+      "nested_cpu_fallback_per_12_batches_s": {
+        "collect": 0.02337944500068261,
+        "skip": 0.023408970002128625
+      }
+    },
+    {
+      "kernel_family": "parallel_staged",
+      "sampled_batch_count": 12,
+      "repetitions": 20,
+      "adapter_per_12_batches_s": {
+        "collect": 0.028854710000086926,
+        "skip": 0.027898265002295374
+      },
+      "wall_saved_per_12_batches_s": 0.0009564449977915501,
+      "collect_to_skip_wall_ratio": 1.0342833146689536,
+      "host_decode_per_12_batches_s": 0.0010079499978019157,
+      "mean_host_decode_per_sampled_call_s": 8.399583315015965e-05,
+      "nested_search_transfer_per_12_batches_s": {
+        "collect": 0.003539739999177982,
+        "skip": 0.00354751499799022
+      },
+      "nested_cpu_fallback_per_12_batches_s": {
+        "collect": 0.02330759000251419,
+        "skip": 0.023284705002515692
+      }
+    }
+  ],
+  "sampled_queries_per_batch_max": 2048,
+  "original_full_batch_sizes": [
+    7846,
+    8114,
+    10207,
+    10286
+  ],
+  "quality": {
+    "sampled_cpu_ids_equal": true,
+    "same_kernel_all_raw_output_bits_equal": true,
+    "original_arrays_source_raw_runtime_helpers_unchanged": true,
+    "cleanup_passed": true,
+    "disabled_stage_work": "uncollected, counters omitted"
+  },
+  "limits": "Bounded closed actual-query trace only. Original CPU missing/tie/support fallback is active and dominates these sampled adapter calls. Nested decode/search/fallback timers overlap adapter wall. Alternating order, no linear extrapolation to larger full batches or claim of full bridge/Finish/scanning gain. Parallel-staged full-proof files remain prepared but unexecuted.",
+  "summary_script_sha256": "0bd10cec1dc2a82a248867032b1bdc54cdbeecb4d0f552c052502ea161e05653"
+}

@@ -9,7 +9,6 @@ import argparse
 import importlib.util
 import json
 import os
-import resource
 import sys
 import time
 from dataclasses import replace
@@ -19,6 +18,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts.process_metrics import peak_rss_bytes
 import cv2
 import numpy as np
 import open3d as o3d
@@ -426,8 +426,7 @@ def main():
         "bundle_adjustment": getattr(engine, "bundle_adjustment", None),
         "final_reconstruction": getattr(engine, "final_reconstruction", None),
         "stage_totals_ms": getattr(engine, "stage_totals_ms", None),
-        "peak_process_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        * (1 if sys.platform == "darwin" else 1024),
+        "peak_process_rss_bytes": peak_rss_bytes(),
         "diagnostics": diagnostics,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

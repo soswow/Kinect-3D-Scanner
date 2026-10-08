@@ -33,7 +33,11 @@ from shared.config import LIVE_MAX_POINTS, PRESET_DEFAULT, ScanPreset
 from shared.settings import ScanSettings
 
 from .backend import select_backend
-from .tracking_cache import reuse_icp_source
+from .tracking_cache import TargetPyramid, reuse_icp_source
+from .cuda_registration import registration_scope
+from .cuda_fusion import FusionUpdateError
+from .cuda_input import CudaInputError, InputPreparation
+from .cuda_confidence import ConfidencePreparation
 
 _REG = o3d.pipelines.registration
 logger = logging.getLogger("scanner_server")
@@ -85,6 +89,8 @@ class ScanEngine:
         self.backend["fusion"] = (
             "confidence_weighted" if p.confidence_fusion else "uniform"
         )
+        self._input_preparation = InputPreparation(self.device, self.backend)
+        self._confidence_preparation = ConfidencePreparation(self.device, self.backend)
         self.voxel_size = p.voxel_m
         self.sdf_trunc = p.truncation_m
         self.max_depth_m = float(p.far_m)
@@ -99,6 +105,9 @@ class ScanEngine:
 
         self.vbg = self._create_vbg()
 
+        self.fusion_failure = None
+        self.input_failure = None
+        self._live_fusion_generation = 0
         self.frame_count = 0
         self.session_id = uuid.uuid4().hex
         self.stage_totals_ms = {}
@@ -122,6 +131,40 @@ class ScanEngine:
         self._model_pyramid = {}
         self._tensor_model_pyramid = {}
         self._integrations_since_model = 0
+        self._integrations_since_preview = 0
+        self._pending_model_cloud = None
+        self._pending_model_frame_count = None
+        model_refresh = os.environ.get("KINECT_MODEL_REFRESH", "eager").lower()
+        if model_refresh not in ("eager", "lazy"):
+            raise ValueError("KINECT_MODEL_REFRESH must be eager or lazy")
+        self.backend["model_preparation"] = model_refresh
+        cache_mode = os.environ.get("KINECT_KEYFRAME_CACHE", "off").lower()
+        if cache_mode not in ("on", "off"):
+            raise ValueError("KINECT_KEYFRAME_CACHE must be on or off")
+        self.backend["keyframe_pyramid_cache"] = cache_mode
+        recovery_mode = os.environ.get("KINECT_LIVE_RECOVERY", "full").lower()
+        if recovery_mode not in ("full", "deferred"):
+            raise ValueError("KINECT_LIVE_RECOVERY must be full or deferred")
+        self.backend["live_recovery"] = recovery_mode
+        feature_method = os.environ.get("KINECT_VISUAL_FEATURES", "orb").lower()
+        from .adaptive_visual import select_policy
+        self.backend.update(select_policy(p, feature_method,
+            os.environ.get("KINECT_ADAPTIVE_EXPERIMENTAL", "off").lower()))
+        self.backend["sift_fallback"] = {"attempts": 0, "verified": 0}
+        visual_refinement = os.environ.get("KINECT_VISUAL_REFINEMENT", "icp").lower()
+        if visual_refinement not in ("icp", "measured", "measured-fine"):
+            raise ValueError("KINECT_VISUAL_REFINEMENT must be icp, measured, or measured-fine")
+        self.backend["visual_refinement"] = visual_refinement
+        self.backend["stage_devices"]["measured_visual_refinement"] = "CPU:0"
+        final_visual_first = os.environ.get("KINECT_FINAL_VISUAL_FIRST", "off").lower()
+        if final_visual_first not in ("off", "on"):
+            raise ValueError("KINECT_FINAL_VISUAL_FIRST must be off or on")
+        self.backend["final_visual_first"] = final_visual_first
+        final_local_refinement = os.environ.get("KINECT_FINAL_LOCAL_REFINEMENT", "icp").lower()
+        if final_local_refinement not in ("icp", "measured"):
+            raise ValueError("KINECT_FINAL_LOCAL_REFINEMENT must be icp or measured")
+        self.backend["final_local_refinement"] = final_local_refinement
+        self.backend["visual_refinement_statistics"] = {"attempts": 0, "icp_fallbacks": 0}
         self.cumulative_T = np.eye(4)
         self.mesh = None
         self.point_cloud = None
@@ -139,6 +182,15 @@ class ScanEngine:
         self._stored_monotonic = []
         self._appearance_cache = {}
         self._visual_cache = {}
+        self._sift_visual_cache = {}
+        self._visual_target_pyramids = {}
+        self._visual_rgbd_cache = {}
+        self._cuda_rgbd_odometry = None
+        self._cuda_descriptor_matcher = None
+        self._cuda_final_descriptor_matcher = None
+        self.backend["projective_statistics"] = {"visual_attempts": 0, "visual_icp_fallbacks": 0,
+                                                  "recovery_attempts": 0, "recovery_cpu_fallbacks": 0}
+        self.backend["descriptor_matching"].update(cuda_batches=0, cpu_batches=0, final_cuda_batches=0)
         self._visual_evidence = None
         self.tracking_edges = []
         self._tracking_lost_frames = 0
@@ -150,24 +202,44 @@ class ScanEngine:
 
     # ── helpers ────────────────────────────────────────────────────────
 
+    def _prepare_input(self, rgb, raw, settings=None, *, cpu_prepare=None):
+        return self._input_preparation.prepare(
+            rgb, raw, self.settings if settings is None else settings,
+            prepare_rgbd if cpu_prepare is None else cpu_prepare)
+
     @contextmanager
     def _stage(self, name):
         # CUDA kernels are asynchronous; synchronize to report real wall time.
         if str(self.device).startswith("CUDA"):
             o3c.cuda.synchronize()
-        start = time.monotonic()
+        start = time.perf_counter()
         self._stage_children.append(0.0)
+        body_error = None
         try:
             yield
+        except BaseException as exc:
+            body_error = exc
+            raise
         finally:
-            if str(self.device).startswith("CUDA"):
-                o3c.cuda.synchronize()
-            elapsed = (time.monotonic() - start) * 1000
-            exclusive = max(0.0, elapsed - self._stage_children.pop())
-            if self._stage_children:
-                self._stage_children[-1] += elapsed
-            self._frame_timings[name] = self._frame_timings.get(name, 0) + exclusive
-            self.stage_totals_ms[name] = self.stage_totals_ms.get(name, 0) + exclusive
+            try:
+                if str(self.device).startswith("CUDA"):
+                    o3c.cuda.synchronize()
+            except Exception as exc:
+                if isinstance(body_error, (FusionUpdateError, CudaInputError)):
+                    # A failing cleanup must not disguise a partial update or
+                    # hard input failure as an ordinary rejected registration.
+                    logger.warning("Synchronization also failed after CUDA processing failure: %s", exc)
+                elif name == "fusion":
+                    raise FusionUpdateError(f"CUDA fusion synchronization failed: {exc}") from exc
+                else:
+                    raise
+            finally:
+                elapsed = (time.perf_counter() - start) * 1000
+                exclusive = max(0.0, elapsed - self._stage_children.pop())
+                if self._stage_children:
+                    self._stage_children[-1] += elapsed
+                self._frame_timings[name] = self._frame_timings.get(name, 0) + exclusive
+                self.stage_totals_ms[name] = self.stage_totals_ms.get(name, 0) + exclusive
 
     def reconstruction_report(self):
         return {
@@ -177,6 +249,8 @@ class ScanEngine:
             "length_unit": "metres",
             "settings": self.settings.to_dict(),
             "backend": self.backend,
+            "fusion_failure": self.fusion_failure,
+            "input_failure": self.input_failure,
             "frames": list(self.diagnostics),
             "poses": [
                 {"index": i, "camera_to_world": p.tolist()} for i, p in self.poses
@@ -194,7 +268,7 @@ class ScanEngine:
             "fragment_reconnection": self.fragment_reconnection,
             "tracking_edges": list(self.tracking_edges),
             "tracking": {
-                "state": "recovering" if self._tracking_lost_frames else "tracking" if self.poses else "waiting",
+                "state": "error" if self.fusion_failure or self.input_failure else "recovering" if self._tracking_lost_frames else "tracking" if self.poses else "waiting",
                 "last_tracked_index": self.poses[-1][0] if self.poses else None,
                 "lost_at_index": self._lost_at_index,
             },
@@ -215,7 +289,11 @@ class ScanEngine:
         result = self.diagnostics[-1] if self.diagnostics else {}
         points = points[::step].astype(np.float32)
         colors = np.clip(colors[::step], 0, 1).astype(np.float32)
-        if self.mesh is not None:
+        if self.fusion_failure is not None:
+            guidance = self.fusion_failure["message"]
+        elif self.input_failure is not None:
+            guidance = self.input_failure["message"]
+        elif self.mesh is not None:
             excluded = len(self.fragment_reconnection.get("excluded_frames", []))
             guidance = f"Final model retains {self.frame_count} of {self.stored_count} captures."
             if excluded:
@@ -225,6 +303,8 @@ class ScanEngine:
             guidance += " Save Session preserves all captured views."
         elif result and not result.get("success"):
             guidance = (
+                "View retained for Finish. Live geometry includes only verified views; maintain overlap while capturing."
+                if self.backend["live_recovery"] == "deferred" else
                 "STOP — model paused. Return to the highlighted camera and match "
                 "the last good image. Recovery frames are checked without adding geometry."
                 if self.poses else
@@ -254,7 +334,7 @@ class ScanEngine:
             "pending_age_s": round(max(0, pending_age), 3),
             "skipped_count": sum(not r["success"] for r in self.diagnostics),
             "guidance": guidance,
-            "geometry_frame_count": self.frame_count - self._integrations_since_model,
+            "geometry_frame_count": self.frame_count - self._integrations_since_preview,
             "points": points if array_geometry else points.tolist(),
             "colors": colors if array_geometry else colors.tolist(),
             "camera_to_world": self.cumulative_T.tolist(),
@@ -290,8 +370,12 @@ class ScanEngine:
             if ok:
                 self._recovery_preview = base64.b64encode(encoded).decode("ascii")
         return {
-            "tracking_state": "recovering" if lost else "tracking" if anchor else "waiting",
-            "fusion_paused": lost,
+            "tracking_state": "error" if self.fusion_failure or self.input_failure else "recovering" if lost else "tracking" if anchor else "waiting",
+            "fusion_paused": lost or self.fusion_failure is not None or self.input_failure is not None,
+            "volume_requires_reset": self.fusion_failure is not None,
+            "fusion_failure": self.fusion_failure,
+            "input_requires_reset": self.input_failure is not None,
+            "input_failure": self.input_failure,
             "lost_at_index": self._lost_at_index,
             "last_tracked_index": anchor[0] if anchor else None,
             "last_tracked_rgb_png": self._recovery_preview if lost else None,
@@ -370,31 +454,42 @@ class ScanEngine:
         )
         del depth_img, color_img, frustum_block_coords, extrinsic_t
 
-    def _make_reg_pcd(self, rgbd):
+    def _make_reg_pcd(self, rgbd, *, normals=True):
         """Build a coarser point cloud for registration (not integration)."""
         pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, self.intrinsic)
         pcd = pcd.voxel_down_sample(self.reg_voxel)
-        pcd.estimate_normals(
-            o3d.geometry.KDTreeSearchParamHybrid(radius=self.reg_voxel * 4, max_nn=30)
-        )
+        if normals:
+            self._ensure_raw_normals(pcd)
         return pcd
 
-    def _extract_model_pcd(self):
-        """Extract and downsample a model point cloud from the TSDF volume.
+    def _ensure_raw_normals(self, cloud):
+        if cloud is not None and not cloud.has_normals():
+            cloud.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=self.reg_voxel * 4, max_nn=30))
 
-        Cache registration scales; compute FPFH lazily if recovery needs it.
-        """
+    def _refresh_live_points(self):
+        """Extract the current surface once; defer registration levels if unused."""
         t_pcd = self.vbg.extract_point_cloud(
-            weight_threshold=0.01 if self.settings.confidence_fusion else 0.5
-        )
+            weight_threshold=0.01 if self.settings.confidence_fusion else 0.5)
         pcd = t_pcd.to_legacy()
-        del t_pcd
-        # Reuse this extraction before tracking downsamples it. Keep only a
-        # bounded copy for feedback, independent of the registration model.
+        self._pending_model_cloud = pcd
+        self._pending_model_frame_count = self.frame_count
         points, colors = np.asarray(pcd.points), np.asarray(pcd.colors)
         step = max(1, int(np.ceil(len(points) / LIVE_MAX_POINTS)))
         self._live_points = points[::step].astype(np.float32)
         self._live_colors = colors[::step].astype(np.float32)
+        self._integrations_since_preview = 0
+
+    def _extract_model_pcd(self, *, from_snapshot=False):
+        """Extract and downsample a model point cloud from the TSDF volume.
+
+        Cache registration scales; compute FPFH lazily if recovery needs it.
+        """
+        if not from_snapshot or self._pending_model_cloud is None:
+            self._refresh_live_points()
+        pcd = self._pending_model_cloud
+        prepared_count = self._pending_model_frame_count
+        self._pending_model_cloud = None
+        self._pending_model_frame_count = None
         pcd = pcd.voxel_down_sample(self.reg_voxel)
         pcd.estimate_normals(
             o3d.geometry.KDTreeSearchParamHybrid(radius=self.reg_voxel * 4, max_nn=30)
@@ -419,20 +514,32 @@ class ScanEngine:
                     )
                 )
 
-        self._integrations_since_model = 0
+        self._integrations_since_model = self.frame_count - prepared_count
 
-    def _icp(self, source, target, init=None):
+    def _icp(self, source, target, init=None, *, fine_only=False):
         """Coarse-to-fine robust point-to-plane tracking in camera-to-world space."""
+        if not fine_only:
+            self._ensure_raw_normals(target)
         pose = self.cumulative_T if init is None else init
         pyramid = getattr(self, "_icp_source_pyramid", None)
         if pyramid is not None and pyramid.source is not source:
             pyramid = None
-        for scale, iterations in ((4, 40), (2, 30), (1, 20)):
+        target_pyramid = None
+        for index, (_, cloud) in (self._visual_cache.items()
+                                  if self.backend["keyframe_pyramid_cache"] == "on" else ()):
+            if cloud is target:
+                target_pyramid = self._visual_target_pyramids.get(index)
+                if target_pyramid is None or target_pyramid.source is not target:
+                    target_pyramid = self._visual_target_pyramids[index] = TargetPyramid(target)
+                break
+        for scale, iterations in (((1, 20),) if fine_only else ((4, 40), (2, 30), (1, 20))):
             voxel = self.reg_voxel * scale
             src = (source.voxel_down_sample(voxel) if pyramid is None
                    else pyramid.level(voxel))
             if target is self.model_pcd:
                 tgt = self._model_pyramid[scale]
+            elif target_pyramid is not None:
+                tgt = target_pyramid.level(voxel)
             else:
                 tgt = target.voxel_down_sample(voxel)
                 tgt.estimate_normals(
@@ -448,6 +555,8 @@ class ScanEngine:
                 target_tensor = (
                     self._tensor_model_pyramid[scale]
                     if target is self.model_pcd
+                    else target_pyramid.tensor(voxel, source_tensor_level)
+                    if target_pyramid is not None
                     else o3d.t.geometry.PointCloud.from_legacy(
                         tgt, dtype=o3c.float32, device=self.device
                     )
@@ -550,7 +659,7 @@ class ScanEngine:
             if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
                 continue
             if index not in self._appearance_cache:
-                rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
                 self._appearance_cache[index] = extract_features(
                     rgb, depth, self.settings.camera, method="sift"
                 )
@@ -563,7 +672,7 @@ class ScanEngine:
             )
             if initial is None:
                 continue
-            rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+            rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
             target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
             forward = _match(source, target, initial)
             reverse = _match(target, source, np.linalg.inv(forward.transformation))
@@ -722,6 +831,13 @@ class ScanEngine:
             return None
 
     def _visual_register(self, source, rgbd):
+        if self.backend["visual_policy"] == "orb_then_sift":
+            from .adaptive_visual import register
+
+            return register(self, source, rgbd, self._visual_register_primary)
+        return self._visual_register_primary(source, rgbd)
+
+    def _visual_register_primary(self, source, rgbd):
         """Use measured keyframes and retain their visual constraint after ICP."""
         from shared.visual_tracking import feature_agreement
 
@@ -736,7 +852,7 @@ class ScanEngine:
             return None
         features = extract_features(np.asarray(rgbd.color),
                                     np.rint(np.asarray(rgbd.depth) * 1000).astype(np.uint16),
-                                    self.settings.camera)
+                                    self.settings.camera, method=self.backend["visual_features"])
         recent = self.poses[-8:]
         # Stable landmarks avoid evicting/repreparing an evenly resampled bank
         # on every accepted frame. Keep the initial five views for a returning
@@ -744,17 +860,33 @@ class ScanEngine:
         historical = self.poses[:5] + self.poses[::4][-27:]
         candidates = {i: pose for i, pose in historical + recent}
         self._visual_cache = {i: value for i, value in self._visual_cache.items() if i in candidates}
+        self._visual_target_pyramids = {i: value for i, value in self._visual_target_pyramids.items() if i in candidates}
+        self._visual_rgbd_cache = {i: value for i, value in self._visual_rgbd_cache.items() if i in candidates}
         ranked = []
+        prepared = []
         for target_index, target_pose in candidates.items():
             lag = self.frame_metadata[target_index].get("rgb_depth_delta_ms")
             if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
                 continue
             if target_index not in self._visual_cache:
-                rgb, depth = prepare_rgbd(*self.raw_frames[target_index], self.settings)
+                rgb, depth = self._prepare_input(*self.raw_frames[target_index], self.settings)
                 self._visual_cache[target_index] = (
-                    extract_features(rgb, depth, self.settings.camera), None)
+                    extract_features(rgb, depth, self.settings.camera, method=self.backend["visual_features"]), None)
             target_features, target = self._visual_cache[target_index]
-            matches = correspondences(features, target_features)
+            prepared.append((target_index, target_pose, target_features))
+        matched_bank = None
+        if self.backend["descriptor_matching"]["implementation"] == "cuda":
+            if self._cuda_descriptor_matcher is None:
+                from .cuda_matching import Matcher
+
+                self._cuda_descriptor_matcher = Matcher(int(str(self.device).split(":")[1]))
+            matched_bank = self._cuda_descriptor_matcher.match(features, [row[2] for row in prepared])
+        if matched_bank is None:
+            self.backend["descriptor_matching"]["cpu_batches"] += 1
+            matched_bank = [correspondences(features, row[2]) for row in prepared]
+        else:
+            self.backend["descriptor_matching"]["cuda_batches"] += 1
+        for (target_index, target_pose, target_features), matches in zip(prepared, matched_bank):
             if len(matches) >= 40:
                 ranked.append((len(matches), target_index, target_pose, matches))
         # Cheap descriptor retrieval searches the whole bounded keyframe bank;
@@ -765,9 +897,12 @@ class ScanEngine:
             if proposal is None:
                 continue
             if target is None:
-                rgb, depth = prepare_rgbd(*self.raw_frames[target_index], self.settings)
-                target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+                rgb, depth = self._prepare_input(*self.raw_frames[target_index], self.settings)
+                target_rgbd = self._make_rgbd(rgb, depth)
+                target = self._make_reg_pcd(target_rgbd, normals=self._needs_raw_normals())
                 self._visual_cache[target_index] = target_features, target
+                if self.backend["projective_odometry"] != "off":
+                    self._visual_rgbd_cache[target_index] = target_rgbd
             a, b = matches.T
             # Feature identities survive refinement: anonymous geometric overlap
             # cannot move a textured surface to another plausible model location.
@@ -776,11 +911,48 @@ class ScanEngine:
             if not self._tracking_lost_frames and (
                     translation > self.settings.max_translation_m or angle > self.settings.max_rotation_deg):
                 continue
-            native = self._icp(source, target, proposal)
+            fast_pose_applied = False
+            if self.backend["visual_refinement"].startswith("measured"):
+                from .visual_refinement import measured_pose
+
+                self.backend["visual_refinement_statistics"]["attempts"] += 1
+                relative = measured_pose(features, target_features, matches, proposal, self.settings.camera)
+                fast_pose_applied = relative is not None
+                if not fast_pose_applied:
+                    self.backend["visual_refinement_statistics"]["icp_fallbacks"] += 1
+                native = (self._icp(source, target, relative, fine_only=True)
+                          if relative is not None and self.backend["visual_refinement"] == "measured-fine"
+                          else _REG.evaluate_registration(source, target, 0.0225, relative)
+                          if relative is not None else self._icp(source, target, proposal))
+            elif self.backend["projective_odometry"] != "off":
+                self.backend["projective_statistics"]["visual_attempts"] += 1
+                target_rgbd = self._visual_rgbd_cache.get(target_index)
+                if target_rgbd is None:
+                    rgb, depth = self._prepare_input(*self.raw_frames[target_index], self.settings)
+                    target_rgbd = self._visual_rgbd_cache[target_index] = self._make_rgbd(rgb, depth)
+                relative = self._projective_pose(rgbd, target_rgbd, proposal)
+                fast_pose_applied = relative is not None
+                if not fast_pose_applied:
+                    self.backend["projective_statistics"]["visual_icp_fallbacks"] += 1
+                native = (_REG.evaluate_registration(source, target, 0.0225, relative)
+                          if relative is not None else self._icp(source, target, proposal))
+            else:
+                native = self._icp(source, target, proposal)
             correction, correction_angle = motion(np.linalg.inv(proposal) @ native.transformation)
             good, stats = feature_agreement(features.points[a], target_features.points[b],
                                            target_features.pixels[b], native.transformation,
                                            self.settings.camera)
+            if (fast_pose_applied
+                    and (not good or correction > 0.03 or correction_angle > 3
+                         or native.fitness < 0.6 or native.inlier_rmse > 0.015)):
+                if self.backend["visual_refinement"].startswith("measured"):
+                    self.backend["visual_refinement_statistics"]["icp_fallbacks"] += 1
+                else:
+                    self.backend["projective_statistics"]["visual_icp_fallbacks"] += 1
+                native = self._icp(source, target, proposal)
+                correction, correction_angle = motion(np.linalg.inv(proposal) @ native.transformation)
+                good, stats = feature_agreement(features.points[a], target_features.points[b],
+                                               target_features.pixels[b], native.transformation, self.settings.camera)
             if not good or correction > 0.03 or correction_angle > 3:
                 # Retain the observed proposal if geometry independently agrees.
                 native = _REG.evaluate_registration(source, target, 0.0225, proposal)
@@ -800,6 +972,19 @@ class ScanEngine:
                                    fitness=native.fitness, inlier_rmse=native.inlier_rmse,
                                    correspondence_set=native.correspondence_set)
         return None
+
+    def _needs_raw_normals(self):
+        return self.backend["projective_odometry"] == "off" and self.backend["visual_refinement"] == "icp"
+
+    def _projective_pose(self, source, target, initial, *, recovery=False):
+        from .cuda_odometry import RGBDOdometry
+
+        if self._cuda_rgbd_odometry is None:
+            self._cuda_rgbd_odometry = RGBDOdometry(self.device)
+        return self._cuda_rgbd_odometry.estimate(
+            source, target, self.intrinsic_tensor, initial, self.max_depth_m,
+            "hybrid" if recovery else self.backend["projective_odometry"],
+            iterations=(40, 20, 10) if recovery else (20, 10, 5))
 
     def _color_recovery(self, source_pcd, rgbd):
         """Use synchronized RGB-D motion to seed geometry; never bypass its gates."""
@@ -833,24 +1018,31 @@ class ScanEngine:
             depth_max=self.max_depth_m,
         )
         guess = np.linalg.inv(self.cumulative_T) @ self._tracking_initial_guess()
-        success, relative, information = o3d.pipelines.odometry.compute_rgbd_odometry(
-            current,
-            previous,
-            self.intrinsic,
-            guess,
-            o3d.pipelines.odometry.RGBDOdometryJacobianFromHybridTerm(),
-            option,
-        )
-        if not success or not np.all(np.isfinite(information)):
-            return None
-        pose = self.cumulative_T @ relative
-        refined = self._icp(source_pcd, self.model_pcd, init=pose)
+        def legacy_relative():
+            success, relative, information = o3d.pipelines.odometry.compute_rgbd_odometry(
+                current, previous, self.intrinsic, guess,
+                o3d.pipelines.odometry.RGBDOdometryJacobianFromHybridTerm(), option)
+            return relative if success and np.all(np.isfinite(information)) else None
+
         from .refinement import motion
 
-        correction, angle = motion(np.linalg.inv(pose) @ refined.transformation)
-        if correction <= 0.03 and angle <= 3 and self._alignment_error(refined, self.model_pcd) is None:
-            return refined
-        return None
+        def verify(relative):
+            if relative is None:
+                return None
+            pose = self.cumulative_T @ relative
+            refined = self._icp(source_pcd, self.model_pcd, init=pose)
+            correction, angle = motion(np.linalg.inv(pose) @ refined.transformation)
+            if correction <= 0.03 and angle <= 3 and self._alignment_error(refined, self.model_pcd) is None:
+                return refined
+            return None
+
+        if self.backend["projective_odometry"] != "off":
+            self.backend["projective_statistics"]["recovery_attempts"] += 1
+            verified = verify(self._projective_pose(rgbd, self._last_rgbd, guess, recovery=True))
+            if verified is not None:
+                return verified
+            self.backend["projective_statistics"]["recovery_cpu_fallbacks"] += 1
+        return verify(legacy_relative())
 
     @reuse_icp_source
     def _register(self, source_pcd, rgbd=None):
@@ -863,6 +1055,13 @@ class ScanEngine:
         visual = self._visual_register(source_pcd, rgbd)
         if visual is not None:
             return visual, "keyframe+visual"
+        if self.backend["live_recovery"] == "deferred" and self.settings.color_recovery:
+            return None, "No verified visual alignment; raw view retained for Finish recovery"
+        if self._pending_model_cloud is not None:
+            with self._stage("model_refresh"):
+                self._extract_model_pcd(from_snapshot=True)
+        self._ensure_raw_normals(source_pcd)
+        self._ensure_raw_normals(self._last_reg_pcd)
         if self._tracking_lost_frames:
             # ICP against a large accumulated model can snap onto another side
             # of a box. Resume only after verification against the last actual
@@ -874,6 +1073,8 @@ class ScanEngine:
                 recovered = self._relocalize(source_pcd, rgbd)
                 if recovered is not None:
                     return recovered, "appearance+icp"
+            except CudaInputError:
+                raise
             except (RuntimeError, ValueError):
                 logger.debug("Appearance relocalization failed", exc_info=True)
             return None, "Tracking lost; match the last good view to resume fusion"
@@ -882,6 +1083,8 @@ class ScanEngine:
                 recovered = self._color_recovery(source_pcd, rgbd)
                 if recovered is not None:
                     return recovered, "rgbd+icp"
+            except CudaInputError:
+                raise
             except (RuntimeError, ValueError):
                 logger.debug("Color-assisted tracking failed", exc_info=True)
         result = self._icp(source_pcd, self.model_pcd, init=self.cumulative_T)
@@ -907,6 +1110,8 @@ class ScanEngine:
             recovered = self._color_recovery(source_pcd, rgbd)
             if recovered is not None:
                 return recovered, "rgbd+icp"
+        except CudaInputError:
+            raise
         except (RuntimeError, ValueError):
             logger.debug("Color recovery failed", exc_info=True)
         # Global recovery is subject to the same confidence and motion limits.
@@ -914,12 +1119,16 @@ class ScanEngine:
             recovered = self._fpfh_fallback(source_pcd, self.model_pcd)
             if self._alignment_error(recovered, self.model_pcd) is None:
                 return recovered, "global"
+        except CudaInputError:
+            raise
         except Exception:
             logger.debug("Global recovery failed", exc_info=True)
         try:
             recovered = self._relocalize(source_pcd, rgbd)
             if recovered is not None:
                 return recovered, "appearance+icp"
+        except CudaInputError:
+            raise
         except (RuntimeError, ValueError):
             logger.debug("Appearance relocalization failed", exc_info=True)
         return None, error
@@ -939,8 +1148,9 @@ class ScanEngine:
                 cached = self._visual_cache.get(index)
                 target = cached[1] if cached is not None else None
                 if target is None:
-                    rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                    rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
                     target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+            self._ensure_raw_normals(target)
             forward = _match(source, target, np.eye(4))
             if not _trustworthy(forward, target):
                 continue
@@ -983,6 +1193,8 @@ class ScanEngine:
         if self._last_reg_pcd is None:
             self._last_reg_pcd = self._make_reg_pcd(self._last_rgbd)
         target = self._last_reg_pcd
+        self._ensure_raw_normals(source)
+        self._ensure_raw_normals(target)
         forward = _match(source, target, relative)
         reverse = _match(target, source, np.linalg.inv(forward.transformation))
         cycle_m, cycle_deg = motion(reverse.transformation @ forward.transformation)
@@ -1068,6 +1280,13 @@ class ScanEngine:
         return len(self.raw_frames) - self._processed_count
 
     # ── public API: process on demand ──────────────────────────────────
+    def _require_safe_volume(self):
+        if self.fusion_failure is not None:
+            raise FusionUpdateError(self.fusion_failure["message"])
+        if self.input_failure is not None:
+            raise CudaInputError(self.input_failure["message"])
+
+    @registration_scope
     def process_frames(self, progress_cb=None, max_frames=None) -> dict:
         """Process all unprocessed stored frames through ICP + TSDF.
 
@@ -1076,6 +1295,7 @@ class ScanEngine:
 
         Returns summary dict.
         """
+        self._require_safe_volume()
         total = len(self.raw_frames)
         start = self._processed_count
         processed = 0
@@ -1086,9 +1306,39 @@ class ScanEngine:
             rgb, depth = self.raw_frames[i]
             self._frame_timings = {}
             frame_started = time.monotonic()
+            fusion_generation = self._live_fusion_generation
             try:
                 result = self._process_single_frame(rgb, depth)
+            except FusionUpdateError as exc:
+                logger.exception("CUDA fusion failed; live volume cannot be reused")
+                message = ("CUDA fusion failed; the live volume may be partially updated. "
+                           "Raw frames are retained. Save Session, then reset and replay the recording.")
+                self.fusion_failure = {"index": i, "reason": str(exc), "message": message,
+                                       "completed_live_update": self._live_fusion_generation != fusion_generation}
+                raise FusionUpdateError(message) from exc
+            except CudaInputError as exc:
+                if self._live_fusion_generation != fusion_generation:
+                    logger.exception("Frame %d input preparation failed after fusion", i)
+                    message = ("Reconstruction stopped after fusion because input preparation failed. "
+                               "Raw frames are retained. Save Session, then reset and replay the recording.")
+                    self.fusion_failure = {"index": i, "reason": str(exc), "message": message,
+                                           "completed_live_update": True}
+                    raise FusionUpdateError(message) from exc
+                logger.exception("Frame %d CUDA preparation failed; processing paused", i)
+                message = ("CUDA preparation stopped before fusion: " + str(exc) + ". "
+                           "Raw frames are retained. Save Session, then reset and replay the recording. "
+                           "For compatibility errors, set KINECT_CUDA_INPUT or KINECT_CUDA_CONFIDENCE "
+                           "to auto or off before restarting.")
+                self.input_failure = {"index": i, "reason": str(exc), "message": message}
+                raise CudaInputError(message) from exc
             except Exception as exc:
+                if self._live_fusion_generation != fusion_generation:
+                    logger.exception("Frame %d failed after fusion; live volume cannot be reused", i)
+                    message = ("Reconstruction stopped after fusion because frame processing failed. "
+                               "Raw frames are retained. Save Session, then reset and replay the recording.")
+                    self.fusion_failure = {"index": i, "reason": str(exc), "message": message,
+                                           "completed_live_update": True}
+                    raise FusionUpdateError(message) from exc
                 logger.exception("Frame %d failed", i)
                 result = {"success": False, "message": f"Frame failed: {exc}"}
             self._processed_count = i + 1
@@ -1130,10 +1380,10 @@ class ScanEngine:
 
     def _process_single_frame(self, rgb: np.ndarray, depth: np.ndarray) -> dict:
         """Process a single frame through ICP registration + TSDF integration."""
-        t0 = time.monotonic()
+        t0 = time.perf_counter()
 
         with self._stage("depth_filter"):
-            rgb, depth = prepare_rgbd(rgb, depth, self.settings)
+            rgb, depth = self._prepare_input(rgb, depth, self.settings)
         valid_fraction = np.count_nonzero(depth) / depth.size
         if np.count_nonzero(depth) < 1000:
             return {
@@ -1143,7 +1393,7 @@ class ScanEngine:
         # Legacy RGBD + registration point cloud (CPU)
         with self._stage("registration_cloud"):
             rgbd = self._make_rgbd(rgb, depth)
-            current_pcd = self._make_reg_pcd(rgbd)
+            current_pcd = self._make_reg_pcd(rgbd, normals=self._needs_raw_normals())
 
         if len(current_pcd.points) < 100:
             return {
@@ -1171,13 +1421,14 @@ class ScanEngine:
             extrinsic = np.linalg.inv(self.cumulative_T)
             with self._stage("fusion"):
                 self._integrate_vbg(rgb, depth, extrinsic)
+                self._live_fusion_generation += 1
             with self._stage("model_refresh"):
                 self._extract_model_pcd()
             self.frame_count = 1
             self._last_rgbd = rgbd
             self._last_reg_pcd = current_pcd
             self.poses.append((self._processed_count, self.cumulative_T.copy()))
-            elapsed_ms = (time.monotonic() - t0) * 1000
+            elapsed_ms = (time.perf_counter() - t0) * 1000
             return {
                 "success": True,
                 "frame_count": 1,
@@ -1190,6 +1441,8 @@ class ScanEngine:
         try:
             with self._stage("tracking"):
                 result, method = self._register(current_pcd, rgbd)
+        except (CudaInputError, FusionUpdateError):
+            raise
         except Exception as e:
             return {
                 "success": False,
@@ -1215,11 +1468,13 @@ class ScanEngine:
         pose = result.transformation
         with self._stage("fusion"):
             self._integrate_vbg(rgb, depth, np.linalg.inv(pose))
+            self._live_fusion_generation += 1
         self.cumulative_T = pose
         self._last_rgbd = rgbd
         self._last_reg_pcd = current_pcd
         self.frame_count += 1
         self._integrations_since_model += 1
+        self._integrations_since_preview += 1
         self.poses.append((self._processed_count, pose.copy()))
         if self._visual_evidence is not None:
             self.tracking_edges.append({"source_index": self._processed_count,
@@ -1228,13 +1483,16 @@ class ScanEngine:
         # Refresh model periodically
         should_extract = (
             method in ("global", "appearance+icp")
-            or self._integrations_since_model >= self.MODEL_REFRESH_INTERVAL
+            or self._integrations_since_preview >= self.MODEL_REFRESH_INTERVAL
         )
         if should_extract:
             with self._stage("model_refresh"):
-                self._extract_model_pcd()
+                if method == "keyframe+visual" and self.backend["model_preparation"] == "lazy":
+                    self._refresh_live_points()
+                else:
+                    self._extract_model_pcd()
 
-        elapsed_ms = (time.monotonic() - t0) * 1000
+        elapsed_ms = (time.perf_counter() - t0) * 1000
 
         if method == "global":
             msg = (
@@ -1306,7 +1564,7 @@ class ScanEngine:
                     )
                 candidate.vbg = self._create_vbg(block_count=max(1, required))
                 for completed, (index, pose) in enumerate(proposals, 1):
-                    rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                    rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
                     candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
                     if progress_cb:
                         progress_cb(completed, len(proposals), {
@@ -1344,7 +1602,7 @@ class ScanEngine:
                     result.update(frame_count=count, fusion_paused=not result["success"],
                                   last_tracked_index=last_tracked)
                 last_index, last_pose = proposals[-1]
-                last_rgbd = self._make_rgbd(*prepare_rgbd(*self.raw_frames[last_index], self.settings))
+                last_rgbd = self._make_rgbd(*self._prepare_input(*self.raw_frames[last_index], self.settings))
                 report.update(applied=True, reason=(f"Reconnected {report['recovered_frames']} views; "
                               f"{report['corrected_frames']} poses corrected, {len(report['excluded_frames'])} excluded"),
                               fusion_blocks=int(candidate.vbg.hashmap().size()),
@@ -1353,7 +1611,8 @@ class ScanEngine:
                 # Native work has succeeded; commit the candidate as one state.
                 self.original_poses = [(i, p.copy()) for i, p in self.poses]
                 for name in ("vbg", "model_pcd", "_live_points", "_live_colors", "_model_feature_cloud",
-                             "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model"):
+                             "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model",
+                             "_integrations_since_preview", "_pending_model_cloud", "_pending_model_frame_count"):
                     setattr(self, name, getattr(candidate, name))
                 self.poses, self.diagnostics = proposals, diagnostics
                 self._pose_seeds_only = False
@@ -1418,7 +1677,7 @@ class ScanEngine:
                 candidate.vbg = self._create_vbg()
                 for index, pose in proposals:
                     rgb, depth = self.raw_frames[index]
-                    rgb, depth = prepare_rgbd(rgb, depth, self.settings)
+                    rgb, depth = self._prepare_input(rgb, depth, self.settings)
                     candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
                 candidate._extract_model_pcd()
                 if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
@@ -1449,6 +1708,9 @@ class ScanEngine:
                     "_model_pyramid",
                     "_tensor_model_pyramid",
                     "_integrations_since_model",
+                    "_integrations_since_preview",
+                    "_pending_model_cloud",
+                    "_pending_model_frame_count",
                 ):
                     setattr(self, name, getattr(candidate, name))
                 self.poses = proposals
@@ -1499,7 +1761,7 @@ class ScanEngine:
                 candidate._fusion_block_limit = limit
                 candidate.vbg = self._create_vbg(block_count=max(1, required))
                 for completed, (index, pose) in enumerate(proposals, 1):
-                    rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+                    rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
                     candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
                     if progress_cb:
                         progress_cb(completed, len(proposals), {
@@ -1515,12 +1777,13 @@ class ScanEngine:
                     diagnostics[index]["pose"] = pose.tolist()
                 originals = [(i, p.copy()) for i, p in self.poses]
                 last_index, last_pose = proposals[-1]
-                last_rgbd = self._make_rgbd(*prepare_rgbd(*self.raw_frames[last_index], self.settings))
+                last_rgbd = self._make_rgbd(*self._prepare_input(*self.raw_frames[last_index], self.settings))
                 report.update(applied=True, reason="Validated joint RGB-D refinement committed after fresh fusion",
                               fusion_blocks=int(candidate.vbg.hashmap().size()))
                 # Native allocation, fusion, extraction and state preparation succeeded.
                 for name in ("vbg", "model_pcd", "_live_points", "_live_colors", "_model_feature_cloud",
-                             "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model"):
+                             "_model_fpfh", "_model_pyramid", "_tensor_model_pyramid", "_integrations_since_model",
+                             "_integrations_since_preview", "_pending_model_cloud", "_pending_model_frame_count"):
                     setattr(self, name, getattr(candidate, name))
                 if self.original_poses is None:
                     self.original_poses = originals
@@ -1558,7 +1821,7 @@ class ScanEngine:
         candidate._fusion_block_limit = self.settings.final_block_count
         candidate.vbg = candidate._create_vbg(block_count=candidate._fusion_block_limit)
         for completed, (index, pose) in enumerate(self.poses, 1):
-            rgb, depth = prepare_rgbd(*self.raw_frames[index], self.settings)
+            rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
             candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
             if progress_cb:
                 progress_cb(
@@ -1583,6 +1846,7 @@ class ScanEngine:
         }
         return candidate.vbg
 
+    @registration_scope
     def build_mesh(self, progress_cb=None) -> tuple[bool, dict]:
         """Build transactionally; a failed final build preserves existing geometry."""
         process_result = self.process_frames(progress_cb=progress_cb)

@@ -1,0 +1,2826 @@
+{
+  "kind": "bounded-real-query-grid-lookup-causal-ablation",
+  "status": "passed",
+  "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "current_script_sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+  "initial_script_sha256": "a630cb0a0ad4c5aeb29147751c4fe240997c1ea3cd5ebacff556064179c19ad1",
+  "traces": [
+    {
+      "directory": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1",
+      "capture_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\capture.json",
+        "sha256": "bdb5b4845f81f2c2224b7ac2106806223dfbb76e684782a106a55bf7aba4a97e",
+        "bytes": 65737
+      },
+      "manifest": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\real.json",
+        "sha256": "c393cae8900b10f52a7cac34e9e1f811ac0f9e59b3a7a64ca2832aecece53531",
+        "bytes": 47519
+      },
+      "trace": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\real.npz",
+        "sha256": "4c73378fbfd2695f85f02ca1153abcfbbbc91b9814ae01705f52d4b839d3b13f",
+        "bytes": 7193754
+      },
+      "source_snapshot": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\benchmark_grid_lookup_ablation.py",
+        "sha256": "a630cb0a0ad4c5aeb29147751c4fe240997c1ea3cd5ebacff556064179c19ad1",
+        "bytes": 37153
+      },
+      "execution_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\capture-execution.json",
+        "sha256": "6b2fb2008e5c246597f6b291e0e838e50244c2852105ec8c69348d06d48288b5",
+        "bytes": 908
+      },
+      "execution": {
+        "python": "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+        "arguments": [
+          "scripts/benchmark_grid_lookup_ablation.py",
+          "capture",
+          "--run-allocated",
+          "--include-flat",
+          "--trace",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-v1/real.npz",
+          "--output",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-v1/capture.json",
+          "--proof-synthetic",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/synthetic-proof.json",
+          "--proof-bridge",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/bridge-audit.json"
+        ],
+        "started_utc": "2026-10-08T08:10:39.1881244Z",
+        "script_sha256": "a630cb0a0ad4c5aeb29147751c4fe240997c1ea3cd5ebacff556064179c19ad1",
+        "state": "exited",
+        "omp_threads": "8",
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "ended_utc": "2026-10-08T08:11:03.2054403Z",
+        "exit_code": 0
+      },
+      "capture_log": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\capture.log",
+        "sha256": "a6de3b4eec474cd7540c886f2465dc59ede1adf1a462b4360dd25d1de98887ea",
+        "bytes": 231
+      },
+      "raw_input_and_fixture_reference_proofs": {
+        "fixture": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.fixture.pickle",
+          "sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955"
+        },
+        "reference": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.json",
+          "sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3"
+        },
+        "raw": {
+          "path": "F:\\Projects\\coding\\Kinect-3D-Scanner\\export\\chest-3-scan-session_20261006_215208.zip",
+          "sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4"
+        },
+        "synthetic_proof": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\synthetic-proof.json",
+          "sha256": "0fb2606f0f6928e6136380ffeb2f53e5903c2c4924fa4636ef4ad57bbf5b0406"
+        },
+        "bridge_proof": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\bridge-audit.json",
+          "sha256": "31057a3b5eba202f822e0bbc0c7efc136f8c73893ac1d95f24d011ae6b80d18f"
+        }
+      },
+      "proof_report_hashes": {
+        "synthetic": "0fb2606f0f6928e6136380ffeb2f53e5903c2c4924fa4636ef4ad57bbf5b0406",
+        "bridge": "31057a3b5eba202f822e0bbc0c7efc136f8c73893ac1d95f24d011ae6b80d18f"
+      },
+      "ablation_artifacts_sha256": {
+        "scripts\\benchmark_grid_lookup_ablation.py": "a630cb0a0ad4c5aeb29147751c4fe240997c1ea3cd5ebacff556064179c19ad1",
+        "scripts\\cuda_staged_grid_registration.py": "171b2612d30787db1ae84c2d9f1351a447f92914303a025c60492687f640e65e",
+        "scripts\\research_staged_grid_nn.cu": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+        "scripts\\research_parallel_grid_nn.cu": "131bef63d1a52293e669bce3dfc75c994dba648def7b49a086fbdea4d011c009",
+        "scripts\\research_parallel_staged_grid_nn.cu": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+        "scripts\\research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d"
+      },
+      "retained_array_bytes": 7177680,
+      "all_nine_original_capture_gates_passed": true,
+      "all_closed_capture_guards_passed": true,
+      "sample_scope_counts": {
+        "0/camera/0.12": 1,
+        "0/camera/0.06": 1,
+        "0/camera/0.03": 1,
+        "0/fragment_union/0.12": 1,
+        "0/fragment_union/0.06": 1,
+        "0/fragment_union/0.03": 1,
+        "4/camera/0.12": 1,
+        "4/camera/0.06": 1,
+        "4/camera/0.03": 1,
+        "4/fragment_union/0.12": 1,
+        "4/fragment_union/0.06": 1,
+        "4/fragment_union/0.03": 1
+      },
+      "batch_bindings": [
+        {
+          "index": 0,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "source_query_count": 10207,
+          "query_count": 2048,
+          "complete_query_sha256": "c801b041011bb67ba64c9a990977c73a92b57bbb10ddeaab2fe0c5bc9fd334f6",
+          "retained_array_sha256": {
+            "queries": "cfb0bbc3db153771200a7e297453184c5ee1c9878fc71b562d1b310743644c70",
+            "target_points": "044e1ca91df186c598609d1b5c42542b356a57f7bb09014af822730da1dc1ecb",
+            "target_normals": "ecc1515d4823937e2d077716287a34a6d0c207f89e3f94fbdd0df7abf74e04eb",
+            "gold_ids": "8a5482acc4a6e915fc846209c58b80d87e5866c7f7772047ed06d49fa09b9e58",
+            "source_rows": "83d6f2668eae6f076f9a4ff8a81c2dbec449ed7210e95d3a74da2d4b769c39a7"
+          }
+        },
+        {
+          "index": 1,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "source_query_count": 10207,
+          "query_count": 2048,
+          "complete_query_sha256": "d95aafd5e858622833a96c3909b30bed4d2dc16e280792983c936ee67f22cbf3",
+          "retained_array_sha256": {
+            "queries": "33a6ce266dfd6c53bedec66416292b6588c59c355fafdb143d44d30db2350df8",
+            "target_points": "044e1ca91df186c598609d1b5c42542b356a57f7bb09014af822730da1dc1ecb",
+            "target_normals": "ecc1515d4823937e2d077716287a34a6d0c207f89e3f94fbdd0df7abf74e04eb",
+            "gold_ids": "fc9bcdea394c00a6cd429a34c085ad8ce49610b7dc5de3751bcadd317d117a3a",
+            "source_rows": "83d6f2668eae6f076f9a4ff8a81c2dbec449ed7210e95d3a74da2d4b769c39a7"
+          }
+        },
+        {
+          "index": 2,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "source_query_count": 10207,
+          "query_count": 2048,
+          "complete_query_sha256": "466016ec06503cca06f97a3fc0e70501d046503346747c1e1035950f5ea8e31a",
+          "retained_array_sha256": {
+            "queries": "6415b68c05ac2de2006eb3fe8f94757e18a5afedb2b460bbf492d22cc0d2220d",
+            "target_points": "044e1ca91df186c598609d1b5c42542b356a57f7bb09014af822730da1dc1ecb",
+            "target_normals": "ecc1515d4823937e2d077716287a34a6d0c207f89e3f94fbdd0df7abf74e04eb",
+            "gold_ids": "111ca164391e8bbd8872afe8337c7f45828d51ae4b9bf0eaa5178e3f62f8aca0",
+            "source_rows": "83d6f2668eae6f076f9a4ff8a81c2dbec449ed7210e95d3a74da2d4b769c39a7"
+          }
+        },
+        {
+          "index": 3,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "source_query_count": 10286,
+          "query_count": 2048,
+          "complete_query_sha256": "66772f3e479dfde9d7faecb4c1a3ad06069c301b410383c58666f9d1856dd447",
+          "retained_array_sha256": {
+            "queries": "bf50acec4bf84af7ffe0cf39f27a131fb3c5731b794a40b7ab99da82ae5f5c95",
+            "target_points": "81675b06fbf9fca1661cb8eafe36516cd212ee702d0556fb0121ba39a465cda4",
+            "target_normals": "6e44a6c926f9619ffe2c44dac78eb03d43f873562a92f16052c442ea8aa747f6",
+            "gold_ids": "aa4f81f39b6ee3a4f9e6d8316268712798005e32f22a660eac2474972defdf8f",
+            "source_rows": "0341a520db81e21ae09f01beeeb04819a1c633b10d9dfdbc7922e8bb13c6d7f1"
+          }
+        },
+        {
+          "index": 4,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "source_query_count": 10286,
+          "query_count": 2048,
+          "complete_query_sha256": "0f2aa29991a0389e48b4e0afdeb3518b9d301254f415d94ae245437ee839aff8",
+          "retained_array_sha256": {
+            "queries": "90456c44619b11201b473be5bf4d7fb2fe99ef21f9e193aa0b94bfd6f475c60b",
+            "target_points": "81675b06fbf9fca1661cb8eafe36516cd212ee702d0556fb0121ba39a465cda4",
+            "target_normals": "6e44a6c926f9619ffe2c44dac78eb03d43f873562a92f16052c442ea8aa747f6",
+            "gold_ids": "6d05e03cb59b3480da9ddfc054122e521e420144eee39bbf0d0c0f3a2c6b3a3e",
+            "source_rows": "0341a520db81e21ae09f01beeeb04819a1c633b10d9dfdbc7922e8bb13c6d7f1"
+          }
+        },
+        {
+          "index": 5,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "source_query_count": 10286,
+          "query_count": 2048,
+          "complete_query_sha256": "4af28c382530196cdd9858696720ae4f6ad0a794530d631cfaed5aebc1e85fb1",
+          "retained_array_sha256": {
+            "queries": "2387a83c3700526e92fc7630fe9b0f5f69692f7ddc00d4e0c60b507bf5088415",
+            "target_points": "81675b06fbf9fca1661cb8eafe36516cd212ee702d0556fb0121ba39a465cda4",
+            "target_normals": "6e44a6c926f9619ffe2c44dac78eb03d43f873562a92f16052c442ea8aa747f6",
+            "gold_ids": "3c4f4203ff4d3e06a1c248649adebf33ccc7ff08e7c3c8974804b6194de59204",
+            "source_rows": "0341a520db81e21ae09f01beeeb04819a1c633b10d9dfdbc7922e8bb13c6d7f1"
+          }
+        },
+        {
+          "index": 6,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "source_query_count": 8114,
+          "query_count": 2048,
+          "complete_query_sha256": "2fa734e2c38d3c532bb8015d566fbea86e7fd4bb4a43392c28d33a3ea347e30a",
+          "retained_array_sha256": {
+            "queries": "58a38a30d4a0d23dcc3b7e84fffebdf102b675102df030518b39fa238285371d",
+            "target_points": "a7b8e351cda2557e6e990348b9c386a8843d69542e1842bec7b115863c6705b2",
+            "target_normals": "07c04b9b772cedfd922e6e8e2532ad41d146d7c8412a742846469dd164902900",
+            "gold_ids": "0956727b886ac8ed1dfcabecd3883b8ac7df78b6ff6f313764087aedd41ebc70",
+            "source_rows": "463a9963f94cae1beadbeab554707ae945be5feeef4040ff7b96fc14a37888a0"
+          }
+        },
+        {
+          "index": 7,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "source_query_count": 8114,
+          "query_count": 2048,
+          "complete_query_sha256": "1f30e5426898f2c73ff68277f4efb8fad8ed5e75f74e21565fa0c292055b5d42",
+          "retained_array_sha256": {
+            "queries": "418c61327a1a232ce934406d8855ae539b2b5cdc5403bc88caba84268baf969f",
+            "target_points": "a7b8e351cda2557e6e990348b9c386a8843d69542e1842bec7b115863c6705b2",
+            "target_normals": "07c04b9b772cedfd922e6e8e2532ad41d146d7c8412a742846469dd164902900",
+            "gold_ids": "9568445c5fb1b32eefdd88d17112a9993e478140eace344e27cf6eea4ecaacd6",
+            "source_rows": "463a9963f94cae1beadbeab554707ae945be5feeef4040ff7b96fc14a37888a0"
+          }
+        },
+        {
+          "index": 8,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "source_query_count": 8114,
+          "query_count": 2048,
+          "complete_query_sha256": "0361ea8cb7494fab7639a750498f5bd608b22cdf49afb1142f647b1014b85fbb",
+          "retained_array_sha256": {
+            "queries": "bc67419f148ea26b2a8c68f2cd79f2d91e32105e08e1e292f4a2a589a1c5f00d",
+            "target_points": "a7b8e351cda2557e6e990348b9c386a8843d69542e1842bec7b115863c6705b2",
+            "target_normals": "07c04b9b772cedfd922e6e8e2532ad41d146d7c8412a742846469dd164902900",
+            "gold_ids": "417ae4c1c08d4aa5ea6849d3f571082df17f75d7d2ed19b9c0c9a0d8bf136d98",
+            "source_rows": "463a9963f94cae1beadbeab554707ae945be5feeef4040ff7b96fc14a37888a0"
+          }
+        },
+        {
+          "index": 9,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "source_query_count": 7846,
+          "query_count": 2048,
+          "complete_query_sha256": "f1926ff86cb414aa690f229ca95251895641276afad76655f182faff76e9b50f",
+          "retained_array_sha256": {
+            "queries": "744469197f142677fa53aa1ad24469287c6ef955e53bc851c52f509744cdbe82",
+            "target_points": "308982db8796b36457f2fb1526fb2e7bceaec460241a2f9953bd7810ba42425e",
+            "target_normals": "a63fbe0f02174e512ceb334063ffc969a3a76c3765de4786cf2aa06b9544725f",
+            "gold_ids": "b9e78e5e6bcc7fe49a060f8c3df535d9461dabebe275d0a4707077f032030c4c",
+            "source_rows": "e36467291228ec5961aa0171d660fcf6f2f301125cfe83236c42aa2a48a996e6"
+          }
+        },
+        {
+          "index": 10,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "source_query_count": 7846,
+          "query_count": 2048,
+          "complete_query_sha256": "9c55cfdf9c90058deaf770aef74916f4cf2fd67d007de598761b110eb69bb478",
+          "retained_array_sha256": {
+            "queries": "9ff81240536c2564ba7c3a509a7a381a9644c6b7b41208b97f12e7d5b3507101",
+            "target_points": "308982db8796b36457f2fb1526fb2e7bceaec460241a2f9953bd7810ba42425e",
+            "target_normals": "a63fbe0f02174e512ceb334063ffc969a3a76c3765de4786cf2aa06b9544725f",
+            "gold_ids": "d30d58d45ab7bb0776af5e57f1f282042aa7bf48ead80f893a52938f87344c8c",
+            "source_rows": "e36467291228ec5961aa0171d660fcf6f2f301125cfe83236c42aa2a48a996e6"
+          }
+        },
+        {
+          "index": 11,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "source_query_count": 7846,
+          "query_count": 2048,
+          "complete_query_sha256": "b7416f2a7ba1fd033f2d9145b12ee58f5e999b393f67ac3cc7fe384c9c98901e",
+          "retained_array_sha256": {
+            "queries": "0f2d8ed85c739cd032929fa00e0340f042ab03b4934b7c9728d2e0e827cd4ae0",
+            "target_points": "308982db8796b36457f2fb1526fb2e7bceaec460241a2f9953bd7810ba42425e",
+            "target_normals": "a63fbe0f02174e512ceb334063ffc969a3a76c3765de4786cf2aa06b9544725f",
+            "gold_ids": "7a632fa01f2040319c3a05c6de064a143d73691b936545bce250eba5e57193bf",
+            "source_rows": "e36467291228ec5961aa0171d660fcf6f2f301125cfe83236c42aa2a48a996e6"
+          }
+        }
+      ]
+    },
+    {
+      "directory": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2",
+      "capture_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\capture.json",
+        "sha256": "97d38dcbccd846099280079f81a331f5772d459f0801ce08b0be5c4316592fff",
+        "bytes": 65751
+      },
+      "manifest": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\real.json",
+        "sha256": "da6075211ef5edebd748708487c9036288bf965acb839ac077160bf710dcaac4",
+        "bytes": 47552
+      },
+      "trace": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\real.npz",
+        "sha256": "735315cfb2123b67d12fde95782e894d50db7e16eb2ed9a4b2e2054162c6e65f",
+        "bytes": 7193754
+      },
+      "source_snapshot": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\benchmark_grid_lookup_ablation.py",
+        "sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "bytes": 38018
+      },
+      "execution_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\capture-execution.json",
+        "sha256": "ba71fae511626d2f0b43e36705d62691106dc4db9864de97b5a5207c73c29485",
+        "bytes": 920
+      },
+      "execution": {
+        "python": "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+        "arguments": [
+          "scripts/benchmark_grid_lookup_ablation.py",
+          "capture",
+          "--run-allocated",
+          "--include-flat",
+          "--trace",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-order-v2/real.npz",
+          "--output",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-order-v2/capture.json",
+          "--proof-synthetic",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/synthetic-proof.json",
+          "--proof-bridge",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/bridge-audit.json"
+        ],
+        "started_utc": "2026-10-08T08:15:38.8515363Z",
+        "script_sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "state": "exited",
+        "omp_threads": "8",
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "ended_utc": "2026-10-08T08:16:02.5287410Z",
+        "exit_code": 0
+      },
+      "capture_log": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\capture.log",
+        "sha256": "98ba171b4243e7c67cdf0cecec1b1a84ae9c04f0757bf3364524983d60ffe666",
+        "bytes": 237
+      },
+      "raw_input_and_fixture_reference_proofs": {
+        "fixture": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.fixture.pickle",
+          "sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955"
+        },
+        "reference": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.json",
+          "sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3"
+        },
+        "raw": {
+          "path": "F:\\Projects\\coding\\Kinect-3D-Scanner\\export\\chest-3-scan-session_20261006_215208.zip",
+          "sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4"
+        },
+        "synthetic_proof": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\synthetic-proof.json",
+          "sha256": "0fb2606f0f6928e6136380ffeb2f53e5903c2c4924fa4636ef4ad57bbf5b0406"
+        },
+        "bridge_proof": {
+          "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\bridge-audit.json",
+          "sha256": "31057a3b5eba202f822e0bbc0c7efc136f8c73893ac1d95f24d011ae6b80d18f"
+        }
+      },
+      "proof_report_hashes": {
+        "synthetic": "0fb2606f0f6928e6136380ffeb2f53e5903c2c4924fa4636ef4ad57bbf5b0406",
+        "bridge": "31057a3b5eba202f822e0bbc0c7efc136f8c73893ac1d95f24d011ae6b80d18f"
+      },
+      "ablation_artifacts_sha256": {
+        "scripts\\benchmark_grid_lookup_ablation.py": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "scripts\\cuda_staged_grid_registration.py": "171b2612d30787db1ae84c2d9f1351a447f92914303a025c60492687f640e65e",
+        "scripts\\research_staged_grid_nn.cu": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+        "scripts\\research_parallel_grid_nn.cu": "131bef63d1a52293e669bce3dfc75c994dba648def7b49a086fbdea4d011c009",
+        "scripts\\research_parallel_staged_grid_nn.cu": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+        "scripts\\research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d"
+      },
+      "retained_array_bytes": 7177680,
+      "all_nine_original_capture_gates_passed": true,
+      "all_closed_capture_guards_passed": true,
+      "sample_scope_counts": {
+        "0/camera/0.12": 1,
+        "0/camera/0.06": 1,
+        "0/camera/0.03": 1,
+        "0/fragment_union/0.12": 1,
+        "0/fragment_union/0.06": 1,
+        "0/fragment_union/0.03": 1,
+        "4/camera/0.12": 1,
+        "4/camera/0.06": 1,
+        "4/camera/0.03": 1,
+        "4/fragment_union/0.12": 1,
+        "4/fragment_union/0.06": 1,
+        "4/fragment_union/0.03": 1
+      },
+      "batch_bindings": [
+        {
+          "index": 0,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "source_query_count": 10207,
+          "query_count": 2048,
+          "complete_query_sha256": "c801b041011bb67ba64c9a990977c73a92b57bbb10ddeaab2fe0c5bc9fd334f6",
+          "retained_array_sha256": {
+            "queries": "cfb0bbc3db153771200a7e297453184c5ee1c9878fc71b562d1b310743644c70",
+            "target_points": "044e1ca91df186c598609d1b5c42542b356a57f7bb09014af822730da1dc1ecb",
+            "target_normals": "ecc1515d4823937e2d077716287a34a6d0c207f89e3f94fbdd0df7abf74e04eb",
+            "gold_ids": "8a5482acc4a6e915fc846209c58b80d87e5866c7f7772047ed06d49fa09b9e58",
+            "source_rows": "83d6f2668eae6f076f9a4ff8a81c2dbec449ed7210e95d3a74da2d4b769c39a7"
+          }
+        },
+        {
+          "index": 1,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "source_query_count": 10207,
+          "query_count": 2048,
+          "complete_query_sha256": "457ab38bc41a4ac43c33d3fd649c44eb352b34006a118a6dba4a9946dd2ab23c",
+          "retained_array_sha256": {
+            "queries": "6d422a6c2592a73c557d38c7a6aaeb83b7143115bc46111432d6cfe70d322124",
+            "target_points": "044e1ca91df186c598609d1b5c42542b356a57f7bb09014af822730da1dc1ecb",
+            "target_normals": "ecc1515d4823937e2d077716287a34a6d0c207f89e3f94fbdd0df7abf74e04eb",
+            "gold_ids": "fc9bcdea394c00a6cd429a34c085ad8ce49610b7dc5de3751bcadd317d117a3a",
+            "source_rows": "83d6f2668eae6f076f9a4ff8a81c2dbec449ed7210e95d3a74da2d4b769c39a7"
+          }
+        },
+        {
+          "index": 2,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "source_query_count": 10207,
+          "query_count": 2048,
+          "complete_query_sha256": "ee2269226d556386ea704890890f426a19daeb84a4565494b5da52cc1c813ee3",
+          "retained_array_sha256": {
+            "queries": "e35e21f399f244f162dc5def3ac3b42114a282b9acd114a8f7b31358ec82a8bb",
+            "target_points": "044e1ca91df186c598609d1b5c42542b356a57f7bb09014af822730da1dc1ecb",
+            "target_normals": "ecc1515d4823937e2d077716287a34a6d0c207f89e3f94fbdd0df7abf74e04eb",
+            "gold_ids": "111ca164391e8bbd8872afe8337c7f45828d51ae4b9bf0eaa5178e3f62f8aca0",
+            "source_rows": "83d6f2668eae6f076f9a4ff8a81c2dbec449ed7210e95d3a74da2d4b769c39a7"
+          }
+        },
+        {
+          "index": 3,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "source_query_count": 10286,
+          "query_count": 2048,
+          "complete_query_sha256": "f209643fab7786e6a4aa9d59ee8accd8a22720e53894aabbe569c16d4f254f17",
+          "retained_array_sha256": {
+            "queries": "bd5123f143bf2dbbe0485d2d14ebf15a85637515528527c7ffeddf4501b5a90c",
+            "target_points": "81675b06fbf9fca1661cb8eafe36516cd212ee702d0556fb0121ba39a465cda4",
+            "target_normals": "6e44a6c926f9619ffe2c44dac78eb03d43f873562a92f16052c442ea8aa747f6",
+            "gold_ids": "aa4f81f39b6ee3a4f9e6d8316268712798005e32f22a660eac2474972defdf8f",
+            "source_rows": "0341a520db81e21ae09f01beeeb04819a1c633b10d9dfdbc7922e8bb13c6d7f1"
+          }
+        },
+        {
+          "index": 4,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "source_query_count": 10286,
+          "query_count": 2048,
+          "complete_query_sha256": "d9eb8c69790e2f2f141c88d4b3a0b3204cd67d3311f3bd41d2165065202525fb",
+          "retained_array_sha256": {
+            "queries": "94e8adb31dfd5395cac996051f808e5e94a3f0aba44769f3a5223bfbd63ad353",
+            "target_points": "81675b06fbf9fca1661cb8eafe36516cd212ee702d0556fb0121ba39a465cda4",
+            "target_normals": "6e44a6c926f9619ffe2c44dac78eb03d43f873562a92f16052c442ea8aa747f6",
+            "gold_ids": "6d05e03cb59b3480da9ddfc054122e521e420144eee39bbf0d0c0f3a2c6b3a3e",
+            "source_rows": "0341a520db81e21ae09f01beeeb04819a1c633b10d9dfdbc7922e8bb13c6d7f1"
+          }
+        },
+        {
+          "index": 5,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "source_query_count": 10286,
+          "query_count": 2048,
+          "complete_query_sha256": "5ad453e37e5ef5ac92d6628461972e4eb8f52d96df8d6ac97465f3a76a5100c6",
+          "retained_array_sha256": {
+            "queries": "2e0736e13b353f23d8a947d8ab4ec96379fdc299556e91989687e8adb67ec65f",
+            "target_points": "81675b06fbf9fca1661cb8eafe36516cd212ee702d0556fb0121ba39a465cda4",
+            "target_normals": "6e44a6c926f9619ffe2c44dac78eb03d43f873562a92f16052c442ea8aa747f6",
+            "gold_ids": "3c4f4203ff4d3e06a1c248649adebf33ccc7ff08e7c3c8974804b6194de59204",
+            "source_rows": "0341a520db81e21ae09f01beeeb04819a1c633b10d9dfdbc7922e8bb13c6d7f1"
+          }
+        },
+        {
+          "index": 6,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "source_query_count": 8114,
+          "query_count": 2048,
+          "complete_query_sha256": "2fa734e2c38d3c532bb8015d566fbea86e7fd4bb4a43392c28d33a3ea347e30a",
+          "retained_array_sha256": {
+            "queries": "58a38a30d4a0d23dcc3b7e84fffebdf102b675102df030518b39fa238285371d",
+            "target_points": "a7b8e351cda2557e6e990348b9c386a8843d69542e1842bec7b115863c6705b2",
+            "target_normals": "07c04b9b772cedfd922e6e8e2532ad41d146d7c8412a742846469dd164902900",
+            "gold_ids": "0956727b886ac8ed1dfcabecd3883b8ac7df78b6ff6f313764087aedd41ebc70",
+            "source_rows": "463a9963f94cae1beadbeab554707ae945be5feeef4040ff7b96fc14a37888a0"
+          }
+        },
+        {
+          "index": 7,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "source_query_count": 8114,
+          "query_count": 2048,
+          "complete_query_sha256": "9fb4dba3a1a734f48926b4517243faa5e92b814f4193bdd906836d137fb44199",
+          "retained_array_sha256": {
+            "queries": "903d908c1b86f53426f0a21f8e52a8f960a748fa0ef346f68838f1718e53e406",
+            "target_points": "a7b8e351cda2557e6e990348b9c386a8843d69542e1842bec7b115863c6705b2",
+            "target_normals": "07c04b9b772cedfd922e6e8e2532ad41d146d7c8412a742846469dd164902900",
+            "gold_ids": "9568445c5fb1b32eefdd88d17112a9993e478140eace344e27cf6eea4ecaacd6",
+            "source_rows": "463a9963f94cae1beadbeab554707ae945be5feeef4040ff7b96fc14a37888a0"
+          }
+        },
+        {
+          "index": 8,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "source_query_count": 8114,
+          "query_count": 2048,
+          "complete_query_sha256": "4bde29ac5b09ada52d58cb7b4540ef54c4ba5f9b7f37ba38f04225b3443121de",
+          "retained_array_sha256": {
+            "queries": "12aa7b59c7df93476de8f63176adc11d7ed79bbba645d6b6a4681d9d4b6ce082",
+            "target_points": "a7b8e351cda2557e6e990348b9c386a8843d69542e1842bec7b115863c6705b2",
+            "target_normals": "07c04b9b772cedfd922e6e8e2532ad41d146d7c8412a742846469dd164902900",
+            "gold_ids": "417ae4c1c08d4aa5ea6849d3f571082df17f75d7d2ed19b9c0c9a0d8bf136d98",
+            "source_rows": "463a9963f94cae1beadbeab554707ae945be5feeef4040ff7b96fc14a37888a0"
+          }
+        },
+        {
+          "index": 9,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "source_query_count": 7846,
+          "query_count": 2048,
+          "complete_query_sha256": "f1926ff86cb414aa690f229ca95251895641276afad76655f182faff76e9b50f",
+          "retained_array_sha256": {
+            "queries": "744469197f142677fa53aa1ad24469287c6ef955e53bc851c52f509744cdbe82",
+            "target_points": "308982db8796b36457f2fb1526fb2e7bceaec460241a2f9953bd7810ba42425e",
+            "target_normals": "a63fbe0f02174e512ceb334063ffc969a3a76c3765de4786cf2aa06b9544725f",
+            "gold_ids": "b9e78e5e6bcc7fe49a060f8c3df535d9461dabebe275d0a4707077f032030c4c",
+            "source_rows": "e36467291228ec5961aa0171d660fcf6f2f301125cfe83236c42aa2a48a996e6"
+          }
+        },
+        {
+          "index": 10,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "source_query_count": 7846,
+          "query_count": 2048,
+          "complete_query_sha256": "8543ec8124914118dfb0405558dd9c29af6c117a28bcec2e99d7bdb35ce36b6c",
+          "retained_array_sha256": {
+            "queries": "35546d66326569aba497d7fade7b005476aed24994a161cd6370f046bc2cb38e",
+            "target_points": "308982db8796b36457f2fb1526fb2e7bceaec460241a2f9953bd7810ba42425e",
+            "target_normals": "a63fbe0f02174e512ceb334063ffc969a3a76c3765de4786cf2aa06b9544725f",
+            "gold_ids": "d30d58d45ab7bb0776af5e57f1f282042aa7bf48ead80f893a52938f87344c8c",
+            "source_rows": "e36467291228ec5961aa0171d660fcf6f2f301125cfe83236c42aa2a48a996e6"
+          }
+        },
+        {
+          "index": 11,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "source_query_count": 7846,
+          "query_count": 2048,
+          "complete_query_sha256": "e9ae2af5075cdebc68600a51713227a982812da6544f60a3f9e1e6edfd73d951",
+          "retained_array_sha256": {
+            "queries": "97c652bc57e46eb50a9454b66bddbfe9a497382171321ad4c379b91d3a172b1c",
+            "target_points": "308982db8796b36457f2fb1526fb2e7bceaec460241a2f9953bd7810ba42425e",
+            "target_normals": "a63fbe0f02174e512ceb334063ffc969a3a76c3765de4786cf2aa06b9544725f",
+            "gold_ids": "7a632fa01f2040319c3a05c6de064a143d73691b936545bce250eba5e57193bf",
+            "source_rows": "e36467291228ec5961aa0171d660fcf6f2f301125cfe83236c42aa2a48a996e6"
+          }
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "name": "initial_forward",
+      "directory": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1",
+      "report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\lookup.json",
+        "sha256": "f03549f45f6a3664edd3132b9fc47faf8f435d1353bcd00547cf450a797a6918",
+        "bytes": 349723
+      },
+      "execution": {
+        "python": "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+        "arguments": [
+          "scripts/benchmark_grid_lookup_ablation.py",
+          "benchmark",
+          "--run-allocated",
+          "--include-flat",
+          "--trace",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-v1/real.npz",
+          "--output",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-v1/lookup.json",
+          "--proof-synthetic",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/synthetic-proof.json",
+          "--proof-bridge",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/bridge-audit.json"
+        ],
+        "started_utc": "2026-10-08T08:11:27.4657079Z",
+        "script_sha256": "a630cb0a0ad4c5aeb29147751c4fe240997c1ea3cd5ebacff556064179c19ad1",
+        "state": "exited",
+        "omp_threads": "8",
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "ended_utc": "2026-10-08T08:11:32.5615526Z",
+        "exit_code": 0
+      },
+      "execution_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\lookup-execution.json",
+        "sha256": "c53a283f567485bb1b1734ffd035ae187dc93252a3ca4ae5f6a091ef72b57a77",
+        "bytes": 909
+      },
+      "log": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\lookup.log",
+        "sha256": "af4aed4b82fe3414e645b2a57b3de7e59b1efedb4cff2298a78d8ed0ef4e23fe",
+        "bytes": 4267
+      },
+      "source_snapshot": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-v1\\benchmark_grid_lookup_ablation.py",
+        "sha256": "a630cb0a0ad4c5aeb29147751c4fe240997c1ea3cd5ebacff556064179c19ad1",
+        "bytes": 37153
+      },
+      "variant_order": [
+        "serial_full",
+        "parallel_full",
+        "serial_staged",
+        "parallel_staged",
+        "flat_full"
+      ],
+      "raw_family_reference_variants": {
+        "serial_full": "serial_full",
+        "serial_staged": "serial_staged"
+      },
+      "totals": {
+        "serial_full": {
+          "gpu_event_s": 0.010570975989103316,
+          "lookup_enqueue_and_sync_wall_s": 0.012295299995457754,
+          "output_d2h_wall_s": 0.003338699978485238,
+          "lookup_and_output_transfer_wall_s": 0.01563399997394299,
+          "dataset_setup_sum_s": 0.051353600014408585,
+          "query_h2d_sum_s": 0.0008167000123648904,
+          "cpu_resolution_sum_s": 0.11822249996475875,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "parallel_full": {
+          "gpu_event_s": 0.007812095999717712,
+          "lookup_enqueue_and_sync_wall_s": 0.009628899970266502,
+          "output_d2h_wall_s": 0.0032513999904040247,
+          "lookup_and_output_transfer_wall_s": 0.012880299960670527,
+          "dataset_setup_sum_s": 0.051568099996075034,
+          "query_h2d_sum_s": 0.0008115999880828895,
+          "cpu_resolution_sum_s": 0.11790239997935714,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "serial_staged": {
+          "gpu_event_s": 0.019409952014684678,
+          "lookup_enqueue_and_sync_wall_s": 0.021266099996864796,
+          "output_d2h_wall_s": 0.0035207999899284914,
+          "lookup_and_output_transfer_wall_s": 0.024786899986793287,
+          "dataset_setup_sum_s": 0.1352941000222927,
+          "query_h2d_sum_s": 0.0007270000060088933,
+          "cpu_resolution_sum_s": 0.1178856000333326,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "parallel_staged": {
+          "gpu_event_s": 0.00901843200623989,
+          "lookup_enqueue_and_sync_wall_s": 0.010836800014658365,
+          "output_d2h_wall_s": 0.0035518000076990575,
+          "lookup_and_output_transfer_wall_s": 0.014388600022357423,
+          "dataset_setup_sum_s": 0.13204540001606802,
+          "query_h2d_sum_s": 0.0007296000039787032,
+          "cpu_resolution_sum_s": 0.11842379996960517,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "flat_full": {
+          "gpu_event_s": 0.006102880001068115,
+          "lookup_enqueue_and_sync_wall_s": 0.007743899986962788,
+          "output_d2h_wall_s": 0.0031335000094259158,
+          "lookup_and_output_transfer_wall_s": 0.010877399996388704,
+          "dataset_setup_sum_s": 0.04999939998378977,
+          "query_h2d_sum_s": 0.0006882999950903468,
+          "cpu_resolution_sum_s": 0.11685040000884328,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        }
+      },
+      "by_scope_radius": [
+        {
+          "scope": "camera",
+          "radius_m": 0.03,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.001710400015115738,
+              0.0025885999930324033
+            ],
+            "parallel_full": [
+              0.0013662080019712448,
+              0.0024439999979222193
+            ],
+            "serial_staged": [
+              0.0034299200177192687,
+              0.004224099968269002
+            ],
+            "parallel_staged": [
+              0.0015585599988698958,
+              0.002425000013317913
+            ],
+            "flat_full": [
+              0.0008760320022702217,
+              0.0016332000232068822
+            ]
+          }
+        },
+        {
+          "scope": "camera",
+          "radius_m": 0.06,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0016924159973859786,
+              0.0025383999818586744
+            ],
+            "parallel_full": [
+              0.0012946879863739015,
+              0.0021621999912895262
+            ],
+            "serial_staged": [
+              0.002961663991212845,
+              0.003652100007457193
+            ],
+            "parallel_staged": [
+              0.0014659520089626314,
+              0.002441500015265774
+            ],
+            "flat_full": [
+              0.0009048640057444572,
+              0.0015907999986666255
+            ]
+          }
+        },
+        {
+          "scope": "camera",
+          "radius_m": 0.12,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0019598079919815065,
+              0.0029884000032325275
+            ],
+            "parallel_full": [
+              0.001464032009243965,
+              0.0022187999929883517
+            ],
+            "serial_staged": [
+              0.00302319997549057,
+              0.003990999990492128
+            ],
+            "parallel_staged": [
+              0.0014720640107989311,
+              0.002342899977520574
+            ],
+            "flat_full": [
+              0.0012228800058364869,
+              0.0019063999934587628
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0016558720022439959,
+              0.002376399999775458
+            ],
+            "parallel_full": [
+              0.0011880000159144402,
+              0.002119999990100041
+            ],
+            "serial_staged": [
+              0.0035706560015678407,
+              0.004374500007543247
+            ],
+            "parallel_staged": [
+              0.00161395201086998,
+              0.002496800007065758
+            ],
+            "flat_full": [
+              0.0009223039895296097,
+              0.0018103999900631607
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0017332800030708312,
+              0.002538199994887691
+            ],
+            "parallel_full": [
+              0.001152671992778778,
+              0.0018590999752632342
+            ],
+            "serial_staged": [
+              0.0032889280319213865,
+              0.00424590000329772
+            ],
+            "parallel_staged": [
+              0.001338079996407032,
+              0.0020014000037917867
+            ],
+            "flat_full": [
+              0.0010162880048155784,
+              0.0018722000022535212
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0018191999793052672,
+              0.002604000001156237
+            ],
+            "parallel_full": [
+              0.0013464959934353829,
+              0.0020762000131071545
+            ],
+            "serial_staged": [
+              0.0031355839967727663,
+              0.004299300009733997
+            ],
+            "parallel_staged": [
+              0.001569823980331421,
+              0.0026810000053956173
+            ],
+            "flat_full": [
+              0.0011605119928717613,
+              0.0020643999887397513
+            ]
+          }
+        }
+      ],
+      "per_batch_wins": {
+        "flat_vs_parallel_event_batches": 11,
+        "flat_vs_parallel_wall_batches": 10,
+        "flat_vs_serial_event_batches": 12,
+        "flat_vs_serial_wall_batches": 11,
+        "real_batches": 12
+      },
+      "variant_compile_setup": [
+        {
+          "variant": "serial_full",
+          "base_adapter_setup_s": 0.023407400003634393,
+          "replacement_shader_compile_s": 0.0,
+          "shader": "research_uniform_grid_nn.cu",
+          "shader_sha256": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "parallel_full",
+          "base_adapter_setup_s": 0.0002243999988422729,
+          "replacement_shader_compile_s": 0.09303940000245348,
+          "shader": "research_parallel_grid_nn.cu",
+          "shader_sha256": "131bef63d1a52293e669bce3dfc75c994dba648def7b49a086fbdea4d011c009",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "serial_staged",
+          "base_adapter_setup_s": 0.0006981000042287633,
+          "replacement_shader_compile_s": 0.0,
+          "shader": "research_staged_grid_nn.cu",
+          "shader_sha256": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "parallel_staged",
+          "base_adapter_setup_s": 0.0002148000057786703,
+          "replacement_shader_compile_s": 0.10439780000160681,
+          "shader": "research_parallel_staged_grid_nn.cu",
+          "shader_sha256": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "flat_full",
+          "base_adapter_setup_s": 0.00024370000028284267,
+          "replacement_shader_compile_s": 0.0986306000049808,
+          "shader": "research_flat_grid_nn.cu",
+          "shader_sha256": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        }
+      ],
+      "fresh_cpu_gold_audit_once_per_real_batch_s": 0.06920810000883648,
+      "focused_case_names": [
+        "duplicates-ties-boundary",
+        "minimum-radius-subnormal",
+        "unsupported-inner-supported-full",
+        "unsupported-original-domain"
+      ],
+      "all_exact_cpu_and_raw_family_checks_passed": true,
+      "all_provenance_guards_passed": true,
+      "cleanup_failures": [],
+      "per_batch_rankings": [
+        {
+          "batch": 0,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.16300610955887,
+          "serial_over_flat_event_ratio": 1.4048892256840217
+        },
+        {
+          "batch": 1,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.409114730636797,
+          "serial_over_flat_event_ratio": 2.207405731731595
+        },
+        {
+          "batch": 2,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.442680216949618,
+          "serial_over_flat_event_ratio": 2.0985950783174436
+        },
+        {
+          "batch": 3,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "parallel_staged",
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.1806751151829336,
+          "serial_over_flat_event_ratio": 1.6144694775106068
+        },
+        {
+          "batch": 4,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "serial_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.535495135396754,
+          "serial_over_flat_event_ratio": 1.6363513471959414
+        },
+        {
+          "batch": 5,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.6287770910575394,
+          "serial_over_flat_event_ratio": 2.0901510895327577
+        },
+        {
+          "batch": 6,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.1565069896528037,
+          "serial_over_flat_event_ratio": 1.7899751804843973
+        },
+        {
+          "batch": 7,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "parallel_full",
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "flat_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 0.9350635236527262,
+          "serial_over_flat_event_ratio": 1.3419480923941973
+        },
+        {
+          "batch": 8,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.1773358298191408,
+          "serial_over_flat_event_ratio": 1.578157593196903
+        },
+        {
+          "batch": 9,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.2166847258558262,
+          "serial_over_flat_event_ratio": 1.5886411360085433
+        },
+        {
+          "batch": 10,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.315307939483429,
+          "serial_over_flat_event_ratio": 2.1285331842552173
+        },
+        {
+          "batch": 11,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "parallel_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.4867355978439714,
+          "serial_over_flat_event_ratio": 1.807628916532797
+        }
+      ]
+    },
+    {
+      "name": "matched_forward",
+      "directory": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2",
+      "report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\lookup-forward.json",
+        "sha256": "a5d092ad84d873b011f86964f5cf2df83eb65a1525ab56e7f062c09d9005cc4c",
+        "bytes": 350076
+      },
+      "execution": {
+        "python": "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+        "arguments": [
+          "scripts/benchmark_grid_lookup_ablation.py",
+          "benchmark",
+          "--run-allocated",
+          "--include-flat",
+          "--trace",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-order-v2/real.npz",
+          "--output",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-order-v2/lookup-forward.json",
+          "--proof-synthetic",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/synthetic-proof.json",
+          "--proof-bridge",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/bridge-audit.json"
+        ],
+        "order": "forward",
+        "started_utc": "2026-10-08T08:16:27.0275101Z",
+        "script_sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "state": "exited",
+        "omp_threads": "8",
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "ended_utc": "2026-10-08T08:16:31.8633624Z",
+        "exit_code": 0
+      },
+      "execution_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\lookup-forward-execution.json",
+        "sha256": "a61e81246483530ce1ff4e6cc80e6891691b3a4eecff795b510af5593132770c",
+        "bytes": 952
+      },
+      "log": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\lookup-forward.log",
+        "sha256": "51365f74ce92adbdb216f4ac18521c1fdc323d90aaa7c07b24e87ef30b0d4251",
+        "bytes": 4281
+      },
+      "source_snapshot": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\benchmark_grid_lookup_ablation.py",
+        "sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "bytes": 38018
+      },
+      "variant_order": [
+        "serial_full",
+        "parallel_full",
+        "serial_staged",
+        "parallel_staged",
+        "flat_full"
+      ],
+      "raw_family_reference_variants": {
+        "serial_full": "serial_full",
+        "serial_staged": "serial_staged"
+      },
+      "totals": {
+        "serial_full": {
+          "gpu_event_s": 0.010775424003601075,
+          "lookup_enqueue_and_sync_wall_s": 0.01288809997640783,
+          "output_d2h_wall_s": 0.003409199991438072,
+          "lookup_and_output_transfer_wall_s": 0.016297299967845902,
+          "dataset_setup_sum_s": 0.05087410000123782,
+          "query_h2d_sum_s": 0.0008504000070388429,
+          "cpu_resolution_sum_s": 0.11733500001719221,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "parallel_full": {
+          "gpu_event_s": 0.007585312008857727,
+          "lookup_enqueue_and_sync_wall_s": 0.009310400018875953,
+          "output_d2h_wall_s": 0.003118399989034515,
+          "lookup_and_output_transfer_wall_s": 0.012428800007910468,
+          "dataset_setup_sum_s": 0.05025900001055561,
+          "query_h2d_sum_s": 0.0007114000036381185,
+          "cpu_resolution_sum_s": 0.1172807999610086,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "serial_staged": {
+          "gpu_event_s": 0.019396511867642404,
+          "lookup_enqueue_and_sync_wall_s": 0.021258500011754222,
+          "output_d2h_wall_s": 0.0034629999499884434,
+          "lookup_and_output_transfer_wall_s": 0.024721499961742666,
+          "dataset_setup_sum_s": 0.13535189999674913,
+          "query_h2d_sum_s": 0.0007217000165837817,
+          "cpu_resolution_sum_s": 0.11770779997459613,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "parallel_staged": {
+          "gpu_event_s": 0.009571808025240899,
+          "lookup_enqueue_and_sync_wall_s": 0.011773399994126521,
+          "output_d2h_wall_s": 0.0037972999998601153,
+          "lookup_and_output_transfer_wall_s": 0.015570699993986636,
+          "dataset_setup_sum_s": 0.1335385999918799,
+          "query_h2d_sum_s": 0.0007457000101567246,
+          "cpu_resolution_sum_s": 0.11862190003012074,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "flat_full": {
+          "gpu_event_s": 0.006657952003180981,
+          "lookup_enqueue_and_sync_wall_s": 0.008620099979452789,
+          "output_d2h_wall_s": 0.0034509000106481835,
+          "lookup_and_output_transfer_wall_s": 0.012070999990100972,
+          "dataset_setup_sum_s": 0.05100229998060968,
+          "query_h2d_sum_s": 0.0007331999877351336,
+          "cpu_resolution_sum_s": 0.11808149998978479,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        }
+      },
+      "by_scope_radius": [
+        {
+          "scope": "camera",
+          "radius_m": 0.03,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0017208640128374099,
+              0.0026335999864386395
+            ],
+            "parallel_full": [
+              0.001079744003713131,
+              0.0017651000089244917
+            ],
+            "serial_staged": [
+              0.0034911359846591947,
+              0.004403600003570318
+            ],
+            "parallel_staged": [
+              0.0016369920074939728,
+              0.0026102000192622654
+            ],
+            "flat_full": [
+              0.0010137280002236366,
+              0.0019111999936285429
+            ]
+          }
+        },
+        {
+          "scope": "camera",
+          "radius_m": 0.06,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0018167359977960588,
+              0.0028957999966223724
+            ],
+            "parallel_full": [
+              0.0012691840156912803,
+              0.0021595999933197163
+            ],
+            "serial_staged": [
+              0.0030319039821624758,
+              0.003781799976422917
+            ],
+            "parallel_staged": [
+              0.001609951987862587,
+              0.0026492999750189483
+            ],
+            "flat_full": [
+              0.0010623040050268173,
+              0.002017699989664834
+            ]
+          }
+        },
+        {
+          "scope": "camera",
+          "radius_m": 0.12,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0018760319948196412,
+              0.002789599988318514
+            ],
+            "parallel_full": [
+              0.001564863994717598,
+              0.0024449000047752634
+            ],
+            "serial_staged": [
+              0.003109535962343216,
+              0.004275999992387369
+            ],
+            "parallel_staged": [
+              0.0016749759912490845,
+              0.0028125999815529212
+            ],
+            "flat_full": [
+              0.0014079679995775223,
+              0.002280200002132915
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.001651199996471405,
+              0.0023489999875891954
+            ],
+            "parallel_full": [
+              0.0010466879978775977,
+              0.0018179000035161152
+            ],
+            "serial_staged": [
+              0.003732063978910446,
+              0.004669800000556279
+            ],
+            "parallel_staged": [
+              0.0017385280132293701,
+              0.0027897000036318786
+            ],
+            "flat_full": [
+              0.001001600004732609,
+              0.0019062000064877793
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0018869440108537675,
+              0.0029170999987400137
+            ],
+            "parallel_full": [
+              0.0011335039958357811,
+              0.0018354999847360887
+            ],
+            "serial_staged": [
+              0.0031361279785633088,
+              0.003815099989878945
+            ],
+            "parallel_staged": [
+              0.0016174400001764298,
+              0.0027037999825552106
+            ],
+            "flat_full": [
+              0.0010038079991936686,
+              0.0018874999950639904
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0018236479908227922,
+              0.002712200010137167
+            ],
+            "parallel_full": [
+              0.0014913280010223388,
+              0.0024058000126387924
+            ],
+            "serial_staged": [
+              0.002895743981003761,
+              0.003775199998926837
+            ],
+            "parallel_staged": [
+              0.001293920025229454,
+              0.002005100031965412
+            ],
+            "flat_full": [
+              0.0011685439944267273,
+              0.002068200003122911
+            ]
+          }
+        }
+      ],
+      "per_batch_wins": {
+        "flat_vs_parallel_event_batches": 10,
+        "flat_vs_parallel_wall_batches": 7,
+        "flat_vs_serial_event_batches": 12,
+        "flat_vs_serial_wall_batches": 11,
+        "real_batches": 12
+      },
+      "variant_compile_setup": [
+        {
+          "variant": "serial_full",
+          "base_adapter_setup_s": 0.022867699997732416,
+          "replacement_shader_compile_s": 0.0,
+          "shader": "research_uniform_grid_nn.cu",
+          "shader_sha256": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "parallel_full",
+          "base_adapter_setup_s": 0.0002609000002848916,
+          "replacement_shader_compile_s": 0.0050235999951837584,
+          "shader": "research_parallel_grid_nn.cu",
+          "shader_sha256": "131bef63d1a52293e669bce3dfc75c994dba648def7b49a086fbdea4d011c009",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "serial_staged",
+          "base_adapter_setup_s": 0.0005750999989686534,
+          "replacement_shader_compile_s": 0.0,
+          "shader": "research_staged_grid_nn.cu",
+          "shader_sha256": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "parallel_staged",
+          "base_adapter_setup_s": 0.00019070000416832045,
+          "replacement_shader_compile_s": 0.00430190000042785,
+          "shader": "research_parallel_staged_grid_nn.cu",
+          "shader_sha256": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "flat_full",
+          "base_adapter_setup_s": 0.00024120000307448208,
+          "replacement_shader_compile_s": 0.0041592999987187795,
+          "shader": "research_flat_grid_nn.cu",
+          "shader_sha256": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        }
+      ],
+      "fresh_cpu_gold_audit_once_per_real_batch_s": 0.06693740000628168,
+      "focused_case_names": [
+        "duplicates-ties-boundary",
+        "minimum-radius-subnormal",
+        "unsupported-inner-supported-full",
+        "unsupported-original-domain"
+      ],
+      "all_exact_cpu_and_raw_family_checks_passed": true,
+      "all_provenance_guards_passed": true,
+      "cleanup_failures": [],
+      "per_batch_rankings": [
+        {
+          "batch": 0,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.5638609388311078,
+          "serial_over_flat_event_ratio": 1.910793726944959
+        },
+        {
+          "batch": 1,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.454815371147736,
+          "serial_over_flat_event_ratio": 2.3443471830195115
+        },
+        {
+          "batch": 2,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.2649316879265522,
+          "serial_over_flat_event_ratio": 2.0198819641045644
+        },
+        {
+          "batch": 3,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.161331386034442,
+          "serial_over_flat_event_ratio": 1.3736740557548774
+        },
+        {
+          "batch": 4,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.2143428041611846,
+          "serial_over_flat_event_ratio": 1.5299696043685276
+        },
+        {
+          "batch": 5,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "flat_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.1221658618887607,
+          "serial_over_flat_event_ratio": 1.5979832011694024
+        },
+        {
+          "batch": 6,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "flat_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.0233623201276034,
+          "serial_over_flat_event_ratio": 1.252765910766017
+        },
+        {
+          "batch": 7,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "parallel_full",
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "flat_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 0.8946473647501556,
+          "serial_over_flat_event_ratio": 1.5451354727277986
+        },
+        {
+          "batch": 8,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "parallel_full",
+            "flat_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "flat_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 0.9012521778897465,
+          "serial_over_flat_event_ratio": 1.4058223726691195
+        },
+        {
+          "batch": 9,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.0649903391836069,
+          "serial_over_flat_event_ratio": 1.2940582535969105
+        },
+        {
+          "batch": 10,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.1692542422201677,
+          "serial_over_flat_event_ratio": 1.9446215830715146
+        },
+        {
+          "batch": 11,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.009993781933279,
+          "serial_over_flat_event_ratio": 1.793792668635721
+        }
+      ]
+    },
+    {
+      "name": "matched_reverse",
+      "directory": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2",
+      "report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\lookup-reverse.json",
+        "sha256": "febd3352d7dafbcccc79bd73072d601e2823a4c842a9a016ed7b5737a228dbfe",
+        "bytes": 350141
+      },
+      "execution": {
+        "python": "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+        "arguments": [
+          "scripts/benchmark_grid_lookup_ablation.py",
+          "benchmark",
+          "--run-allocated",
+          "--include-flat",
+          "--trace",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-order-v2/real.npz",
+          "--output",
+          "benchmark-output/cuda-pipeline/grid-lookup-ablation-order-v2/lookup-reverse.json",
+          "--proof-synthetic",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/synthetic-proof.json",
+          "--proof-bridge",
+          "benchmark-output/cuda-pipeline/uniform-grid-nearest/bridge-audit.json",
+          "--reverse-order"
+        ],
+        "order": "reverse",
+        "started_utc": "2026-10-08T08:16:31.8933815Z",
+        "script_sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "state": "exited",
+        "omp_threads": "8",
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "ended_utc": "2026-10-08T08:16:36.6666413Z",
+        "exit_code": 0
+      },
+      "execution_report": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\lookup-reverse-execution.json",
+        "sha256": "eb48f4b46d26a17fde5b46f13675cc4386965ed7927bfdfb3485e221887788c5",
+        "bytes": 976
+      },
+      "log": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\lookup-reverse.log",
+        "sha256": "5f4a4ac599bf0e394444d349511285b02b2dae5ebbb57ba49b1e163d8cdf139d",
+        "bytes": 4281
+      },
+      "source_snapshot": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\grid-lookup-ablation-order-v2\\benchmark_grid_lookup_ablation.py",
+        "sha256": "d5c946fe25da33dad6484ed3ca28cab057d071ee28fbc75c4e8ff9dafb321e7d",
+        "bytes": 38018
+      },
+      "variant_order": [
+        "flat_full",
+        "parallel_staged",
+        "serial_staged",
+        "parallel_full",
+        "serial_full"
+      ],
+      "raw_family_reference_variants": {
+        "serial_full": "flat_full",
+        "serial_staged": "parallel_staged"
+      },
+      "totals": {
+        "serial_full": {
+          "gpu_event_s": 0.010638719961047172,
+          "lookup_enqueue_and_sync_wall_s": 0.01245170001493534,
+          "output_d2h_wall_s": 0.0034112999856006354,
+          "lookup_and_output_transfer_wall_s": 0.015863000000535976,
+          "dataset_setup_sum_s": 0.0519485000113491,
+          "query_h2d_sum_s": 0.0007205999791040085,
+          "cpu_resolution_sum_s": 0.11693919995741453,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "parallel_full": {
+          "gpu_event_s": 0.007557311981916427,
+          "lookup_enqueue_and_sync_wall_s": 0.009467399991990533,
+          "output_d2h_wall_s": 0.0032330000030924566,
+          "lookup_and_output_transfer_wall_s": 0.01270039999508299,
+          "dataset_setup_sum_s": 0.05020010002044728,
+          "query_h2d_sum_s": 0.0007320000004256144,
+          "cpu_resolution_sum_s": 0.1162283000012394,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "serial_staged": {
+          "gpu_event_s": 0.018698272064328194,
+          "lookup_enqueue_and_sync_wall_s": 0.020254800023394637,
+          "output_d2h_wall_s": 0.003146200026094448,
+          "lookup_and_output_transfer_wall_s": 0.023401000049489085,
+          "dataset_setup_sum_s": 0.12876540000434034,
+          "query_h2d_sum_s": 0.0006661999868811108,
+          "cpu_resolution_sum_s": 0.11580199999298202,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "parallel_staged": {
+          "gpu_event_s": 0.008736288011074065,
+          "lookup_enqueue_and_sync_wall_s": 0.010245299999951385,
+          "output_d2h_wall_s": 0.003089999998337589,
+          "lookup_and_output_transfer_wall_s": 0.013335299998288974,
+          "dataset_setup_sum_s": 0.12947020001593046,
+          "query_h2d_sum_s": 0.0009770000106072985,
+          "cpu_resolution_sum_s": 0.11659470001904992,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        },
+        "flat_full": {
+          "gpu_event_s": 0.006258848018944264,
+          "lookup_enqueue_and_sync_wall_s": 0.007913500019640196,
+          "output_d2h_wall_s": 0.0031135000099311583,
+          "lookup_and_output_transfer_wall_s": 0.011027000029571354,
+          "dataset_setup_sum_s": 0.049820500003988855,
+          "query_h2d_sum_s": 0.0007276999967871234,
+          "cpu_resolution_sum_s": 0.1153412999919965,
+          "real_batches": 12,
+          "query_rows_per_repeat": 24576,
+          "measured_repeats": 5
+        }
+      },
+      "by_scope_radius": [
+        {
+          "scope": "camera",
+          "radius_m": 0.03,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.00176944001019001,
+              0.0027960000006714836
+            ],
+            "parallel_full": [
+              0.0012894079834222794,
+              0.002403899998171255
+            ],
+            "serial_staged": [
+              0.003317888021469116,
+              0.004016500002762768
+            ],
+            "parallel_staged": [
+              0.0014570559859275818,
+              0.0021511999948415905
+            ],
+            "flat_full": [
+              0.00085606399923563,
+              0.0015634999945177697
+            ]
+          }
+        },
+        {
+          "scope": "camera",
+          "radius_m": 0.06,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0016745599955320359,
+              0.0024988999939523637
+            ],
+            "parallel_full": [
+              0.0012739519849419593,
+              0.0021054999815532938
+            ],
+            "serial_staged": [
+              0.002958591997623444,
+              0.0036770000151591375
+            ],
+            "parallel_staged": [
+              0.0015594239979982375,
+              0.002472499996656552
+            ],
+            "flat_full": [
+              0.0009490560069680214,
+              0.001691899997240398
+            ]
+          }
+        },
+        {
+          "scope": "camera",
+          "radius_m": 0.12,
+          "target_point_counts": [
+            14639,
+            9562
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.001755615994334221,
+              0.002493299987690989
+            ],
+            "parallel_full": [
+              0.0014740800112485884,
+              0.002363599996897392
+            ],
+            "serial_staged": [
+              0.002823615998029709,
+              0.0035243000093032606
+            ],
+            "parallel_staged": [
+              0.0014260480105876923,
+              0.002171399988583289
+            ],
+            "flat_full": [
+              0.0014514240175485611,
+              0.0024484000023221597
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0020704959928989413,
+              0.003211000010196585
+            ],
+            "parallel_full": [
+              0.000993696004152298,
+              0.0016803000180516392
+            ],
+            "serial_staged": [
+              0.003476863980293274,
+              0.004184200028248597
+            ],
+            "parallel_staged": [
+              0.0014937600046396255,
+              0.0021702000085497275
+            ],
+            "flat_full": [
+              0.0009479999914765358,
+              0.0018072000166284852
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.001726879984140396,
+              0.0025364999964949675
+            ],
+            "parallel_full": [
+              0.0012359039932489395,
+              0.002041399995505344
+            ],
+            "serial_staged": [
+              0.0033038720190525055,
+              0.004317400002037175
+            ],
+            "parallel_staged": [
+              0.0013977600112557412,
+              0.0021361000181059353
+            ],
+            "flat_full": [
+              0.0009284480065107346,
+              0.0016344000105164014
+            ]
+          }
+        },
+        {
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "target_point_counts": [
+            9987,
+            9513
+          ],
+          "query_rows_per_repeat": 4096,
+          "variant_event_and_lookup_d2h_sum_s": {
+            "serial_full": [
+              0.0016417279839515686,
+              0.002327300011529587
+            ],
+            "parallel_full": [
+              0.0012902720049023627,
+              0.0021057000049040653
+            ],
+            "serial_staged": [
+              0.0028174400478601456,
+              0.003681599991978146
+            ],
+            "parallel_staged": [
+              0.0014022400006651879,
+              0.00223389999155188
+            ],
+            "flat_full": [
+              0.0011258559972047806,
+              0.0018816000083461404
+            ]
+          }
+        }
+      ],
+      "per_batch_wins": {
+        "flat_vs_parallel_event_batches": 10,
+        "flat_vs_parallel_wall_batches": 10,
+        "flat_vs_serial_event_batches": 12,
+        "flat_vs_serial_wall_batches": 11,
+        "real_batches": 12
+      },
+      "variant_compile_setup": [
+        {
+          "variant": "flat_full",
+          "base_adapter_setup_s": 0.02271370000380557,
+          "replacement_shader_compile_s": 0.0005301999990479089,
+          "shader": "research_flat_grid_nn.cu",
+          "shader_sha256": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "parallel_staged",
+          "base_adapter_setup_s": 0.0005372000014176592,
+          "replacement_shader_compile_s": 0.0004642999992938712,
+          "shader": "research_parallel_staged_grid_nn.cu",
+          "shader_sha256": "a81aaf0cbc4c17bc5b4a4796cf8d32c5b7aeb0ffa8d364061159f9bb23c88090",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "serial_staged",
+          "base_adapter_setup_s": 0.0001782000035746023,
+          "replacement_shader_compile_s": 0.0,
+          "shader": "research_staged_grid_nn.cu",
+          "shader_sha256": "ca041321558b93968284160cc90ccf01c7063cf92ef4a7a409f7f0044c0ab3c1",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "parallel_full",
+          "base_adapter_setup_s": 0.0001584999990882352,
+          "replacement_shader_compile_s": 0.0004151999964960851,
+          "shader": "research_parallel_grid_nn.cu",
+          "shader_sha256": "131bef63d1a52293e669bce3dfc75c994dba648def7b49a086fbdea4d011c009",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        },
+        {
+          "variant": "serial_full",
+          "base_adapter_setup_s": 0.0001779000012902543,
+          "replacement_shader_compile_s": 0.0,
+          "shader": "research_uniform_grid_nn.cu",
+          "shader_sha256": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+          "compile_scope": "Replacement variants also compile the baseline adapter kernel; this setup is separate from lookup timing"
+        }
+      ],
+      "fresh_cpu_gold_audit_once_per_real_batch_s": 0.06690239998715697,
+      "focused_case_names": [
+        "duplicates-ties-boundary",
+        "minimum-radius-subnormal",
+        "unsupported-inner-supported-full",
+        "unsupported-original-domain"
+      ],
+      "all_exact_cpu_and_raw_family_checks_passed": true,
+      "all_provenance_guards_passed": true,
+      "cleanup_failures": [],
+      "per_batch_rankings": [
+        {
+          "batch": 0,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.228272882815518,
+          "serial_over_flat_event_ratio": 1.6150943519664849
+        },
+        {
+          "batch": 1,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.486646188767864,
+          "serial_over_flat_event_ratio": 2.0025325827097356
+        },
+        {
+          "batch": 2,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9987,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.3107619021784855,
+          "serial_over_flat_event_ratio": 2.114283372788492
+        },
+        {
+          "batch": 3,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "parallel_staged",
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_staged",
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.0826877851095742,
+          "serial_over_flat_event_ratio": 1.3101234650657367
+        },
+        {
+          "batch": 4,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.3647026907693536,
+          "serial_over_flat_event_ratio": 1.6349621011520927
+        },
+        {
+          "batch": 5,
+          "pair_position": 0,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 14639,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.6265031414545434,
+          "serial_over_flat_event_ratio": 2.1931961986639976
+        },
+        {
+          "batch": 6,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.0671566914571184,
+          "serial_over_flat_event_ratio": 1.3077179779653116
+        },
+        {
+          "batch": 7,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.2043918728472014,
+          "serial_over_flat_event_ratio": 1.7437437180227493
+        },
+        {
+          "batch": 8,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "fragment_union",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9513,
+          "event_ranking": [
+            "parallel_full",
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "parallel_full",
+            "parallel_staged",
+            "flat_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 0.8655486380100219,
+          "serial_over_flat_event_ratio": 2.232614060196377
+        },
+        {
+          "batch": 9,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.12,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "parallel_full",
+            "flat_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "serial_full",
+            "parallel_staged",
+            "parallel_full",
+            "flat_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 0.9490468251405467,
+          "serial_over_flat_event_ratio": 1.109812875794292
+        },
+        {
+          "batch": 10,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.06,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_full",
+            "serial_full",
+            "parallel_staged",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.319696030187767,
+          "serial_over_flat_event_ratio": 1.8955152938328568
+        },
+        {
+          "batch": 11,
+          "pair_position": 4,
+          "proposal_index": 0,
+          "scope": "camera",
+          "radius_m": 0.03,
+          "queries": 2048,
+          "target_points": 9562,
+          "event_ranking": [
+            "flat_full",
+            "parallel_full",
+            "parallel_staged",
+            "serial_full",
+            "serial_staged"
+          ],
+          "lookup_d2h_ranking": [
+            "flat_full",
+            "parallel_staged",
+            "parallel_full",
+            "serial_full",
+            "serial_staged"
+          ],
+          "parallel_over_flat_event_ratio": 1.398455200344732,
+          "serial_over_flat_event_ratio": 1.9538690754607224
+        }
+      ]
+    }
+  ],
+  "matched_forward_reverse_same_exact_trace": true,
+  "initial_and_matched_trace_batch_metadata_equal": false,
+  "matched_order_speed_ratios": {
+    "matched_forward": {
+      "serial_full_over_flat_event": 1.618429210431809,
+      "serial_full_over_flat_lookup_plus_d2h": 1.3501201210513445,
+      "parallel_full_over_flat_event": 1.1392860755430019,
+      "parallel_full_over_flat_lookup_plus_d2h": 1.0296412905395507,
+      "serial_staged_over_parallel_staged_event": 2.0264209036050156,
+      "serial_staged_over_parallel_staged_lookup_plus_d2h": 1.5876935507902692
+    },
+    "matched_reverse": {
+      "serial_full_over_flat_event": 1.6997888315622818,
+      "serial_full_over_flat_lookup_plus_d2h": 1.438559894621911,
+      "parallel_full_over_flat_event": 1.2074605357155146,
+      "parallel_full_over_flat_lookup_plus_d2h": 1.151754780178112,
+      "serial_staged_over_parallel_staged_event": 2.140299408699253,
+      "serial_staged_over_parallel_staged_lookup_plus_d2h": 1.75481616855201
+    }
+  },
+  "interpretation": {
+    "candidate": "flat_full is lowest total sampled raw event and lookup+output-transfer wall in both orders; parallel_full wins some individual batches",
+    "query_authority": "Each fresh capture uses original raw-derived measured local poses and exact unrounded original queries. Forward/reverse share byte-identical v2 trace. Initial v1 is separate provenance and is not treated as the same exact trajectory.",
+    "coverage": "12x2048 retained real rows from accepted[8,12] and rejected[0,2], camera/fragment-union scopes and original0.12/0.06/0.03m ICP radii; four focused original-CPU tie/boundary/subnormal/unsupported cases",
+    "new_shader_authority": "Sampled original CPU nearest gold and same-family all-column uint64 parity for every warmup/repeat. New shaders do not yet have the full104m exact hit/miss shadow audit or whole-session proof.",
+    "event_timer": "GPU event brackets raw device lookup including output allocation and enqueue gaps; overlaps lookup wall and must not be added to it.",
+    "disjoint_wall_timers": "Dataset hash/tree/sort/upload includes selected null-stream sync; queryH2D; lookup enqueue+sync; following outputD2H; CPUresolution are separately reported. FreshCPUgold occurs once per batch, not once per variant.",
+    "setup_limit": "Base adapters compile original serial kernels even for replacement variants; baseline setup and replacement compile are separate; NVRTC cache differs between process orders.",
+    "performance_limit": "Totals are five repeats of bounded2048-query batches with9.5k\u201314.6k target clouds. No component, Finish, liveFPS, production acceleration or extrapolated win claim. Original full-grid bridge needs roughly3.13x search gain to match native on prior all9 timing; these1.62\u20131.70x raw-event gains do not establish that.",
+    "next_measurement": "Best next shader candidate is flat_full, but full fresh accepted/rejected CPU hit+miss audits and original gates must pass before any all-in speed conclusion."
+  },
+  "full_radius_proof_runtime_binding": {
+    "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "artifacts_sha256": {
+      "scripts\\benchmark_uniform_grid_nn.py": "85e71c0e46e9eaf96ffce2bec8f7f743c60ea8ce2e8a7eb2d7882fac0c4b0233",
+      "scripts\\cuda_uniform_grid_registration.py": "0c034d72f31e82d0b9a0c9ea2fcd1bdd0b5e3667d52850a594db66d3b139f883",
+      "scripts\\research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+      "scripts\\UNIFORM_GRID_RESEARCH.md": "86b63bbc8f1907c3276e7ce2b4b142fb8529654a777b9c1add75a891ac8c5e55",
+      "scripts\\benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+      "scripts\\benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+      "scripts\\benchmark_selective_fragment_threads.py": "9e0a806077bda62ef2ade96de8d1a67cc013ef3f15de3171e50320327de0dcfe",
+      "scripts\\profile_fragment_verification.py": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+      "scanner_server\\cuda_nn_registration.py": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "scripts\\validate_uniform_grid_proof.py": "ec3c22c98e7c8610debb3492d12f778013c672f58576f3a55ad3f96f1915a302"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "domain": {
+      "version": "dyadic27-original-double-v1",
+      "radius_m": "2^-20 <= radius <= 1",
+      "cell_width": "smallest power of two >=radius; reversible finite ldexp scaling",
+      "cells": "floor(scaled coordinate) in signed21-bit range [-1048576,1048575]",
+      "packing": "bias each axis by1048576; x<<42|y<<21|z, no collisions in declared domain",
+      "enclosure": "CPU strict squared-distance hit implies every absolute coordinate difference<cell_width; at most one floor cell apart",
+      "distance": "original float64 points; explicit RN subtraction, multiply and left-associated add; --fmad=false; CuPy injects -ftz=true for single precision only",
+      "uncertainty": "64epsilon relative metric margin for nearest/second/radius; CPU ties and boundary/unsupported fallback",
+      "missing_policy": "original CPU tree unless explicitly research-certified and CPU hit/miss proof bound to helper/source/kernel/input"
+    },
+    "domain_sha256": "2d32b4fb40dacde39c62ddf3f7d68e0c8cad783a57669b4fdb668d6551d4cbcb",
+    "versions": {
+      "numpy": "2.5.3",
+      "open3d": "0.20.0",
+      "opencv": "5.0.0",
+      "cupy": "13.6.0"
+    },
+    "thread_policy": {
+      "open3d": 20,
+      "opencv": 20,
+      "omp": "8"
+    },
+    "cache_policy": {
+      "max_clouds": 64,
+      "retained_gpu_bytes": 268435456,
+      "limit": "Retained grid arrays only; transient launch/transfer buffers and CuPy pools separately observed"
+    },
+    "policy": "direct-miss-research-v1",
+    "kernel_options": [
+      "--std=c++11",
+      "--fmad=false"
+    ],
+    "cupy_injected_compiler_options": [
+      "-ftz=true; single precision only; original geometry is explicit FP64"
+    ],
+    "cuda_driver_version": 13030,
+    "cuda_runtime_version": 12090,
+    "nvrtc_version": [
+      12,
+      4
+    ],
+    "cuda_compute_capability": "86",
+    "open3d_backend_binary_sha256": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+    "numpy_core_binary_sha256": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+    "numpy_build_configuration_sha256": "853393fd18a6f78e0f4c95ac3154d889032290093edc9ef5fa0cd701d0069fc8",
+    "numpy_cpu_features": {
+      "MMX": true,
+      "SSE": true,
+      "SSE2": true,
+      "SSE3": true,
+      "SSSE3": true,
+      "SSE41": true,
+      "POPCNT": true,
+      "SSE42": true,
+      "X86_V2": true,
+      "AVX": true,
+      "F16C": true,
+      "XOP": false,
+      "FMA4": false,
+      "FMA3": true,
+      "AVX2": true,
+      "LAHF": true,
+      "CX16": true,
+      "MOVBE": true,
+      "BMI": true,
+      "BMI2": true,
+      "LZCNT": true,
+      "GFNI": true,
+      "VPCLMULQDQ": true,
+      "VAES": true,
+      "X86_V3": true,
+      "AVX512F": false,
+      "AVX512CD": false,
+      "AVX512ER": false,
+      "AVX512PF": false,
+      "AVX5124FMAPS": false,
+      "AVX5124VNNIW": false,
+      "AVX512VPOPCNTDQ": false,
+      "AVX512VL": false,
+      "AVX512BW": false,
+      "AVX512DQ": false,
+      "AVX512VNNI": false,
+      "AVX512IFMA": false,
+      "AVX512VBMI": false,
+      "AVX512VBMI2": false,
+      "AVX512BITALG": false,
+      "AVX512FP16": false,
+      "AVX512BF16": false,
+      "AVX512_KNL": false,
+      "AVX512_KNM": false,
+      "AVX512_SKX": false,
+      "X86_V4": false,
+      "AVX512_CLX": false,
+      "AVX512_CNL": false,
+      "AVX512_ICL": false,
+      "AVX512_SPR": false,
+      "VSX": false,
+      "VSX2": false,
+      "VSX3": false,
+      "VSX4": false,
+      "VX": false,
+      "VXE": false,
+      "VXE2": false,
+      "NEON": false,
+      "NEON_FP16": false,
+      "NEON_VFPV4": false,
+      "ASIMD": false,
+      "FPHP": false,
+      "ASIMDHP": false,
+      "ASIMDDP": false,
+      "ASIMDFHM": false,
+      "SVE": false,
+      "RVV": false,
+      "LSX": false
+    }
+  }
+}

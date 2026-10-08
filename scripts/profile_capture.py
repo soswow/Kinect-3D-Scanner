@@ -10,7 +10,6 @@ import cProfile
 import json
 import os
 import platform
-import resource
 import sys
 import time
 from pathlib import Path
@@ -19,6 +18,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts.process_metrics import peak_rss_bytes
 
 import numpy as np
 
@@ -177,8 +177,7 @@ def main():
         ),
         "feedback_bytes": summarize(feedback_sizes, "bytes"),
         "upload_bytes": summarize(upload_sizes, "bytes"),
-        "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        * (1 if sys.platform == "darwin" else 1024),
+        "peak_rss_bytes": peak_rss_bytes(),
         "backend": engine.backend,
         "poses": [
             {"index": index, "pose": pose.tolist()} for index, pose in engine.poses

@@ -2,7 +2,7 @@
 
 CPU voxel math uses shared NumPy buffers, with optional fused C++ updates;
 CUDA math stays on device tensors.
-Confidence is computed on CPU.
+Confidence uses the original CPU callable by default, with checked opt-in CUDA.
 The ordinary optimized integration remains the default.
 
 For a static scalar with independent Gaussian measurements, this weighted
@@ -20,11 +20,23 @@ from shared.native import kernels
 
 
 def integrate_weighted(engine, volume, blocks, rgb, depth, extrinsic):
-    confidence = depth_confidence(depth, engine.settings.camera)
+    preparation = getattr(engine, "_confidence_preparation", None)
+    confidence = (
+        preparation.prepare(depth, engine.settings.camera, depth_confidence)
+        if preparation is not None
+        else depth_confidence(depth, engine.settings.camera)
+    )
     if str(engine.device) == "CPU:0":
         _integrate_cpu(engine, volume, blocks, rgb, depth, extrinsic, confidence)
     else:
-        _integrate_tensor(engine, volume, blocks, rgb, depth, extrinsic, confidence)
+        from .cuda_fusion import integrate, selection
+
+        cp, kernel, status = selection(engine.device)
+        engine.backend["confidence_cuda"] = status
+        if cp is None:
+            _integrate_tensor(engine, volume, blocks, rgb, depth, extrinsic, confidence)
+        else:
+            integrate(engine, volume, blocks, rgb, depth, extrinsic, confidence, cp, kernel)
     valid = depth > 0
     return {
         "mean_observation_weight": float(confidence[valid].mean())

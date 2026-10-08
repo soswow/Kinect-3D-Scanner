@@ -1,0 +1,5 @@
+# Optional report/plot tools for an existing scanner development environment.
+# CUDA benchmarks additionally use requirements-cuda-fusion.txt.
+matplotlib>=3.8,<4
+# Optional HTTP smoke checks against an explicitly selected scanner server.
+httpx

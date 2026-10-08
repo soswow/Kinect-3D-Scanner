@@ -71,10 +71,19 @@ class SessionConfidenceHelperTests(unittest.TestCase):
             source.write_bytes(b"protected raw session")
             before = file_hash(source)
             symlink = directory / "symlink.json"
-            symlink.symlink_to(source)
+            aliases = [source, directory / "unused" / ".." / "session.zip"]
+            try:
+                symlink.symlink_to(source)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) != 1314:
+                    raise
+                # Windows can disallow symlinks without Developer Mode. Still
+                # exercise resolved-path and hardlink protection on that host.
+            else:
+                aliases.append(symlink)
             hardlink = directory / "hardlink.json"
             os.link(source, hardlink)
-            for alias in (source, directory / "unused" / ".." / "session.zip", symlink, hardlink):
+            for alias in aliases + [hardlink]:
                 with self.subTest(alias=alias):
                     self.assertTrue(same_file(source, alias))
                     with self.assertRaisesRegex(ValueError, "aliases source ZIP"):

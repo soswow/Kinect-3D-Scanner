@@ -1,0 +1,2156 @@
+{
+  "status": "passed",
+  "metadata": {
+    "scope": "standalone fixed bridge component; not full Finish, live FPS or graph timing",
+    "fixture": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.fixture.pickle",
+    "fixture_sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "fixture_metadata": {
+      "input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+      "source_sha256": "77d96e0e50ae5cad52743f66a265ba34fd111a17ce2629c4de297e85f4dc36cc",
+      "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+      "measured_fragment_report_sha256": "d4974ebf5b5e0bff8b4ff5750f77d4ea71ac11f644d32634fef6bd267370961a",
+      "verification_dependencies": {
+        "scanner_server/fragments.py:REG": "ca0fc624e3a2ce792b74060f04db5a6a5182b9a8f3c261ef8d5e85e01c2071a9",
+        "scanner_server/fragments.py:MAX_MATCH_CACHE": "b2b17586f5dbd152b91166a7c53fefa0fc8cf12de73ae68656e9e8d3d86e7290",
+        "scanner_server/fragments.py:_rigid": "38e59ed9e32da83b34c0596edeab1a7923e19ad718daff80c65161a07b0a7d39",
+        "scanner_server/fragments.py:_disagrees": "62cba7b592c14a0e33744382ad55f802b8b4de3ce6834d046fd53b9edef5d10f",
+        "scanner_server/fragments.py:_strong": "a0c9780d1c2046892977d575475a2f8a65344358dbb13c82f68615d8a0924136",
+        "scanner_server/fragments.py:_heldout": "792a8b2c3f3250e3f46decbcd0d076d2fc6b8266733cc56e0000f5c942d9a5b9",
+        "scanner_server/fragments.py:_pair": "453e4e18bb49af3aa1e347ee057829218d69b97336e6687027c541440bd41ad2",
+        "scanner_server/fragments.py:_matches": "e489c1192359a871476e42f3376f598441ab2e1403f3f70d7e58d5b6ac439d0f",
+        "scanner_server/fragments.py:_cache_matches": "e0c22b193aa5c1e6d0bb0a421faf90caaa79a49f1298f39944aa5fe0ac3e223f",
+        "scanner_server/fragments.py:_visual_witness": "061c04075956234c47531b4d8e974819fb085c1190f727b64ed82dd683aa4671",
+        "scanner_server/fragments.py:_verify_bridge": "e9be2dc22e072d0e47c0f103e341ec5580f0d11fb4900970da09a01a8b296886",
+        "scanner_server/fragments.py:_independent_pairs": "9fee685ee31da7e1a9e47b17fb0a88ffa817dec9475922cbc6a3cc03e9cd8ed0",
+        "scanner_server/fragments.py:_verify_partial_bridge": "0f3571d44cb5d62e0e0573c41d5fd9d6c5707bcf9ded19ab97be9ada42fa739a",
+        "scanner_server/fragments.py:_verify_visual_bridge": "6f5ce6e2b2ea3362add632c13f0c80243c17339d5e637c7f13a8f21b85e67adb",
+        "scanner_server/refinement.py:REG": "ca0fc624e3a2ce792b74060f04db5a6a5182b9a8f3c261ef8d5e85e01c2071a9",
+        "scanner_server/refinement.py:motion": "de2e5682f6eb3fc6b6308097ef243ad9b5ebe473bcf2dc5dea89071d3a88ec4f",
+        "scanner_server/refinement.py:_match": "fb42d3578c98b0bb2b1ddcaab0ecca627c4d33296e351bad7e0c8d8c5425ca5a",
+        "scanner_server/cuda_registration.py:_device": "1dbd98f0bffa4ca270fc29f78b630ffcccae6348f235eab3b2cf20dd9b1330e3",
+        "scanner_server/cuda_registration.py:match": "e09b86cd3cb4cb64b40b8e2d66ca99407f87d2f8d43f85c7a872fb367d821e19",
+        "scanner_server/cuda_registration.py:as_legacy_result": "21a33be1df18318f1f14837469421770bc8af1aa5aa3f3a4017903de157fccaf",
+        "scanner_server/appearance.py:correspondences": "de1b2db221242ce42aee746380c2733e3e6016ea484144dd4d441b66a79f5c10",
+        "shared/visual_tracking.py:_feature_support": "76056aebc750022d1f2a0199f1c923404d32bcad8167e43de36340046bfdabf5",
+        "shared/visual_tracking.py:feature_agreement": "0ca7f70445a5d0feabbfd226726d193e012d663dc9bb35e6090867495a9cc4e0",
+        "shared/calibration.py:camera_matrix": "ada36e1ed91373b3aab53da18ed978996448faf79903e3943dba23f2b9999f29"
+      },
+      "preparation_dependencies": {
+        "native\\kernels.cpp": "a1f6bf896c5b7835e9574741f3119572e051e6799b92bffb3d79d42d3247d208",
+        "native\\pyproject.toml": "e7f488b822f0365bf652697ed740ec41f6d4d4b984db8b2be6f0497a0f370ea6",
+        "native\\setup.py": "2b9e04b71da11fca4803b9328ca868450ea130bd22e3e5f606629811da0d4b0f",
+        "native\\weighted_fusion.h": "d57868623ed70bc7e61277d0b5100cca843108cfaef3f9963e050b822b0cf9ee",
+        "scanner_server\\appearance.py": "414e2abef5f30501c3ff9f54125354dbefb3999879bc2791f24f80055ebde692",
+        "scanner_server\\fragments.py": "e8d07710580cd435ae2ace32728f0515fabdc3e5eeee1299b090bb681c32aa8b",
+        "scanner_server\\refinement.py": "e5b182037574606ef8a16efcbf43635b3e3936b165ea6a1f80018ff942beab66",
+        "shared\\calibration.py": "d28d40918d580da8d79e1a266bd2e1af26b3beac552f3cf937a063d67b555871",
+        "shared\\capture.py": "ba0aaa200d9ea47fd7a864e60bc52d7a96e82aa492b9f638240f4c397f5fbf1a",
+        "shared\\depth.py": "8102b7a0b7e1d2b5c46f24952127f2afb75e773a0f1aa3ae8728171deb80596d",
+        "shared\\native.py": "36b88337b604396dab09ad5aee055bb277e1426d3e6f4b431d4b56b2377aff65",
+        "shared\\sensor_calibration.py": "91b0937befafe4b4fb171ce02d5fabe8e28b17c73a1671f57f249064b966ae4b",
+        "shared\\settings.py": "a7972ff1b2a04b0f0d71a5e70ee4972531ef0e91119fa6c3d2999e752ac04e76"
+      },
+      "measured_fragment_source_sha256": "aeafd9929e47a75f9c5aaaa58c098de2f018d254c6e2a2cb7299784c4c5994aa",
+      "session": "F:\\Projects\\coding\\Kinect-3D-Scanner\\export\\chest-3-scan-session_20261006_215208.zip",
+      "report": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\production-control\\chest-3-scan-session_20261006_215208-legacy-cached-0.json",
+      "prepared_s": 18.59003500000108,
+      "scope": "fixed prepared bridge tasks; no live replay, graph search, fresh fusion or final mesh timing",
+      "local_pose_source": "measured Finish fragment report; no archived ZIP poses",
+      "rng_policy": "all original RANSAC seeds and visual proposals prepared serially",
+      "versions": {
+        "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:17:27) [MSC v.1929 64 bit (AMD64)]",
+        "numpy": "2.5.3",
+        "open3d": "0.20.0",
+        "opencv": "5.0.0"
+      },
+      "native_mode": "on",
+      "omp_threads": "8",
+      "fixture_pair_order": [
+        [
+          8,
+          12
+        ],
+        [
+          6,
+          14
+        ],
+        [
+          8,
+          14
+        ],
+        [
+          12,
+          14
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          0,
+          5
+        ],
+        [
+          0,
+          6
+        ]
+      ],
+      "native_extension": {
+        "path": "F:\\Projects\\coding\\Kinect-3D-Scanner\\.venv\\Lib\\site-packages\\_kinect_native.cp312-win_amd64.pyd",
+        "sha256": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313"
+      },
+      "runtime_source_sha256_after_preparation": "77d96e0e50ae5cad52743f66a265ba34fd111a17ce2629c4de297e85f4dc36cc",
+      "runtime_changed_during_preparation": false,
+      "runtime_snapshot": {
+        "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.fixture.runtime.zip",
+        "sha256": "576be6f747a779e8fc4bd049b51a00b000074601782939cf7ebd7c662bddc9eb",
+        "contained_source_sha256": "77d96e0e50ae5cad52743f66a265ba34fd111a17ce2629c4de297e85f4dc36cc"
+      }
+    },
+    "reference": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\parallel-fragments\\chest-3-dynamic.json",
+    "reference_sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3",
+    "reference_sha256_after": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3",
+    "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "expected_source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "script_sha256": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+    "script_sha256_after": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+    "fixture_loader_script_sha256": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+    "fixture_loader_script_sha256_after": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+    "fixture_sha256_after": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "component_source_sha256_after": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "source_sha256_after": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "threads": 20,
+    "opencv_threads": 20,
+    "omp_threads": "8",
+    "cuda_registration": "cpu",
+    "versions": {
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:17:27) [MSC v.1929 64 bit (AMD64)]",
+      "numpy": "2.5.3",
+      "opencv": "5.0.0",
+      "open3d": "0.20.0"
+    },
+    "profiler": "nested original-function/native-call wall-time wrappers; no cProfile",
+    "iteration_counter_limits": "Only native result fields, if exposed. Configured max_iteration sums and point budgets are ceilings, never actual iterations or queries.",
+    "native_cost_limits": "Legacy native ICP/evaluation/info include tree setup, NN, linear solves and convergence work. Individual costs are opaque; standalone KDTreeFlann construction is a separate diagnostic, not their internal tree cost.",
+    "proposal_limits": "Fixed recorded proposals authorize verification. Separate original PnP/FPFH diagnostic functions run afterwards; PnP has an explicit diagnostic RNG seed and does not reproduce original global RNG history/ranking.",
+    "preparation_limits": "Existing exact prepared clouds and saved normals/cache loaded once. Coarse normals/FPFH rebuilt only for optional proposal diagnostics; raw RGB/depth and local fragment estimation are excluded.",
+    "local_pose_source": "measured Finish fragment-local poses for component reproduction only; no archived live seeds",
+    "fixture_arrays_sha256_before": "309e254eb3c82d347db2ec2c969fca5d0a236b95f43a62fe82db88257f8bf230",
+    "fixture_arrays_sha256_after": "309e254eb3c82d347db2ec2c969fca5d0a236b95f43a62fe82db88257f8bf230",
+    "cloud_arrays_sha256_before": "3d6b7576b18c7f295c993eca20914149f96c0c9d85e6a71f7fef8d3b8f021732",
+    "cloud_arrays_sha256_after": "3d6b7576b18c7f295c993eca20914149f96c0c9d85e6a71f7fef8d3b8f021732",
+    "diagnostic_pnp_seed": 20261008,
+    "peak_process_rss_bytes": 753287168
+  },
+  "quality": {
+    "same_decisions_and_support": true,
+    "differences": [],
+    "max_transform_translation_delta_m": 5.202319727150729e-16,
+    "max_transform_rotation_delta_deg": 0.0,
+    "max_information_absolute_delta": 7.275957614183426e-12,
+    "same_pair_order": true,
+    "same_positions": true,
+    "fixture_arrays_unchanged": true,
+    "verification_clouds_unchanged": true,
+    "source_unchanged": true,
+    "component_source_unchanged": true,
+    "profiler_script_unchanged": true,
+    "fixture_loader_script_unchanged": true,
+    "fixture_file_unchanged": true,
+    "reference_file_unchanged": true
+  },
+  "verification_s": 69.52431380000053,
+  "total_wall_s": 75.48907699999836,
+  "summaries": [
+    {
+      "phase": "fixed_verification",
+      "name": "bridge",
+      "calls": 36,
+      "inclusive_s": 69.52153659999749,
+      "self_s": 0.030057699972530827,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "descriptor_matches",
+      "calls": 1804,
+      "inclusive_s": 1.4248898998703226,
+      "self_s": 1.4248898998703226,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "fixture_pair",
+      "calls": 8,
+      "inclusive_s": 69.52376820000063,
+      "self_s": 0.0019069999980274588,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "fixture_proposal",
+      "calls": 36,
+      "inclusive_s": 69.5218612000026,
+      "self_s": 0.0003246000051149167,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "heldout",
+      "calls": 189,
+      "inclusive_s": 1.4692167000030167,
+      "self_s": 0.032382200108258985,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "match",
+      "calls": 1372,
+      "inclusive_s": 61.12349619989982,
+      "self_s": 0.34646050002629636,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "native.evaluate_registration",
+      "calls": 1868,
+      "inclusive_s": 6.383497599766997,
+      "self_s": 6.383497599766997,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "native.get_information_matrix_from_point_clouds",
+      "calls": 20,
+      "inclusive_s": 0.059611700009554625,
+      "self_s": 0.059611700009554625,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "native.registration_icp",
+      "calls": 4116,
+      "inclusive_s": 60.77703569987352,
+      "self_s": 60.77703569987352,
+      "configured_iteration_budget_sum": 123480
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "pair",
+      "calls": 1022,
+      "inclusive_s": 61.43015969996486,
+      "self_s": 0.0661873000281048,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "partial_bridge",
+      "calls": 16,
+      "inclusive_s": 51.23979020000115,
+      "self_s": 0.11950750018149847,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "strong_gate",
+      "calls": 1372,
+      "inclusive_s": 0.24047620003693737,
+      "self_s": 0.24047620003693737,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "visual_bridge",
+      "calls": 16,
+      "inclusive_s": 1.4663201999937883,
+      "self_s": 0.03156470006069867,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "fixed_verification",
+      "name": "visual_witness",
+      "calls": 1804,
+      "inclusive_s": 1.4347554999330896,
+      "self_s": 0.009865600062767044,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "coarse.estimate_normals",
+      "calls": 8,
+      "inclusive_s": 0.01895990001503378,
+      "self_s": 0.01895990001503378,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "coarse.voxel_down_sample",
+      "calls": 8,
+      "inclusive_s": 0.006549500008986797,
+      "self_s": 0.006549500008986797,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "coarse_and_fpfh",
+      "calls": 8,
+      "inclusive_s": 0.11416219999955501,
+      "self_s": 0.0006713999609928578,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "descriptor_matches",
+      "calls": 907,
+      "inclusive_s": 3.202759100102412,
+      "self_s": 3.202759100102412,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "diagnostic_pair_proposals",
+      "calls": 8,
+      "inclusive_s": 3.8404840000221157,
+      "self_s": 0.022085499913373496,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "fpfh_ransac_proposal",
+      "calls": 16,
+      "inclusive_s": 0.4204917999886675,
+      "self_s": 0.00461959998938255,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "native.compute_fpfh_feature",
+      "calls": 8,
+      "inclusive_s": 0.08798140001454158,
+      "self_s": 0.08798140001454158,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "native.registration_ransac_based_on_feature_matching",
+      "calls": 16,
+      "inclusive_s": 0.41587219999928493,
+      "self_s": 0.41587219999928493,
+      "configured_iteration_budget_sum": 192000
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "native.solvePnPRansac",
+      "calls": 368,
+      "inclusive_s": 0.118890800018562,
+      "self_s": 0.118890800018562,
+      "configured_iteration_budget_sum": 73600
+    },
+    {
+      "phase": "proposal_preparation_diagnostic",
+      "name": "rgb_pnp_proposal",
+      "calls": 907,
+      "inclusive_s": 0.19514760001766263,
+      "self_s": 0.07625679999910062,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "setup",
+      "name": "cloud_unpack_and_match_cache",
+      "calls": 1,
+      "inclusive_s": 0.05645939999521943,
+      "self_s": 0.05645939999521943,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "setup",
+      "name": "fixture_load",
+      "calls": 1,
+      "inclusive_s": 0.09034080000128597,
+      "self_s": 0.09034080000128597,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "phase": "target_index_diagnostic",
+      "name": "standalone.KDTreeFlann",
+      "calls": 116,
+      "inclusive_s": 0.27278269999078475,
+      "self_s": 0.27278269999078475,
+      "configured_iteration_budget_sum": 0
+    }
+  ],
+  "timer_accounting": {
+    "rule": "Nested inclusive_s overlaps and must not be added. self_s subtracts timed children and partitions instrumented work; native self time still includes opaque C++ substeps. External loop/report/checksum overhead is outside root timers.",
+    "by_phase": [
+      {
+        "phase": "fixed_verification",
+        "root_inclusive_s": 69.52376820000063,
+        "instrumented_self_s": 69.52376820000063,
+        "events": 13679,
+        "partition_residual_s": 0.0
+      },
+      {
+        "phase": "proposal_preparation_diagnostic",
+        "root_inclusive_s": 3.9546462000216707,
+        "instrumented_self_s": 3.9546462000216707,
+        "events": 2254,
+        "partition_residual_s": 0.0
+      },
+      {
+        "phase": "setup",
+        "root_inclusive_s": 0.1468001999965054,
+        "instrumented_self_s": 0.1468001999965054,
+        "events": 2,
+        "partition_residual_s": 0.0
+      },
+      {
+        "phase": "target_index_diagnostic",
+        "root_inclusive_s": 0.27278269999078475,
+        "instrumented_self_s": 0.27278269999078475,
+        "events": 116,
+        "partition_residual_s": 0.0
+      }
+    ]
+  },
+  "immutable_target_native_icp_uses": [
+    {
+      "target_id": "fragment:0:union:train",
+      "calls": 15,
+      "inclusive_s": 0.35295100002986146,
+      "point_query_iteration_budget": 4552380
+    },
+    {
+      "target_id": "fragment:0:view:11:train",
+      "calls": 63,
+      "inclusive_s": 1.431995500017365,
+      "point_query_iteration_budget": 20164140
+    },
+    {
+      "target_id": "fragment:0:view:12:train",
+      "calls": 63,
+      "inclusive_s": 1.6031326000083936,
+      "point_query_iteration_budget": 19764720
+    },
+    {
+      "target_id": "fragment:0:view:13:train",
+      "calls": 78,
+      "inclusive_s": 1.557102999991912,
+      "point_query_iteration_budget": 22703310
+    },
+    {
+      "target_id": "fragment:0:view:14:train",
+      "calls": 108,
+      "inclusive_s": 1.8438780000142287,
+      "point_query_iteration_budget": 32121270
+    },
+    {
+      "target_id": "fragment:0:view:15:train",
+      "calls": 192,
+      "inclusive_s": 3.1577248000030522,
+      "point_query_iteration_budget": 59318280
+    },
+    {
+      "target_id": "fragment:0:view:4:train",
+      "calls": 33,
+      "inclusive_s": 0.7900484000056167,
+      "point_query_iteration_budget": 9991530
+    },
+    {
+      "target_id": "fragment:0:view:7:train",
+      "calls": 33,
+      "inclusive_s": 0.36646470001142006,
+      "point_query_iteration_budget": 10140210
+    },
+    {
+      "target_id": "fragment:12:union:train",
+      "calls": 30,
+      "inclusive_s": 0.21019390001310967,
+      "point_query_iteration_budget": 8782200
+    },
+    {
+      "target_id": "fragment:12:view:100:train",
+      "calls": 15,
+      "inclusive_s": 0.0856792999766185,
+      "point_query_iteration_budget": 4628700
+    },
+    {
+      "target_id": "fragment:12:view:101:train",
+      "calls": 15,
+      "inclusive_s": 0.1015521999943303,
+      "point_query_iteration_budget": 4628700
+    },
+    {
+      "target_id": "fragment:12:view:102:train",
+      "calls": 15,
+      "inclusive_s": 0.09985409997898387,
+      "point_query_iteration_budget": 4628700
+    },
+    {
+      "target_id": "fragment:12:view:95:train",
+      "calls": 60,
+      "inclusive_s": 0.6446624000163865,
+      "point_query_iteration_budget": 17849250
+    },
+    {
+      "target_id": "fragment:12:view:96:train",
+      "calls": 30,
+      "inclusive_s": 0.23358790001657326,
+      "point_query_iteration_budget": 7743600
+    },
+    {
+      "target_id": "fragment:12:view:97:train",
+      "calls": 15,
+      "inclusive_s": 0.09030759998859139,
+      "point_query_iteration_budget": 4628700
+    },
+    {
+      "target_id": "fragment:12:view:98:train",
+      "calls": 15,
+      "inclusive_s": 0.13248880000173813,
+      "point_query_iteration_budget": 4628700
+    },
+    {
+      "target_id": "fragment:12:view:99:train",
+      "calls": 15,
+      "inclusive_s": 0.12565509998967173,
+      "point_query_iteration_budget": 4628700
+    },
+    {
+      "target_id": "fragment:14:union:train",
+      "calls": 45,
+      "inclusive_s": 0.43124789998546476,
+      "point_query_iteration_budget": 13853250
+    },
+    {
+      "target_id": "fragment:14:view:104:train",
+      "calls": 120,
+      "inclusive_s": 0.7007278999590199,
+      "point_query_iteration_budget": 41250600
+    },
+    {
+      "target_id": "fragment:14:view:105:train",
+      "calls": 90,
+      "inclusive_s": 0.9229644999941229,
+      "point_query_iteration_budget": 31223700
+    },
+    {
+      "target_id": "fragment:14:view:106:train",
+      "calls": 75,
+      "inclusive_s": 0.8056005999678746,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:107:train",
+      "calls": 75,
+      "inclusive_s": 0.4961243000725517,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:108:train",
+      "calls": 75,
+      "inclusive_s": 0.7559367999856477,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:111:train",
+      "calls": 75,
+      "inclusive_s": 1.202837099946919,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:115:train",
+      "calls": 75,
+      "inclusive_s": 0.7341968999971868,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:116:train",
+      "calls": 75,
+      "inclusive_s": 0.6677763000043342,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:117:train",
+      "calls": 75,
+      "inclusive_s": 0.6284803999951691,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:118:train",
+      "calls": 75,
+      "inclusive_s": 0.6841756999565405,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:14:view:119:train",
+      "calls": 75,
+      "inclusive_s": 1.1774121999915224,
+      "point_query_iteration_budget": 25892550
+    },
+    {
+      "target_id": "fragment:2:union:train",
+      "calls": 12,
+      "inclusive_s": 0.21548320000147214,
+      "point_query_iteration_budget": 2921040
+    },
+    {
+      "target_id": "fragment:2:view:17:train",
+      "calls": 21,
+      "inclusive_s": 0.19920429999910994,
+      "point_query_iteration_budget": 4322700
+    },
+    {
+      "target_id": "fragment:2:view:18:train",
+      "calls": 18,
+      "inclusive_s": 0.2504194999928586,
+      "point_query_iteration_budget": 3622230
+    },
+    {
+      "target_id": "fragment:2:view:19:train",
+      "calls": 21,
+      "inclusive_s": 0.1921905999770388,
+      "point_query_iteration_budget": 4756320
+    },
+    {
+      "target_id": "fragment:2:view:20:train",
+      "calls": 21,
+      "inclusive_s": 0.19425809999665944,
+      "point_query_iteration_budget": 4756320
+    },
+    {
+      "target_id": "fragment:2:view:21:train",
+      "calls": 21,
+      "inclusive_s": 0.19945409998763353,
+      "point_query_iteration_budget": 4756320
+    },
+    {
+      "target_id": "fragment:2:view:24:train",
+      "calls": 21,
+      "inclusive_s": 0.2060358000017004,
+      "point_query_iteration_budget": 4756320
+    },
+    {
+      "target_id": "fragment:2:view:28:train",
+      "calls": 33,
+      "inclusive_s": 0.5141012000094634,
+      "point_query_iteration_budget": 8110170
+    },
+    {
+      "target_id": "fragment:2:view:29:train",
+      "calls": 36,
+      "inclusive_s": 0.6929331999926944,
+      "point_query_iteration_budget": 8817570
+    },
+    {
+      "target_id": "fragment:2:view:30:train",
+      "calls": 45,
+      "inclusive_s": 0.9779669999916223,
+      "point_query_iteration_budget": 11322450
+    },
+    {
+      "target_id": "fragment:2:view:31:train",
+      "calls": 48,
+      "inclusive_s": 1.1070872000127565,
+      "point_query_iteration_budget": 12343860
+    },
+    {
+      "target_id": "fragment:2:view:32:train",
+      "calls": 39,
+      "inclusive_s": 0.8483615999866743,
+      "point_query_iteration_budget": 9352530
+    },
+    {
+      "target_id": "fragment:3:union:train",
+      "calls": 12,
+      "inclusive_s": 0.20953280001413077,
+      "point_query_iteration_budget": 2921040
+    },
+    {
+      "target_id": "fragment:3:view:31:train",
+      "calls": 81,
+      "inclusive_s": 1.8533792000016547,
+      "point_query_iteration_budget": 20797650
+    },
+    {
+      "target_id": "fragment:3:view:32:train",
+      "calls": 78,
+      "inclusive_s": 1.7164339000592008,
+      "point_query_iteration_budget": 20091510
+    },
+    {
+      "target_id": "fragment:3:view:33:train",
+      "calls": 87,
+      "inclusive_s": 1.9995881000068039,
+      "point_query_iteration_budget": 22033080
+    },
+    {
+      "target_id": "fragment:3:view:34:train",
+      "calls": 78,
+      "inclusive_s": 1.722640500011039,
+      "point_query_iteration_budget": 20091510
+    },
+    {
+      "target_id": "fragment:3:view:35:train",
+      "calls": 87,
+      "inclusive_s": 2.004664799962484,
+      "point_query_iteration_budget": 22033080
+    },
+    {
+      "target_id": "fragment:3:view:36:train",
+      "calls": 84,
+      "inclusive_s": 1.8432723000150872,
+      "point_query_iteration_budget": 21332610
+    },
+    {
+      "target_id": "fragment:3:view:38:train",
+      "calls": 84,
+      "inclusive_s": 1.9241472999492544,
+      "point_query_iteration_budget": 21332610
+    },
+    {
+      "target_id": "fragment:3:view:41:train",
+      "calls": 87,
+      "inclusive_s": 1.5260456999894814,
+      "point_query_iteration_budget": 22033080
+    },
+    {
+      "target_id": "fragment:3:view:45:train",
+      "calls": 69,
+      "inclusive_s": 0.7713240999582922,
+      "point_query_iteration_budget": 15939270
+    },
+    {
+      "target_id": "fragment:3:view:46:train",
+      "calls": 63,
+      "inclusive_s": 0.6466752999767778,
+      "point_query_iteration_budget": 14268960
+    },
+    {
+      "target_id": "fragment:3:view:47:train",
+      "calls": 63,
+      "inclusive_s": 0.7995940999899176,
+      "point_query_iteration_budget": 14268960
+    },
+    {
+      "target_id": "fragment:3:view:48:train",
+      "calls": 39,
+      "inclusive_s": 0.5015493000100832,
+      "point_query_iteration_budget": 8499330
+    },
+    {
+      "target_id": "fragment:3:view:49:train",
+      "calls": 39,
+      "inclusive_s": 0.46347380003135186,
+      "point_query_iteration_budget": 8499330
+    },
+    {
+      "target_id": "fragment:5:union:train",
+      "calls": 12,
+      "inclusive_s": 0.24224279999907594,
+      "point_query_iteration_budget": 2921040
+    },
+    {
+      "target_id": "fragment:5:view:48:train",
+      "calls": 57,
+      "inclusive_s": 1.0038761000105296,
+      "point_query_iteration_budget": 13767480
+    },
+    {
+      "target_id": "fragment:5:view:49:train",
+      "calls": 48,
+      "inclusive_s": 0.6930713999827276,
+      "point_query_iteration_budget": 11182950
+    },
+    {
+      "target_id": "fragment:5:view:50:train",
+      "calls": 45,
+      "inclusive_s": 0.6469469000003301,
+      "point_query_iteration_budget": 10347120
+    },
+    {
+      "target_id": "fragment:5:view:51:train",
+      "calls": 42,
+      "inclusive_s": 0.3989409999921918,
+      "point_query_iteration_budget": 9512640
+    },
+    {
+      "target_id": "fragment:5:view:52:train",
+      "calls": 51,
+      "inclusive_s": 0.7505088000107207,
+      "point_query_iteration_budget": 12017430
+    },
+    {
+      "target_id": "fragment:5:view:53:train",
+      "calls": 42,
+      "inclusive_s": 0.5811770000436809,
+      "point_query_iteration_budget": 9512640
+    },
+    {
+      "target_id": "fragment:6:union:train",
+      "calls": 27,
+      "inclusive_s": 0.3444616999840946,
+      "point_query_iteration_budget": 7110090
+    },
+    {
+      "target_id": "fragment:6:view:54:train",
+      "calls": 42,
+      "inclusive_s": 1.0104309999733232,
+      "point_query_iteration_budget": 11408670
+    },
+    {
+      "target_id": "fragment:6:view:55:train",
+      "calls": 84,
+      "inclusive_s": 1.09320590000425,
+      "point_query_iteration_budget": 23562630
+    },
+    {
+      "target_id": "fragment:6:view:58:train",
+      "calls": 87,
+      "inclusive_s": 1.7404910000041127,
+      "point_query_iteration_budget": 21688380
+    },
+    {
+      "target_id": "fragment:6:view:59:train",
+      "calls": 30,
+      "inclusive_s": 0.6166312999994261,
+      "point_query_iteration_budget": 6924510
+    },
+    {
+      "target_id": "fragment:6:view:62:train",
+      "calls": 12,
+      "inclusive_s": 0.17162549997738097,
+      "point_query_iteration_budget": 2169360
+    },
+    {
+      "target_id": "fragment:6:view:66:train",
+      "calls": 30,
+      "inclusive_s": 0.463884800003143,
+      "point_query_iteration_budget": 6352020
+    },
+    {
+      "target_id": "fragment:6:view:67:train",
+      "calls": 24,
+      "inclusive_s": 0.332918600004632,
+      "point_query_iteration_budget": 4982580
+    },
+    {
+      "target_id": "fragment:6:view:68:train",
+      "calls": 21,
+      "inclusive_s": 0.23110489999089623,
+      "point_query_iteration_budget": 4418100
+    },
+    {
+      "target_id": "fragment:6:view:69:train",
+      "calls": 75,
+      "inclusive_s": 1.5414090000194847,
+      "point_query_iteration_budget": 18110250
+    },
+    {
+      "target_id": "fragment:6:view:70:train",
+      "calls": 60,
+      "inclusive_s": 1.1464211999627878,
+      "point_query_iteration_budget": 14326290
+    },
+    {
+      "target_id": "fragment:8:union:train",
+      "calls": 30,
+      "inclusive_s": 0.17054460000508698,
+      "point_query_iteration_budget": 8683200
+    },
+    {
+      "target_id": "fragment:8:view:69:train",
+      "calls": 255,
+      "inclusive_s": 1.700282900041202,
+      "point_query_iteration_budget": 77314050
+    },
+    {
+      "target_id": "fragment:8:view:70:train",
+      "calls": 30,
+      "inclusive_s": 0.2822824000249966,
+      "point_query_iteration_budget": 9702450
+    }
+  ],
+  "target_index_diagnostic": [
+    {
+      "target": {
+        "id": "fragment:12:union:train",
+        "points": 9987,
+        "kind": "train"
+      },
+      "construction_s": 0.0026709000012488104
+    },
+    {
+      "target": {
+        "id": "fragment:8:union:train",
+        "points": 10207,
+        "kind": "train"
+      },
+      "construction_s": 0.002507100005459506
+    },
+    {
+      "target": {
+        "id": "fragment:12:union:heldout",
+        "points": 23542,
+        "kind": "heldout"
+      },
+      "construction_s": 0.006045200003427453
+    },
+    {
+      "target": {
+        "id": "fragment:8:union:heldout",
+        "points": 25419,
+        "kind": "heldout"
+      },
+      "construction_s": 0.006646200003160629
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:95:train",
+        "points": 14639,
+        "kind": "train"
+      },
+      "construction_s": 0.0034551999997347593
+    },
+    {
+      "target": {
+        "id": "fragment:8:view:69:train",
+        "points": 10286,
+        "kind": "train"
+      },
+      "construction_s": 0.002334199998585973
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:95:heldout",
+        "points": 14638,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0034214999977848493
+    },
+    {
+      "target": {
+        "id": "fragment:8:view:69:heldout",
+        "points": 10285,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002336300000024494
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:96:train",
+        "points": 12861,
+        "kind": "train"
+      },
+      "construction_s": 0.0029757000011159107
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:96:heldout",
+        "points": 12861,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0029779999968013726
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:97:train",
+        "points": 9537,
+        "kind": "train"
+      },
+      "construction_s": 0.002147599996533245
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:97:heldout",
+        "points": 9536,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002144399993994739
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:98:train",
+        "points": 10945,
+        "kind": "train"
+      },
+      "construction_s": 0.002511200000299141
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:98:heldout",
+        "points": 10944,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0024248000045190565
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:99:train",
+        "points": 10162,
+        "kind": "train"
+      },
+      "construction_s": 0.0022570000000996515
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:99:heldout",
+        "points": 10161,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002253800004837103
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:100:train",
+        "points": 12381,
+        "kind": "train"
+      },
+      "construction_s": 0.0027153999981237575
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:100:heldout",
+        "points": 12380,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002722899997024797
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:101:train",
+        "points": 11555,
+        "kind": "train"
+      },
+      "construction_s": 0.0026485999987926334
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:101:heldout",
+        "points": 11555,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0025028999953065068
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:102:train",
+        "points": 11069,
+        "kind": "train"
+      },
+      "construction_s": 0.0023596999963046983
+    },
+    {
+      "target": {
+        "id": "fragment:12:view:102:heldout",
+        "points": 11068,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002362100000027567
+    },
+    {
+      "target": {
+        "id": "fragment:8:view:70:train",
+        "points": 9421,
+        "kind": "train"
+      },
+      "construction_s": 0.0019904000000678934
+    },
+    {
+      "target": {
+        "id": "fragment:8:view:70:heldout",
+        "points": 9420,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002007199997024145
+    },
+    {
+      "target": {
+        "id": "fragment:14:union:train",
+        "points": 9309,
+        "kind": "train"
+      },
+      "construction_s": 0.0020036999994772486
+    },
+    {
+      "target": {
+        "id": "fragment:6:union:train",
+        "points": 10591,
+        "kind": "train"
+      },
+      "construction_s": 0.0023549999968963675
+    },
+    {
+      "target": {
+        "id": "fragment:14:union:heldout",
+        "points": 15365,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0035052999955951236
+    },
+    {
+      "target": {
+        "id": "fragment:6:union:heldout",
+        "points": 25503,
+        "kind": "heldout"
+      },
+      "construction_s": 0.006100899998273235
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:104:train",
+        "points": 6922,
+        "kind": "train"
+      },
+      "construction_s": 0.0014489000022877008
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:105:train",
+        "points": 8424,
+        "kind": "train"
+      },
+      "construction_s": 0.0017489999954705127
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:106:train",
+        "points": 8901,
+        "kind": "train"
+      },
+      "construction_s": 0.0019312999938847497
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:107:train",
+        "points": 8034,
+        "kind": "train"
+      },
+      "construction_s": 0.0016971000004559755
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:108:train",
+        "points": 11057,
+        "kind": "train"
+      },
+      "construction_s": 0.0023585000017192215
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:111:train",
+        "points": 9136,
+        "kind": "train"
+      },
+      "construction_s": 0.0019334000025992282
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:115:train",
+        "points": 7327,
+        "kind": "train"
+      },
+      "construction_s": 0.0015175000007729977
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:116:train",
+        "points": 6733,
+        "kind": "train"
+      },
+      "construction_s": 0.0013913000002503395
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:117:train",
+        "points": 8262,
+        "kind": "train"
+      },
+      "construction_s": 0.001720300002489239
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:118:train",
+        "points": 7652,
+        "kind": "train"
+      },
+      "construction_s": 0.0015629000045009889
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:119:train",
+        "points": 10272,
+        "kind": "train"
+      },
+      "construction_s": 0.002169200000935234
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:55:train",
+        "points": 10773,
+        "kind": "train"
+      },
+      "construction_s": 0.002306399997905828
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:105:heldout",
+        "points": 8423,
+        "kind": "heldout"
+      },
+      "construction_s": 0.00174459999834653
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:55:heldout",
+        "points": 10772,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0022948999976506457
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:106:heldout",
+        "points": 8901,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0018687999981921166
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:108:heldout",
+        "points": 11057,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002330100003746338
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:119:heldout",
+        "points": 10272,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0021685000028810464
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:58:train",
+        "points": 11847,
+        "kind": "train"
+      },
+      "construction_s": 0.002562699999543838
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:58:heldout",
+        "points": 11846,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0027329000004101545
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:104:heldout",
+        "points": 6921,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0014893000043230131
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:107:heldout",
+        "points": 8034,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0017349999980069697
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:111:heldout",
+        "points": 9136,
+        "kind": "heldout"
+      },
+      "construction_s": 0.001956400003109593
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:117:heldout",
+        "points": 8261,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0017912999974214472
+    },
+    {
+      "target": {
+        "id": "fragment:14:view:118:heldout",
+        "points": 7652,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0016116000042529777
+    },
+    {
+      "target": {
+        "id": "fragment:2:union:train",
+        "points": 9513,
+        "kind": "train"
+      },
+      "construction_s": 0.0020775999946636148
+    },
+    {
+      "target": {
+        "id": "fragment:2:union:heldout",
+        "points": 28981,
+        "kind": "heldout"
+      },
+      "construction_s": 0.00710350000008475
+    },
+    {
+      "target": {
+        "id": "fragment:0:union:heldout",
+        "points": 19628,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0044965999986743554
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:17:train",
+        "points": 6702,
+        "kind": "train"
+      },
+      "construction_s": 0.001378500004648231
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:18:train",
+        "points": 10962,
+        "kind": "train"
+      },
+      "construction_s": 0.0023541000045952387
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:19:train",
+        "points": 9562,
+        "kind": "train"
+      },
+      "construction_s": 0.002009399999224115
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:20:train",
+        "points": 10618,
+        "kind": "train"
+      },
+      "construction_s": 0.002238400003989227
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:21:train",
+        "points": 9041,
+        "kind": "train"
+      },
+      "construction_s": 0.001956899999640882
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:24:train",
+        "points": 9730,
+        "kind": "train"
+      },
+      "construction_s": 0.0020519000026979484
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:28:train",
+        "points": 7318,
+        "kind": "train"
+      },
+      "construction_s": 0.0015236999970511533
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:29:train",
+        "points": 9945,
+        "kind": "train"
+      },
+      "construction_s": 0.0020953999992343597
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:30:train",
+        "points": 10982,
+        "kind": "train"
+      },
+      "construction_s": 0.0023321999979089014
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:31:train",
+        "points": 12418,
+        "kind": "train"
+      },
+      "construction_s": 0.002673700000741519
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:32:train",
+        "points": 13141,
+        "kind": "train"
+      },
+      "construction_s": 0.0029385000016191043
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:12:train",
+        "points": 8283,
+        "kind": "train"
+      },
+      "construction_s": 0.001792799994291272
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:13:train",
+        "points": 7860,
+        "kind": "train"
+      },
+      "construction_s": 0.0017162000003736466
+    },
+    {
+      "target": {
+        "id": "fragment:2:view:21:heldout",
+        "points": 9040,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0019266999952378683
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:13:heldout",
+        "points": 7859,
+        "kind": "heldout"
+      },
+      "construction_s": 0.001698000000033062
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:14:train",
+        "points": 6272,
+        "kind": "train"
+      },
+      "construction_s": 0.0013113000022713095
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:15:train",
+        "points": 5944,
+        "kind": "train"
+      },
+      "construction_s": 0.0012369000032776967
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:4:train",
+        "points": 7846,
+        "kind": "train"
+      },
+      "construction_s": 0.0016937000036705285
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:7:train",
+        "points": 7783,
+        "kind": "train"
+      },
+      "construction_s": 0.0016710999989300035
+    },
+    {
+      "target": {
+        "id": "fragment:3:union:train",
+        "points": 9800,
+        "kind": "train"
+      },
+      "construction_s": 0.0021588999952655286
+    },
+    {
+      "target": {
+        "id": "fragment:3:union:heldout",
+        "points": 21384,
+        "kind": "heldout"
+      },
+      "construction_s": 0.005012100002204534
+    },
+    {
+      "target": {
+        "id": "fragment:0:union:train",
+        "points": 8114,
+        "kind": "train"
+      },
+      "construction_s": 0.0016997999991872348
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:31:train",
+        "points": 12418,
+        "kind": "train"
+      },
+      "construction_s": 0.0026365999947302043
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:32:train",
+        "points": 13141,
+        "kind": "train"
+      },
+      "construction_s": 0.0028363000019453466
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:33:train",
+        "points": 11294,
+        "kind": "train"
+      },
+      "construction_s": 0.0023938000013004057
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:34:train",
+        "points": 13234,
+        "kind": "train"
+      },
+      "construction_s": 0.0029098999948473647
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:35:train",
+        "points": 11924,
+        "kind": "train"
+      },
+      "construction_s": 0.0025771000000531785
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:36:train",
+        "points": 12075,
+        "kind": "train"
+      },
+      "construction_s": 0.0026145000010728836
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:38:train",
+        "points": 14767,
+        "kind": "train"
+      },
+      "construction_s": 0.0031736000019009225
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:41:train",
+        "points": 9401,
+        "kind": "train"
+      },
+      "construction_s": 0.00198870000167517
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:45:train",
+        "points": 9683,
+        "kind": "train"
+      },
+      "construction_s": 0.002050399998552166
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:46:train",
+        "points": 9053,
+        "kind": "train"
+      },
+      "construction_s": 0.0019392999965930358
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:47:train",
+        "points": 11395,
+        "kind": "train"
+      },
+      "construction_s": 0.0024543999970774166
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:48:train",
+        "points": 11666,
+        "kind": "train"
+      },
+      "construction_s": 0.0025203999975929037
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:49:train",
+        "points": 10439,
+        "kind": "train"
+      },
+      "construction_s": 0.0022500999984913506
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:45:heldout",
+        "points": 9682,
+        "kind": "heldout"
+      },
+      "construction_s": 0.002042200001596939
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:4:heldout",
+        "points": 7845,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0016447000016341917
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:7:heldout",
+        "points": 7782,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0016383999973186292
+    },
+    {
+      "target": {
+        "id": "fragment:3:view:46:heldout",
+        "points": 9053,
+        "kind": "heldout"
+      },
+      "construction_s": 0.001916299996082671
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:11:train",
+        "points": 8860,
+        "kind": "train"
+      },
+      "construction_s": 0.0026304000057280064
+    },
+    {
+      "target": {
+        "id": "fragment:5:union:train",
+        "points": 11125,
+        "kind": "train"
+      },
+      "construction_s": 0.002482099996996112
+    },
+    {
+      "target": {
+        "id": "fragment:5:union:heldout",
+        "points": 16267,
+        "kind": "heldout"
+      },
+      "construction_s": 0.003859300006297417
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:48:train",
+        "points": 11666,
+        "kind": "train"
+      },
+      "construction_s": 0.002566299997852184
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:49:train",
+        "points": 10439,
+        "kind": "train"
+      },
+      "construction_s": 0.002279200001794379
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:50:train",
+        "points": 8693,
+        "kind": "train"
+      },
+      "construction_s": 0.0018911000006482936
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:51:train",
+        "points": 6400,
+        "kind": "train"
+      },
+      "construction_s": 0.0013537000049836934
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:52:train",
+        "points": 8875,
+        "kind": "train"
+      },
+      "construction_s": 0.0019059000042034313
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:53:train",
+        "points": 9772,
+        "kind": "train"
+      },
+      "construction_s": 0.0021206999954301864
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:51:heldout",
+        "points": 6400,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0013624000057461672
+    },
+    {
+      "target": {
+        "id": "fragment:5:view:50:heldout",
+        "points": 8693,
+        "kind": "heldout"
+      },
+      "construction_s": 0.001875800000561867
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:14:heldout",
+        "points": 6272,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0014124999943305738
+    },
+    {
+      "target": {
+        "id": "fragment:0:view:15:heldout",
+        "points": 5943,
+        "kind": "heldout"
+      },
+      "construction_s": 0.0012318999943090603
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:54:train",
+        "points": 11268,
+        "kind": "train"
+      },
+      "construction_s": 0.0024269000059575774
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:56:train",
+        "points": 10573,
+        "kind": "train"
+      },
+      "construction_s": 0.002365600004850421
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:59:train",
+        "points": 13679,
+        "kind": "train"
+      },
+      "construction_s": 0.002960599995276425
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:62:train",
+        "points": 7942,
+        "kind": "train"
+      },
+      "construction_s": 0.0016875000001164153
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:66:train",
+        "points": 8386,
+        "kind": "train"
+      },
+      "construction_s": 0.0017542000059620477
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:67:train",
+        "points": 7682,
+        "kind": "train"
+      },
+      "construction_s": 0.0016037999957916327
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:68:train",
+        "points": 7471,
+        "kind": "train"
+      },
+      "construction_s": 0.0015430999992531724
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:69:train",
+        "points": 10286,
+        "kind": "train"
+      },
+      "construction_s": 0.0022103000010247342
+    },
+    {
+      "target": {
+        "id": "fragment:6:view:70:train",
+        "points": 9421,
+        "kind": "train"
+      },
+      "construction_s": 0.0020696999999927357
+    }
+  ],
+  "proposal_diagnostic": [
+    {
+      "pair": [
+        8,
+        12
+      ],
+      "rgb_proposals_present": 82,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.5089093999995384
+    },
+    {
+      "pair": [
+        6,
+        14
+      ],
+      "rgb_proposals_present": 66,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.5478008999998565
+    },
+    {
+      "pair": [
+        8,
+        14
+      ],
+      "rgb_proposals_present": 118,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.6955661000029068
+    },
+    {
+      "pair": [
+        12,
+        14
+      ],
+      "rgb_proposals_present": 69,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.4644068000052357
+    },
+    {
+      "pair": [
+        0,
+        2
+      ],
+      "rgb_proposals_present": 0,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.4716561000022921
+    },
+    {
+      "pair": [
+        0,
+        3
+      ],
+      "rgb_proposals_present": 0,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.4796600000045146
+    },
+    {
+      "pair": [
+        0,
+        5
+      ],
+      "rgb_proposals_present": 0,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.21149130000412697
+    },
+    {
+      "pair": [
+        0,
+        6
+      ],
+      "rgb_proposals_present": 0,
+      "fpfh_proposals_present": [
+        true,
+        true
+      ],
+      "elapsed_s": 0.46099340000364464
+    }
+  ],
+  "verification_native_call_breakdown": [
+    {
+      "name": "native.evaluate_registration",
+      "cloud_scope": "camera",
+      "cloud_kind": "heldout",
+      "direction": null,
+      "branch": "direct",
+      "calls": 270,
+      "inclusive_s": 0.8354325999389403,
+      "self_s": 0.8354325999389403,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "name": "native.evaluate_registration",
+      "cloud_scope": "camera",
+      "cloud_kind": "heldout",
+      "direction": null,
+      "branch": "partial_overlap",
+      "calls": 36,
+      "inclusive_s": 0.09000539997214219,
+      "self_s": 0.09000539997214219,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "name": "native.evaluate_registration",
+      "cloud_scope": "camera",
+      "cloud_kind": "train",
+      "direction": null,
+      "branch": "partial_overlap",
+      "calls": 1474,
+      "inclusive_s": 4.893652999890037,
+      "self_s": 4.893652999890037,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "name": "native.evaluate_registration",
+      "cloud_scope": "fragment_union",
+      "cloud_kind": "heldout",
+      "direction": null,
+      "branch": "direct",
+      "calls": 72,
+      "inclusive_s": 0.5113964999836753,
+      "self_s": 0.5113964999836753,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "name": "native.evaluate_registration",
+      "cloud_scope": "fragment_union",
+      "cloud_kind": "train",
+      "direction": null,
+      "branch": "partial_overlap",
+      "calls": 16,
+      "inclusive_s": 0.05301009998220252,
+      "self_s": 0.05301009998220252,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "name": "native.get_information_matrix_from_point_clouds",
+      "cloud_scope": "fragment_union",
+      "cloud_kind": "train",
+      "direction": null,
+      "branch": "direct",
+      "calls": 20,
+      "inclusive_s": 0.059611700009554625,
+      "self_s": 0.059611700009554625,
+      "configured_iteration_budget_sum": 0
+    },
+    {
+      "name": "native.registration_icp",
+      "cloud_scope": "camera",
+      "cloud_kind": "train",
+      "direction": "forward",
+      "branch": "direct",
+      "calls": 1020,
+      "inclusive_s": 9.802105099806795,
+      "self_s": 9.802105099806795,
+      "configured_iteration_budget_sum": 30600
+    },
+    {
+      "name": "native.registration_icp",
+      "cloud_scope": "camera",
+      "cloud_kind": "train",
+      "direction": "forward",
+      "branch": "partial_overlap",
+      "calls": 1938,
+      "inclusive_s": 34.93168109989347,
+      "self_s": 34.93168109989347,
+      "configured_iteration_budget_sum": 58140
+    },
+    {
+      "name": "native.registration_icp",
+      "cloud_scope": "camera",
+      "cloud_kind": "train",
+      "direction": "reverse",
+      "branch": "direct",
+      "calls": 405,
+      "inclusive_s": 3.116244600088976,
+      "self_s": 3.116244600088976,
+      "configured_iteration_budget_sum": 12150
+    },
+    {
+      "name": "native.registration_icp",
+      "cloud_scope": "camera",
+      "cloud_kind": "train",
+      "direction": "reverse",
+      "branch": "partial_overlap",
+      "calls": 570,
+      "inclusive_s": 10.750347000051988,
+      "self_s": 10.750347000051988,
+      "configured_iteration_budget_sum": 17100
+    },
+    {
+      "name": "native.registration_icp",
+      "cloud_scope": "fragment_union",
+      "cloud_kind": "train",
+      "direction": "forward",
+      "branch": "direct",
+      "calls": 108,
+      "inclusive_s": 1.4735378000041237,
+      "self_s": 1.4735378000041237,
+      "configured_iteration_budget_sum": 3240
+    },
+    {
+      "name": "native.registration_icp",
+      "cloud_scope": "fragment_union",
+      "cloud_kind": "train",
+      "direction": "reverse",
+      "branch": "direct",
+      "calls": 75,
+      "inclusive_s": 0.7031201000281726,
+      "self_s": 0.7031201000281726,
+      "configured_iteration_budget_sum": 2250
+    }
+  ],
+  "pairs": [
+    {
+      "position": 0,
+      "pair": [
+        8,
+        12
+      ],
+      "proposal_count": 5,
+      "verified_proposals": 5,
+      "ambiguous": false,
+      "accepted": true,
+      "elapsed_s": 2.8161499999987427
+    },
+    {
+      "position": 1,
+      "pair": [
+        6,
+        14
+      ],
+      "proposal_count": 5,
+      "verified_proposals": 5,
+      "ambiguous": false,
+      "accepted": true,
+      "elapsed_s": 6.260401000006823
+    },
+    {
+      "position": 2,
+      "pair": [
+        8,
+        14
+      ],
+      "proposal_count": 5,
+      "verified_proposals": 5,
+      "ambiguous": false,
+      "accepted": true,
+      "elapsed_s": 2.8888051999965683
+    },
+    {
+      "position": 3,
+      "pair": [
+        12,
+        14
+      ],
+      "proposal_count": 5,
+      "verified_proposals": 5,
+      "ambiguous": false,
+      "accepted": true,
+      "elapsed_s": 3.332402000000002
+    },
+    {
+      "position": 4,
+      "pair": [
+        0,
+        2
+      ],
+      "proposal_count": 4,
+      "verified_proposals": 0,
+      "ambiguous": false,
+      "accepted": false,
+      "elapsed_s": 8.463288499995542
+    },
+    {
+      "position": 5,
+      "pair": [
+        0,
+        3
+      ],
+      "proposal_count": 4,
+      "verified_proposals": 0,
+      "ambiguous": false,
+      "accepted": false,
+      "elapsed_s": 26.901266500004567
+    },
+    {
+      "position": 6,
+      "pair": [
+        0,
+        5
+      ],
+      "proposal_count": 4,
+      "verified_proposals": 0,
+      "ambiguous": false,
+      "accepted": false,
+      "elapsed_s": 7.448883799996111
+    },
+    {
+      "position": 7,
+      "pair": [
+        0,
+        6
+      ],
+      "proposal_count": 4,
+      "verified_proposals": 0,
+      "ambiguous": false,
+      "accepted": false,
+      "elapsed_s": 11.412571200002276
+    }
+  ],
+  "disjoint_verification_self_s": {
+    "native_icp": 60.77703569987352,
+    "native_evaluate": 6.383497599766997,
+    "native_information": 0.059611700009554625,
+    "descriptor_lookup_matching": 1.4248898998703226,
+    "other_python_gates_and_wrappers": 0.8787333004802349
+  },
+  "summary_postprocessing": {
+    "source_report": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\verification-profile\\chest-3.json",
+    "source_report_sha256": "68471a2df5bc5ff67746e8d2c4f5105b3584544191b09ffd7cf9406d6246cb1d",
+    "source_report_sha256_after": "68471a2df5bc5ff67746e8d2c4f5105b3584544191b09ffd7cf9406d6246cb1d",
+    "postprocessor": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\scripts\\summarize_fragment_verification.py",
+    "postprocessor_sha256": "b6e019d882935d4cf16bdd03148f0f095893527ae44001034d9cf9d92ce775aa",
+    "postprocessor_sha256_after": "b6e019d882935d4cf16bdd03148f0f095893527ae44001034d9cf9d92ce775aa",
+    "measured_profiler_script": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\verification-profile\\profile_fragment_verification-measured.py",
+    "measured_profiler_script_sha256": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+    "change": "Classify immediate partial/visual parents using path components; raw events, timers and numerical results are unchanged."
+  }
+}

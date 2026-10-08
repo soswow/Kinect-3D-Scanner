@@ -20,7 +20,6 @@ import json
 import os
 import pstats
 import random
-import resource
 import sys
 import time
 import zipfile
@@ -29,6 +28,8 @@ from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.process_metrics import finish_cuda_worker, gpu_info, peak_rss_bytes
 
 
 def file_hash(path):
@@ -44,7 +45,7 @@ def source_hash():
     for folder in (ROOT / "scanner_server", ROOT / "shared", ROOT / "native"):
         for path in sorted(folder.rglob("*")):
             if (
-                path.suffix in (".py", ".cpp", ".h", ".hpp", ".toml")
+                path.suffix in (".py", ".cpp", ".cu", ".h", ".hpp", ".toml")
                 and "build" not in path.parts
             ):
                 digest.update(str(path.relative_to(ROOT)).encode())
@@ -180,7 +181,22 @@ def geometry_summary(engine, destination, np):
     }
 
 
-def compare_quality(report, baseline_path, np):
+def comparison_settings(report, *, preview_resolution=False):
+    """Permit only an explicit preview tradeoff with unchanged effective Finish detail."""
+    settings = dict(report["settings"])
+    if not preview_resolution:
+        return settings
+    final_voxel = settings.get("final_voxel_m") or settings["voxel_m"]
+    if (not report["finish_requested"] or not report.get("mesh_built", False)
+            or report["final_reconstruction"].get("voxel_m") != final_voxel):
+        raise ValueError("Preview comparison requires a completed mesh at the requested final voxel size")
+    settings.pop("voxel_m")
+    settings.pop("final_voxel_m", None)
+    settings["effective_final_voxel_m"] = final_voxel
+    return settings
+
+
+def compare_quality(report, baseline_path, np, *, preview_resolution=False):
     import open3d as o3d
 
     baseline = json.loads(baseline_path.read_text())
@@ -188,14 +204,14 @@ def compare_quality(report, baseline_path, np):
         report["input_sha256"],
         report["selected_indices"],
         report["seed"],
-        report["settings"],
+        comparison_settings(report, preview_resolution=preview_resolution),
         report["finish_requested"],
         report["pose_seeds_used"],
     ) != (
         baseline["input_sha256"],
         baseline["selected_indices"],
         baseline["seed"],
-        baseline["settings"],
+        comparison_settings(baseline, preview_resolution=preview_resolution),
         baseline["finish_requested"],
         baseline["pose_seeds_used"],
     ):
@@ -219,6 +235,7 @@ def compare_quality(report, baseline_path, np):
         )
     result = {
         "baseline": str(baseline_path.resolve()),
+        "preview_resolution_comparison": preview_resolution,
         "same_accepted_indices": report["accepted_indices"]
         == baseline["accepted_indices"],
         "same_mesh_success": report["mesh_built"] == baseline["mesh_built"],
@@ -276,6 +293,10 @@ def main():
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--compare", type=Path)
+    parser.add_argument("--live-voxel", type=float,
+                        help="Explicit preview tradeoff; retain the archive's effective final voxel size")
+    parser.add_argument("--visual-fallback-sift", action="store_true",
+                        help="Research only: try original verified SIFT proposals after ORB fails")
     parser.add_argument(
         "--final-block-count",
         type=int,
@@ -299,6 +320,11 @@ def main():
     from PIL import Image
 
     from scanner_server.engine import ScanEngine
+    policy_path = ROOT / "scripts/adaptive_visual_experiment.py"
+    policy_hash = file_hash(policy_path) if args.visual_fallback_sift else None
+    if args.visual_fallback_sift:
+        from scripts.adaptive_visual_experiment import AdaptiveVisualEngine
+        ScanEngine = AdaptiveVisualEngine
     from shared.settings import ScanSettings
 
     cv2.setRNGSeed(args.seed)
@@ -322,6 +348,10 @@ def main():
             json.dumps(settings.to_dict(), sort_keys=True, allow_nan=False).encode()
         ).hexdigest()
         overrides = {}
+        if args.live_voxel is not None:
+            overrides.update(voxel_m=args.live_voxel,
+                             final_voxel_m=settings.final_voxel_m or settings.voxel_m)
+            settings = replace(settings, **overrides)
         if args.bundle_adjustment:
             overrides["bundle_adjustment"] = True
             settings = replace(settings, **overrides)
@@ -366,7 +396,8 @@ def main():
             if not args.use_pose_seeds:
                 engine.process_frames()
             print(
-                f"{index + 1}/{len(frames)} accepted={engine.frame_count}", flush=True
+                f"{index + 1}/{len(frames)} accepted={engine.frame_count} "
+                f"{engine.diagnostics[-1].get('message', '') if engine.diagnostics else ''}", flush=True
             )
 
     _, live_s, live_profile = run_phase(
@@ -378,6 +409,7 @@ def main():
     live_diagnostics = list(engine.diagnostics)
     accepted_before_finish = engine.frame_count
     accepted_indices_before_finish = [index for index, _ in engine.poses]
+    print(f"Live complete: {live_s:.3f}s, accepted={accepted_before_finish}/{len(frames)}", flush=True)
     if args.use_pose_seeds:
         seed_poses(engine, archived, indices, np)
         accepted_before_finish = engine.frame_count
@@ -413,7 +445,24 @@ def main():
         "frames": len(frames),
         "native_mode": os.environ.get("KINECT_NATIVE", "auto"),
         "omp_threads": os.environ["OMP_NUM_THREADS"],
+        "thread_policy": {
+            "opencv_threads": cv2.getNumThreads(),
+            "open3d_threads": o3d.utility.get_max_threads()
+            if hasattr(o3d.utility, "get_max_threads") else None,
+            **{key: os.environ.get(key) for key in (
+                "OMP_WAIT_POLICY", "KMP_BLOCKTIME", "OPENCV_FOR_THREADS_NUM",
+                "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS")},
+        },
+        "gpu_hardware": gpu_info(),
+        "experimental_visual_fallback": args.visual_fallback_sift,
+        "experimental_policy_sha256": policy_hash,
+        "experimental_policy_changed": file_hash(policy_path) != policy_hash if policy_hash else False,
         "initial_blocks": os.environ["KINECT_BLOCK_COUNT"],
+        "pipeline_options": {key: os.environ.get(key) for key in (
+            "KINECT_CUDA_REGISTRATION", "KINECT_CUDA_ODOMETRY", "KINECT_CUDA_MATCHING",
+            "KINECT_MODEL_REFRESH", "KINECT_KEYFRAME_CACHE", "KINECT_LIVE_RECOVERY", "KINECT_VISUAL_FEATURES",
+            "KINECT_VISUAL_REFINEMENT", "KINECT_FINAL_VISUAL_FIRST", "KINECT_FINAL_LOCAL_REFINEMENT",
+            "KINECT_ADAPTIVE_EXPERIMENTAL", "KINECT_CUDA_INPUT", "KINECT_CUDA_CONFIDENCE")},
         "backend": engine.backend,
         "settings": settings.to_dict(),
         "settings_overrides": overrides,
@@ -437,6 +486,7 @@ def main():
         "mesh_built": built,
         "build_result": build_result,
         "live_stages": stage_summary(live_diagnostics, live_stages, np),
+        "live_diagnostics": live_diagnostics,
         "all_stages": stage_summary(engine.diagnostics, engine.stage_totals_ms, np),
         "tracking_methods": dict(
             Counter(
@@ -451,8 +501,7 @@ def main():
         "refinement": engine.refinement,
         "bundle_adjustment": engine.bundle_adjustment,
         "final_reconstruction": engine.final_reconstruction,
-        "peak_process_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        * (1 if sys.platform == "darwin" else 1024),
+        "peak_process_rss_bytes": peak_rss_bytes(),
         "profiles": {"live": live_profile, "finish": finish_profile},
         "measurement": "Sequential single-process replay. Processing includes storage/live tracking and requested Finish. Excludes imports, image decoding, hashing, geometry comparison and exports. RSS includes loaded images and native library startup. cProfile self time includes opaque native calls; it is not Python overhead. Captured poses have no independent ground truth.",
     }
@@ -482,6 +531,16 @@ def main():
             indent=2,
         )
     )
+    if sys.platform == "win32" and args.device != "cpu" and o3d.core.cuda.is_available():
+        # The official Windows CUDA wheel may finalize CUDA DLL state before
+        # its static Open3D objects, producing "driver shutting down" after a
+        # completed run. This isolated CLI has already written/closed artifacts
+        # and synchronized all measured work; avoid those broken finalizers.
+        o3d.core.cuda.synchronize()
+        finish_cuda_worker()
+    del engine
+    import gc
+    gc.collect()
 
 
 if __name__ == "__main__":

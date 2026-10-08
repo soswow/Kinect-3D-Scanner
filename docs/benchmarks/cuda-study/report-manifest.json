@@ -1,0 +1,18 @@
+{
+  "scope": "Selected report snapshots with LF text; original hashes retained; raw captures, build outputs and full execution proofs remain local",
+  "source_directory": "cuda-study",
+  "files": {
+    "REPORT.md": {
+      "sha256": "7e506d18e2364f22c6353374a9cdfcc27bd2c83afec90c1d1dd4b3574067eb6f",
+      "bytes": 3572,
+      "source_sha256": "2140d5849117583f22e94ab9c0e4ef8fe966e8b1e6eaf82dc1ea3c0d9a8aee32",
+      "source_bytes": 3609
+    },
+    "performance.png": {
+      "sha256": "b9e93d3f900512eb66d4041dc2a9ea70193135f40a5934512065d7a880299643",
+      "bytes": 148273,
+      "source_sha256": "b9e93d3f900512eb66d4041dc2a9ea70193135f40a5934512065d7a880299643",
+      "source_bytes": 148273
+    }
+  }
+}

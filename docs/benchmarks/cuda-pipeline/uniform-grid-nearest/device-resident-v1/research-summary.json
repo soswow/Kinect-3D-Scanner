@@ -1,0 +1,457 @@
+{
+  "kind": "device-flat-resident-bridge-research-summary",
+  "status": "passed",
+  "producer": {
+    "path": "scripts\\summarize_device_grid_resident_research.py",
+    "sha256": "5955e4d06c1865279a2166d8d88fc5da6598e35c074d13544a0e2ed488155152"
+  },
+  "claim": "Fresh device-resident synthetic and full-trajectory CPU hit/miss proofs pass; both full component timings are faster than contemporary native CPU.",
+  "whole_archive_speedup_measured": false,
+  "production_promotion": false,
+  "reports": {
+    "synthetic": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\synthetic-proof.json",
+      "sha256": "a82eae8fb84865049cf8e6cb01944b276a13cef7eafc9933c4641d1b9b0db04a"
+    },
+    "audit": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\bridge-audit.json",
+      "sha256": "5ceba779e988f5408a291fa6874897c9d679b84e2f8cad406f1ce3f00e8b1ebd"
+    },
+    "timing": {
+      "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\timing.json",
+      "sha256": "0b780e8467ab3447f5804051175e821f98934d5a94937e9f0441296501962013"
+    }
+  },
+  "execution_manifest": {
+    "path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\final-manifest.json",
+    "sha256": "8f14cfb8bfaba26a116c790ea58e0b550255a60f9953ea1ad1f8e8d0ae569f64",
+    "source_snapshot_sha256": "0d1c4df13752156d8045fe832607f77ec9ae05e3445dfc18101230d299d9e775",
+    "phases": {
+      "synthetic": {
+        "metadata_path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\synthetic-proof-execution.json",
+        "metadata_sha256": "45c450a07564a416f747f4f0b998fc3ce3279a722c92246420520c844329ea3b",
+        "log_path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\synthetic-proof.log",
+        "log_sha256": "bcde711927ffa1be8ccf10e082df9190625203bc42a2628f845189b5c083755c",
+        "child_pid": 11184,
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "command": [
+          "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+          "-s",
+          "scripts/benchmark_device_grid_resident.py",
+          "--run-allocated",
+          "--check-device-adapter",
+          "--audit-nearest",
+          "--audit-misses",
+          "--miss-policy",
+          "direct-miss-research-v1",
+          "--repeats",
+          "1",
+          "--output",
+          "benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\synthetic-proof.json",
+          "--synthetic-only"
+        ],
+        "process_wall_s": 1.9435310999979265,
+        "process_wall_scope": "Includes process/import/setup/report/cleanup time; component bridge wall is separate."
+      },
+      "audit": {
+        "metadata_path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\bridge-audit-execution.json",
+        "metadata_sha256": "1d8b9a7715df0c95533c3c251122f8a8ea30983854f222d62832f067fea75168",
+        "log_path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\bridge-audit.log",
+        "log_sha256": "9fdf94dd92e6ebcf7ce2b4cc02f768412b8098303eb1d94c5193a29fef361134",
+        "child_pid": 31848,
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "command": [
+          "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+          "-s",
+          "scripts/benchmark_device_grid_resident.py",
+          "--run-allocated",
+          "--check-device-adapter",
+          "--audit-nearest",
+          "--audit-misses",
+          "--miss-policy",
+          "direct-miss-research-v1",
+          "--repeats",
+          "1",
+          "--output",
+          "benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\bridge-audit.json"
+        ],
+        "process_wall_s": 437.6394413999951,
+        "process_wall_scope": "Includes process/import/setup/report/cleanup time; component bridge wall is separate."
+      },
+      "timing": {
+        "metadata_path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\timing-execution.json",
+        "metadata_sha256": "dd4d7e2c33651a19f93e984fc672766b6b1322f95fe456d86eea2c2a2ddd67a7",
+        "log_path": "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\timing.log",
+        "log_sha256": "c19b6c363f337116248998cacbc101bc874561e09deccea8a10ebc41b447fe87",
+        "child_pid": 33376,
+        "exit_code": 0,
+        "child_wait_completed": true,
+        "command": [
+          "F:/Projects/coding/Kinect-3D-Scanner/.venv/Scripts/python.exe",
+          "-s",
+          "scripts/benchmark_device_grid_resident_timing.py",
+          "--run-allocated",
+          "--miss-policy",
+          "direct-miss-research-v1",
+          "--proof-synthetic",
+          "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\synthetic-proof.json",
+          "--proof-bridge",
+          "C:\\Users\\sasha\\.codex\\worktrees\\4522\\Kinect-3D-Scanner\\benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\bridge-audit.json",
+          "--repeats",
+          "2",
+          "--output",
+          "benchmark-output\\cuda-pipeline\\uniform-grid-nearest\\device-resident-v1\\timing.json"
+        ],
+        "process_wall_s": 30.4892125999977,
+        "process_wall_scope": "Includes process/import/setup/report/cleanup time; component bridge wall is separate."
+      }
+    },
+    "hardware_jobs_complete": true,
+    "hardware_released_to_parent": true
+  },
+  "proof_bindings": {
+    "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+    "component_source_sha256": "62308058e0461b13dda3f88b83a06b3acbfc13b12829253fb25896e2196cc245",
+    "artifacts_sha256": {
+      "scripts\\benchmark_device_grid_resident.py": "7886ebb4a9ce0f3b4535a76040239dbbbd6b4759625efd0cccc9ba1ad56cca36",
+      "scripts\\benchmark_flat_grid_nn.py": "85ed28ea8592816a129b988e1d2f8084d77eb706c04f17fd9185170d10316fde",
+      "scripts\\validate_flat_grid_proof.py": "d1fccfdebec963e08c033e0abe3c32e5eadb3851bfe47bd987ce43425f7a8882",
+      "scripts\\FLAT_GRID_RESEARCH.md": "d8671232a81280d6975ee424f7b513ea113d3ef9c254af96a493c7ff68e8822c",
+      "scripts\\benchmark_flat_grid_timing.py": "e0a6d4276b1a6c955bb3004679b15d50d57c5f649affcdee3644ab4a4d48a4b7",
+      "scripts\\cuda_device_flat_grid_registration.py": "8defd13bfa91a0096d449d59c795bc1ff5d306a21bb97bf8f2104d563f4ab4b8",
+      "scripts\\research_device_flat_grid_nn.cu": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+      "scripts\\device_flat_grid_synthetic.py": "ae652868d0ac1048a89a8197c6c6eacb53c2b20f05dabcd87b91f973ce8bb25c",
+      "scripts\\research_device_grid_resident_icp.py": "221219503c5f702a92cc14f18d5ada076f88b64237e337454eb997872cc3affc",
+      "scripts\\research_resident_icp.py": "aad3553a48a4875a22f8f4dfa98fb58d910939904718184e8bbd6262deee011b",
+      "benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.dll": "8268e8c2361a574beb71bda18d22294805033d11effc0e089fc2056a71491de5",
+      "benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.build.json": "6c02704d3e9083af0d63589cd11890253ae54684cb72149c63f032232f67162f",
+      "benchmark-output\\cuda-pipeline\\resident-icp\\resident_solve.cpp": "7aa2e3fb40538431e7ecca7adf0f4e0b88ba587053c2dfc1f710e1a483104076",
+      "scripts\\cuda_flat_grid_registration.py": "ecdf643ebfd8b79f02f0442363694f5bb15a6e7e8672641afde789f16b104b82",
+      "scripts\\research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+      "scripts\\validate_device_flat_grid_proof.py": "0136eef78996094c01a63eb7239b7b1b0ce5df215b8874fa4396fd9e165c8c20",
+      "scripts\\benchmark_device_grid_resident_timing.py": "a7efb4c9a0da454943ecf1d09aca22548361a82429d696fa7be40b01460db311",
+      "scripts\\DEVICE_FLAT_GRID_RESEARCH.md": "7937f7d90b1ce7c101d5c33585fdb10cb7eb5640d8238fce86868462e7be3b6d",
+      "scripts\\benchmark_uniform_grid_nn.py": "85e71c0e46e9eaf96ffce2bec8f7f743c60ea8ce2e8a7eb2d7882fac0c4b0233",
+      "scripts\\cuda_uniform_grid_registration.py": "0c034d72f31e82d0b9a0c9ea2fcd1bdd0b5e3667d52850a594db66d3b139f883",
+      "scripts\\research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+      "scripts\\UNIFORM_GRID_RESEARCH.md": "86b63bbc8f1907c3276e7ce2b4b142fb8529654a777b9c1add75a891ac8c5e55",
+      "scripts\\benchmark_optix_nn.py": "2d720a59d9bf6c04aeb7307b7c4ff35f051b636dc43de0d45c1862f81803dddc",
+      "scripts\\benchmark_parallel_fragments.py": "918d350161d71111e339efa3e8504fc48890c1bf4180a2d220fca9e3497101ce",
+      "scripts\\benchmark_selective_fragment_threads.py": "9e0a806077bda62ef2ade96de8d1a67cc013ef3f15de3171e50320327de0dcfe",
+      "scripts\\profile_fragment_verification.py": "44076eef5b44ac35635dff1e7a0f0c6b4bf40b876fae9e4bc4760f186dcda2e6",
+      "scanner_server\\cuda_nn_registration.py": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "scripts\\validate_uniform_grid_proof.py": "ec3c22c98e7c8610debb3492d12f778013c672f58576f3a55ad3f96f1915a302"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "domain": {
+      "version": "resident-device-flat-dyadic27-original-double-v1",
+      "radius_m": "2^-20 <= radius <= 1",
+      "cell_width": "smallest power of two >=radius; reversible finite ldexp scaling",
+      "cells": "floor(scaled coordinate) in signed21-bit range [-1048576,1048575]",
+      "packing": "bias each axis by1048576; x<<42|y<<21|z, no collisions in declared domain",
+      "enclosure": "CPU strict squared-distance hit implies every absolute coordinate difference<cell_width; at most one floor cell apart",
+      "distance": "original float64 points; explicit RN subtraction, multiply and left-associated add; --fmad=false; CuPy injects -ftz=true for single precision only",
+      "uncertainty": "64epsilon relative metric margin for nearest/second/radius; CPU ties and boundary/unsupported fallback",
+      "missing_policy": "original CPU tree unless explicitly research-certified and CPU hit/miss proof bound to helper/source/kernel/input",
+      "traversal": "27 parallel cell lookups; exclusive shared prefix of disjoint ranges; ordinal tid+128*k; upper_bound maps every original candidate exactly once",
+      "output": "unchanged original five-column first/second IDs, FP64 squared distances and visits; fixed128 threads",
+      "device_resolution": "original64eps masks on raw original-double minima; original-radius CPU resolves only flagged rows; audit rows copied explicitly; no full-query roundtrip in unaudited supported path",
+      "target_layout": "original-order unsorted float64 XYZ retained with sorted grids under unified byte/cache eviction accounting",
+      "metrics": "resident direct squared distance from original RN flat minima; corrected IDs use original-order target and explicit RN distance",
+      "temporary_memory": "at most136 array bytes per query plus80B counters including CPU-only provided-metric scatter; maximum1million queries and configured136MiB query-buffer cap; cache cap/pools separately observed"
+    },
+    "domain_sha256": "9c7bcb650002c2f44eceaa8b4af21f014c62685dc382ffcd3150981662e55e98",
+    "versions": {
+      "numpy": "2.5.3",
+      "open3d": "0.20.0",
+      "opencv": "5.0.0",
+      "cupy": "13.6.0"
+    },
+    "thread_policy": {
+      "open3d": 20,
+      "opencv": 20,
+      "omp": "8"
+    },
+    "cache_policy": {
+      "max_clouds": 64,
+      "retained_gpu_bytes": 268435456,
+      "limit": "Retained sorted grid arrays plus original-order XYZ share this cap; transient launch/transfer buffers and CuPy pools separately observed"
+    },
+    "policy": "direct-miss-research-v1",
+    "kernel_options": [
+      "--std=c++11",
+      "--fmad=false"
+    ],
+    "cupy_injected_compiler_options": [
+      "-ftz=true; single precision only; original geometry is explicit FP64"
+    ],
+    "cuda_driver_version": 13030,
+    "cuda_runtime_version": 12090,
+    "nvrtc_version": [
+      12,
+      4
+    ],
+    "cuda_compute_capability": "86",
+    "open3d_backend_binary_sha256": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+    "numpy_core_binary_sha256": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+    "numpy_build_configuration_sha256": "853393fd18a6f78e0f4c95ac3154d889032290093edc9ef5fa0cd701d0069fc8",
+    "numpy_cpu_features": {
+      "MMX": true,
+      "SSE": true,
+      "SSE2": true,
+      "SSE3": true,
+      "SSSE3": true,
+      "SSE41": true,
+      "POPCNT": true,
+      "SSE42": true,
+      "X86_V2": true,
+      "AVX": true,
+      "F16C": true,
+      "XOP": false,
+      "FMA4": false,
+      "FMA3": true,
+      "AVX2": true,
+      "LAHF": true,
+      "CX16": true,
+      "MOVBE": true,
+      "BMI": true,
+      "BMI2": true,
+      "LZCNT": true,
+      "GFNI": true,
+      "VPCLMULQDQ": true,
+      "VAES": true,
+      "X86_V3": true,
+      "AVX512F": false,
+      "AVX512CD": false,
+      "AVX512ER": false,
+      "AVX512PF": false,
+      "AVX5124FMAPS": false,
+      "AVX5124VNNIW": false,
+      "AVX512VPOPCNTDQ": false,
+      "AVX512VL": false,
+      "AVX512BW": false,
+      "AVX512DQ": false,
+      "AVX512VNNI": false,
+      "AVX512IFMA": false,
+      "AVX512VBMI": false,
+      "AVX512VBMI2": false,
+      "AVX512BITALG": false,
+      "AVX512FP16": false,
+      "AVX512BF16": false,
+      "AVX512_KNL": false,
+      "AVX512_KNM": false,
+      "AVX512_SKX": false,
+      "X86_V4": false,
+      "AVX512_CLX": false,
+      "AVX512_CNL": false,
+      "AVX512_ICL": false,
+      "AVX512_SPR": false,
+      "VSX": false,
+      "VSX2": false,
+      "VSX3": false,
+      "VSX4": false,
+      "VX": false,
+      "VXE": false,
+      "VXE2": false,
+      "NEON": false,
+      "NEON_FP16": false,
+      "NEON_VFPV4": false,
+      "ASIMD": false,
+      "FPHP": false,
+      "ASIMDHP": false,
+      "ASIMDDP": false,
+      "ASIMDFHM": false,
+      "SVE": false,
+      "RVV": false,
+      "LSX": false
+    },
+    "resident_configuration": {
+      "device": "CUDA:0",
+      "max_points": 1000000,
+      "max_scratch_bytes": 268435456,
+      "max_query_bytes": 142606336,
+      "gpu_timing": false
+    },
+    "resident_math": {
+      "script_sha256": "aad3553a48a4875a22f8f4dfa98fb58d910939904718184e8bbd6262deee011b",
+      "gpu_source_sha256": "2000f93905f42667e09695ea007af47d7eab05c53eccaf10f594c65f373ad996",
+      "cpu_bridge_source_sha256": "7aa2e3fb40538431e7ecca7adf0f4e0b88ba587053c2dfc1f710e1a483104076",
+      "solve_library_sha256": "8268e8c2361a574beb71bda18d22294805033d11effc0e089fc2056a71491de5",
+      "solve_manifest_sha256": "6c02704d3e9083af0d63589cd11890253ae54684cb72149c63f032232f67162f"
+    }
+  },
+  "fixture_binding": {
+    "fixture_sha256": "85d9ab77aa71dd7de2308eac26e71161d9ab454dcaa1c53ec49c981bb8db7955",
+    "reference_sha256": "0a3d1dff1f9d8dd7835ce498361a34e45ba2d0ee102fe1fd1c84a5b8c59f63f3",
+    "original_raw_input_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+    "local_pose_source": "measured Finish fragment report; no archived ZIP poses",
+    "tasks": [
+      {
+        "position": 0,
+        "pair": [
+          8,
+          12
+        ],
+        "proposal_sha256": [
+          "163c3b8c34a5089a703ed0eaa22d472fb534858a5c52ead7e49e129f289698ac",
+          "4a8d6e0be023f239c22fd61b332a107b7bb705e8cb4550a16aed1f5e92e382d8",
+          "df19003966889bca7578a8b58b9ea7d6270a5d04816e252e1d88891a104a82a9",
+          "b7e55e2e821dd88d79ba8b6a9d6ca865f89afd86d794c1e48a2a0d73911e862f",
+          "df1990d547d07e6155b1c5be3cc11545cffb66ab08c959151837ed3d72e7ad77"
+        ]
+      },
+      {
+        "position": 4,
+        "pair": [
+          0,
+          2
+        ],
+        "proposal_sha256": [
+          "b692a4645909476fab4c77e549d0220e0f433457d92b01b115f7f8848f4da5b3",
+          "ccc7977ae7987f37c2235e57c320a5142d6b58413825b6457a4a1c9fe469ac1c",
+          "8d1a3625dea25bd459a846fd231518cdea7ec059ca9b63191c0c8a6469deec78",
+          "0e69129ce7f988d366e2272a86d712df84ee7a6afd7beb23c3e458ae48018333"
+        ]
+      }
+    ]
+  },
+  "native_cpu_full_bridge_s": 11.209217999996326,
+  "resident_runs": [
+    {
+      "repeat": 0,
+      "cache_state": "first",
+      "full_bridge_wall_s": 8.33915960000013,
+      "native_over_resident_speed_ratio": 1.3441663833842623,
+      "resident_over_native_wall_ratio": 0.7439555194664662,
+      "disjoint_host_wall_partition_s": {
+        "nn_raw_classification_counter_wait_s": 3.1711281002499163,
+        "nn_flagged_packet_copy_wait_s": 0.0,
+        "nn_original_cpu_resolution_s": 0.0,
+        "nn_correction_enqueue_s": 0.0,
+        "nn_remaining_host_control_s": 0.3863816990124178,
+        "target_dataset_s": 0.2693511000179569,
+        "source_normal_allocation_upload_enqueue_s": 0.06276319995959057,
+        "transform_enqueue_s": 0.4306300995085621,
+        "equation_enqueue_s": 0.3036953999835532,
+        "system_copy_and_queued_gpu_wait_s": 0.5973537001700606,
+        "original_eigen_solve_s": 0.12874730039038695,
+        "final_correspondence_selection_copy_wait_s": 0.12455930010037264,
+        "disabled_event_collection_bookkeeping_s": 0.00018779996025841683,
+        "remaining_resident_host_control_s": 0.6401540007500444,
+        "icp_wrapper_s": 0.00037849989166716114,
+        "outside_icp_verification_s": 2.223829400005343
+      },
+      "nn_inclusive_wall_s": 3.557509799262334,
+      "non_nn_floor_s": 4.781649800737796,
+      "nn_budget_to_equal_native_s": 6.4275681992585305,
+      "query_rows": 104123989,
+      "candidate_visits": 14097651238,
+      "pose_iterations": 10861,
+      "icp_calls": 236,
+      "device_calls": 11569,
+      "original_cpu_query_resolutions": 0,
+      "index_builds": 90,
+      "cache_hits": 678,
+      "flagged_query_download_rows": 0,
+      "flagged_query_packet_download_bytes": 0,
+      "counter_download_bytes": 925520,
+      "corrected_id_or_metric_upload_bytes": 0,
+      "resident_source_normal_pose_upload_bytes": 112883496,
+      "resident_equation_system_and_final_pairs_download_bytes": 12375536
+    },
+    {
+      "repeat": 1,
+      "cache_state": "warm",
+      "full_bridge_wall_s": 7.450317000002542,
+      "native_over_resident_speed_ratio": 1.5045290019193145,
+      "resident_over_native_wall_ratio": 0.6646598362173868,
+      "disjoint_host_wall_partition_s": {
+        "nn_raw_classification_counter_wait_s": 2.6569067000818904,
+        "nn_flagged_packet_copy_wait_s": 0.0,
+        "nn_original_cpu_resolution_s": 0.0,
+        "nn_correction_enqueue_s": 0.0,
+        "nn_remaining_host_control_s": 0.35867899994627805,
+        "target_dataset_s": 0.09890940011973726,
+        "source_normal_allocation_upload_enqueue_s": 0.07091560003755149,
+        "transform_enqueue_s": 0.38743269963015337,
+        "equation_enqueue_s": 0.300462599239836,
+        "system_copy_and_queued_gpu_wait_s": 0.5092703003174393,
+        "original_eigen_solve_s": 0.1248824996073381,
+        "final_correspondence_selection_copy_wait_s": 0.10264500007178867,
+        "disabled_event_collection_bookkeeping_s": 0.00019489994156174362,
+        "remaining_resident_host_control_s": 0.6303296010592021,
+        "icp_wrapper_s": 0.00042609994125086814,
+        "outside_icp_verification_s": 2.2092626000085147
+      },
+      "nn_inclusive_wall_s": 3.0155857000281685,
+      "non_nn_floor_s": 4.4347312999743735,
+      "nn_budget_to_equal_native_s": 6.774486700021953,
+      "query_rows": 104123989,
+      "candidate_visits": 14097651238,
+      "pose_iterations": 10861,
+      "icp_calls": 236,
+      "device_calls": 11569,
+      "original_cpu_query_resolutions": 0,
+      "index_builds": 0,
+      "cache_hits": 708,
+      "flagged_query_download_rows": 0,
+      "flagged_query_packet_download_bytes": 0,
+      "counter_download_bytes": 925520,
+      "corrected_id_or_metric_upload_bytes": 0,
+      "resident_source_normal_pose_upload_bytes": 112883496,
+      "resident_equation_system_and_final_pairs_download_bytes": 12375536
+    }
+  ],
+  "audit": {
+    "query_rows": 104123989,
+    "direct_hits": 58809404,
+    "audited_hits": 58809404,
+    "direct_misses": 45314585,
+    "audited_misses": 45314585,
+    "original_cpu_resolutions": 0,
+    "index_mismatches": 0,
+    "false_misses": 0,
+    "candidate_visits": 14097651238,
+    "target_membership_count": 30,
+    "wall_s": 422.6743897999986,
+    "cpu_shadow_s": 261.1762462213301,
+    "all_query_packet_rows": 104123989,
+    "performance_attribution_valid": false
+  },
+  "quality": {
+    "all_nine_original_gates_per_run_passed": true,
+    "max_pose_coefficient_difference": 6.938893903907228e-16,
+    "max_information_matrix_difference": 4.3655745685100555e-11,
+    "metric_scope": "Available accepted-proposal matrices; rejected None witnesses have no matrix metric."
+  },
+  "solver_setup": {
+    "inherited_serial_adapter_setup_s": 0.024386600001889747,
+    "flat_shader_compile_setup_s": 0.0005959000045550056,
+    "device_classifier_resident_eigen_setup_s": 0.011435499996878207,
+    "scope": "Includes original/flat construction, device classifier compile, unchanged resident kernels and pinned Eigen load; imports are outside solver setup"
+  },
+  "resident_configuration": {
+    "device": "CUDA:0",
+    "max_points": 1000000,
+    "max_scratch_bytes": 268435456,
+    "max_query_bytes": 142606336,
+    "gpu_timing": false
+  },
+  "memory": {
+    "retained_grid_and_original_xyz_cap_bytes": 268435456,
+    "peak_retained_grid_and_original_xyz_bytes": 34214988,
+    "peak_query_scratch_bytes": 1990984,
+    "peak_combined_resident_and_query_scratch_bytes": 3027044,
+    "peak_process_rss_bytes": 1031954432,
+    "scope": "Separate retained/index and per-query/resident caps; external queries, host packets and CuPy pools are not a total memory cap."
+  },
+  "limits": "Raw-derived fixed component with measured local poses; accepted/rejected nine-proposal gates do not establish complete Finish/live tracking/mesh quality or throughput. Resident reductions can change roundoff. Host-wait partitions are not GPU kernel durations; queued work can complete in a later scope. CUDA events are disabled/uncollected. Native internal NN/solve split is unexposed. A whole-archive experiment needs separate quality and latency proof.",
+  "cleanup_passed": true
+}

@@ -107,7 +107,10 @@ def _notify(progress, current, total, message):
 
 
 def _view(engine, index):
-    rgb, depth = prepare_rgbd(*engine.raw_frames[index], engine.settings)
+    prepare = getattr(engine, "_prepare_input", None)
+    rgb, depth = (prepare_rgbd(*engine.raw_frames[index], engine.settings)
+                  if prepare is None else prepare(*engine.raw_frames[index],
+                      engine.settings, cpu_prepare=prepare_rgbd))
     if np.count_nonzero(depth) < 1000:
         return None
     cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
@@ -140,6 +143,11 @@ def _matches(source, target):
         source.match_cache[target.index] = cached
         return cached[2]
     matches = correspondences(source.features, target.features)
+    return _cache_matches(source, target, matches)
+
+
+def _cache_matches(source, target, matches):
+    """Install both exact directions using the existing bounded cache policy."""
     reverse = matches[:, ::-1].copy()
     reverse = reverse[np.argsort(reverse[:, 0], kind="stable")]
     matches.flags.writeable = reverse.flags.writeable = False
@@ -151,8 +159,35 @@ def _matches(source, target):
     return matches
 
 
-def _local_match(source, target, camera, settings, initial=None):
-    proposal = propose_transform(source.features, target.features, camera, _matches(source, target))
+def _prepare_matches(engine, sources, targets):
+    """Batch immutable descriptor retrieval; leave all pose checks uncached."""
+    if not targets or getattr(engine, "backend", {}).get("descriptor_matching", {}).get("implementation") != "cuda":
+        return
+    from .cuda_matching import Matcher
+
+    if engine._cuda_final_descriptor_matcher is None:
+        engine._cuda_final_descriptor_matcher = Matcher(int(str(engine.device).split(":")[1]))
+    for source in sources:
+        matched = engine._cuda_final_descriptor_matcher.match(source.features, [v.features for v in targets])
+        if matched is not None:
+            engine.backend["descriptor_matching"]["final_cuda_batches"] += 1
+            for target, matches in zip(targets, matched):
+                _cache_matches(source, target, matches)
+
+
+def _local_match(source, target, camera, settings, initial=None, *, measured_first=False):
+    matches = _matches(source, target)
+    proposal = propose_transform(source.features, target.features, camera, matches)
+    if measured_first and proposal is not None:
+        from .visual_refinement import measured_pose
+
+        relative = measured_pose(source.features, target.features, matches, proposal, camera)
+        if relative is not None and _visual_witness(source, target, relative, camera, matches)[0]:
+            translation, angle = motion(relative)
+            steps = max(1, min(3, source.index - target.index))
+            if (translation <= settings.max_translation_m * steps and angle <= settings.max_rotation_deg * steps
+                    and _heldout(source.heldout, target.heldout, relative, .4)[0]):
+                return relative
     seed = proposal if proposal is not None else np.eye(4) if initial is None else initial
     result = _pair(source.train, target.train, seed, 0.45)
     relative = result.transformation if result is not None else None
@@ -230,7 +265,11 @@ def _global_seed(source, target, seed):
     return result.transformation if result.fitness >= 0.25 and _rigid(result.transformation) else None
 
 
-def _verify_bridge(source, target, initial, camera=None):
+def _verify_bridge(source, target, initial, camera=None, *, visual_first=False):
+    if visual_first and camera is not None:
+        visual = _verify_visual_bridge(source, target, initial, camera)
+        if visual is not None:
+            return visual
     result = _pair(source.train, target.train, initial)
     pose = initial if result is None else result.transformation
     valid, stats = _heldout(source.heldout, target.heldout, pose)
@@ -239,7 +278,7 @@ def _verify_bridge(source, target, initial, camera=None):
         # surfaces unseen by the other. Verify their shared camera observations
         # instead, without weakening reciprocal or held-out thresholds.
         geometric = _verify_partial_bridge(source, target, initial)
-        return geometric if geometric is not None or camera is None else _verify_visual_bridge(
+        return geometric if geometric is not None or camera is None or visual_first else _verify_visual_bridge(
             source, target, initial, camera)
     # Independent cameras must support the same fragment transform. A single
     # cube/floor coincidence cannot authorize an entire disconnected segment.
@@ -271,7 +310,7 @@ def _verify_bridge(source, target, initial, camera=None):
         and _disagrees(target_poses[b], target_poses[d], 0.02, 2)
         for c, d in support)]
     if len(independent) < 2:
-        return _verify_visual_bridge(source, target, initial, camera) if camera is not None else None
+        return _verify_visual_bridge(source, target, initial, camera) if camera is not None and not visual_first else None
     information = REG.get_information_matrix_from_point_clouds(source.train, target.train, 0.03, pose)
     if not np.isfinite(information).all():
         return None
@@ -448,13 +487,16 @@ def propose_fragment_poses(engine, progress_cb=None):
         stamp = engine.frame_metadata[index].get("timestamp_s")
         relative = None
         gap = True
+        _prepare_matches(engine, [view], [reference for reference, _ in reversed(recent[-5:])])
         for reference, owner in reversed(recent[-5:]):
             last_stamp = engine.frame_metadata[reference.index].get("timestamp_s")
             if stamp is not None and last_stamp is not None and not 0 < stamp - last_stamp <= gap_limit:
                 continue
             initial = (np.linalg.inv(baseline[reference.index]) @ baseline[index]
                        if index in baseline and reference.index in baseline else None)
-            relative = _local_match(view, reference, engine.settings.camera, engine.settings, initial)
+            relative = (_local_match(view, reference, engine.settings.camera, engine.settings, initial, measured_first=True)
+                        if engine.backend.get("final_local_refinement") == "measured"
+                        else _local_match(view, reference, engine.settings.camera, engine.settings, initial))
             if relative is not None:
                 gap = False
                 current, previous = owner, reference
@@ -531,6 +573,7 @@ def propose_fragment_poses(engine, progress_cb=None):
             # Returning camera coordinates can overlap despite a badly drifted
             # world trajectory. This seed must pass exactly the same verification.
             proposals.append((0, np.eye(4)))
+            _prepare_matches(engine, source.keys, target.keys)
             for a in source.keys:
                 for b in target.keys:
                     matches = _matches(a, b)
@@ -576,7 +619,9 @@ def propose_fragment_poses(engine, progress_cb=None):
             if any(not _disagrees(proposal, previous, 0.01, 1) for previous in unique):
                 continue
             unique.append(proposal)
-            bridge = _verify_bridge(source, target, proposal, engine.settings.camera)
+            bridge = (_verify_bridge(source, target, proposal, engine.settings.camera, visual_first=True)
+                      if engine.backend.get("final_visual_first") == "on"
+                      else _verify_bridge(source, target, proposal, engine.settings.camera))
             if bridge is not None:
                 verified.append(bridge)
         if not verified:
