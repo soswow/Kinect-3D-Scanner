@@ -84,6 +84,33 @@ unstable measured depth, and yellow marks geometry/pose rejection. A seeded
 reference explicitly says that no motion has been measured yet. This local
 verification still does not authorize server fusion.
 
+Fading green trails show feature paths across the **last 20 incoming camera
+frames**, including the current frame. They follow persistent feature IDs;
+newly replenished corners start new paths. Older segments fade behind the
+current flow arrows and rejection markers. Paths grow as observations arrive,
+so new or short-lived features have shorter trails. Missing/rejected
+observations count toward the 20-frame window and leave gaps in a path;
+recovery does not invent intermediate positions. Recent retired paths fade
+out as their observations leave the window.
+
+The status shows the collected trail frames, up to 20. Trail history starts
+when visualization is enabled and clears when it is disabled or the tracking
+chain resets. It stores only IDs and pixel positions while diagnostics are
+enabled. The motion estimator still uses its five-reference bank, and trail
+arrays stay inside the local diagnostic snapshot rather than capture reports,
+recordings or uploads. Positions remain on the calibrated depth grid;
+portrait display rotates the complete overlay afterward.
+
+The [trail display check](benchmarks/twenty-frame-flow-trails.json) compares
+60 synthetic camera observations with the previous diagnostic implementation.
+Measured motion counts and pose matrices are unchanged. With 500 surviving
+features, the 20-frame buffer holds 10,000 positions and renders up to 9,500
+segments. In that dense case, median tracker update time increases from 5.93
+to 6.83 ms, and median overlay rendering from 6.48 to 20.43 ms on the local
+ARM Mac. These measurements exclude physical acquisition, native color
+registration and the rest of the UI; trails incur this extra display cost
+only when visualization is enabled.
+
 The status shows the rejection counts, detected corner count, camera tracking
 time, and reference age. The reference may be an earlier good image from the
 five-view history, so arrows are not necessarily adjacent-frame motion. When

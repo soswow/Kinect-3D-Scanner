@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "85c75c93452f258449c4437129ed2e14f52fcd03",
+  "camera_frames": 60,
+  "measured_motion_updates": {
+    "before": 58,
+    "after": 58
+  },
+  "max_pose_matrix_difference": 0.0,
+  "trail_frames": 20,
+  "trail_segments": 9500,
+  "trajectory_storage_bytes": 160000,
+  "trajectory_snapshot_bytes": 237500,
+  "tracking_update_ms": {
+    "before": {
+      "median": 5.933708045631647,
+      "p90": 9.118095971643925
+    },
+    "after": {
+      "median": 6.830083206295967,
+      "p90": 10.535420291125774
+    }
+  },
+  "overlay_render_ms": {
+    "before": {
+      "median": 6.483166944235563,
+      "p90": 7.010566536337137
+    },
+    "after": {
+      "median": 20.434812176972628,
+      "p90": 21.361345797777176
+    }
+  },
+  "notes": [
+    "Synthetic textured-plane motion on the 640x480 depth grid; no physical Kinect acquisition or native registration",
+    "Four OpenCV threads; alternating before/after order; first 20 updates and first 10 paints excluded",
+    "Renderer compares the same snapshot with historical trails ignored before and displayed after",
+    "Trails do not expand the five-reference pose bank or change measured acceptance"
+  ],
+  "versions": {
+    "python": "3.13.7",
+    "opencv": "5.0.0",
+    "numpy": "2.5.3",
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O"
+  },
+  "opencv_threads": 4,
+  "source_sha256": {
+    "shared/visual_tracking.py": "43377ad3121dc652c213188d85b8d6e9484be38ea6767cfcae3abfdd8d694945",
+    "kinect_scanner/gui/tracking_debug.py": "08472bcefe29706127c1363b2bd05eb511d55092171dd2d6ac972b8466db7cf9"
+  }
+}
