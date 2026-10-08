@@ -5,6 +5,10 @@ archive comparisons and charts. The [initial fusion report](cuda-study/REPORT.md
 is historical. [CUDA_EXPERIMENTS.md](../CUDA_EXPERIMENTS.md) explains the field
 configuration, rejected approaches, remaining research and reproduction commands.
 
+The [script index](../../scripts/README.md) distinguishes maintained tools,
+active research and archived experiments. The catalog maps old report paths to
+their current locations; source relocation requires fresh execution proofs.
+
 The JSON summaries under `cuda-pipeline/` preserve component results and measured
 source/runtime fingerprints. Each `report-manifest.json` hashes the published
 files and their original sources. Published text uses LF line endings; the

@@ -320,10 +320,10 @@ def main():
     from PIL import Image
 
     from scanner_server.engine import ScanEngine
-    policy_path = ROOT / "scripts/adaptive_visual_experiment.py"
+    policy_path = ROOT / "scripts/research/archive/adaptive_visual_experiment.py"
     policy_hash = file_hash(policy_path) if args.visual_fallback_sift else None
     if args.visual_fallback_sift:
-        from scripts.adaptive_visual_experiment import AdaptiveVisualEngine
+        from scripts.research.archive.adaptive_visual_experiment import AdaptiveVisualEngine
         ScanEngine = AdaptiveVisualEngine
     from shared.settings import ScanSettings
 

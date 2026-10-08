@@ -129,7 +129,7 @@ def main():
                                 and old["finish_requested"] == args.finish and not old["pose_seeds_used"]
                                 and old["settings_overrides"] == overrides and old["backend"]["device"] == ("CPU:0" if device == "cpu" else "CUDA:0")
                                 and old.get("experimental_visual_fallback", False) == adaptive
-                                and (not adaptive or old.get("experimental_policy_sha256") == file_hash(ROOT / "scripts/adaptive_visual_experiment.py"))
+                                and (not adaptive or old.get("experimental_policy_sha256") == file_hash(ROOT / "scripts/research/archive/adaptive_visual_experiment.py"))
                                 and not old.get("experimental_policy_changed", False)
                                 and old["backend"]["tracking"] == tracking and old["omp_threads"] == str(args.threads)
                                 and old["native_mode"] == "on" and old["initial_blocks"] == "5000"
