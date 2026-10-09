@@ -1565,8 +1565,9 @@ class MainWindow(QMainWindow):
         if self._export_pending or not self.server_client.is_connected:
             return False
         if path is None:
+            filename = f"scan-session_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.zip"
             path, _ = QFileDialog.getSaveFileName(
-                self, "Save Project", self._project_path or os.path.join(self._ensure_export_dir(), "scan-project.zip"),
+                self, "Save Project", self._project_path or os.path.join(self._ensure_export_dir(), filename),
                 "Scanner projects and sessions (*.zip)",
             )
         if not path:
