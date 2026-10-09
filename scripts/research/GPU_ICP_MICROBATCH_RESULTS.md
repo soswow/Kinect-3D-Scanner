@@ -35,6 +35,56 @@ at most 1.01e-15 m in translation, zero reported rotation, zero fitness and
 were CPU-audited with no ambiguous rows. These diagnostic walls include audits,
 setup and graph capture; they do not establish an unaudited speed gain.
 
+The owner-bound v2 lane then passed all four session-6 proposals. Both execution
+styles audited 3,937,440 actual query rows in total. Graph and ordinary execution
+again produced identical terminal results and counts; the maximum original-CPU
+translation difference was 8.59e-16 m. This version binds original cloud/seed
+owners and the declared chunk before authorizing a trajectory.
+
+## Independent seeds with the CPU solver boundary
+
+The first separately authorized unaudited timings used genuine two/four-seed
+prefixes of one current pair each in sessions 6 and 7. Fresh audits checked
+11,484,960 actual nearest rows. Every final original correspondence ID set,
+normal-diversity gate, complete original bridge proposal and competing-proposal
+ambiguity verdict passed. Reverse, independent-camera, held-out, visual and
+information calls stayed on the original CPU path; only initial forward ICP
+results were supplied by the batch adapter.
+
+Three contemporary rounds rotated native CPU, serial GPU lanes and concurrent
+GPU lanes. Median batch host walls in milliseconds were:
+
+| Pair | Seeds | Native CPU | Serial GPU lanes | Concurrent GPU lanes |
+|---|---:|---:|---:|---:|
+| Session 6, 0/2 | 2 | 66.43 | 191.56 | 159.20 |
+| Session 6, 0/2 | 4 | 130.30 | 295.82 | 255.33 |
+| Session 7, 0/11 | 2 | 65.68 | 101.66 | 202.58 |
+| Session 7, 0/11 | 4 | 131.98 | 337.17 | 276.42 |
+
+The batch timer includes preparation, input/permit preflight, worker joins and
+selected-stream completion. Helper construction/close and complete bridge
+quality shadows are separate. GPU walls vary substantially across rounds;
+individual favourable timings do not establish a gain. This adapter is slower
+overall and is retained as a reproducible negative result. Its per-iteration
+CPU Eigen solve and nearest-counter synchronization remain. Complete device
+iterations and graph execution are the separately tested route to removing
+those boundaries.
+
+## Doing fewer iterations
+
+A separate CPU experiment changed convergence explicitly while retaining every
+original bridge check and all four genuine session-6 proposals. Three rotated
+rounds measured the entire proposal verification work, with comparisons outside
+the timers. The original median was 2.317 s. Raising fitness/RMSE epsilon to
+1e-5 reduced it to 1.935 s but verified three proposals instead of four and
+changed witness support. Epsilon 1e-4 took 1.652 s but moved an accepted bridge
+by 19.28 mm and changed its validation scope. Halving iteration budgets took
+2.147 s; short 12/8/6 budgets took 1.760 s. Both verified only two proposals
+and moved accepted bridges by as much as 23.83 mm. These methods failed the
+declared support/scope and 0.5 mm / 0.1 degree comparison. They are retained
+as negative evidence, not a field speed setting. The device-loop experiments
+retain the original convergence and iteration budgets.
+
 Private reports are in `benchmark-output/field-cuda-study/`, including
 `gpu-icp-pruned-nn-v1`, `gpu-icp-warp-nn-v1`,
 `gpu-icp-warp-pruned-nn-v1`, `gpu-icp-microbatch-v2`, and
@@ -46,6 +96,15 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
   local pair fixtures from a closed current-source unseeded raw replay.
 - [gpu_icp_experiment_loop_probe.py](gpu_icp_experiment_loop_probe.py): compare
   actual-input original CPU ICP with exhaustive-audited GPU steps and graphs.
+- [gpu_icp_experiment_driver.py](gpu_icp_experiment_driver.py) and
+  [gpu_icp_experiment_protocol.py](gpu_icp_experiment_protocol.py): fresh
+  independent-seed native/gate audits, exact registered timing scope and
+  separately timed runs.
+- [microbatch_icp.py](microbatch_icp.py): original mathematical operations with
+  explicit independent streams, shared immutable pair buffers and bounded
+  private lane state; retains the CPU solver boundary.
+- [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py):
+  explicit changed-method CPU budget/epsilon experiments through original gates.
 - [device_loop_icp.py](device_loop_icp.py) and
   [device_loop_control.cu](device_loop_control.cu): complete device iterations
   with explicit stream ownership, bounded buffers and blocked exception states.

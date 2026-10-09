@@ -40,7 +40,11 @@ unchanged because measured earlier component proofs bind its exact bytes.
 | [benchmark_production_missing_activation.py](benchmark_production_missing_activation.py) | Check installed weighted Final allocation with native capacity and per-key voxel-bit comparisons |
 | [probe_final_budget.py](probe_final_budget.py) | Verify an insufficient Final budget using a fresh current-source raw replay; allocation only |
 | [summarize_production_allocation.py](summarize_production_allocation.py) | Publish bounded scalar production validation from closed local reports |
-| [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Concrete next experiment: independent proposal batches and complete device iterations |
+| [GPU_ICP_MICROBATCH_RESULTS.md](GPU_ICP_MICROBATCH_RESULTS.md) | Executed proposal batching, complete GPU iterations, CUDA graphs and exact-neighbour variants; correctness and timing scopes |
+| [gpu_icp_experiment_capture.py](gpu_icp_experiment_capture.py) | Rebuild genuine current field-pair proposals from raw calibrated views |
+| [gpu_icp_experiment_driver.py](gpu_icp_experiment_driver.py) | Audit original ICP results and all original proposal gates, then separately time two/four independent seeds |
+| [gpu_icp_experiment_loop_probe.py](gpu_icp_experiment_loop_probe.py) | Exhaustive actual-query audit of complete device iterations against CPU and CUDA graph execution |
+| [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Ordering, memory ownership and integration requirements for proposal batching and complete device iterations |
 
 These files have different jobs: runnable experiments, bounded adapters,
 independent validators, fault contracts and negative-result diagnostics. They

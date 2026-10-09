@@ -144,3 +144,4 @@ scripts/research/microbatch_icp.py text eol=lf
 tests/test_device_loop_icp.py text eol=lf
 tests/test_microbatch_icp.py text eol=lf
 scripts/research/GPU_ICP_MICROBATCH_RESULTS.md text eol=lf
+scripts/research/benchmark_icp_convergence_tradeoff.py text eol=lf

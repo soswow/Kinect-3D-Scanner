@@ -57,6 +57,12 @@
       "role": "Next bounded GPU proposal-batch and device-iteration experiment design"
     },
     {
+      "legacy_path": "scripts/research/GPU_ICP_MICROBATCH_RESULTS.md",
+      "path": "scripts/research/GPU_ICP_MICROBATCH_RESULTS.md",
+      "group": "active",
+      "role": "Executed current-input GPU ICP experiments, including negative neighbour and batch results"
+    },
+    {
       "legacy_path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
       "path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
       "group": "active",
@@ -151,6 +157,30 @@
       "path": "scripts/research/benchmark_field_sessions.py",
       "group": "active",
       "role": "Run isolated CPU/CUDA field replays with the archive's actual settings."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_icp_convergence_tradeoff.py",
+      "path": "scripts/research/benchmark_icp_convergence_tradeoff.py",
+      "group": "active",
+      "role": "Explicit changed-convergence fixed-pair CPU experiment; original gates retained and unsafe shortcuts documented"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_microbatch_pruned_nn.py",
+      "path": "scripts/research/benchmark_microbatch_pruned_nn.py",
+      "group": "active",
+      "role": "Exact-neighbour cell-pruning pilot and repeated raw lookup timing"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_microbatch_warp_nn.py",
+      "path": "scripts/research/benchmark_microbatch_warp_nn.py",
+      "group": "active",
+      "role": "Exact warp-sized neighbour pilot and repeated raw lookup timing"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_microbatch_warp_pruned_nn.py",
+      "path": "scripts/research/benchmark_microbatch_warp_pruned_nn.py",
+      "group": "active",
+      "role": "Combined warp/pruning exact-neighbour pilot and negative real-row result"
     },
     {
       "legacy_path": "scripts/research/benchmark_missing_activation.py",
@@ -255,6 +285,18 @@
       "role": "Separate exact CPU-shadow experiment; original GPU math stays inherited."
     },
     {
+      "legacy_path": "scripts/research/device_loop_control.cu",
+      "path": "scripts/research/device_loop_control.cu",
+      "group": "active",
+      "role": "GPU convergence and pose composition control for the device iteration experiment"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_icp.py",
+      "path": "scripts/research/device_loop_icp.py",
+      "group": "active",
+      "role": "Bounded complete device iteration lane with original input owners and declared graph chunks"
+    },
+    {
       "legacy_path": "scripts/research/evaluate_marker_seeds.py",
       "path": "scripts/research/evaluate_marker_seeds.py",
       "group": "active",
@@ -303,6 +345,30 @@
       "role": "Offline marker proposals through every original fragment bridge authority."
     },
     {
+      "legacy_path": "scripts/research/gpu_icp_experiment_capture.py",
+      "path": "scripts/research/gpu_icp_experiment_capture.py",
+      "group": "active",
+      "role": "Rebuild genuine raw-derived fixed-pair proposals under closed current source"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_driver.py",
+      "path": "scripts/research/gpu_icp_experiment_driver.py",
+      "group": "active",
+      "role": "Fresh original ICP and complete proposal gate audit, then scoped independent-seed timing"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_loop_probe.py",
+      "path": "scripts/research/gpu_icp_experiment_loop_probe.py",
+      "group": "active",
+      "role": "Exhaustive actual-query CPU shadow of full GPU iterations and CUDA graphs"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_protocol.py",
+      "path": "scripts/research/gpu_icp_experiment_protocol.py",
+      "group": "active",
+      "role": "Distinct current-input independent-seed timing authority and evidence validator"
+    },
+    {
       "legacy_path": "scripts/research/marker_proposal_scope.py",
       "path": "scripts/research/marker_proposal_scope.py",
       "group": "active",
@@ -313,6 +379,30 @@
       "path": "scripts/research/measured-source-layout.json",
       "group": "active",
       "role": "Field research inventory or source provenance data"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_icp.py",
+      "path": "scripts/research/microbatch_icp.py",
+      "group": "active",
+      "role": "Independent explicit-stream two/four-seed adapter retaining original CPU solver boundary"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_pruned_flat_grid_nn.cu",
+      "path": "scripts/research/microbatch_pruned_flat_grid_nn.cu",
+      "group": "active",
+      "role": "Bounded centre-first exact-neighbour cell-pruning shader"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_warp_flat_grid_nn.cu",
+      "path": "scripts/research/microbatch_warp_flat_grid_nn.cu",
+      "group": "active",
+      "role": "Four independent warp-sized exact queries per thread block"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_warp_pruned_flat_grid_nn.cu",
+      "path": "scripts/research/microbatch_warp_pruned_flat_grid_nn.cu",
+      "group": "active",
+      "role": "Combined exact-neighbour warp and cell-pruning experiment"
     },
     {
       "legacy_path": "scripts/research/native_corner_cpu.py",
