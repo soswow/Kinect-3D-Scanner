@@ -62,8 +62,21 @@ select a new production ICP backend.
 Persistent setup subsequently passed all original complete proposal checks on
 84 session-6 and 112 session-7 alignments. Its first research timing remained
 slower, with repeated audit-report I/O identified as a substantial harness cost.
-The linked experiment report preserves those negative timings and the scope of
-the next owned-report and exact neighbor-filter measurements.
+Fresh owned read-only report handling subsequently reduced this research
+overhead while preserving all original proposal checks. Across three timings,
+session 6 took median 2.863 seconds on CPU and 3.164 seconds on GPU including
+cold setup and cleanup; session 7 took 4.281 and 4.366 seconds. Complete GPU
+proposal processing is therefore close to CPU speed on these prepared pairs,
+without a substantial improvement. A separate exact-output warp neighbor
+filter reduced raw lookup wall time by 12.6% on twelve real query batches;
+this does not measure complete ICP or Finish speed.
+
+An original-CPU census of all 30 genuine proposals across nine pairs found
+172 of 714 alignments starting from nearly identical seeds on exactly matching
+directed clouds. Their canonical point matches agreed. A new result-reuse trial
+is being audited on its actual changed trajectory; the census itself skipped
+no work and establishes no speed or safe-reuse claim. The linked experiment
+report preserves all positive and negative results and their measured scopes.
 
 The new field archives make fragment verification the main speed target, but
 they also expose two quality/completion issues that a speed comparison must

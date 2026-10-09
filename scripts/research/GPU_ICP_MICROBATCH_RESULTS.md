@@ -146,11 +146,25 @@ contain every matched sample and the declared timing limits.
 
 An explicitly instrumented Python-boundary run found 421 rereads of session 6's
 7.47 MB audit report, plus repeated decoding of the same ordered references.
-Those overlapping clocks are diagnostics, not speed measurements. A separately
-scoped read-only owned audit and cached-reference method is being prepared to
-measure this overhead without weakening exact input, terminal or gate checks.
-The old v1 reports and failed/aborted profiling attempts remain private and
-unchanged; profiling samples are excluded from performance publication.
+Those overlapping clocks are diagnostics, not speed measurements. The separately
+scoped v2 method holds a Windows read-only file handle, binds its exact initial
+and final bytes, and caches immutable ordered references. Every actual input,
+terminal, original gate and ambiguity check still runs. Old permits cannot
+authorize this new method; both pairs received fresh complete audits.
+
+Three fresh timing processes per pair charged cold setup, all original proposal
+checks and final GPU owner cleanup. Session 6 took median 2.863 s on CPU and
+3.164 s on GPU (median matched ratio 1.105). Session 7 took 4.281 s on CPU and
+4.366 s on GPU (matched ratio 1.010). Removing repeated research-report I/O
+brought complete GPU verification close to CPU, but did not establish a speedup.
+Each timing receipt closed its held handle after exactly two file reads with
+identical hashes. The
+[session-6 owned-proof receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-owned-session6-summary.json)
+and [session-7 receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-owned-session7-summary.json)
+record all samples and unchanged quality checks. This remains one prepared pair
+per session, without whole-Finish or production backend authority. Old v1 reports
+and failed/aborted profiling attempts remain private and unchanged; instrumented
+samples are excluded from performance publication.
 
 ## Conservative float neighbor screening
 
@@ -182,8 +196,41 @@ The first v1 attempt failed before kernel launch because CuPy already appends
 its FTZ compiler option. Its failed report and source snapshot are preserved.
 The distinct v2 driver omits the duplicate option and binds the actual CuPy
 compiler wrapper. The enclosure includes FTZ and gradual-underflow behavior.
-Warp-level screening and a separately charged precomputed conservative bound
-are the next measurements; production lookup remains unchanged.
+Warp-level screening was subsequently measured using four queries per block,
+warp reductions and a conservative bound computed once per case. Queries beyond
+the declared coordinate cap use the full original double lookup. Two fresh runs
+each passed all five raw output columns bit-for-bit and fresh CPU query checks
+across 24 cases and 30,737 rows, including an explicit cap-overflow fallback.
+
+The balanced twelve-repeat run rotated all three controls equally. Across the
+twelve real batches, the sums of per-batch median host walls were 0.8557 ms for
+the original 128-thread lookup, 0.8048 ms for an exhaustive warp lookup, and
+0.7477 ms for warp screening: **12.6% less raw lookup wall time** than the original
+and 7.1% less than exhaustive warp lookup. Corresponding GPU event totals were
+0.693216, 0.650000 and 0.593216 ms. These timers include kernel enqueue and
+selected-stream completion with preuploaded inputs; grid/shadow/query setup,
+host-bound calculation and output copies are separately recorded. This gain
+does not establish complete ICP, Finish or scanning FPS improvement. Production
+lookup remains unchanged.
+
+## Measuring opportunities to avoid complete alignments
+
+A separate original-CPU census exhausted all 30 genuine proposals across nine
+current session-6/7 pairs. It returned every original registration result and
+ran all original proposal checks, with **714 calls and zero skipped calls**.
+Exact full-precision cloud values and direction formed 292 cloud buckets.
+There were no byte-identical repeated seeds. Comparing each unrounded 4x4 seed
+directly to a fixed first representative found 172 entries within a maximum
+matrix-entry difference of 1e-10 (24.1% of calls), or 184 within 1e-8.
+
+For those census groups, every canonical correspondence set was identical;
+fitness differences were zero, maximum transformation-entry differences were
+6.31e-15, and maximum RMSE differences were 3.04e-16. This is an observation
+under the original CPU trajectory, not proof that reusing a result is safe or
+faster. A changed-method reuse trial must audit every actual hit against a fresh
+original CPU call on its new trajectory, preserve all full proposal checks and
+measure hashing, cache storage, result reconstruction and cleanup. The census
+never rounds a seed or grants timing, whole-Finish or production authority.
 
 Private reports are in `benchmark-output/field-cuda-study/`, including
 `gpu-icp-pruned-nn-v1`, `gpu-icp-warp-nn-v1`,
@@ -219,12 +266,24 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
   actual-input CPU/query audits before timing.
 - [summarize_gpu_icp_complete_bridge.py](summarize_gpu_icp_complete_bridge.py):
   publish small scalar receipts from those closed audit and timing reports.
+- [device_loop_owned_workspace.py](device_loop_owned_workspace.py),
+  [microbatch_bridge_owned_driver.py](microbatch_bridge_owned_driver.py) and
+  [microbatch_bridge_owned_protocol.py](microbatch_bridge_owned_protocol.py):
+  separately audited execution with owned read-only proof handles and immutable
+  indexed references.
+- [summarize_gpu_icp_owned_bridge.py](summarize_gpu_icp_owned_bridge.py): publish
+  scalar matched timings only after the new held-handle receipts close.
 - [profile_complete_bridge.py](profile_complete_bridge.py): observational Python
   boundary attribution; its instrumented runs cannot establish a speed gain.
 - [benchmark_flat_grid_filtered_nn.py](benchmark_flat_grid_filtered_nn.py),
   [research_flat_grid_filtered_nn.cu](research_flat_grid_filtered_nn.cu) and
   [flat_grid_filter_bound.py](flat_grid_filter_bound.py): conservative float
   candidate screening with exact original double outputs and fresh CPU audits.
+- [benchmark_warp_flat_grid_filtered_nn.py](benchmark_warp_flat_grid_filtered_nn.py)
+  and [research_warp_flat_grid_filtered_nn.cu](research_warp_flat_grid_filtered_nn.cu):
+  exact-output warp screening with charged host bounds and full fallback.
+- [benchmark_icp_seed_reuse_census.py](benchmark_icp_seed_reuse_census.py): original
+  CPU call census and direct first-representative seed/result comparisons.
 - [benchmark_microbatch_pruned_nn.py](benchmark_microbatch_pruned_nn.py),
   [benchmark_microbatch_warp_nn.py](benchmark_microbatch_warp_nn.py), and
   [benchmark_microbatch_warp_pruned_nn.py](benchmark_microbatch_warp_pruned_nn.py):

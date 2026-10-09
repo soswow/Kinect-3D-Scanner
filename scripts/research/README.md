@@ -53,6 +53,10 @@ unchanged because measured earlier component proofs bind its exact bytes.
 | [microbatch_bridge_scope.py](microbatch_bridge_scope.py) | Private unchanged original verifier namespaces and match caches; preserve actual return objects and ordered gate evidence |
 | [summarize_gpu_icp_complete_bridge.py](summarize_gpu_icp_complete_bridge.py) | Publish small scalar receipts from closed complete-proposal audit and matched timing runs |
 | [profile_complete_bridge.py](profile_complete_bridge.py) | Observational Python boundary attribution; profiling overhead prevents speed claims from those runs |
+| [device_loop_owned_workspace.py](device_loop_owned_workspace.py), [microbatch_bridge_owned_driver.py](microbatch_bridge_owned_driver.py) and [microbatch_bridge_owned_protocol.py](microbatch_bridge_owned_protocol.py) | Fresh complete-proposal audit with owned read-only proof handles and immutable indexed references; removes measured harness I/O overhead |
+| [summarize_gpu_icp_owned_bridge.py](summarize_gpu_icp_owned_bridge.py) | Publish matched complete-proposal timings after closed owned-proof receipts |
+| [benchmark_warp_flat_grid_filtered_nn.py](benchmark_warp_flat_grid_filtered_nn.py) and [research_warp_flat_grid_filtered_nn.cu](research_warp_flat_grid_filtered_nn.cu) | Conservative warp float screening with exact original double outputs; measured 12.6% raw lookup wall reduction, without scanner speed authority |
+| [benchmark_icp_seed_reuse_census.py](benchmark_icp_seed_reuse_census.py) | Observe exact-cloud and near-seed repetition while executing every original CPU alignment and proposal check |
 | [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py) | Explicit changed-budget/epsilon pilot through original proposal gates; measured shortcuts failed pose/witness comparison |
 | [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Ordering, memory ownership and integration requirements for proposal batching and complete device iterations |
 

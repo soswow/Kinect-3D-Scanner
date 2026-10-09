@@ -667,6 +667,48 @@
       "path": "scripts/research/flat_grid_filter_bound.py",
       "group": "active",
       "role": "Upward-rounded error enclosure, distinct-neighbor inclusion theorem and host reference"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_owned_workspace.py",
+      "path": "scripts/research/device_loop_owned_workspace.py",
+      "group": "active",
+      "role": "Pristine device-loop setup bound to owned read-only immutable proof references"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_owned_driver.py",
+      "path": "scripts/research/microbatch_bridge_owned_driver.py",
+      "group": "active",
+      "role": "Fresh complete-proposal audit and setup-charged timing using owned proof references"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_owned_protocol.py",
+      "path": "scripts/research/microbatch_bridge_owned_protocol.py",
+      "group": "active",
+      "role": "Held Windows read-only proof handles, immutable indexed references and exact closed receipts"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_owned_bridge.py",
+      "path": "scripts/research/summarize_gpu_icp_owned_bridge.py",
+      "group": "active",
+      "role": "Path-free matched complete-proposal timing publication after owned proof closure"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_warp_flat_grid_filtered_nn.py",
+      "path": "scripts/research/benchmark_warp_flat_grid_filtered_nn.py",
+      "group": "active",
+      "role": "Fresh exact-output warp screening audit and balanced raw lookup timing"
+    },
+    {
+      "legacy_path": "scripts/research/research_warp_flat_grid_filtered_nn.cu",
+      "path": "scripts/research/research_warp_flat_grid_filtered_nn.cu",
+      "group": "active",
+      "role": "Conservative warp float screening with original double top-two outputs and full fallback"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_icp_seed_reuse_census.py",
+      "path": "scripts/research/benchmark_icp_seed_reuse_census.py",
+      "group": "active",
+      "role": "Original CPU call census with exact clouds and direct first-representative near-seed comparisons"
     }
   ]
 }
