@@ -43,6 +43,45 @@ class ServerClientTests(unittest.TestCase):
                 self.assertIn("geometry=xyzrgb-f32le", client._ws_url)
             client.disconnect()
 
+    def test_batch_fallback_warning_rearms_only_after_batch_upload_recovers(self):
+        client = ServerClient()
+        client._http = Mock()
+        replies = [response({"success": True}) for _ in range(4)]
+        for reply, code in zip(replies, [404, 404, 200, 404]):
+            reply.status_code = code
+        client._http.post.side_effect = replies
+        client.send_frame = Mock(return_value={"success": True})
+        with patch("kinect_scanner.server_client.pack_frames", return_value=b"batch"), \
+                self.assertLogs("kinect_scanner.server_client", level="INFO") as logs:
+            for _ in replies:
+                client.send_frames_batch([(None, None, {})])
+        self.assertEqual(3, len(logs.output))
+        self.assertIn("available again", logs.output[1])
+
+    def test_websocket_retry_logs_reason_changes_and_failure_after_recovery(self):
+        client = ServerClient()
+        stop = Mock()
+        stop.is_set.return_value = False
+        outcomes = iter(["offline", "offline", "denied", None, "stop"])
+        def connect(url):
+            outcome = next(outcomes)
+            if outcome == "stop":
+                stop.is_set.return_value = True
+            elif outcome is not None:
+                raise OSError(outcome)
+        socket = Mock()
+        socket.connect.side_effect = connect
+        socket.recv.side_effect = OSError("offline")
+        module = SimpleNamespace(WebSocket=Mock(return_value=socket),
+                                 WebSocketException=RuntimeError, WebSocketTimeoutException=TimeoutError)
+        with patch.dict(sys.modules, {"websocket": module}), \
+                self.assertLogs("kinect_scanner.server_client", level="WARNING") as logs:
+            client._ws_listener(stop=stop, url="ws://test")
+        self.assertEqual(3, len(logs.output))
+        self.assertIn("offline", logs.output[0])
+        self.assertIn("denied", logs.output[1])
+        self.assertIn("offline", logs.output[2])
+
     def test_connection_emits_full_session_status_and_uses_bounded_checks(self):
         client = ServerClient()
         status = {"session_id": "existing", "settings": {"voxel_size": .004},

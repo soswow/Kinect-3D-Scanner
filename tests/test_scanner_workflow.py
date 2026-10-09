@@ -81,6 +81,20 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.window._switch_mode(main_window.MODE_DEPTH)
         self.assertIs(self.window.view_stack.currentWidget(), self.window.splitter)
 
+    def test_camera_logs_change_only_with_reason_or_recovery(self):
+        self.window.logs_panel.clear_logs()
+        self.window._on_error("USB disconnected")
+        self.window.logs_panel.append("Server connected", "Connection")
+        self.window._on_error("USB disconnected")
+        self.window._update_fps()
+        self.window._on_error("No fresh depth frames")
+        self.fresh_frame()
+        self.window._on_error("USB disconnected")
+        text = self.window.logs_panel.text.toPlainText()
+        self.assertEqual(2, text.count("USB disconnected"))
+        self.assertEqual(1, text.count("No fresh depth frames"))
+        self.assertEqual(1, text.count("Live color and depth frames received"))
+
     def test_empty_camera_has_one_error_and_stale_image_retains_warning(self):
         self.window._last_rgb = None
         self.window.view_label._image = None

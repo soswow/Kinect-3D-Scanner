@@ -135,7 +135,10 @@ The **Scan**, **Color**, and **Depth** views show the reconstruction or a full
 camera preview. In Scan view, the fused point cloud is prominent and the color
 and depth camera previews are stacked beside it, with color above depth.
 The **Logs** view after Depth shows timestamped connection, capture,
-reconstruction, save and diagnostic messages while capture continues. It keeps
+reconstruction, save and warning events while capture continues. Messages appear
+when a state or reason changes; unchanged retries stay quiet, and a failure
+can appear again after recovery. Routine resource samples and detailed timings
+stay in the diagnostic files. It keeps
 the latest 2,000 lines; **Copy Logs** copies the visible history and **Clear Logs**
 clears it without changing the log files on disk. Scan state, progress and
 actionable viewer warnings remain visible. Hover over settings and their labels

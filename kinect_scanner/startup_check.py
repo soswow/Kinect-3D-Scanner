@@ -2,10 +2,10 @@
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 
 
 def synthetic_capture(connection, stop_event, rgb_buffer, depth_buffer):
@@ -24,11 +24,12 @@ def synthetic_capture(connection, stop_event, rgb_buffer, depth_buffer):
 def run_check():
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     os.environ.pop("KINECT_AUTOCONNECT", None)
+    import open3d as o3d
     from PyQt6.QtCore import QSettings, QTimer
     from PyQt6.QtWidgets import QApplication
-    import open3d as o3d
 
     from shared.sensor_calibration import load_calibration
+
     from .gui import main_window
     from .gui.preferences import ScannerPreferences
     from .runtime import data_root, export_root, viewer_command
@@ -54,9 +55,27 @@ def run_check():
         window.show()
         errors = []
         window.worker.error_occurred.connect(errors.append)
+        log_checks = []
+        camera_fault = "Synthetic check: camera disconnected"
+        window.logs_panel.clear_logs()
+        window._on_error(camera_fault)
+        window.logs_panel.append("Synthetic check: connection unchanged", "Connection")
+        window._on_error(camera_fault)
+        window._switch_mode("logs")
+        log_checks.append(window.view_stack.currentWidget() is window.logs_panel)
+        log_checks.append(window.logs_panel.text.toPlainText().count(camera_fault) == 1)
         def close_when_ready():
             if window._frame_sequence:
                 if not window._camera_suspended:
+                    # The real spawned frame must re-arm this fault, while a
+                    # second unchanged error must stay quiet in the Qt view.
+                    window._on_error(camera_fault)
+                    window._on_error(camera_fault)
+                    window.logs_panel.flush()
+                    history = window.logs_panel.text.toPlainText()
+                    log_checks.append(history.count(camera_fault) == 2)
+                    log_checks.append("Live color and depth frames received" in history)
+                    log_checks.append("Resources {" not in history)
                     window._stop_camera_after_finish()
                 elif not window.worker.isRunning():
                     window.close()
@@ -68,15 +87,17 @@ def run_check():
         frames = window._frame_sequence
         if not frames or errors or window.worker.isRunning() or window._last_rgb is not None:
             raise RuntimeError(f"Capture/window check failed: frames={frames}, errors={errors}")
+        if len(log_checks) != 5 or not all(log_checks):
+            raise RuntimeError(f"Log changes check failed: {log_checks}")
         if window.server_ip_edit.text() != "192.0.2.42":
             raise RuntimeError("Server preferences were not restored")
         mesh_path = str(Path(temporary) / "box.ply")
         o3d.io.write_triangle_mesh(mesh_path, o3d.geometry.TriangleMesh.create_box())
         result = subprocess.run(viewer_command(json.dumps({"mode": "check", "filepath": mesh_path})),
-                                capture_output=True, text=True, timeout=20)
+                                capture_output=True, text=True, timeout=20, check=False)
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
-    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok",
+    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0

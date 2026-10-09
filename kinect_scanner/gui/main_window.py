@@ -1980,7 +1980,7 @@ class MainWindow(QMainWindow):
         )
         for key in ("guidance", "surface_description"):
             if snapshot.get(key) and snapshot.get(key) != self.live_view.snapshot.get(key):
-                self.logs_panel.append(snapshot[key], "Reconstruction")
+                self.logs_panel.append(snapshot[key], "Reconstruction", key=key)
         self.live_view.set_snapshot(snapshot)
         self._on_server_status(snapshot)
         if not self._scanning:
@@ -2151,7 +2151,7 @@ class MainWindow(QMainWindow):
             self.progress_bar.show()
 
     def _on_task_error(self, msg: str):
-        logger.error("Operation error session=%s %s", self._session_id, msg)
+        logger.error("Operation error session=%s %s", self._session_id, msg, extra={"ui_log": False})
         # Recording/report warnings are independent of build or inspection success.
         self._show_message(msg, 10000)
         if "incomplete sensor recording" in msg:
@@ -2161,7 +2161,7 @@ class MainWindow(QMainWindow):
             self.sensor_recording_label.show()
 
     def _on_task_failed(self, task_type, message):
-        logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message)
+        logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message, extra={"ui_log": False})
         self.progress_bar.hide()
         self._operation_error = f"{message} · current scan retained"
         if task_type == "CONNECT":
@@ -2237,7 +2237,7 @@ class MainWindow(QMainWindow):
         if self._last_rgb is None:
             self.view_label.setText(msg)
             self.scan_depth_view.setText(msg)
-        self.logs_panel.append(msg, "Camera error")
+        self.logs_panel.append(msg, "Camera")
 
     def closeEvent(self, event):
         if not self._closing and not self._close_approved and not self._protect_session("close"):

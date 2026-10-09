@@ -200,6 +200,7 @@ class KinectWorker(QThread):
         # Never fork the already running Qt/Open3D runtime.
         context = multiprocessing.get_context("spawn")
         sequence = 0
+        last_camera_error = last_visual_error = None
         while not self._stop_event.is_set():
             tracker, tracking_generation = None, -1
             recording_generation = -1
@@ -290,10 +291,16 @@ class KinectWorker(QThread):
                             try:
                                 tracker.debug_enabled = tracking_debug
                                 metadata["visual_tracking"] = tracker.update(rgb, depth, metadata)
+                                if last_visual_error is not None and metadata["visual_tracking"].get("valid"):
+                                    logger.info("Visual motion estimate recovered", extra={"ui_event": True, "ui_state_key": "visual-estimate"})
+                                    last_visual_error = None
                                 if tracking_debug and tracker.debug_snapshot is not None:
                                     metadata["_tracking_debug"] = tracker.debug_snapshot
                             except (cv2.error, ValueError, np.linalg.LinAlgError) as exc:
-                                logger.warning("Visual motion estimate failed: %s", exc)
+                                if str(exc) != last_visual_error:
+                                    logger.warning("Visual motion estimate failed: %s", exc,
+                                                   extra={"ui_state_key": "visual-estimate"})
+                                    last_visual_error = str(exc)
                                 tracker.reset()
                                 metadata["visual_tracking"] = {
                                     "valid": False, "reason": "Visual estimate unavailable; chain reset"}
@@ -303,6 +310,7 @@ class KinectWorker(QThread):
                                 self._rgb_shape,
                             )
                             streaming = True
+                            last_camera_error = None
                         self._deliver_frame(rgb, depth, metadata)
                         deadline = time.monotonic() + self._frame_timeout
                     elif not process.is_alive():
@@ -318,7 +326,9 @@ class KinectWorker(QThread):
                     self.stop()  # Never retry USB after Finish, including a failed checkpoint.
                 if not self._stop_event.is_set():
                     message = str(exc) or "Kinect camera process disconnected"
-                    logger.warning("Camera acquisition failed: %s", message)
+                    if message != last_camera_error:
+                        logger.warning("Camera acquisition failed: %s", message, extra={"ui_log": False})
+                        last_camera_error = message
                     self.error_occurred.emit(message)
             finally:
                 if acceleration_call:

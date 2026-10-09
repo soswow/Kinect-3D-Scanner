@@ -142,9 +142,24 @@ class CaptureWorkerTests(unittest.TestCase):
         )
         self.addCleanup(self.stop_worker, worker)
         worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
-        worker.start()
-        self.assertTrue(wait_for(lambda: len(errors) >= 2))
+        with self.assertLogs("kinect_scanner.worker", level="WARNING") as logs:
+            worker.start()
+            self.assertTrue(wait_for(lambda: len(errors) >= 2))
+            self.stop_worker(worker)
+        self.assertEqual(1, len(logs.output))
         self.assertIn("stopped delivering", errors[0])
+
+    def test_same_camera_failure_is_logged_again_after_stream_recovery(self):
+        errors = []
+        worker = KinectWorker(capture_target=one_frame_capture, rgb_mode="rgb_low_res",
+                              frame_timeout=0.2, retry_delay=0.01)
+        self.addCleanup(self.stop_worker, worker)
+        worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
+        with self.assertLogs("kinect_scanner.worker", level="WARNING") as logs:
+            worker.start()
+            self.assertTrue(wait_for(lambda: len(errors) >= 2))
+            self.stop_worker(worker)
+        self.assertEqual(2, len(logs.output))
 
     def test_sensor_traffic_cannot_hide_image_stall_and_disables_hung_poll(self):
         errors = []

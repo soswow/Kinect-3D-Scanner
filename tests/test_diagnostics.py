@@ -3,11 +3,25 @@ import tempfile
 import unittest
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from shared.diagnostics import ResourceMonitor, configure_logging
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_disk_warning_reports_threshold_crossings_without_repeating_samples(self):
+        monitor = ResourceMonitor("/tmp")
+        samples = [500, 400, 2048, 300, 200]
+        with patch("shared.diagnostics.shutil.disk_usage", side_effect=[
+                SimpleNamespace(free=value * 1024**2) for value in samples]), \
+                self.assertLogs("shared.diagnostics", level="INFO") as logs:
+            for _ in samples:
+                monitor.sample()
+        self.assertEqual(2, sum("Low disk space" in message for message in logs.output))
+        self.assertEqual(1, sum("Disk space recovered" in message for message in logs.output))
+        self.assertEqual(5, sum("Resources" in message for message in logs.output))
+
     def test_persistent_timestamps_traceback_and_resources(self):
         root = logging.getLogger()
         old_handlers, old_level = list(root.handlers), root.level

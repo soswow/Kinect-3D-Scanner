@@ -57,6 +57,7 @@ class ServerClient(QObject):
         self.session_id = None
         self.last_status = {}
         self._compression_level = 1
+        self._batch_unavailable = False
 
     @property
     def is_connected(self) -> bool:
@@ -90,6 +91,7 @@ class ServerClient(QObject):
             self.disconnected.emit(str(exc))
             return False
         self._connected = True
+        self._batch_unavailable = False
         self.session_id = status.get("session_id")
         self.last_status = dict(status)
         logger.info("Connected session=%s stored=%s has_mesh=%s", self.session_id,
@@ -146,6 +148,7 @@ class ServerClient(QObject):
         def active():
             return not stop.is_set() and generation == self._ws_generation
 
+        last_error = None
         while active():
             sock = None
             try:
@@ -155,6 +158,7 @@ class ServerClient(QObject):
                 if not active():
                     break
                 self._ws_socket = sock
+                last_error = None
                 logger.info("Progress connection established session=%s", self.session_id)
                 self.websocket_status.emit("connected", "Progress connection established")
                 while active():
@@ -172,7 +176,9 @@ class ServerClient(QObject):
                         self._handle_ws_message(msg)
             except (ws_lib.WebSocketException, OSError, RuntimeError, ValueError) as exc:
                 if active():
-                    logger.warning("WebSocket error: %s, reconnecting...", exc)
+                    if str(exc) != last_error:
+                        logger.warning("WebSocket error: %s, reconnecting...", exc, extra={"ui_log": False})
+                        last_error = str(exc)
                     self.websocket_status.emit("reconnecting", str(exc))
             finally:
                 if self._ws_socket is sock:
@@ -207,7 +213,7 @@ class ServerClient(QObject):
             logger.info("Server done session=%s success=%s detail=%s", self.session_id,
                         msg.get("success"), msg.get("detail"))
         elif msg_type == "error":
-            logger.error("Server error session=%s %s", self.session_id, msg.get("message"))
+            logger.error("Server error session=%s %s", self.session_id, msg.get("message"), extra={"ui_log": False})
             self.task_error.emit(msg.get("message", "Unknown server error"))
 
     # ── API methods (called from ServerTaskWorker thread) ──────────────
@@ -234,7 +240,9 @@ class ServerClient(QObject):
         )
         if resp.status_code == 404:
             # Server doesn't support batch — fall back to individual sends
-            logger.warning("Server lacks batch endpoint, sending individually")
+            if not self._batch_unavailable:
+                logger.warning("Server lacks batch endpoint, sending individually", extra={"ui_state_key": "batch-upload"})
+                self._batch_unavailable = True
             results = [self.send_frame(*frame) for frame in frames]
             return {
                 **results[-1],
@@ -242,6 +250,9 @@ class ServerClient(QObject):
                 "success": any(r.get("success") for r in results),
             }
         resp.raise_for_status()
+        if self._batch_unavailable:
+            logger.info("Batch capture upload available again", extra={"ui_event": True, "ui_state_key": "batch-upload"})
+            self._batch_unavailable = False
         return resp.json()
 
     def reset_scan(self, settings=None) -> dict:

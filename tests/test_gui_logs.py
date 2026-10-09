@@ -37,7 +37,7 @@ class GuiLogsTests(unittest.TestCase):
     def test_pending_and_displayed_history_are_bounded(self):
         handler = BufferedLogHandler(capacity=2)
         for i in range(4):
-            handler.handle(logging.LogRecord("camera", logging.INFO, "", 0, f"frame {i}", (), None))
+            handler.handle(logging.LogRecord("camera", logging.WARNING, "", 0, f"frame {i}", (), None))
         messages = handler.drain()
         self.assertEqual(2, len(messages))
         self.assertIn("frame 2", messages[0])
@@ -55,7 +55,40 @@ class GuiLogsTests(unittest.TestCase):
         self.panel.clear_button.click()
         self.assertEqual("", self.panel.text.toPlainText())
         self.panel.append("Camera unavailable", "Camera")
+        self.assertEqual("", self.panel.text.toPlainText())
+        self.panel.append("Camera connected", "Camera")
+        self.panel.append("Camera unavailable", "Camera")
         self.assertIn("Camera unavailable", self.panel.text.toPlainText())
+
+    def test_state_changes_are_independent_of_unrelated_messages(self):
+        self.panel.append("USB disconnected", "Camera")
+        self.panel.append("Server connected", "Connection")
+        self.panel.append("USB disconnected", "Camera")
+        self.panel.append("Camera timed out", "Camera")
+        self.panel.append("Camera connected", "Camera")
+        self.panel.append("USB disconnected", "Camera")
+        text = self.panel.text.toPlainText()
+        self.assertEqual(2, text.count("USB disconnected"))
+        self.assertEqual(1, text.count("Camera timed out"))
+
+    def test_handler_suppresses_samples_mirrors_and_repeated_warnings(self):
+        logger = logging.getLogger("kinect_scanner.worker")
+        def record(message, level=logging.WARNING, **extra):
+            item = logger.makeRecord(logger.name, level, "", 0, message, (), None, extra=extra)
+            self.panel.handler.handle(item)
+        record("Camera unavailable", ui_state_key="camera")
+        record("Resources changed slightly", logging.INFO)
+        record("Operation already shown by its GUI callback", ui_log=False)
+        record("Sound unavailable")
+        record("Camera unavailable", ui_state_key="camera")
+        record("Camera connected", logging.INFO, ui_event=True, ui_state_key="camera")
+        record("Camera unavailable", ui_state_key="camera")
+        self.panel.flush()
+        text = self.panel.text.toPlainText()
+        self.assertEqual(2, text.count("Camera unavailable"))
+        self.assertIn("Camera connected", text)
+        self.assertNotIn("Resources", text)
+        self.assertNotIn("GUI callback", text)
 
     def test_new_messages_do_not_scroll_away_from_older_entries(self):
         self.panel.resize(600, 250)

@@ -61,16 +61,23 @@ class ServerTaskWorker(QThread):
         self._recording = None
         self._recording_session_id = None
         self._live = False
+        self._queue_full = False
 
     def submit(self, task: ServerTask):
         if self._stop_flag:
             return False
         if task.task_type == ServerTaskType.SEND_FRAME and self._queue.qsize() >= 100:
-            logger.warning("Capture rejected: upload queue full session=%s", self._client.session_id)
+            if not self._queue_full:
+                logger.warning("Capture rejected: upload queue full session=%s", self._client.session_id,
+                               extra={"ui_state_key": "upload-queue"})
+                self._queue_full = True
             return False
         if task.task_type != ServerTaskType.SEND_FRAME:
             logger.info("Task queued task=%s session=%s queue=%s", task.task_type.name,
                         self._client.session_id, self._queue.qsize())
+        if task.task_type == ServerTaskType.SEND_FRAME and self._queue_full:
+            logger.info("Capture upload queue has space again", extra={"ui_event": True, "ui_state_key": "upload-queue"})
+            self._queue_full = False
         self._queue.put(task)
         return True
 
@@ -93,8 +100,8 @@ class ServerTaskWorker(QThread):
                         self._client.session_id, self._queue.qsize())
             try:
                 self._dispatch(task)
-            except Exception as exc:  # noqa: BLE001 — contain failures at the queued task boundary.
-                logger.exception("Task exception task=%s session=%s", task.task_type.name, self._client.session_id)
+            except Exception as exc:  # Contain failures at the queued task boundary.
+                logger.exception("Task exception task=%s session=%s", task.task_type.name, self._client.session_id, extra={"ui_log": False})
                 self._client.task_error.emit(f"{task.task_type.name}: {exc}")
                 self._client.task_failed.emit(task.task_type.name, str(exc))
             finally:
@@ -171,7 +178,7 @@ class ServerTaskWorker(QThread):
                             metadata["server_index"] = ack["index"]
                         self._recording.append(rgb, depth, metadata)
             except OSError as exc:
-                logger.exception("Local capture recording stopped path=%s", self._recording.path)
+                logger.exception("Local capture recording stopped path=%s", self._recording.path, extra={"ui_log": False})
                 self._recording = None
                 self._client.task_error.emit(f"Recording stopped: {exc}")
         return result

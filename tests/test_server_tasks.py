@@ -15,6 +15,20 @@ from kinect_scanner.server_task_worker import (
 
 
 class ServerTaskTests(unittest.TestCase):
+    def test_full_upload_queue_reports_failure_once_until_capacity_returns(self):
+        worker = ServerTaskWorker(ServerClient())
+        task = ServerTask(ServerTaskType.SEND_FRAME)
+        for _ in range(100):
+            self.assertTrue(worker.submit(task))
+        with self.assertLogs("kinect_scanner.server_task_worker", level="INFO") as logs:
+            self.assertFalse(worker.submit(task))
+            self.assertFalse(worker.submit(task))
+            worker._queue.get_nowait()
+            self.assertTrue(worker.submit(task))
+            self.assertFalse(worker.submit(task))
+        self.assertEqual(3, len(logs.output))
+        self.assertIn("space again", logs.output[1])
+
     def test_partial_batch_acknowledgements_identify_each_capture(self):
         client = ServerClient()
         client.send_frames_batch = Mock(return_value={"success": True, "results": [

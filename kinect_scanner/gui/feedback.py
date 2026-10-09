@@ -21,6 +21,7 @@ class CaptureSound(QObject):
         self._recovery_effect = None
         self._recovery_pending = False
         self._tracking_lost = False
+        self._sound_errors = set()
 
     def set_enabled(self, enabled):
         self.enabled = bool(enabled)
@@ -50,11 +51,13 @@ class CaptureSound(QObject):
             self._pending = True
 
     def _on_status_changed(self):
+        if self._effect.status() == QSoundEffect.Status.Ready:
+            self._log_sound_recovery("Capture")
         if self._effect.status() == QSoundEffect.Status.Ready and self._pending:
             self.play()
         elif self._effect.status() == QSoundEffect.Status.Error:
             self._pending = False
-            logger.warning("Capture sound unavailable; check audio output and capture.wav")
+            self._log_sound_error("Capture", "capture.wav")
 
     def set_tracking_lost(self, lost):
         """Alert once on loss and once when that lost track is reacquired."""
@@ -90,13 +93,15 @@ class CaptureSound(QObject):
 
     def _on_loss_status_changed(self):
         status = self._loss_effect.status()
+        if status == QSoundEffect.Status.Ready:
+            self._log_sound_recovery("Tracking-loss")
         if status == QSoundEffect.Status.Ready and self._loss_pending:
             self._loss_pending = False
             if self.enabled and self._tracking_lost:
                 self._loss_effect.play()
         elif status == QSoundEffect.Status.Error:
             self._loss_pending = False
-            logger.warning("Tracking-loss sound unavailable; check audio output and tracking_lost.wav")
+            self._log_sound_error("Tracking-loss", "tracking_lost.wav")
 
     def _play_recovery(self):
         self._pending = False
@@ -114,13 +119,27 @@ class CaptureSound(QObject):
 
     def _on_recovery_status_changed(self):
         status = self._recovery_effect.status()
+        if status == QSoundEffect.Status.Ready:
+            self._log_sound_recovery("Tracking-recovery")
         if status == QSoundEffect.Status.Ready and self._recovery_pending:
             self._recovery_pending = False
             if self.enabled and not self._tracking_lost:
                 self._recovery_effect.play()
         elif status == QSoundEffect.Status.Error:
             self._recovery_pending = False
-            logger.warning("Tracking-recovery sound unavailable; check audio output and tracking_reacquired.wav")
+            self._log_sound_error("Tracking-recovery", "tracking_reacquired.wav")
+
+    def _log_sound_error(self, sound, filename):
+        if sound not in self._sound_errors:
+            self._sound_errors.add(sound)
+            logger.warning("%s sound unavailable; check audio output and %s", sound, filename,
+                           extra={"ui_state_key": ("sound", sound)})
+
+    def _log_sound_recovery(self, sound):
+        if sound in self._sound_errors:
+            self._sound_errors.remove(sound)
+            logger.info("%s sound available again", sound,
+                        extra={"ui_event": True, "ui_state_key": ("sound", sound)})
 
     def reset_tracking(self):
         """Silently clear an abandoned or replaced session, without a recovery cue."""

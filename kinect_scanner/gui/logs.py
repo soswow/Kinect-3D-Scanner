@@ -21,14 +21,29 @@ class BufferedLogHandler(logging.Handler):
         super().__init__(logging.INFO)
         self.pending = deque(maxlen=capacity)
         self.pending_lock = Lock()
+        self._last_states = {}
         self.setFormatter(logging.Formatter(
             "%(asctime)s · %(levelname)s · %(name)s · %(message)s", datefmt="%H:%M:%S"
         ))
 
     def emit(self, record):
+        # Routine samples and detailed timings belong in the diagnostic file.
+        # GUI callbacks already supply readable versions of mirrored events.
+        if getattr(record, "ui_log", True) is False:
+            return
+        if record.levelno < logging.WARNING and not getattr(record, "ui_event", False):
+            return
         try:
             message = self.format(record)
+            topic = getattr(record, "ui_state_key", (record.name, str(record.msg)))
+            state = (record.levelno, record.getMessage(),
+                     self.formatter.formatException(record.exc_info) if record.exc_info else None)
             with self.pending_lock:
+                if self._last_states.get(topic) == state:
+                    return
+                self._last_states[topic] = state
+                if len(self._last_states) > self.pending.maxlen:
+                    del self._last_states[next(iter(self._last_states))]
                 self.pending.append(message)
         except Exception:  # noqa: BLE001 — logging must not interrupt acquisition.
             self.handleError(record)
@@ -66,12 +81,13 @@ class LogsPanel(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.flush)
         self.timer.start(200)
-        self._last_message = None
+        self._last_messages = {}
 
-    def append(self, message, source="Client"):
-        if not message or (source, message) == self._last_message:
+    def append(self, message, source="Client", *, key=None):
+        topic = key if key is not None else source
+        if not message or (source, message) == self._last_messages.get(topic):
             return
-        self._last_message = (source, message)
+        self._last_messages[topic] = (source, message)
         self._append_lines([f"{datetime.now(timezone.utc).astimezone():%H:%M:%S} · {source} · {message}"])
 
     def _append_lines(self, lines):
@@ -94,7 +110,7 @@ class LogsPanel(QWidget):
     def clear_logs(self):
         self.handler.drain()
         self.text.clear()
-        self._last_message = None
+        # Clearing history does not change camera/connection state or re-arm retries.
 
     def stop(self):
         self.timer.stop()

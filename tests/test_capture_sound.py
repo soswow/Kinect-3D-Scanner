@@ -26,6 +26,19 @@ class CaptureSoundTests(unittest.TestCase):
         self.addCleanup(self.settings_patch.stop)
         self.addCleanup(self.effect_patch.stop)
 
+    def test_sound_error_reports_changes_and_rearms_after_ready(self):
+        self.sound.play()
+        with self.assertLogs("kinect_scanner.gui.feedback", level="INFO") as logs:
+            self.effect.status.return_value = SoundStatus.Error
+            self.sound._on_status_changed()
+            self.sound._on_status_changed()
+            self.effect.status.return_value = SoundStatus.Ready
+            self.sound._on_status_changed()
+            self.effect.status.return_value = SoundStatus.Error
+            self.sound._on_status_changed()
+        self.assertEqual(3, len(logs.output))
+        self.assertIn("available again", logs.output[1])
+
     def test_mute_during_loading_cancels_deferred_cue_and_is_remembered(self):
         self.assertTrue(self.sound.enabled)
         self.sound.play()

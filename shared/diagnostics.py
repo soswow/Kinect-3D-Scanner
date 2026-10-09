@@ -38,6 +38,7 @@ class ResourceMonitor:
         self.disk_path = Path(disk_path)
         self.interval = interval
         self._stop = threading.Event()
+        self._disk_low = False
         self._thread = threading.Thread(target=self._run, name="Resource monitor", daemon=True)
 
     def start(self):
@@ -67,8 +68,14 @@ class ResourceMonitor:
         except ImportError:
             result["memory_unavailable"] = "Install psutil for memory sampling"
         logging.getLogger(__name__).info("Resources %s", json.dumps(result, sort_keys=True))
-        if result["disk_free_mib"] < 1024:
-            logging.getLogger(__name__).warning("Low disk space: %s MiB free", result["disk_free_mib"])
+        disk_low = result["disk_free_mib"] < 1024
+        if disk_low and not self._disk_low:
+            logging.getLogger(__name__).warning("Low disk space: %s MiB free", result["disk_free_mib"],
+                                                extra={"ui_state_key": "disk-space"})
+        elif self._disk_low and not disk_low:
+            logging.getLogger(__name__).info("Disk space recovered: %s MiB free", result["disk_free_mib"],
+                                             extra={"ui_event": True, "ui_state_key": "disk-space"})
+        self._disk_low = disk_low
         return result
 
     def _run(self):
