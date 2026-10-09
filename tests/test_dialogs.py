@@ -90,6 +90,11 @@ class DialogTests(unittest.TestCase):
         self.assertIn("before cancelling the scan", dialog.message_label.text())
         self.assertEqual("cancel", dialog.choice)
 
+    def test_reset_prompt_names_the_action(self):
+        dialog = SessionProtectionDialog("reset_scan")
+        self.assertIn("before resetting the scan", dialog.message_label.text())
+        self.assertEqual("cancel", dialog.choice)
+
 
 if __name__ == "__main__":
     unittest.main()

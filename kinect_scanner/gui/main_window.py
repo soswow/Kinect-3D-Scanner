@@ -133,6 +133,7 @@ class MainWindow(QMainWindow):
         self._capture_selector = CaptureSelector()
         self._reset_pending = False
         self._cancel_pending = False
+        self._reset_to_setup_pending = False
         self._preview_pending = False
         self._last_preview_path: str | None = None
 
@@ -515,6 +516,10 @@ class MainWindow(QMainWindow):
         finish_row.addWidget(self.btn_stop_build)
         finish_row.addWidget(self.btn_cancel_scan)
         layout.addLayout(finish_row)
+        self.btn_reset_scan = QPushButton("Reset Scan")
+        self.btn_reset_scan.setToolTip("Clear the current scan and return to setup without starting capture; offer to save unsaved work")
+        self.btn_reset_scan.clicked.connect(self._reset_scan)
+        layout.addWidget(self.btn_reset_scan)
         output_row = QHBoxLayout()
         self.btn_export = QPushButton("Export…")
         self.btn_export.clicked.connect(self._choose_export)
@@ -842,6 +847,7 @@ class MainWindow(QMainWindow):
         self.btn_stop_build.setEnabled(connected and frames and not busy)
         self.btn_stop_build.setText("Retry Build" if self._build_failed else "Finish Scan")
         self.btn_cancel_scan.setEnabled(connected and not busy and (active or (frames and not self._has_mesh)))
+        self.btn_reset_scan.setEnabled(connected and not busy and (active or frames or self._has_mesh or bool(self._session_id)))
         self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
         self.btn_export.setEnabled(connected and self._has_mesh and not busy)
         self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy)
@@ -905,7 +911,9 @@ class MainWindow(QMainWindow):
         elif self._restore_on_status and self.server_client.is_connected:
             state = "Checking server scan…"
         elif self._reset_pending:
-            state = "Cancelling scan…" if self._cancel_pending else "Starting scan…"
+            state = "Resetting scan…" if self._reset_to_setup_pending else (
+                "Cancelling scan…" if self._cancel_pending else "Starting scan…"
+            )
         elif self._build_pending:
             state = "Building final surface…"
         elif self._export_pending:
@@ -1398,6 +1406,7 @@ class MainWindow(QMainWindow):
             return
         self._operation_error = ""
         self._cancel_pending = False
+        self._reset_to_setup_pending = False
         self._reset_pending = True
         self.capture_sound.stop()
         self.settings_group.setEnabled(False)
@@ -1413,7 +1422,9 @@ class MainWindow(QMainWindow):
     def _on_reset_done(self, result):
         self.guidance_label.setStyleSheet("")
         cancelled = self._cancel_pending
+        reset_to_setup = self._reset_to_setup_pending
         self._cancel_pending = False
+        self._reset_to_setup_pending = False
         self._reset_pending = False
         if not self.server_client.is_connected or self._closing:
             return
@@ -1430,7 +1441,7 @@ class MainWindow(QMainWindow):
         self.live_view.reset()
         self.capture_sound.reset_tracking()
         self.live_view.setVisible(
-            result.get("settings", {}).get("live_reconstruction", False)
+            not cancelled and result.get("settings", {}).get("live_reconstruction", False)
         )
         self._last_capture_id = None
         self._capture_pacer.reset()
@@ -1450,6 +1461,9 @@ class MainWindow(QMainWindow):
         self._build_pending = self._build_failed = False
         self._capture_waiting = ""
         self._switch_mode(MODE_RGB if cancelled else MODE_SCANNER)
+        if reset_to_setup:
+            self._start_when_camera_ready = False
+            self._resume_camera()
         if cancelled:
             self.guidance_label.setText("Keep the subject stationary. Move the Kinect slowly around it with overlapping views.")
         self.guidance_label.hide()
@@ -1457,7 +1471,9 @@ class MainWindow(QMainWindow):
         self.frame_count_label.setText("Captured: 0 · Added to model: 0")
         self.progress_bar.hide()
         self._refresh_controls()
-        self._show_message("Scan cancelled · ready for a new scan" if cancelled else "Scan started", 4000)
+        self._show_message("Scan reset · press Start Scan when ready" if reset_to_setup else (
+            "Scan cancelled · ready for a new scan" if cancelled else "Scan started"
+        ), 4000)
 
     def _configure_camera_tracking(self):
         self._configure_sensor_recording()
@@ -1489,15 +1505,27 @@ class MainWindow(QMainWindow):
                                          settings)
 
     def _cancel_scan(self, checked=False, *, protected=False):
+        self._clear_scan("cancel_scan", protected=protected)
+
+    def _reset_scan(self, checked=False, *, protected=False):
+        self._clear_scan("reset_scan", protected=protected)
+
+    def _clear_scan(self, reason, *, protected=False):
         if self._closing or not self.server_client.is_connected:
             return
         if self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or self._server_operation or self._connect_pending or self._restore_on_status:
             return
-        if not self._scanning and (not self._server_stored or self._has_mesh):
+        if self._camera_suspended and self.worker.isRunning():
             return
-        if not protected and not self._protect_session("cancel_scan"):
+        if reason == "cancel_scan" and not self._scanning and (not self._server_stored or self._has_mesh):
+            return
+        if not (self._scanning or self._session_id or self._server_stored or self._has_mesh):
+            return
+        if not protected and not self._protect_session(reason):
             return
         self._cancel_pending = self._reset_pending = True
+        self._reset_to_setup_pending = reason == "reset_scan"
+        self._start_when_camera_ready = False
         self.capture_sound.stop()
         self._paused = True
         self.auto_capture_cb.setChecked(False)
@@ -1510,7 +1538,7 @@ class MainWindow(QMainWindow):
             ServerTaskType.RESET, {"settings": self._session_settings, "record": False}
         ))
         if not queued:
-            self._on_task_failed("RESET", "Cancellation could not be queued")
+            self._on_task_failed("RESET", "Reset could not be queued" if reason == "reset_scan" else "Cancellation could not be queued")
         self._refresh_controls()
 
     def _auto_capture_tick(self):
@@ -1864,6 +1892,12 @@ class MainWindow(QMainWindow):
         self.task_worker.submit(ServerTask(ServerTaskType.STATUS))
 
     def _restore_server_session(self, status):
+        if self._reset_to_setup_pending and not status.get("operation"):
+            if not status.get("stored_count", 0) and not status.get("has_mesh"):
+                self._cancel_pending = True
+                self._on_reset_done(status)
+                return
+            self._reset_to_setup_pending = False
         session_id = status.get("session_id")
         same_session = session_id == self._session_id
         previous_stored = self._server_stored
@@ -2147,6 +2181,8 @@ class MainWindow(QMainWindow):
             self._start_scan(protected=True)
         elif success and action == "cancel_scan":
             self._cancel_scan(protected=True)
+        elif success and action == "reset_scan":
+            self._reset_scan(protected=True)
         elif success and action == "close":
             self._close_approved = True
             self.close()
@@ -2185,7 +2221,7 @@ class MainWindow(QMainWindow):
             self._reset_pending = False
             if self._cancel_pending:
                 self._cancel_pending = False
-                self._operation_error = "Could not confirm cancellation · checking server scan"
+                self._operation_error = "Could not confirm reset · checking server scan" if self._reset_to_setup_pending else "Could not confirm cancellation · checking server scan"
                 self._restore_on_status = True
                 self._poll_server_status()
         elif task_type == "BUILD_MESH":
