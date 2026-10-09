@@ -25,8 +25,8 @@ class DiagnosticsTests(unittest.TestCase):
     def test_persistent_timestamps_traceback_and_resources(self):
         root = logging.getLogger()
         old_handlers, old_level = list(root.handlers), root.level
-        try:
-            with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory:
+            try:
                 path = (Path(directory) / "client.log").resolve()
                 configure_logging(path)
                 configure_logging(path)
@@ -45,9 +45,9 @@ class DiagnosticsTests(unittest.TestCase):
                 self.assertIn("Traceback", contents)
                 self.assertIn("session=test", contents)
                 self.assertIn("Resources", contents)
-        finally:
-            for handler in list(root.handlers):
-                if handler not in old_handlers:
-                    root.removeHandler(handler)
-                    handler.close()
-            root.setLevel(old_level)
+            finally:
+                for handler in list(root.handlers):
+                    if handler not in old_handlers:
+                        root.removeHandler(handler)
+                        handler.close()
+                root.setLevel(old_level)
