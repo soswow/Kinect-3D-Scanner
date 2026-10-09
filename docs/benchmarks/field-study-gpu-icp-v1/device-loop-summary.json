@@ -1,0 +1,953 @@
+{
+  "kind": "gpu-icp-device-loop-scalar-summary-v1",
+  "status": "passed",
+  "created_utc": "2026-10-09T00:24:15.691377+00:00",
+  "cases": [
+    {
+      "case": "chest-6",
+      "status": "passed",
+      "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+      "trajectories": 4,
+      "repeats": 3,
+      "audit_coverage": {
+        "query_rows": 3937440,
+        "audited_hits": 2869726,
+        "audited_misses": 1067714,
+        "cpu_ambiguity_rows": 0
+      },
+      "native_cpu_matched_host_wall": {
+        "samples": 3,
+        "first_s": 0.13729170001170132,
+        "median_s": 0.13548379998246673,
+        "min_s": 0.13547610001114663,
+        "max_s": 0.13729170001170132,
+        "all_s": [
+          0.13729170001170132,
+          0.13547610001114663,
+          0.13548379998246673
+        ]
+      },
+      "configurations": [
+        {
+          "configuration": "step1",
+          "trajectories_per_repeat": 4,
+          "all_in_host_wall": {
+            "samples": 3,
+            "first_s": 0.20416850002948195,
+            "median_s": 0.18223449999641161,
+            "min_s": 0.1797258000151487,
+            "max_s": 0.20416850002948195,
+            "all_s": [
+              0.20416850002948195,
+              0.18223449999641161,
+              0.1797258000151487
+            ]
+          },
+          "partition": {
+            "constructor_wall_s": {
+              "samples": 3,
+              "first_s": 0.08415729997796007,
+              "median_s": 0.059869399992749095,
+              "min_s": 0.058924000011757016,
+              "max_s": 0.08415729997796007,
+              "all_s": [
+                0.08415729997796007,
+                0.059869399992749095,
+                0.058924000011757016
+              ]
+            },
+            "start_cache_build_upload_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.030606200016336516,
+              "median_s": 0.028590899994014762,
+              "min_s": 0.028396000008797273,
+              "max_s": 0.030606200016336516,
+              "all_s": [
+                0.030606200016336516,
+                0.028590899994014762,
+                0.028396000008797273
+              ]
+            },
+            "advance_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.07067539998388384,
+              "median_s": 0.07417680001526605,
+              "min_s": 0.07067539998388384,
+              "max_s": 0.0763128999969922,
+              "all_s": [
+                0.07067539998388384,
+                0.0763128999969922,
+                0.07417680001526605
+              ]
+            },
+            "terminal_copy_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.004301100023440085,
+              "median_s": 0.004301100023440085,
+              "min_s": 0.004007099996670149,
+              "max_s": 0.004321699991123751,
+              "all_s": [
+                0.004301100023440085,
+                0.004007099996670149,
+                0.004321699991123751
+              ]
+            },
+            "result_validation_wall_s": {
+              "samples": 3,
+              "first_s": 0.01417390002461616,
+              "median_s": 0.013652499997988343,
+              "min_s": 0.013215200015110895,
+              "max_s": 0.01417390002461616,
+              "all_s": [
+                0.01417390002461616,
+                0.013215200015110895,
+                0.013652499997988343
+              ]
+            },
+            "cleanup_wall_s": {
+              "samples": 3,
+              "first_s": 0.00025460000324528664,
+              "median_s": 0.00025460000324528664,
+              "min_s": 0.0002390000008745119,
+              "max_s": 0.0002547999902162701,
+              "all_s": [
+                0.00025460000324528664,
+                0.0002390000008745119,
+                0.0002547999902162701
+              ]
+            }
+          },
+          "nested_graph_capture_wall": {
+            "samples": 3,
+            "first_s": 0.0,
+            "median_s": 0.0,
+            "min_s": 0.0,
+            "max_s": 0.0,
+            "all_s": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "all_in_gpu_to_native_median_ratio": 1.3450648713720386,
+          "advance_and_terminal_host_wall": {
+            "samples": 3,
+            "first_s": 0.07497650000732392,
+            "median_s": 0.0784985000063898,
+            "min_s": 0.07497650000732392,
+            "max_s": 0.08031999999366235,
+            "all_s": [
+              0.07497650000732392,
+              0.08031999999366235,
+              0.0784985000063898
+            ]
+          },
+          "maximum_graph_nodes": 0,
+          "peak_lane_owned_bytes": 1828328,
+          "control_copies_per_repeat": [
+            240,
+            240,
+            240
+          ]
+        },
+        {
+          "configuration": "graph4",
+          "trajectories_per_repeat": 4,
+          "all_in_host_wall": {
+            "samples": 3,
+            "first_s": 0.18324710002343636,
+            "median_s": 0.16623360001540277,
+            "min_s": 0.16303810002864338,
+            "max_s": 0.18324710002343636,
+            "all_s": [
+              0.18324710002343636,
+              0.16303810002864338,
+              0.16623360001540277
+            ]
+          },
+          "partition": {
+            "constructor_wall_s": {
+              "samples": 3,
+              "first_s": 0.07733390001521911,
+              "median_s": 0.059991000016452745,
+              "min_s": 0.0593358000041917,
+              "max_s": 0.07733390001521911,
+              "all_s": [
+                0.07733390001521911,
+                0.059991000016452745,
+                0.0593358000041917
+              ]
+            },
+            "start_cache_build_upload_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.030330800014780834,
+              "median_s": 0.02971139999863226,
+              "min_s": 0.028496900005848147,
+              "max_s": 0.030330800014780834,
+              "all_s": [
+                0.030330800014780834,
+                0.028496900005848147,
+                0.02971139999863226
+              ]
+            },
+            "advance_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.05677309999009594,
+              "median_s": 0.05677309999009594,
+              "min_s": 0.056297400005860254,
+              "max_s": 0.05893909999576863,
+              "all_s": [
+                0.05677309999009594,
+                0.056297400005860254,
+                0.05893909999576863
+              ]
+            },
+            "terminal_copy_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.004592599987518042,
+              "median_s": 0.00438850000500679,
+              "min_s": 0.004302900008042343,
+              "max_s": 0.004592599987518042,
+              "all_s": [
+                0.004592599987518042,
+                0.004302900008042343,
+                0.00438850000500679
+              ]
+            },
+            "result_validation_wall_s": {
+              "samples": 3,
+              "first_s": 0.013822200009599328,
+              "median_s": 0.013579499965999275,
+              "min_s": 0.013486400013789535,
+              "max_s": 0.013822200009599328,
+              "all_s": [
+                0.013822200009599328,
+                0.013579499965999275,
+                0.013486400013789535
+              ]
+            },
+            "cleanup_wall_s": {
+              "samples": 3,
+              "first_s": 0.00039450000622309744,
+              "median_s": 0.0003723999980138615,
+              "min_s": 0.0003704000264406204,
+              "max_s": 0.00039450000622309744,
+              "all_s": [
+                0.00039450000622309744,
+                0.0003704000264406204,
+                0.0003723999980138615
+              ]
+            }
+          },
+          "nested_graph_capture_wall": {
+            "samples": 3,
+            "first_s": 0.001184399996418506,
+            "median_s": 0.001184399996418506,
+            "min_s": 0.001093499973649159,
+            "max_s": 0.0012059000000590459,
+            "all_s": [
+              0.001184399996418506,
+              0.001093499973649159,
+              0.0012059000000590459
+            ]
+          },
+          "all_in_gpu_to_native_median_ratio": 1.2269629286816242,
+          "advance_and_terminal_host_wall": {
+            "samples": 3,
+            "first_s": 0.061365699977613986,
+            "median_s": 0.061365699977613986,
+            "min_s": 0.0606003000139026,
+            "max_s": 0.06332760000077542,
+            "all_s": [
+              0.061365699977613986,
+              0.0606003000139026,
+              0.06332760000077542
+            ]
+          },
+          "maximum_graph_nodes": 44,
+          "peak_lane_owned_bytes": 1828328,
+          "control_copies_per_repeat": [
+            62,
+            62,
+            62
+          ]
+        }
+      ],
+      "per_trajectory_medians": [
+        {
+          "trajectory_index": 0,
+          "source_points": 8203,
+          "target_points": 6235,
+          "native_cpu_median_s": 0.033496999996714294,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.04427649998979177,
+              "partition_median_s": {
+                "constructor_wall_s": 0.015536999999312684,
+                "start_cache_build_upload_sync_wall_s": 0.007392300001811236,
+                "advance_sync_wall_s": 0.016986499991617166,
+                "terminal_copy_sync_wall_s": 0.0010362000029999763,
+                "result_validation_wall_s": 0.003325300000142306,
+                "cleanup_wall_s": 5.779998900834471e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.040076699981000274,
+              "partition_median_s": {
+                "constructor_wall_s": 0.015249000003677793,
+                "start_cache_build_upload_sync_wall_s": 0.007287899992661551,
+                "advance_sync_wall_s": 0.013450300000840798,
+                "terminal_copy_sync_wall_s": 0.0011541999992914498,
+                "result_validation_wall_s": 0.0033644000068306923,
+                "cleanup_wall_s": 8.6199986981228e-05
+              },
+              "nested_graph_capture_median_s": 0.0002707999956328422
+            }
+          ]
+        },
+        {
+          "trajectory_index": 1,
+          "source_points": 8203,
+          "target_points": 6235,
+          "native_cpu_median_s": 0.03616979999060277,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.04649059999792371,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014634400009526871,
+                "start_cache_build_upload_sync_wall_s": 0.007230800008983351,
+                "advance_sync_wall_s": 0.019414000009419397,
+                "terminal_copy_sync_wall_s": 0.0010705000022426248,
+                "result_validation_wall_s": 0.003383099989150651,
+                "cleanup_wall_s": 6.140000186860561e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.042856900035985745,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014849099999992177,
+                "start_cache_build_upload_sync_wall_s": 0.007641600008355454,
+                "advance_sync_wall_s": 0.015352400005212985,
+                "terminal_copy_sync_wall_s": 0.0010689000046113506,
+                "result_validation_wall_s": 0.0033897000103024766,
+                "cleanup_wall_s": 9.950000094249845e-05
+              },
+              "nested_graph_capture_median_s": 0.0002766999969026074
+            }
+          ]
+        },
+        {
+          "trajectory_index": 2,
+          "source_points": 8203,
+          "target_points": 6235,
+          "native_cpu_median_s": 0.03604330000234768,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.045318000004044734,
+              "partition_median_s": {
+                "constructor_wall_s": 0.01459910000266973,
+                "start_cache_build_upload_sync_wall_s": 0.007022199992206879,
+                "advance_sync_wall_s": 0.019274799997219816,
+                "terminal_copy_sync_wall_s": 0.0010812999971676618,
+                "result_validation_wall_s": 0.003458200008026324,
+                "cleanup_wall_s": 6.400000711437315e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.041696200001752004,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014764300009119324,
+                "start_cache_build_upload_sync_wall_s": 0.007104200005414896,
+                "advance_sync_wall_s": 0.014914500003214926,
+                "terminal_copy_sync_wall_s": 0.0010648000024957582,
+                "result_validation_wall_s": 0.0034198000066680834,
+                "cleanup_wall_s": 8.800000068731606e-05
+              },
+              "nested_graph_capture_median_s": 0.00027799999224953353
+            }
+          ]
+        },
+        {
+          "trajectory_index": 3,
+          "source_points": 8203,
+          "target_points": 6235,
+          "native_cpu_median_s": 0.029830600004061125,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.04196630002115853,
+              "partition_median_s": {
+                "constructor_wall_s": 0.015240699998685159,
+                "start_cache_build_upload_sync_wall_s": 0.007136800006264821,
+                "advance_sync_wall_s": 0.015273299999535084,
+                "terminal_copy_sync_wall_s": 0.0010245000012218952,
+                "result_validation_wall_s": 0.0034617000055732206,
+                "cleanup_wall_s": 6.239999493118376e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.03898149999440648,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014913999999407679,
+                "start_cache_build_upload_sync_wall_s": 0.007334699999773875,
+                "advance_sync_wall_s": 0.012018900000839494,
+                "terminal_copy_sync_wall_s": 0.0012138000020058826,
+                "result_validation_wall_s": 0.003431499993894249,
+                "cleanup_wall_s": 0.00010170000314246863
+              },
+              "nested_graph_capture_median_s": 0.00027010000485461205
+            }
+          ]
+        }
+      ],
+      "median_partition_scope": "Stage medians are descriptive separately and need not sum to the median all-in wall. Every underlying row's actual stage sum is checked exactly.",
+      "fresh_native_and_exact_own_terminal_shadows_passed": true,
+      "complete_proposal_bridge_gates_measured": false,
+      "whole_finish_authority": false,
+      "process_preparation_wall_s": 1.7886262000101851,
+      "phase_closure_wall_s": 0.2853210999892326,
+      "total_run_wall_s_before_final_save": 3.8899898000090616,
+      "binding_sha256": "76495c606e2ef57d884abf61ba92296a89afb0f019641f0b64e1cf4e1034b6a1",
+      "fixed_resource_manifest_sha256": "78bd9928ef73d582c6209870eeff0bc7e03f16786ba393b9f9b7120123eff38d",
+      "fixed_resource_count": 10,
+      "method_generated_sha256": "e32fba59be9e0ff6d8ccd7b52e8631b5341a8864d85ab9b724de6f19cf13976f",
+      "helper_source_artifacts_sha256": {
+        "scripts/research/gpu_icp_device_loop_experiment.py": "0deec9df8c6487e7036712852f537002dded6ffd869f5c5b45a615e0779ecf93",
+        "scripts/profile_session.py": "f228243cf071231b978fb891584da5af11d5a143df9edbdd9f983f98f8880a35",
+        "scripts/research/device_loop_icp.py": "309260e5048b5578e948e449d8b92e3609402e65f3b7b4f6c9cdf1666ef8cbfb",
+        "scripts/research/archive/research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+        "scripts/research/device_loop_control.cu": "e0d4f7d837cb912ec11406beff59cc505faf335ef5119f720b57241b1e68ed24",
+        "scripts/research/research_device_flat_grid_nn.cu": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+        "scripts/tool-catalog.json": "1fc02ada838fe8794f716ab5177d643eedf2ffe4bf467033553455c128d8356e",
+        "scripts/research/archive/cuda_uniform_grid_registration.py": "890e5e8f3753042fd938f5b1716d650877403d28b5f1b05cb7c666066a082d1c",
+        "scripts/process_metrics.py": "5a1bc759717b8d3b458e7ed8b83ec0acd0e0e77f756fd104847c52301267662e",
+        "scripts/research/gpu_icp_experiment_capture.py": "fd8996013b486c854c3cadd3fe47c36ed45c07307952367f0ae2f03467687927",
+        "scripts/research/benchmark_parallel_fragments.py": "bb9141cbf0f94610402783336e6ecdd7f96bb7e751b273dd3263602f0be068ac",
+        "scripts/tool_paths.py": "ba276d8f518b930cbf38d8f6b24540b44239990c0c4f07d8abb258a454f76259",
+        "scripts/research/archive/cuda_flat_grid_registration.py": "82618dfb02e56dd74e8c7923c9886d9389e059a5bfcc9e87fa412c70eb55dd84",
+        "scripts/research/validate_device_flat_grid_proof.py": "4182a294c4b0e0a6963a9c6aa88d4dd6262716227d7aebce97f9a4ecec816352",
+        "scripts/research/gpu_icp_device_loop_protocol.py": "2409f246ccdaeb0fbd87375ac71071f65e4c6e6aa0d4e8b2f5c111cb380aeb5b",
+        "scripts/research/research_device_ldlt.cu": "e5f6837a0df1dc2b8a21441a5f8b85f5fae7ece7e0fce0425b48ca1b3a7fe75b",
+        "tests/test_gpu_icp_device_loop_protocol.py": "43f76233c5cd6e9b931af26e9b12ea86e32b3b55d50bab8df5b38d5006069a59",
+        "scripts/research/cuda_device_flat_grid_registration.py": "9e501379fae126b085c0b40ca7ae0d337e4e519f6050a311469d7ecdcd6b10f2",
+        "scripts/research/archive/validate_flat_grid_proof.py": "483702e491fd2c66d134af61699f528ba5a03813014289f83c84af32b563d3be",
+        "scripts/research/archive/validate_uniform_grid_proof.py": "7c52d15a915be2d6dfccb1440b70e318a0d022ffd000110930fc6bfd83e9a99a",
+        "scripts/research/archive/research_resident_icp.py": "a06c0cccf455b3165dab6aca314609ceebe4aeca08cefc84f6d5f3e1ca58d015",
+        "scripts/research/archive/research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182"
+      },
+      "numerical_binary_sha256": {
+        "open3d": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+        "numpy": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+        "cupy": "8af3bfb691e07186da62cce01f3d7e381c216309581373ebada301f1f4463492",
+        "native": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313"
+      },
+      "thread_policy": {
+        "open3d": 20,
+        "opencv": 20,
+        "omp": "8"
+      },
+      "reports": {
+        "audit": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-device-loop-v3/chest-6-audit.json",
+          "sha256": "c7dc6c690350360e22cd801e3eddbd236c7a022be898a68c6d0f6bad81154993"
+        },
+        "timing": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-device-loop-v3/chest-6-timing.json",
+          "sha256": "50c8d1a84914be72f382f9b82774977ca3abc5ea8286e0bd975fc2db37feba16"
+        }
+      }
+    },
+    {
+      "case": "chest-7",
+      "status": "passed",
+      "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+      "trajectories": 4,
+      "repeats": 3,
+      "audit_coverage": {
+        "query_rows": 4020060,
+        "audited_hits": 3329752,
+        "audited_misses": 690308,
+        "cpu_ambiguity_rows": 0
+      },
+      "native_cpu_matched_host_wall": {
+        "samples": 3,
+        "first_s": 0.14247420000901911,
+        "median_s": 0.14247420000901911,
+        "min_s": 0.14019010002084542,
+        "max_s": 0.1425357999978587,
+        "all_s": [
+          0.14247420000901911,
+          0.1425357999978587,
+          0.14019010002084542
+        ]
+      },
+      "configurations": [
+        {
+          "configuration": "step1",
+          "trajectories_per_repeat": 4,
+          "all_in_host_wall": {
+            "samples": 3,
+            "first_s": 0.21402160004072357,
+            "median_s": 0.18896240006142762,
+            "min_s": 0.18781089996627998,
+            "max_s": 0.21402160004072357,
+            "all_s": [
+              0.21402160004072357,
+              0.18781089996627998,
+              0.18896240006142762
+            ]
+          },
+          "partition": {
+            "constructor_wall_s": {
+              "samples": 3,
+              "first_s": 0.08467929999460466,
+              "median_s": 0.060262199986027554,
+              "min_s": 0.058286100000259466,
+              "max_s": 0.08467929999460466,
+              "all_s": [
+                0.08467929999460466,
+                0.058286100000259466,
+                0.060262199986027554
+              ]
+            },
+            "start_cache_build_upload_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.04264390001480933,
+              "median_s": 0.04122819998883642,
+              "min_s": 0.04095550000783987,
+              "max_s": 0.04264390001480933,
+              "all_s": [
+                0.04264390001480933,
+                0.04122819998883642,
+                0.04095550000783987
+              ]
+            },
+            "advance_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.06496699999843258,
+              "median_s": 0.06556980000459589,
+              "min_s": 0.06496699999843258,
+              "max_s": 0.06604809999407735,
+              "all_s": [
+                0.06496699999843258,
+                0.06604809999407735,
+                0.06556980000459589
+              ]
+            },
+            "terminal_copy_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.004801000002771616,
+              "median_s": 0.004900099986116402,
+              "min_s": 0.004801000002771616,
+              "max_s": 0.005032300017774105,
+              "all_s": [
+                0.004801000002771616,
+                0.004900099986116402,
+                0.005032300017774105
+              ]
+            },
+            "result_validation_wall_s": {
+              "samples": 3,
+              "first_s": 0.016680500033544376,
+              "median_s": 0.016892400017241016,
+              "min_s": 0.016680500033544376,
+              "max_s": 0.01710559999628458,
+              "all_s": [
+                0.016680500033544376,
+                0.01710559999628458,
+                0.016892400017241016
+              ]
+            },
+            "cleanup_wall_s": {
+              "samples": 3,
+              "first_s": 0.00024989999656099826,
+              "median_s": 0.00024989999656099826,
+              "min_s": 0.00024280000070575625,
+              "max_s": 0.00025020002794917673,
+              "all_s": [
+                0.00024989999656099826,
+                0.00024280000070575625,
+                0.00025020002794917673
+              ]
+            }
+          },
+          "nested_graph_capture_wall": {
+            "samples": 3,
+            "first_s": 0.0,
+            "median_s": 0.0,
+            "min_s": 0.0,
+            "max_s": 0.0,
+            "all_s": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "all_in_gpu_to_native_median_ratio": 1.3262920588391838,
+          "advance_and_terminal_host_wall": {
+            "samples": 3,
+            "first_s": 0.0697680000012042,
+            "median_s": 0.07060210002237,
+            "min_s": 0.0697680000012042,
+            "max_s": 0.07094819998019375,
+            "all_s": [
+              0.0697680000012042,
+              0.07094819998019375,
+              0.07060210002237
+            ]
+          },
+          "maximum_graph_nodes": 0,
+          "peak_lane_owned_bytes": 2684368,
+          "control_copies_per_repeat": [
+            192,
+            192,
+            192
+          ]
+        },
+        {
+          "configuration": "graph4",
+          "trajectories_per_repeat": 4,
+          "all_in_host_wall": {
+            "samples": 3,
+            "first_s": 0.1755441000132123,
+            "median_s": 0.1755441000132123,
+            "min_s": 0.1744619000237435,
+            "max_s": 0.1761526999907801,
+            "all_s": [
+              0.1755441000132123,
+              0.1744619000237435,
+              0.1761526999907801
+            ]
+          },
+          "partition": {
+            "constructor_wall_s": {
+              "samples": 3,
+              "first_s": 0.058772100004716776,
+              "median_s": 0.058772100004716776,
+              "min_s": 0.0573959999892395,
+              "max_s": 0.05954399998881854,
+              "all_s": [
+                0.058772100004716776,
+                0.0573959999892395,
+                0.05954399998881854
+              ]
+            },
+            "start_cache_build_upload_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.04093719999946188,
+              "median_s": 0.04093719999946188,
+              "min_s": 0.040896600010455586,
+              "max_s": 0.04113100000540726,
+              "all_s": [
+                0.04093719999946188,
+                0.04113100000540726,
+                0.040896600010455586
+              ]
+            },
+            "advance_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.054121400011354126,
+              "median_s": 0.054121400011354126,
+              "min_s": 0.053906500004814006,
+              "max_s": 0.054201700011617504,
+              "all_s": [
+                0.054121400011354126,
+                0.054201700011617504,
+                0.053906500004814006
+              ]
+            },
+            "terminal_copy_sync_wall_s": {
+              "samples": 3,
+              "first_s": 0.004739199997857213,
+              "median_s": 0.004739199997857213,
+              "min_s": 0.004646999994292855,
+              "max_s": 0.004845800009206869,
+              "all_s": [
+                0.004739199997857213,
+                0.004845800009206869,
+                0.004646999994292855
+              ]
+            },
+            "result_validation_wall_s": {
+              "samples": 3,
+              "first_s": 0.016612199993687682,
+              "median_s": 0.016612199993687682,
+              "min_s": 0.01651750000019092,
+              "max_s": 0.016766000000643544,
+              "all_s": [
+                0.016612199993687682,
+                0.01651750000019092,
+                0.016766000000643544
+              ]
+            },
+            "cleanup_wall_s": {
+              "samples": 3,
+              "first_s": 0.0003620000061346218,
+              "median_s": 0.0003699000080814585,
+              "min_s": 0.0003620000061346218,
+              "max_s": 0.00039259999175556004,
+              "all_s": [
+                0.0003620000061346218,
+                0.0003699000080814585,
+                0.00039259999175556004
+              ]
+            }
+          },
+          "nested_graph_capture_wall": {
+            "samples": 3,
+            "first_s": 0.0011396000190870836,
+            "median_s": 0.0011396000190870836,
+            "min_s": 0.0010890999983530492,
+            "max_s": 0.0011889000161318108,
+            "all_s": [
+              0.0011396000190870836,
+              0.0011889000161318108,
+              0.0010890999983530492
+            ]
+          },
+          "all_in_gpu_to_native_median_ratio": 1.2321114980964958,
+          "advance_and_terminal_host_wall": {
+            "samples": 3,
+            "first_s": 0.05886060000921134,
+            "median_s": 0.05886060000921134,
+            "min_s": 0.05855349999910686,
+            "max_s": 0.05904750002082437,
+            "all_s": [
+              0.05886060000921134,
+              0.05904750002082437,
+              0.05855349999910686
+            ]
+          },
+          "maximum_graph_nodes": 44,
+          "peak_lane_owned_bytes": 2684368,
+          "control_copies_per_repeat": [
+            49,
+            49,
+            49
+          ]
+        }
+      ],
+      "per_trajectory_medians": [
+        {
+          "trajectory_index": 0,
+          "source_points": 9501,
+          "target_points": 11390,
+          "native_cpu_median_s": 0.030845599991152994,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.04650160000892356,
+              "partition_median_s": {
+                "constructor_wall_s": 0.01464280000072904,
+                "start_cache_build_upload_sync_wall_s": 0.010310199999366887,
+                "advance_sync_wall_s": 0.0157242999994196,
+                "terminal_copy_sync_wall_s": 0.0012787000014213845,
+                "result_validation_wall_s": 0.004294000013032928,
+                "cleanup_wall_s": 6.480001320596784e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.043427499986137263,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014576599991414696,
+                "start_cache_build_upload_sync_wall_s": 0.010408900008769706,
+                "advance_sync_wall_s": 0.012980200001038611,
+                "terminal_copy_sync_wall_s": 0.0011977999965893105,
+                "result_validation_wall_s": 0.004186599995591678,
+                "cleanup_wall_s": 9.950000094249845e-05
+              },
+              "nested_graph_capture_median_s": 0.0002803999959724024
+            }
+          ]
+        },
+        {
+          "trajectory_index": 1,
+          "source_points": 9501,
+          "target_points": 11390,
+          "native_cpu_median_s": 0.033799199998611584,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.04791730000579264,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014450400005443953,
+                "start_cache_build_upload_sync_wall_s": 0.009934000001521781,
+                "advance_sync_wall_s": 0.01819499999692198,
+                "terminal_copy_sync_wall_s": 0.0012372000055620447,
+                "result_validation_wall_s": 0.00425810000160709,
+                "cleanup_wall_s": 6.089999806135893e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.04452500000479631,
+              "partition_median_s": {
+                "constructor_wall_s": 0.01445909999893047,
+                "start_cache_build_upload_sync_wall_s": 0.009992500010412186,
+                "advance_sync_wall_s": 0.014626100004534237,
+                "terminal_copy_sync_wall_s": 0.001137600003858097,
+                "result_validation_wall_s": 0.004164700003457256,
+                "cleanup_wall_s": 8.870000601746142e-05
+              },
+              "nested_graph_capture_median_s": 0.00026929999876301736
+            }
+          ]
+        },
+        {
+          "trajectory_index": 2,
+          "source_points": 11478,
+          "target_points": 11390,
+          "native_cpu_median_s": 0.034896100012701936,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.044781699994928204,
+              "partition_median_s": {
+                "constructor_wall_s": 0.01464490000216756,
+                "start_cache_build_upload_sync_wall_s": 0.010797299997648224,
+                "advance_sync_wall_s": 0.013986499994643964,
+                "terminal_copy_sync_wall_s": 0.0011983000003965572,
+                "result_validation_wall_s": 0.0041265000036219135,
+                "cleanup_wall_s": 6.029999349266291e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.04185170000710059,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014610599988372996,
+                "start_cache_build_upload_sync_wall_s": 0.010358600004110485,
+                "advance_sync_wall_s": 0.011513300007209182,
+                "terminal_copy_sync_wall_s": 0.0011872000031871721,
+                "result_validation_wall_s": 0.0041016000031959265,
+                "cleanup_wall_s": 8.420000085607171e-05
+              },
+              "nested_graph_capture_median_s": 0.00026729999808594584
+            }
+          ]
+        },
+        {
+          "trajectory_index": 3,
+          "source_points": 11478,
+          "target_points": 11390,
+          "native_cpu_median_s": 0.03971189999720082,
+          "configurations": [
+            {
+              "configuration": "step1",
+              "all_in_median_s": 0.0476059000211535,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014595000000554137,
+                "start_cache_build_upload_sync_wall_s": 0.010382100008428097,
+                "advance_sync_wall_s": 0.017320099999778904,
+                "terminal_copy_sync_wall_s": 0.001220100006321445,
+                "result_validation_wall_s": 0.0040939000027719885,
+                "cleanup_wall_s": 5.919999966863543e-05
+              },
+              "nested_graph_capture_median_s": 0.0
+            },
+            {
+              "configuration": "graph4",
+              "all_in_median_s": 0.04490530000475701,
+              "partition_median_s": {
+                "constructor_wall_s": 0.014422299995203502,
+                "start_cache_build_upload_sync_wall_s": 0.010375700003351085,
+                "advance_sync_wall_s": 0.014787199994316325,
+                "terminal_copy_sync_wall_s": 0.0012282999960007146,
+                "result_validation_wall_s": 0.00409889999718871,
+                "cleanup_wall_s": 9.26000066101551e-05
+              },
+              "nested_graph_capture_median_s": 0.0002753000007942319
+            }
+          ]
+        }
+      ],
+      "median_partition_scope": "Stage medians are descriptive separately and need not sum to the median all-in wall. Every underlying row's actual stage sum is checked exactly.",
+      "fresh_native_and_exact_own_terminal_shadows_passed": true,
+      "complete_proposal_bridge_gates_measured": false,
+      "whole_finish_authority": false,
+      "process_preparation_wall_s": 2.976305799995316,
+      "phase_closure_wall_s": 0.8211955000006128,
+      "total_run_wall_s_before_final_save": 5.937532299998566,
+      "binding_sha256": "9a261b1fc124d34c0896de69920b7e831cb5eb745be324f55dd9a23b7218191d",
+      "fixed_resource_manifest_sha256": "a6162139f7587943fe5ad3c2af085fb606587f1bbf902303fd3acb4a974356eb",
+      "fixed_resource_count": 10,
+      "method_generated_sha256": "e32fba59be9e0ff6d8ccd7b52e8631b5341a8864d85ab9b724de6f19cf13976f",
+      "helper_source_artifacts_sha256": {
+        "scripts/research/device_loop_control.cu": "e0d4f7d837cb912ec11406beff59cc505faf335ef5119f720b57241b1e68ed24",
+        "scripts/research/research_device_ldlt.cu": "e5f6837a0df1dc2b8a21441a5f8b85f5fae7ece7e0fce0425b48ca1b3a7fe75b",
+        "scripts/research/archive/validate_uniform_grid_proof.py": "7c52d15a915be2d6dfccb1440b70e318a0d022ffd000110930fc6bfd83e9a99a",
+        "scripts/research/validate_device_flat_grid_proof.py": "4182a294c4b0e0a6963a9c6aa88d4dd6262716227d7aebce97f9a4ecec816352",
+        "scripts/research/archive/research_resident_icp.py": "a06c0cccf455b3165dab6aca314609ceebe4aeca08cefc84f6d5f3e1ca58d015",
+        "scripts/process_metrics.py": "5a1bc759717b8d3b458e7ed8b83ec0acd0e0e77f756fd104847c52301267662e",
+        "scripts/research/archive/research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+        "scripts/research/cuda_device_flat_grid_registration.py": "9e501379fae126b085c0b40ca7ae0d337e4e519f6050a311469d7ecdcd6b10f2",
+        "scripts/profile_session.py": "f228243cf071231b978fb891584da5af11d5a143df9edbdd9f983f98f8880a35",
+        "scripts/research/gpu_icp_device_loop_protocol.py": "2409f246ccdaeb0fbd87375ac71071f65e4c6e6aa0d4e8b2f5c111cb380aeb5b",
+        "scripts/research/archive/cuda_flat_grid_registration.py": "82618dfb02e56dd74e8c7923c9886d9389e059a5bfcc9e87fa412c70eb55dd84",
+        "scripts/research/archive/cuda_uniform_grid_registration.py": "890e5e8f3753042fd938f5b1716d650877403d28b5f1b05cb7c666066a082d1c",
+        "scripts/research/research_device_flat_grid_nn.cu": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+        "tests/test_gpu_icp_device_loop_protocol.py": "43f76233c5cd6e9b931af26e9b12ea86e32b3b55d50bab8df5b38d5006069a59",
+        "scripts/tool_paths.py": "ba276d8f518b930cbf38d8f6b24540b44239990c0c4f07d8abb258a454f76259",
+        "scripts/research/archive/validate_flat_grid_proof.py": "483702e491fd2c66d134af61699f528ba5a03813014289f83c84af32b563d3be",
+        "scripts/research/device_loop_icp.py": "309260e5048b5578e948e449d8b92e3609402e65f3b7b4f6c9cdf1666ef8cbfb",
+        "scripts/research/gpu_icp_experiment_capture.py": "fd8996013b486c854c3cadd3fe47c36ed45c07307952367f0ae2f03467687927",
+        "scripts/research/gpu_icp_device_loop_experiment.py": "0deec9df8c6487e7036712852f537002dded6ffd869f5c5b45a615e0779ecf93",
+        "scripts/tool-catalog.json": "1fc02ada838fe8794f716ab5177d643eedf2ffe4bf467033553455c128d8356e",
+        "scripts/research/archive/research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+        "scripts/research/benchmark_parallel_fragments.py": "bb9141cbf0f94610402783336e6ecdd7f96bb7e751b273dd3263602f0be068ac"
+      },
+      "numerical_binary_sha256": {
+        "open3d": "ce5130454f7cd2612634140c27430f2f23e12c23745f0165fa2b2c5f3c5db5b3",
+        "numpy": "a9d5c4202cf109bf24305f3f1180e0509aaf661ba850612bd75df7cfd9f928b8",
+        "cupy": "8af3bfb691e07186da62cce01f3d7e381c216309581373ebada301f1f4463492",
+        "native": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313"
+      },
+      "thread_policy": {
+        "open3d": 20,
+        "opencv": 20,
+        "omp": "8"
+      },
+      "reports": {
+        "audit": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-device-loop-v3/chest-7-audit.json",
+          "sha256": "c27b850fc8bda48f5cc97ba13f423a45bba7f858c1d701bfaa944028863a8c91"
+        },
+        "timing": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-device-loop-v3/chest-7-timing.json",
+          "sha256": "fa535b7121a0590040e0a9cfbff66d68b1df3ea624f5f9a032dcdcb3db15e2ac"
+        }
+      }
+    }
+  ],
+  "whole_finish_authority": false,
+  "authority_token_created": false,
+  "fixed_resource_bytes_rehashed_by_summary": false,
+  "validation_scope": "Read-only exact own-loop audit schema using a private function/global copy; current helper bytes and recorded before/after fixed-resource manifests. No token or numerical-runtime authority. Producer hashed actual private resources before/after numerical jobs; controller exit completion is separate.",
+  "timer_scope": "Per-repeat sums over identical selected trajectories. All-in is exactly constructor+start/index/build/upload/sync+advance/sync+terminal/copy/sync+native-result-and-permit-validation+cleanup. Graph capture is nested inside advance, not additive. Every trajectory rebuilds target indexes and owns a fresh graph; later repeats warm only process/compiler/allocator caches. Native controls run first and device order reverses on alternate repeats. Cold process file/library proof preparation and final closure are separately recorded. Advance+terminal is a partial host timer, not GPU event time or a complete implementation speed claim.",
+  "limitations": [
+    "Selected prepared-pair ICP seed trajectories only; no complete proposal/witness/frontier/Finish/tracking/mesh gates were replayed by this experiment.",
+    "Tight original same-input native result shadows and exact own-audit pose/correspondence/metrics/query-update bytes validate this method-specific component scope only.",
+    "Three small repeated controls and two field-session cases do not establish general throughput or scanning FPS.",
+    "Per-trajectory setup/graph capture/source validation remain charged. Potential future reuse must be measured separately."
+  ],
+  "audited_query_rows": 7957500,
+  "producer_artifacts_sha256": {
+    "scripts/research/summarize_gpu_icp_device_loop.py": "272e1368d2da02bfaa892d56e7b64e8f445130b11eba0478f38c8b4627e41b97",
+    "tests/test_gpu_icp_device_loop_summary.py": "d94b5fc9e9825013587febd796967217f9ff6909ff96ac6bcd22cbde2207f1d1"
+  }
+}

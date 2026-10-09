@@ -13,6 +13,8 @@ from pathlib import Path
 import numpy as np
 import open3d as o3d
 
+from .fusion_allocation import activate_fusion_blocks
+
 logger = logging.getLogger("scanner_server")
 
 
@@ -71,7 +73,7 @@ def _integrate_validated(engine, volume, blocks, rgb, depth, extrinsic, confiden
     camera = engine.settings.camera
     device = engine.device
     hashmap = volume.hashmap()
-    hashmap.activate(blocks)
+    activate_fusion_blocks(engine, hashmap, blocks)
     buffers, found = hashmap.find(blocks)
     buffers = buffers[found]
     if not len(buffers):

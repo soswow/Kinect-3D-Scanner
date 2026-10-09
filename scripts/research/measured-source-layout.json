@@ -1,0 +1,875 @@
+{
+  "schema": 1,
+  "source_sha256": "9331dee7c6ec7731eff9ebfeab76b83cc5484b8936dbd1d1d0f62fc570cef60a",
+  "description": "Measured Windows raw source bytes; normalized hashes admit newline-only checkout changes. Core inventory is exact; no production source is authorized. LF line ranges are inclusive one-based newline indices for mixed files.",
+  "core_inventory": [
+    "native/kernels.cpp",
+    "native/pyproject.toml",
+    "native/setup.py",
+    "native/weighted_fusion.h",
+    "scanner_server/__init__.py",
+    "scanner_server/__main__.py",
+    "scanner_server/adaptive_visual.py",
+    "scanner_server/app.py",
+    "scanner_server/appearance.py",
+    "scanner_server/backend.py",
+    "scanner_server/bundle_adjustment.py",
+    "scanner_server/config.py",
+    "scanner_server/cuda_confidence.py",
+    "scanner_server/cuda_fusion.py",
+    "scanner_server/cuda_input.py",
+    "scanner_server/cuda_matching.py",
+    "scanner_server/cuda_nn_registration.py",
+    "scanner_server/cuda_odometry.py",
+    "scanner_server/cuda_registration.py",
+    "scanner_server/engine.py",
+    "scanner_server/fragments.py",
+    "scanner_server/photometric.py",
+    "scanner_server/refinement.py",
+    "scanner_server/session.py",
+    "scanner_server/texturing.py",
+    "scanner_server/tracking_cache.py",
+    "scanner_server/visual_refinement.py",
+    "scanner_server/weighted_fusion.cu",
+    "scanner_server/weighted_fusion.py",
+    "shared/__init__.py",
+    "shared/calibration.py",
+    "shared/capture.py",
+    "shared/confidence.py",
+    "shared/config.py",
+    "shared/depth.py",
+    "shared/device_evidence.py",
+    "shared/inertial.py",
+    "shared/live.py",
+    "shared/native.py",
+    "shared/protocol.py",
+    "shared/recording.py",
+    "shared/sensor_calibration.py",
+    "shared/sensor_recording.py",
+    "shared/sensor_replay.py",
+    "shared/settings.py",
+    "shared/surface_metrics.py",
+    "shared/view_metrics.py",
+    "shared/visual_tracking.py"
+  ],
+  "files": [
+    {
+      "path": "native/kernels.cpp",
+      "raw_sha256": "a1f6bf896c5b7835e9574741f3119572e051e6799b92bffb3d79d42d3247d208",
+      "normalized_sha256": "9f718b7d38f42488fe19bc33ca592a7e5fbf3d7d8f76c640b6a27ad693941e5d",
+      "raw_bytes": 9374,
+      "newlines": 194,
+      "style": "crlf"
+    },
+    {
+      "path": "native/pyproject.toml",
+      "raw_sha256": "e7f488b822f0365bf652697ed740ec41f6d4d4b984db8b2be6f0497a0f370ea6",
+      "normalized_sha256": "fb169760c48cc608627c81511b8ce97b30447bd3ac83fea4a1dc77bf06194102",
+      "raw_bytes": 108,
+      "newlines": 3,
+      "style": "crlf"
+    },
+    {
+      "path": "native/setup.py",
+      "raw_sha256": "2b9e04b71da11fca4803b9328ca868450ea130bd22e3e5f606629811da0d4b0f",
+      "normalized_sha256": "01c144e555b0cb94ac2c3968ced6d8cbebee71044eb63991ebe7557444278277",
+      "raw_bytes": 930,
+      "newlines": 28,
+      "style": "crlf"
+    },
+    {
+      "path": "native/weighted_fusion.h",
+      "raw_sha256": "d57868623ed70bc7e61277d0b5100cca843108cfaef3f9963e050b822b0cf9ee",
+      "normalized_sha256": "7cba3c35a95a68854470e274ce1326c7ace41fdb9ef3485412ab58b673403d3b",
+      "raw_bytes": 9303,
+      "newlines": 196,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/__init__.py",
+      "raw_sha256": "66cc684af3355ab1a6b16761e9e94a4108ab0302f896706fc186bd4897ff5a53",
+      "normalized_sha256": "c242a7602fd7240d85516b9d9fc241bf60792b3ffc49eaa3fd5798329c53d20a",
+      "raw_bytes": 63,
+      "newlines": 1,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/__main__.py",
+      "raw_sha256": "616ca752c4d286032ee7fc88d334755c2f267e3500942fbeb3b1125979c0e5f8",
+      "normalized_sha256": "1786887a165845180843a6568c5c346c6ca5406714add67fdba62e22a5cfadcb",
+      "raw_bytes": 310,
+      "newlines": 13,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/adaptive_visual.py",
+      "raw_sha256": "71a7cb06e4767af2ab5feccc0b621e344264304db21a2389bd7b36a8ec14cf84",
+      "normalized_sha256": "71a7cb06e4767af2ab5feccc0b621e344264304db21a2389bd7b36a8ec14cf84",
+      "raw_bytes": 2717,
+      "newlines": 61,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/app.py",
+      "raw_sha256": "828321a79b55dd968c5c5739a029c8b93870806d959b7820b72c2f6bbfadd914",
+      "normalized_sha256": "02a4313b53bf6c82d6e2cce4b90be2320337be927f1309ca16897dfa8be72aaa",
+      "raw_bytes": 25425,
+      "newlines": 690,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          12,
+          12
+        ],
+        [
+          20,
+          22
+        ],
+        [
+          82,
+          85
+        ],
+        [
+          114,
+          130
+        ],
+        [
+          234,
+          256
+        ],
+        [
+          264,
+          266
+        ],
+        [
+          282,
+          287
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/appearance.py",
+      "raw_sha256": "414e2abef5f30501c3ff9f54125354dbefb3999879bc2791f24f80055ebde692",
+      "normalized_sha256": "67c477b0c9f39b70ec4608ca464f270e67955772ee49f00ecb230a397fd637af",
+      "raw_bytes": 5165,
+      "newlines": 139,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/backend.py",
+      "raw_sha256": "ca83171df12797bd24c337c82809502f59ad8dd8e0c45af518a7dad464d0d4e9",
+      "normalized_sha256": "a69f57c132c6fe7d3977593008adb3a7ad500c15543b5589dcaf3d44083c2c97",
+      "raw_bytes": 3162,
+      "newlines": 69,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          7,
+          12
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          31,
+          37
+        ],
+        [
+          45,
+          46
+        ],
+        [
+          53,
+          56
+        ],
+        [
+          60,
+          65
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/bundle_adjustment.py",
+      "raw_sha256": "42b6590a777596055cd92575f0d29feea421eba69d16cda6827f6bbd1bdf2b6b",
+      "normalized_sha256": "c903e1dc8b23a55259f5d8feff17096d620284d58dbc6edd7972c7b2977bb467",
+      "raw_bytes": 23737,
+      "newlines": 491,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          421,
+          424
+        ],
+        [
+          468,
+          471
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/config.py",
+      "raw_sha256": "5b458bf97a93d93d5f5e1968ee0bd53c58e760d17d830388c444f81593f17489",
+      "normalized_sha256": "44c8e6cfb7f6e1b42472a5abe8495a14f5b9e55c88efe4b4977ec7b6c732c013",
+      "raw_bytes": 457,
+      "newlines": 16,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/cuda_confidence.py",
+      "raw_sha256": "393976ebcda716f7d8bf7fd37617d9c7526c157a3b1f93e49d08bb7ec5de7e46",
+      "normalized_sha256": "67ee599fdc14fa182ff9f0953a3f3ad373bd1fa837510940090324fb962110d3",
+      "raw_bytes": 16944,
+      "newlines": 347,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          219,
+          220
+        ],
+        [
+          235,
+          237
+        ],
+        [
+          315,
+          330
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/cuda_fusion.py",
+      "raw_sha256": "1f677bd406fb4ab9e42b942c840c72128eb7f255b21c9e3d182546f0ff3c74e2",
+      "normalized_sha256": "1f677bd406fb4ab9e42b942c840c72128eb7f255b21c9e3d182546f0ff3c74e2",
+      "raw_bytes": 4765,
+      "newlines": 104,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/cuda_input.py",
+      "raw_sha256": "42fbc0952a00e05bc9456cc3d0d3f0fef266da70f987da78ad200b85eb8cf68c",
+      "normalized_sha256": "42fbc0952a00e05bc9456cc3d0d3f0fef266da70f987da78ad200b85eb8cf68c",
+      "raw_bytes": 22412,
+      "newlines": 432,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/cuda_matching.py",
+      "raw_sha256": "729c24e01bb9f987d7a2a4456cbf3a7c8fe70548dfa4c63bcae39305aecc56e1",
+      "normalized_sha256": "729c24e01bb9f987d7a2a4456cbf3a7c8fe70548dfa4c63bcae39305aecc56e1",
+      "raw_bytes": 8806,
+      "newlines": 197,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/cuda_nn_registration.py",
+      "raw_sha256": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "normalized_sha256": "68adcedfc69812c6e6e2fc8aedbf7cfb62ef736b36c114b4c49e04de1ada27fc",
+      "raw_bytes": 7599,
+      "newlines": 140,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/cuda_odometry.py",
+      "raw_sha256": "42abf9ab894d07e3248366d50a68b45080f12395dd87b066fe356e57d347fddd",
+      "normalized_sha256": "42abf9ab894d07e3248366d50a68b45080f12395dd87b066fe356e57d347fddd",
+      "raw_bytes": 2327,
+      "newlines": 54,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/cuda_registration.py",
+      "raw_sha256": "d5150f2b274496c70699ecbf11e4869e21900f6c4447bd3ff75827d146ae49f4",
+      "normalized_sha256": "d5150f2b274496c70699ecbf11e4869e21900f6c4447bd3ff75827d146ae49f4",
+      "raw_bytes": 2786,
+      "newlines": 65,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/engine.py",
+      "raw_sha256": "5b126cc4f103ca6fb01674d5be38ff28229c247d0bf7d35fe34c03d771efefcc",
+      "normalized_sha256": "d03f4bc8484b0f4bfc7cc927d775826b37822dac4cc237f6c1d24b3f7edb92c3",
+      "raw_bytes": 101085,
+      "newlines": 1954,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          39,
+          40
+        ],
+        [
+          92,
+          93
+        ],
+        [
+          108,
+          109
+        ],
+        [
+          228,
+          231
+        ],
+        [
+          252,
+          253
+        ],
+        [
+          271,
+          271
+        ],
+        [
+          292,
+          295
+        ],
+        [
+          373,
+          378
+        ],
+        [
+          1072,
+          1078
+        ],
+        [
+          1082,
+          1088
+        ],
+        [
+          1109,
+          1115
+        ],
+        [
+          1118,
+          1124
+        ],
+        [
+          1126,
+          1132
+        ],
+        [
+          1283,
+          1287
+        ],
+        [
+          1316,
+          1333
+        ],
+        [
+          1441,
+          1446
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/fragments.py",
+      "raw_sha256": "a77b7c2f0c8830c10e7c509864d1e8f8079b47d50b80d407caa701ea4f34916d",
+      "normalized_sha256": "f75814c3497140428618493643bed0e4927218a553b254a9a4b5620d0f6add1d",
+      "raw_bytes": 39986,
+      "newlines": 764,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          110,
+          113
+        ],
+        [
+          133,
+          133
+        ],
+        [
+          145,
+          150
+        ],
+        [
+          159,
+          175
+        ],
+        [
+          178,
+          190
+        ],
+        [
+          268,
+          272
+        ],
+        [
+          281,
+          281
+        ],
+        [
+          313,
+          313
+        ],
+        [
+          488,
+          490
+        ],
+        [
+          497,
+          499
+        ],
+        [
+          575,
+          576
+        ],
+        [
+          622,
+          624
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/photometric.py",
+      "raw_sha256": "818d9d12fd4c39b7a2a099b04d58ba5f46910037a6810aa0ca91e5e3dec217cf",
+      "normalized_sha256": "a50aaf04ae289364e383ba0c55aa9be271cf3c870d84f638ddb6c0b455cd3ec8",
+      "raw_bytes": 3206,
+      "newlines": 95,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/refinement.py",
+      "raw_sha256": "e5b182037574606ef8a16efcbf43635b3e3936b165ea6a1f80018ff942beab66",
+      "normalized_sha256": "b2c9817bc96dc55de1a3aab16223888eb527a914ee32c229159809f7eacdbb46",
+      "raw_bytes": 11261,
+      "newlines": 282,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          48,
+          54
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/session.py",
+      "raw_sha256": "aab60f09e088a8ebee8f83d3acc92f544359aa0b90084c09e6883459123d2a70",
+      "normalized_sha256": "538d75936c91b96971c6cd601fe1244fa6f1850cce06254024dfc47486f40ff1",
+      "raw_bytes": 2216,
+      "newlines": 51,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/texturing.py",
+      "raw_sha256": "f98f2f2364a46fc0644cef0f8b3fd45cbd7296c50a6eab165a0fbf199107f46b",
+      "normalized_sha256": "684fca7218fcc24a5e06a28024a1565b077ff3857fbd9929ab7b50fdaba3e89f",
+      "raw_bytes": 19694,
+      "newlines": 467,
+      "style": "crlf"
+    },
+    {
+      "path": "scanner_server/tracking_cache.py",
+      "raw_sha256": "a3542531fdc4711723758b8e3e0aa648549cde9e5cc04425c2bf99fabdc1bc6f",
+      "normalized_sha256": "a4b00508d56b276f4f28114ca79a0d91eebf725e027b2e34571f711762a7ef9b",
+      "raw_bytes": 2576,
+      "newlines": 73,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          6,
+          6
+        ],
+        [
+          17,
+          17
+        ],
+        [
+          20,
+          52
+        ]
+      ]
+    },
+    {
+      "path": "scanner_server/visual_refinement.py",
+      "raw_sha256": "8d9d1b37e130e0e3150a9a1cdab31307c0ab9d8e8dd17ae35f1b12a3165d49d3",
+      "normalized_sha256": "8d9d1b37e130e0e3150a9a1cdab31307c0ab9d8e8dd17ae35f1b12a3165d49d3",
+      "raw_bytes": 822,
+      "newlines": 22,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/weighted_fusion.cu",
+      "raw_sha256": "6c131aa521051941b11b0265f375a19f8146daf9aa136d8b17274360fd6f5f33",
+      "normalized_sha256": "6c131aa521051941b11b0265f375a19f8146daf9aa136d8b17274360fd6f5f33",
+      "raw_bytes": 1796,
+      "newlines": 31,
+      "style": "lf"
+    },
+    {
+      "path": "scanner_server/weighted_fusion.py",
+      "raw_sha256": "11d8e7fd777f0239b8a5d98cd4c11f135c65940669cf3b10d92464ea908be4f1",
+      "normalized_sha256": "ef18ee0421726ffe41bda199ef85916aba8e80f1b721ed1b4ceabdc920ed83b4",
+      "raw_bytes": 7257,
+      "newlines": 177,
+      "style": "mixed",
+      "lf_lines": [
+        [
+          5,
+          5
+        ],
+        [
+          22,
+          39
+        ]
+      ]
+    },
+    {
+      "path": "scripts/benchmarks/profile_fragment_verification.py",
+      "raw_sha256": "dcf38bbde1d96853e1ef975e6a6c18d1f5d923eac804526adf2a3b6a52145a45",
+      "normalized_sha256": "dcf38bbde1d96853e1ef975e6a6c18d1f5d923eac804526adf2a3b6a52145a45",
+      "raw_bytes": 34616,
+      "newlines": 615,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/DEVICE_FLAT_GRID_RESEARCH.md",
+      "raw_sha256": "74e81b2449522392bec9be7088c575eab8c8e47af6bfe58acc29e03903be2211",
+      "normalized_sha256": "74e81b2449522392bec9be7088c575eab8c8e47af6bfe58acc29e03903be2211",
+      "raw_bytes": 4929,
+      "newlines": 71,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/FLAT_GRID_RESEARCH.md",
+      "raw_sha256": "2f45e0506ae2d59988c349cb43d864ac018affd46a20df5546835ae9051f3be1",
+      "normalized_sha256": "2f45e0506ae2d59988c349cb43d864ac018affd46a20df5546835ae9051f3be1",
+      "raw_bytes": 4104,
+      "newlines": 59,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/UNIFORM_GRID_RESEARCH.md",
+      "raw_sha256": "86b63bbc8f1907c3276e7ce2b4b142fb8529654a777b9c1add75a891ac8c5e55",
+      "normalized_sha256": "86b63bbc8f1907c3276e7ce2b4b142fb8529654a777b9c1add75a891ac8c5e55",
+      "raw_bytes": 5180,
+      "newlines": 77,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/benchmark_flat_grid_nn.py",
+      "raw_sha256": "02067dee2ce6c1f7fad416b51b43950ae5477ff72ce02949aae402d3129ca105",
+      "normalized_sha256": "02067dee2ce6c1f7fad416b51b43950ae5477ff72ce02949aae402d3129ca105",
+      "raw_bytes": 22590,
+      "newlines": 337,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/benchmark_flat_grid_timing.py",
+      "raw_sha256": "ef8aa5ff9ee282efaaf62d05a6b2241ae07b64453bd40dd6bae25ab2423d5381",
+      "normalized_sha256": "ef8aa5ff9ee282efaaf62d05a6b2241ae07b64453bd40dd6bae25ab2423d5381",
+      "raw_bytes": 8513,
+      "newlines": 164,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/benchmark_optix_nn.py",
+      "raw_sha256": "0c93ee108afb9e21597ad69b5ca1be54553b36906001169a800f949cec950fdc",
+      "normalized_sha256": "0c93ee108afb9e21597ad69b5ca1be54553b36906001169a800f949cec950fdc",
+      "raw_bytes": 23807,
+      "newlines": 386,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/benchmark_selective_fragment_threads.py",
+      "raw_sha256": "6e8a688ee668810d0d0c75f29da82adc4329db6613088a367b2333470cb710eb",
+      "normalized_sha256": "6e8a688ee668810d0d0c75f29da82adc4329db6613088a367b2333470cb710eb",
+      "raw_bytes": 18174,
+      "newlines": 304,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/benchmark_uniform_grid_nn.py",
+      "raw_sha256": "ee0aa63c33175d850bc04e1b12db1facca15ba3fe9ed7d0204816e6bb9a61c87",
+      "normalized_sha256": "ee0aa63c33175d850bc04e1b12db1facca15ba3fe9ed7d0204816e6bb9a61c87",
+      "raw_bytes": 24107,
+      "newlines": 367,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/cuda_flat_grid_registration.py",
+      "raw_sha256": "82618dfb02e56dd74e8c7923c9886d9389e059a5bfcc9e87fa412c70eb55dd84",
+      "normalized_sha256": "82618dfb02e56dd74e8c7923c9886d9389e059a5bfcc9e87fa412c70eb55dd84",
+      "raw_bytes": 2824,
+      "newlines": 51,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/cuda_uniform_grid_registration.py",
+      "raw_sha256": "890e5e8f3753042fd938f5b1716d650877403d28b5f1b05cb7c666066a082d1c",
+      "normalized_sha256": "890e5e8f3753042fd938f5b1716d650877403d28b5f1b05cb7c666066a082d1c",
+      "raw_bytes": 17578,
+      "newlines": 308,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/research_flat_grid_nn.cu",
+      "raw_sha256": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+      "normalized_sha256": "e7e75dba71d45af98ac0707a2f512334b8ba2bd3da77e0bd38bbca1d92aa2566",
+      "raw_bytes": 5520,
+      "newlines": 112,
+      "style": "crlf"
+    },
+    {
+      "path": "scripts/research/archive/research_resident_icp.py",
+      "raw_sha256": "a06c0cccf455b3165dab6aca314609ceebe4aeca08cefc84f6d5f3e1ca58d015",
+      "normalized_sha256": "a06c0cccf455b3165dab6aca314609ceebe4aeca08cefc84f6d5f3e1ca58d015",
+      "raw_bytes": 52099,
+      "newlines": 901,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/research_uniform_grid_nn.cu",
+      "raw_sha256": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+      "normalized_sha256": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+      "raw_bytes": 4370,
+      "newlines": 87,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/validate_flat_grid_proof.py",
+      "raw_sha256": "483702e491fd2c66d134af61699f528ba5a03813014289f83c84af32b563d3be",
+      "normalized_sha256": "483702e491fd2c66d134af61699f528ba5a03813014289f83c84af32b563d3be",
+      "raw_bytes": 7930,
+      "newlines": 98,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/archive/validate_uniform_grid_proof.py",
+      "raw_sha256": "7c52d15a915be2d6dfccb1440b70e318a0d022ffd000110930fc6bfd83e9a99a",
+      "normalized_sha256": "7c52d15a915be2d6dfccb1440b70e318a0d022ffd000110930fc6bfd83e9a99a",
+      "raw_bytes": 11117,
+      "newlines": 159,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/benchmark_device_grid_resident.py",
+      "raw_sha256": "85ead8774033dd084452ff4c6cdb251ad202b48d15a86edd1fd610cdc260ece2",
+      "normalized_sha256": "85ead8774033dd084452ff4c6cdb251ad202b48d15a86edd1fd610cdc260ece2",
+      "raw_bytes": 27312,
+      "newlines": 398,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/benchmark_device_grid_resident_timing.py",
+      "raw_sha256": "2176ec9372e45592ba1b3579e97805cc0616bb6130d192c78b7d297ed249b3d1",
+      "normalized_sha256": "2176ec9372e45592ba1b3579e97805cc0616bb6130d192c78b7d297ed249b3d1",
+      "raw_bytes": 9497,
+      "newlines": 185,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/benchmark_parallel_fragments.py",
+      "raw_sha256": "bb9141cbf0f94610402783336e6ecdd7f96bb7e751b273dd3263602f0be068ac",
+      "normalized_sha256": "bb9141cbf0f94610402783336e6ecdd7f96bb7e751b273dd3263602f0be068ac",
+      "raw_bytes": 36171,
+      "newlines": 640,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/cuda_device_flat_grid_registration.py",
+      "raw_sha256": "9e501379fae126b085c0b40ca7ae0d337e4e519f6050a311469d7ecdcd6b10f2",
+      "normalized_sha256": "9e501379fae126b085c0b40ca7ae0d337e4e519f6050a311469d7ecdcd6b10f2",
+      "raw_bytes": 13883,
+      "newlines": 208,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/device_flat_grid_synthetic.py",
+      "raw_sha256": "9e4174b8ab16fdd71953f5e92f32bece371e77f033bb724b9982d522fe11b9c5",
+      "normalized_sha256": "9e4174b8ab16fdd71953f5e92f32bece371e77f033bb724b9982d522fe11b9c5",
+      "raw_bytes": 14920,
+      "newlines": 219,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/research_device_flat_grid_nn.cu",
+      "raw_sha256": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+      "normalized_sha256": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+      "raw_bytes": 5802,
+      "newlines": 108,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/research_device_grid_resident_icp.py",
+      "raw_sha256": "803a8a4e25f1ca9a3ba165979062f8eea156b9a46418d18c60d41a8e4cb7a9fc",
+      "normalized_sha256": "803a8a4e25f1ca9a3ba165979062f8eea156b9a46418d18c60d41a8e4cb7a9fc",
+      "raw_bytes": 5803,
+      "newlines": 79,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/research/validate_device_flat_grid_proof.py",
+      "raw_sha256": "4182a294c4b0e0a6963a9c6aa88d4dd6262716227d7aebce97f9a4ecec816352",
+      "normalized_sha256": "4182a294c4b0e0a6963a9c6aa88d4dd6262716227d7aebce97f9a4ecec816352",
+      "raw_bytes": 20779,
+      "newlines": 285,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/tool-catalog.json",
+      "raw_sha256": "1fc02ada838fe8794f716ab5177d643eedf2ffe4bf467033553455c128d8356e",
+      "normalized_sha256": "1fc02ada838fe8794f716ab5177d643eedf2ffe4bf467033553455c128d8356e",
+      "raw_bytes": 15960,
+      "newlines": 477,
+      "style": "lf"
+    },
+    {
+      "path": "scripts/tool_paths.py",
+      "raw_sha256": "ba276d8f518b930cbf38d8f6b24540b44239990c0c4f07d8abb258a454f76259",
+      "normalized_sha256": "ba276d8f518b930cbf38d8f6b24540b44239990c0c4f07d8abb258a454f76259",
+      "raw_bytes": 1315,
+      "newlines": 33,
+      "style": "lf"
+    },
+    {
+      "path": "shared/__init__.py",
+      "raw_sha256": "ee767251451303dbbee26cd4f880c8b85ef870fc3a7ee2541ebd7228d055b19c",
+      "normalized_sha256": "dd0dfec24d9f3153c5ac85fc6b4b961ef376a3c8788afcfec0381fb126eac21e",
+      "raw_bytes": 87,
+      "newlines": 1,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/calibration.py",
+      "raw_sha256": "d28d40918d580da8d79e1a266bd2e1af26b3beac552f3cf937a063d67b555871",
+      "normalized_sha256": "d0f34c789f0fc8e033bab994c0d61d2becdeb5355e3d6ac03f3da0cd71122706",
+      "raw_bytes": 7436,
+      "newlines": 196,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/capture.py",
+      "raw_sha256": "ba0aaa200d9ea47fd7a864e60bc52d7a96e82aa492b9f638240f4c397f5fbf1a",
+      "normalized_sha256": "beeae49c163960696f203d9be29662368a4e568ecbee50aaedd89ab37e3ba0e0",
+      "raw_bytes": 3944,
+      "newlines": 100,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/confidence.py",
+      "raw_sha256": "2faab6010cf0de5c08138a8939c00f3ef0a3abd607b1cb1bd4c7918616fd113f",
+      "normalized_sha256": "7bbe810172134769cfae6ff237cc3631c2f838cc868545214005899bb2cda3d1",
+      "raw_bytes": 3345,
+      "newlines": 76,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/config.py",
+      "raw_sha256": "62f669afe6afb652fb355047f33c4fefd5aa2cc9047c4005671d8f6356136ae6",
+      "normalized_sha256": "6e9811db03c0677c286c0d2f8d366c6297dc80c5932f2a1ebf1caab72e35458f",
+      "raw_bytes": 1559,
+      "newlines": 44,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/depth.py",
+      "raw_sha256": "8102b7a0b7e1d2b5c46f24952127f2afb75e773a0f1aa3ae8728171deb80596d",
+      "normalized_sha256": "50378a5689a3bda5cd2d6de5321ec8b12d62e03652c6f4c4e3394a0b303de7d4",
+      "raw_bytes": 2077,
+      "newlines": 58,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/device_evidence.py",
+      "raw_sha256": "7303a60dc3032e5685e39180f597ebb3f57ac98e3334079db0151c6e0529b35b",
+      "normalized_sha256": "62ee4533d3ac7974d334246fee37a8a57a09ab287edc493b385b0d4b8dadc226",
+      "raw_bytes": 6281,
+      "newlines": 152,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/inertial.py",
+      "raw_sha256": "fb5d6cc510027fb36696b096a16526b7a1ed9d28d926bc3daf006e06a947c358",
+      "normalized_sha256": "6f2ffc28c7602aafb0848eb2a55c72ddedadd79ea91e143d4ffd89c49e427eda",
+      "raw_bytes": 18493,
+      "newlines": 328,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/live.py",
+      "raw_sha256": "e919bd34e189c406a5bdc493521d1ac12914fe35c7af785afed32ec9fe3838e3",
+      "normalized_sha256": "60d9bdfd699672c7608f0e12f09983a8e8e18371f3eaabe314aad5dd78cb96a7",
+      "raw_bytes": 2364,
+      "newlines": 55,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/native.py",
+      "raw_sha256": "36b88337b604396dab09ad5aee055bb277e1426d3e6f4b431d4b56b2377aff65",
+      "normalized_sha256": "f9b97f2bded8f0885c5aeccbddeb92aae18dc9276b39e5eca5be60d5d0336b19",
+      "raw_bytes": 1672,
+      "newlines": 57,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/protocol.py",
+      "raw_sha256": "088ff9216513c84a1e3c404ad6a7f81bdef25e23e45776fb8e431e0f31009e7d",
+      "normalized_sha256": "3f35106ab2e325cdbbe615173bd9aa21c1016d7c71e2e9cf82d063f7c28c2dc1",
+      "raw_bytes": 4800,
+      "newlines": 128,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/recording.py",
+      "raw_sha256": "deb5168b64fbfbd760b45748d99f44ba5f03f208471c8981d743ba096cdeb799",
+      "normalized_sha256": "975086068e71b8c05fbd64a7173d356c75ed5f67a77cbb906ac6fa8c04c22521",
+      "raw_bytes": 3044,
+      "newlines": 74,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/sensor_calibration.py",
+      "raw_sha256": "91b0937befafe4b4fb171ce02d5fabe8e28b17c73a1671f57f249064b966ae4b",
+      "normalized_sha256": "25596e2fdcd944ecc0995f02ebcd473e0f6b3110344ea5f742a7b07e9683e7cd",
+      "raw_bytes": 7280,
+      "newlines": 180,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/sensor_recording.py",
+      "raw_sha256": "b57ed07d5944a1fe48af1230d0fb0faed1cde8c3d48050fc39f9497674fcba3e",
+      "normalized_sha256": "99e0b47df66fa98081e9e3eec44390961e4dfe17a48d1e1e156b96bf35aa8617",
+      "raw_bytes": 12874,
+      "newlines": 240,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/sensor_replay.py",
+      "raw_sha256": "a29ca60f93827eb6c2c20cee3ed3e3ccd99de43f9122637c51f4ef441e4bc683",
+      "normalized_sha256": "578af85bfe5342a3a92622eb802d597068c5e99c7bddc43f597e0c18e2f2e50d",
+      "raw_bytes": 6974,
+      "newlines": 111,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/settings.py",
+      "raw_sha256": "a7972ff1b2a04b0f0d71a5e70ee4972531ef0e91119fa6c3d2999e752ac04e76",
+      "normalized_sha256": "e4b38a86cce94bd3701e15102853b9029393f68c3bc2c4564f6cc71a27fe851c",
+      "raw_bytes": 9631,
+      "newlines": 222,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/surface_metrics.py",
+      "raw_sha256": "dfb2eadc678b4398fb72634a4c73ebec17ed1519c41ff824bfeaccb2099d285f",
+      "normalized_sha256": "62a46dcb8fdd22a04e50a25df79da51af0b9791f42f6661e93cbffae89292808",
+      "raw_bytes": 2245,
+      "newlines": 55,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/view_metrics.py",
+      "raw_sha256": "a3b08fa238ef9ab5f94454ccf29db121d827e77cbc84ece30257bc3be574bacb",
+      "normalized_sha256": "87be1cc379a83565407c148bfa816518e97652c2075319de5468a6efcbca9d5e",
+      "raw_bytes": 4129,
+      "newlines": 100,
+      "style": "crlf"
+    },
+    {
+      "path": "shared/visual_tracking.py",
+      "raw_sha256": "7c172638c1b7abf548118627b7262186735ab24d75b4eb956a1a4677ab1b091c",
+      "normalized_sha256": "adecd8daa433e2406997bde94103e710d4675d7b8eef7b85b2e17b495d43d1a0",
+      "raw_bytes": 22491,
+      "newlines": 431,
+      "style": "crlf"
+    }
+  ]
+}

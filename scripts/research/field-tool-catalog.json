@@ -1,0 +1,744 @@
+{
+  "schema_version": 1,
+  "scope": "October 2026 field research. Current paths only; original tool-catalog.json stays byte-preserved for earlier measured protocols. Experimental and negative-result dependencies remain useful; this inventory grants no numerical authority.",
+  "entries": [
+    {
+      "legacy_path": "scripts/research/BULK_LEGACY_NN_AUDIT.md",
+      "path": "scripts/research/BULK_LEGACY_NN_AUDIT.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/CANONICAL_FPFH_RESEARCH.md",
+      "path": "scripts/research/CANONICAL_FPFH_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/CHECKPOINT_RESIDENT_FINISH_RESEARCH.md",
+      "path": "scripts/research/CHECKPOINT_RESIDENT_FINISH_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/COMBINED_SOURCE_GUARD.md",
+      "path": "scripts/research/COMBINED_SOURCE_GUARD.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/COMBINED_SYNC_RESEARCH.md",
+      "path": "scripts/research/COMBINED_SYNC_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/DEVICE_LDLT_RESEARCH.md",
+      "path": "scripts/research/DEVICE_LDLT_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/FIELD_FINISH_CONFORMANCE.md",
+      "path": "scripts/research/FIELD_FINISH_CONFORMANCE.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/FINAL_HEADROOM_RESEARCH.md",
+      "path": "scripts/research/FINAL_HEADROOM_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md",
+      "path": "scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md",
+      "group": "active",
+      "role": "Next bounded GPU proposal-batch and device-iteration experiment design"
+    },
+    {
+      "legacy_path": "scripts/research/GPU_ICP_MICROBATCH_RESULTS.md",
+      "path": "scripts/research/GPU_ICP_MICROBATCH_RESULTS.md",
+      "group": "active",
+      "role": "Executed current-input GPU ICP experiments, including negative neighbour and batch results"
+    },
+    {
+      "legacy_path": "scripts/research/GPU_ICP_SEED_BATCH_RESULTS.md",
+      "path": "scripts/research/GPU_ICP_SEED_BATCH_RESULTS.md",
+      "group": "active",
+      "role": "Detailed negative batch timings, cold costs, evidence closure and reproduction command"
+    },
+    {
+      "legacy_path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
+      "path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/MEASURED_SOURCE_REPRODUCIBILITY.md",
+      "path": "scripts/research/MEASURED_SOURCE_REPRODUCIBILITY.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/MISSING_ACTIVATION_RESEARCH.md",
+      "path": "scripts/research/MISSING_ACTIVATION_RESEARCH.md",
+      "group": "active",
+      "role": "Research protocol, evidence limits and reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/PRODUCTION_ALLOCATION_VALIDATION.md",
+      "path": "scripts/research/PRODUCTION_ALLOCATION_VALIDATION.md",
+      "group": "active",
+      "role": "Installed weighted Final memory validation protocol and reproduction limits"
+    },
+    {
+      "legacy_path": "scripts/research/analyze_field_markers.py",
+      "path": "scripts/research/analyze_field_markers.py",
+      "group": "active",
+      "role": "Diagnose ID-based measured RGB-D proposals on the field's printed markers."
+    },
+    {
+      "legacy_path": "scripts/research/analyze_field_sessions.py",
+      "path": "scripts/research/analyze_field_sessions.py",
+      "group": "active",
+      "role": "Inspect field ZIP metadata without importing scanner, Open3D, CUDA or NumPy."
+    },
+    {
+      "legacy_path": "scripts/research/analyze_finish_trace_differences.py",
+      "path": "scripts/research/analyze_finish_trace_differences.py",
+      "group": "active",
+      "role": "Stdlib diagnostic of closed Finish traces; creates no quality authority."
+    },
+    {
+      "legacy_path": "scripts/research/analyze_native_markers.py",
+      "path": "scripts/research/analyze_native_markers.py",
+      "group": "active",
+      "role": "Diagnose native-resolution marker identities supported by calibrated depth."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_bulk_resident_audit.py",
+      "path": "scripts/research/benchmark_bulk_resident_audit.py",
+      "group": "active",
+      "role": "Complete old resident trajectory with simultaneous original scalar/bulk CPU shadows."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_combined_source_guard.py",
+      "path": "scripts/research/benchmark_combined_source_guard.py",
+      "group": "active",
+      "role": "Stdlib-only causal check of repeated AST versus full-file source hashing."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_combined_source_guard_timing.py",
+      "path": "scripts/research/benchmark_combined_source_guard_timing.py",
+      "group": "active",
+      "role": "Component-only causal A/B source guard timing with unchanged CUDA math."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_combined_sync_icp.py",
+      "path": "scripts/research/benchmark_combined_sync_icp.py",
+      "group": "active",
+      "role": "Separate fully audited single-copy flat NN/normal-equation component proof."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_combined_sync_timing.py",
+      "path": "scripts/research/benchmark_combined_sync_timing.py",
+      "group": "active",
+      "role": "Three-way all-nine component timing under separate fresh proof authority."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_device_ldlt.py",
+      "path": "scripts/research/benchmark_device_ldlt.py",
+      "group": "active",
+      "role": "Allocated synthetic CPU-Eigen shadows for a separate GPU LDLT/Euler port."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_field_policy.py",
+      "path": "scripts/research/benchmark_field_policy.py",
+      "group": "active",
+      "role": "Replay existing full/deferred recovery policies from raw field archives."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_field_sessions.py",
+      "path": "scripts/research/benchmark_field_sessions.py",
+      "group": "active",
+      "role": "Run isolated CPU/CUDA field replays with the archive's actual settings."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_icp_convergence_tradeoff.py",
+      "path": "scripts/research/benchmark_icp_convergence_tradeoff.py",
+      "group": "active",
+      "role": "Explicit changed-convergence fixed-pair CPU experiment; original gates retained and unsafe shortcuts documented"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_microbatch_pruned_nn.py",
+      "path": "scripts/research/benchmark_microbatch_pruned_nn.py",
+      "group": "active",
+      "role": "Exact-neighbour cell-pruning pilot and repeated raw lookup timing"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_microbatch_warp_nn.py",
+      "path": "scripts/research/benchmark_microbatch_warp_nn.py",
+      "group": "active",
+      "role": "Exact warp-sized neighbour pilot and repeated raw lookup timing"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_microbatch_warp_pruned_nn.py",
+      "path": "scripts/research/benchmark_microbatch_warp_pruned_nn.py",
+      "group": "active",
+      "role": "Combined warp/pruning exact-neighbour pilot and negative real-row result"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_missing_activation.py",
+      "path": "scripts/research/benchmark_missing_activation.py",
+      "group": "active",
+      "role": "Allocated CPU/tensor/fused CUDA causal proof for weighted missing activation."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_native_corner_lookups.py",
+      "path": "scripts/research/benchmark_native_corner_lookups.py",
+      "group": "active",
+      "role": "Fresh original-brute-shadowed comparison of exact CPU/CUDA corner minima."
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_production_missing_activation.py",
+      "path": "scripts/research/benchmark_production_missing_activation.py",
+      "group": "active",
+      "role": "Fresh physical smoke of installed weighted Final missing-key activation."
+    },
+    {
+      "legacy_path": "scripts/research/bulk_legacy_nn_audit.py",
+      "path": "scripts/research/bulk_legacy_nn_audit.py",
+      "group": "active",
+      "role": "Prepare/crosscheck bulk original Open3D nearest-ID CPU shadows."
+    },
+    {
+      "legacy_path": "scripts/research/canonical_fpfh_proposals.py",
+      "path": "scripts/research/canonical_fpfh_proposals.py",
+      "group": "active",
+      "role": "Isolated proposal-only micrometre quantization and fresh FPFH experiment."
+    },
+    {
+      "legacy_path": "scripts/research/capture_resident_equations.py",
+      "path": "scripts/research/capture_resident_equations.py",
+      "group": "active",
+      "role": "Allocated output-only all-nine capture of unchanged original Eigen equations."
+    },
+    {
+      "legacy_path": "scripts/research/check_bulk_audit_contract.py",
+      "path": "scripts/research/check_bulk_audit_contract.py",
+      "group": "active",
+      "role": "Stdlib fault contracts for the separate bulk CPU-auditor authority."
+    },
+    {
+      "legacy_path": "scripts/research/check_native_corner_cpu_contract.py",
+      "path": "scripts/research/check_native_corner_cpu_contract.py",
+      "group": "active",
+      "role": "Stdlib interval/domain/source contracts; no NumPy/SciPy/native execution."
+    },
+    {
+      "legacy_path": "scripts/research/check_resident_equation_recorder.py",
+      "path": "scripts/research/check_resident_equation_recorder.py",
+      "group": "active",
+      "role": "Meaningful stdlib-only observer contracts; no NumPy/native/CUDA imports."
+    },
+    {
+      "legacy_path": "scripts/research/combined_source_guard_adapter.py",
+      "path": "scripts/research/combined_source_guard_adapter.py",
+      "group": "active",
+      "role": "Causal host source-check sibling; every numerical/control statement retained."
+    },
+    {
+      "legacy_path": "scripts/research/combined_sync_synthetic.py",
+      "path": "scripts/research/combined_sync_synthetic.py",
+      "group": "active",
+      "role": "Focused new guard/equation tests, executed only in an allocated GPU slot."
+    },
+    {
+      "legacy_path": "scripts/research/combined_sync_timing_adapter.py",
+      "path": "scripts/research/combined_sync_timing_adapter.py",
+      "group": "active",
+      "role": "Proved single-copy component timing; original numerical kernels stay intact."
+    },
+    {
+      "legacy_path": "scripts/research/compare_checkpoint_resident_finishes.py",
+      "path": "scripts/research/compare_checkpoint_resident_finishes.py",
+      "group": "active",
+      "role": "Compare independent original/resident Finish from one exact Live checkpoint."
+    },
+    {
+      "legacy_path": "scripts/research/compare_field_experiment.py",
+      "path": "scripts/research/compare_field_experiment.py",
+      "group": "active",
+      "role": "Compare observable geometry of two offline field experiment profiles."
+    },
+    {
+      "legacy_path": "scripts/research/compare_field_finish_conformance.py",
+      "path": "scripts/research/compare_field_finish_conformance.py",
+      "group": "active",
+      "role": "Close NEW field final-output conformance from separate native/audit Finish."
+    },
+    {
+      "legacy_path": "scripts/research/compare_resident_finishes.py",
+      "path": "scripts/research/compare_resident_finishes.py",
+      "group": "active",
+      "role": "Close native/audited full-Finish quality separately from measured artifacts."
+    },
+    {
+      "legacy_path": "scripts/research/cuda_bulk_audit_grid_registration.py",
+      "path": "scripts/research/cuda_bulk_audit_grid_registration.py",
+      "group": "active",
+      "role": "Separate exact CPU-shadow experiment; original GPU math stays inherited."
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_control.cu",
+      "path": "scripts/research/device_loop_control.cu",
+      "group": "active",
+      "role": "GPU convergence and pose composition control for the device iteration experiment"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_icp.py",
+      "path": "scripts/research/device_loop_icp.py",
+      "group": "active",
+      "role": "Bounded complete device iteration lane with original input owners and declared graph chunks"
+    },
+    {
+      "legacy_path": "scripts/research/evaluate_marker_seeds.py",
+      "path": "scripts/research/evaluate_marker_seeds.py",
+      "group": "active",
+      "role": "Check marker proposals against original reciprocal ICP and SIFT witnesses."
+    },
+    {
+      "legacy_path": "scripts/research/field-tool-catalog.json",
+      "path": "scripts/research/field-tool-catalog.json",
+      "group": "active",
+      "role": "Field research inventory or source provenance data"
+    },
+    {
+      "legacy_path": "scripts/research/field_finish_conformance_scope.py",
+      "path": "scripts/research/field_finish_conformance_scope.py",
+      "group": "active",
+      "role": "New actual-input field conformance scope; old strict authorities stay distinct."
+    },
+    {
+      "legacy_path": "scripts/research/final_allocation_headroom.py",
+      "path": "scripts/research/final_allocation_headroom.py",
+      "group": "active",
+      "role": "New reserve-headroom Final experiment; original activation/math unchanged."
+    },
+    {
+      "legacy_path": "scripts/research/final_allocation_scope.py",
+      "path": "scripts/research/final_allocation_scope.py",
+      "group": "active",
+      "role": "Offline exact Final-capacity experiment, separate from frozen Finish proofs."
+    },
+    {
+      "legacy_path": "scripts/research/final_missing_activation.py",
+      "path": "scripts/research/final_missing_activation.py",
+      "group": "active",
+      "role": "Research-only exact-size weighted Final allocation with missing-key activation."
+    },
+    {
+      "legacy_path": "scripts/research/finish_resident_registration.py",
+      "path": "scripts/research/finish_resident_registration.py",
+      "group": "active",
+      "role": "Offline-only scoped Finish injection; original graph gates remain in charge."
+    },
+    {
+      "legacy_path": "scripts/research/global_marker_proposal_scope.py",
+      "path": "scripts/research/global_marker_proposal_scope.py",
+      "group": "active",
+      "role": "Offline marker proposals through every original fragment bridge authority."
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_device_loop_experiment.py",
+      "path": "scripts/research/gpu_icp_device_loop_experiment.py",
+      "group": "active",
+      "role": "Own current-input exhaustive device-loop audit and separately authorized setup-charged graph timing"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_device_loop_protocol.py",
+      "path": "scripts/research/gpu_icp_device_loop_protocol.py",
+      "group": "active",
+      "role": "Distinct registered current-array device-loop timing authority, exact terminal and query-stage contracts"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_capture.py",
+      "path": "scripts/research/gpu_icp_experiment_capture.py",
+      "group": "active",
+      "role": "Rebuild genuine raw-derived fixed-pair proposals under closed current source"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_driver.py",
+      "path": "scripts/research/gpu_icp_experiment_driver.py",
+      "group": "active",
+      "role": "Fresh original ICP and complete proposal gate audit, then scoped independent-seed timing"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_loop_probe.py",
+      "path": "scripts/research/gpu_icp_experiment_loop_probe.py",
+      "group": "active",
+      "role": "Exhaustive actual-query CPU shadow of full GPU iterations and CUDA graphs"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_experiment_protocol.py",
+      "path": "scripts/research/gpu_icp_experiment_protocol.py",
+      "group": "active",
+      "role": "Distinct current-input independent-seed timing authority and evidence validator"
+    },
+    {
+      "legacy_path": "scripts/research/marker_proposal_scope.py",
+      "path": "scripts/research/marker_proposal_scope.py",
+      "group": "active",
+      "role": "Offline marker seeds for an absent original SIFT local proposal only."
+    },
+    {
+      "legacy_path": "scripts/research/measured-source-layout.json",
+      "path": "scripts/research/measured-source-layout.json",
+      "group": "active",
+      "role": "Field research inventory or source provenance data"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_icp.py",
+      "path": "scripts/research/microbatch_icp.py",
+      "group": "active",
+      "role": "Independent explicit-stream two/four-seed adapter retaining original CPU solver boundary"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_pruned_flat_grid_nn.cu",
+      "path": "scripts/research/microbatch_pruned_flat_grid_nn.cu",
+      "group": "active",
+      "role": "Bounded centre-first exact-neighbour cell-pruning shader"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_warp_flat_grid_nn.cu",
+      "path": "scripts/research/microbatch_warp_flat_grid_nn.cu",
+      "group": "active",
+      "role": "Four independent warp-sized exact queries per thread block"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_warp_pruned_flat_grid_nn.cu",
+      "path": "scripts/research/microbatch_warp_pruned_flat_grid_nn.cu",
+      "group": "active",
+      "role": "Combined exact-neighbour warp and cell-pruning experiment"
+    },
+    {
+      "legacy_path": "scripts/research/native_corner_cpu.py",
+      "path": "scripts/research/native_corner_cpu.py",
+      "group": "active",
+      "role": "Exact original-double CPU corner minima with a candidate-seeded x strip."
+    },
+    {
+      "legacy_path": "scripts/research/native_corner_cuda.py",
+      "path": "scripts/research/native_corner_cuda.py",
+      "group": "active",
+      "role": "Bounded exact-double CUDA minimum for offline RGB-corner/depth association."
+    },
+    {
+      "legacy_path": "scripts/research/owned_profile_process.py",
+      "path": "scripts/research/owned_profile_process.py",
+      "group": "active",
+      "role": "Run an isolated profile worker and close its entire owned process tree."
+    },
+    {
+      "legacy_path": "scripts/research/private_live_checkpoint.py",
+      "path": "scripts/research/private_live_checkpoint.py",
+      "group": "active",
+      "role": "Private checkpoints of freshly measured raw Live; never exported-pose seeds."
+    },
+    {
+      "legacy_path": "scripts/research/probe_final_budget.py",
+      "path": "scripts/research/probe_final_budget.py",
+      "group": "active",
+      "role": "Current-source raw Final budget allocation-only boundary probe"
+    },
+    {
+      "legacy_path": "scripts/research/profile_checkpoint_resident_finish.py",
+      "path": "scripts/research/profile_checkpoint_resident_finish.py",
+      "group": "active",
+      "role": "Capture actual fresh raw Live once, then compare complete Finish from it."
+    },
+    {
+      "legacy_path": "scripts/research/profile_field_finish_conformance.py",
+      "path": "scripts/research/profile_field_finish_conformance.py",
+      "group": "active",
+      "role": "New field-conformance supervisor for the frozen checkpoint Finish runner."
+    },
+    {
+      "legacy_path": "scripts/research/profile_final_allocation.py",
+      "path": "scripts/research/profile_final_allocation.py",
+      "group": "active",
+      "role": "Compare original and exact-size Final allocation from one verified Live state."
+    },
+    {
+      "legacy_path": "scripts/research/profile_final_headroom.py",
+      "path": "scripts/research/profile_final_headroom.py",
+      "group": "active",
+      "role": "Separate reserve-headroom supervisor of the frozen original Final producer."
+    },
+    {
+      "legacy_path": "scripts/research/profile_final_missing_activation.py",
+      "path": "scripts/research/profile_final_missing_activation.py",
+      "group": "active",
+      "role": "New weighted Final supervisor over the frozen original CPU Finish producer."
+    },
+    {
+      "legacy_path": "scripts/research/profile_finish_ransac_diagnostics.py",
+      "path": "scripts/research/profile_finish_ransac_diagnostics.py",
+      "group": "active",
+      "role": "Observe exact global-proposal inputs without changing their computation."
+    },
+    {
+      "legacy_path": "scripts/research/profile_marker_finish.py",
+      "path": "scripts/research/profile_marker_finish.py",
+      "group": "active",
+      "role": "Compare original Finish and explicit marker proposals from one Live checkpoint."
+    },
+    {
+      "legacy_path": "scripts/research/profile_resident_finish.py",
+      "path": "scripts/research/profile_resident_finish.py",
+      "group": "active",
+      "role": "Isolated whole-Finish research with original CPU shadows and hard closure."
+    },
+    {
+      "legacy_path": "scripts/research/research_combined_sync_icp.py",
+      "path": "scripts/research/research_combined_sync_icp.py",
+      "group": "active",
+      "role": "Audit-only single-copy ICP experiment; never selected by the scanner."
+    },
+    {
+      "legacy_path": "scripts/research/research_device_ldlt.cu",
+      "path": "scripts/research/research_device_ldlt.cu",
+      "group": "active",
+      "role": "Research CUDA shader and numerical contract"
+    },
+    {
+      "legacy_path": "scripts/research/research_device_ldlt.py",
+      "path": "scripts/research/research_device_ldlt.py",
+      "group": "active",
+      "role": "Separate, unproved CUDA FP64 6x6 LDLT/Euler micro-prototype."
+    },
+    {
+      "legacy_path": "scripts/research/resident_equation_recorder.py",
+      "path": "scripts/research/resident_equation_recorder.py",
+      "group": "active",
+      "role": "Bounded observation of the unchanged resident Eigen callable."
+    },
+    {
+      "legacy_path": "scripts/research/restore_measured_source.py",
+      "path": "scripts/research/restore_measured_source.py",
+      "group": "active",
+      "role": "Check/recreate the measured Windows baseline's raw source newline bytes."
+    },
+    {
+      "legacy_path": "scripts/research/summarize_field_latency.py",
+      "path": "scripts/research/summarize_field_latency.py",
+      "group": "active",
+      "role": "Summarize closed raw replay profiles without importing native libraries."
+    },
+    {
+      "legacy_path": "scripts/research/summarize_field_study.py",
+      "path": "scripts/research/summarize_field_study.py",
+      "group": "active",
+      "role": "Publishable scalar evidence from closed local field reports; stdlib only."
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_device_loop.py",
+      "path": "scripts/research/summarize_gpu_icp_device_loop.py",
+      "group": "active",
+      "role": "Stdlib scalar publication of exact own-loop audits and setup-charged timing; no numerical authority"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_microbatch.py",
+      "path": "scripts/research/summarize_gpu_icp_microbatch.py",
+      "group": "active",
+      "role": "Stdlib scalar publication from closed independent-seed audit/timing reports, without authority creation"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_production_allocation.py",
+      "path": "scripts/research/summarize_production_allocation.py",
+      "group": "active",
+      "role": "Retrospective scalar installed Final allocation and quality publication"
+    },
+    {
+      "legacy_path": "scripts/research/validate_bulk_resident_audit.py",
+      "path": "scripts/research/validate_bulk_resident_audit.py",
+      "group": "active",
+      "role": "Separate CPU-auditor authority, never field pose or GPU-target authority."
+    },
+    {
+      "legacy_path": "scripts/research/validate_checkpoint_finish_proof.py",
+      "path": "scripts/research/validate_checkpoint_finish_proof.py",
+      "group": "active",
+      "role": "Non-executable, closed measured-Live checkpoint and Finish proof boundaries."
+    },
+    {
+      "legacy_path": "scripts/research/validate_combined_source_guard_timing.py",
+      "path": "scripts/research/validate_combined_source_guard_timing.py",
+      "group": "active",
+      "role": "New registry-owned authority for an equivalent source-check-only sibling."
+    },
+    {
+      "legacy_path": "scripts/research/validate_combined_sync_proof.py",
+      "path": "scripts/research/validate_combined_sync_proof.py",
+      "group": "active",
+      "role": "Distinct stdlib-only component authority for fully audited combined copies."
+    },
+    {
+      "legacy_path": "scripts/research/validate_combined_sync_timing.py",
+      "path": "scripts/research/validate_combined_sync_timing.py",
+      "group": "active",
+      "role": "Separate component timing authority; no old proof is relabelled or extended."
+    },
+    {
+      "legacy_path": "scripts/research/validate_field_finish_conformance.py",
+      "path": "scripts/research/validate_field_finish_conformance.py",
+      "group": "active",
+      "role": "Separate actual-input field authority; old strict Finish proofs stay separate."
+    },
+    {
+      "legacy_path": "scripts/research/validate_finish_resident_proof.py",
+      "path": "scripts/research/validate_finish_resident_proof.py",
+      "group": "active",
+      "role": "Pure-stdlib proof boundaries for offline, matched full-Finish research."
+    },
+    {
+      "legacy_path": "scripts/research/validate_resident_equation_fixture.py",
+      "path": "scripts/research/validate_resident_equation_fixture.py",
+      "group": "active",
+      "role": "Strict stdlib-only input guard for an observed Eigen micro-solve fixture."
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_workspace.py",
+      "path": "scripts/research/device_loop_workspace.py",
+      "group": "active",
+      "role": "Pristine compiled setup owner for full proposal experiments; private buffers and graphs per alignment"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_workspace_protocol.py",
+      "path": "scripts/research/device_loop_workspace_protocol.py",
+      "group": "active",
+      "role": "Registered actual-input timing authorization for the separately audited workspace method"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_driver.py",
+      "path": "scripts/research/microbatch_bridge_driver.py",
+      "group": "active",
+      "role": "Complete original proposal set, exhaustive CPU shadows and separate timing through unchanged gates"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_protocol.py",
+      "path": "scripts/research/microbatch_bridge_protocol.py",
+      "group": "active",
+      "role": "Fresh complete-bridge audit and exact ordered trajectory authority; no Finish scope"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_scope.py",
+      "path": "scripts/research/microbatch_bridge_scope.py",
+      "group": "active",
+      "role": "Private original verifier namespace, caches, gate observer and semantic comparisons"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_complete_bridge.py",
+      "path": "scripts/research/summarize_gpu_icp_complete_bridge.py",
+      "group": "active",
+      "role": "Publish path-free scalar quality coverage and matched performance receipts"
+    },
+    {
+      "legacy_path": "scripts/research/profile_complete_bridge.py",
+      "path": "scripts/research/profile_complete_bridge.py",
+      "group": "active",
+      "role": "Instrumented Python boundary attribution; no uninstrumented performance authority"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_flat_grid_filtered_nn.py",
+      "path": "scripts/research/benchmark_flat_grid_filtered_nn.py",
+      "group": "active",
+      "role": "Fresh exact-output GPU neighbor-screening audit and separately labelled raw-kernel timing"
+    },
+    {
+      "legacy_path": "scripts/research/research_flat_grid_filtered_nn.cu",
+      "path": "scripts/research/research_flat_grid_filtered_nn.cu",
+      "group": "active",
+      "role": "Conservative float candidate filter followed by original exact double top-two distances"
+    },
+    {
+      "legacy_path": "scripts/research/flat_grid_filter_bound.py",
+      "path": "scripts/research/flat_grid_filter_bound.py",
+      "group": "active",
+      "role": "Upward-rounded error enclosure, distinct-neighbor inclusion theorem and host reference"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_owned_workspace.py",
+      "path": "scripts/research/device_loop_owned_workspace.py",
+      "group": "active",
+      "role": "Pristine device-loop setup bound to owned read-only immutable proof references"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_owned_driver.py",
+      "path": "scripts/research/microbatch_bridge_owned_driver.py",
+      "group": "active",
+      "role": "Fresh complete-proposal audit and setup-charged timing using owned proof references"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_owned_protocol.py",
+      "path": "scripts/research/microbatch_bridge_owned_protocol.py",
+      "group": "active",
+      "role": "Held Windows read-only proof handles, immutable indexed references and exact closed receipts"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_owned_bridge.py",
+      "path": "scripts/research/summarize_gpu_icp_owned_bridge.py",
+      "group": "active",
+      "role": "Path-free matched complete-proposal timing publication after owned proof closure"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_warp_flat_grid_filtered_nn.py",
+      "path": "scripts/research/benchmark_warp_flat_grid_filtered_nn.py",
+      "group": "active",
+      "role": "Fresh exact-output warp screening audit and balanced raw lookup timing"
+    },
+    {
+      "legacy_path": "scripts/research/research_warp_flat_grid_filtered_nn.cu",
+      "path": "scripts/research/research_warp_flat_grid_filtered_nn.cu",
+      "group": "active",
+      "role": "Conservative warp float screening with original double top-two outputs and full fallback"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_icp_seed_reuse_census.py",
+      "path": "scripts/research/benchmark_icp_seed_reuse_census.py",
+      "group": "active",
+      "role": "Original CPU call census with exact clouds and direct first-representative near-seed comparisons"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_icp_seed_reuse_census.py",
+      "path": "scripts/research/summarize_icp_seed_reuse_census.py",
+      "group": "active",
+      "role": "Recompute closed original CPU seed census and publish only scalar observations without reuse or speed authority"
+    },
+    {
+      "legacy_path": "scripts/research/near_seed_icp.py",
+      "path": "scripts/research/near_seed_icp.py",
+      "group": "active",
+      "role": "Bounded exact-cloud first-representative CPU result reuse with actual-hit native shadows and immutable owned payloads"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_near_seed_reuse.py",
+      "path": "scripts/research/benchmark_near_seed_reuse.py",
+      "group": "active",
+      "role": "Fresh complete-proposal changed-method CPU audit and strict actual-input timing; preserves native-bit-noise refusal"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_near_seed_conformance.py",
+      "path": "scripts/research/benchmark_near_seed_conformance.py",
+      "group": "active",
+      "role": "Separate fixed-pair actual-input numerical conformance with independent original controls and charged complete-phase timing"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_near_seed_conformance.py",
+      "path": "scripts/research/summarize_near_seed_conformance.py",
+      "group": "active",
+      "role": "Recompute all recorded fixed-pair reuse comparisons and publish scalar timing and strict refusal receipts without production authority"
+    }
+  ]
+}

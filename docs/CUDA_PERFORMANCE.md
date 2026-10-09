@@ -118,7 +118,7 @@ In an existing environment containing CUDA-enabled Open3D and a CUDA 12 toolkit:
 python -m pip install -r requirements-cuda-fusion.txt
 $env:OMP_NUM_THREADS = '8'
 $env:KINECT_NATIVE = 'on'
-python scripts/benchmark_cuda_fusion.py export/chest-3-scan-session_20261006_215208.zip export/chest-4-scan-session_20261007_173028.zip
+python scripts/benchmarks/benchmark_cuda_fusion.py export/chest-3-scan-session_20261006_215208.zip export/chest-4-scan-session_20261007_173028.zip
 python scripts/profile_session_backends.py export/chest-3-scan-session_20261006_215208.zip export/chest-4-scan-session_20261007_173028.zip --finish --finish-runs cpu cuda-fused --repeats 1 --runs cpu cuda-tensor cuda-fused
 ```
 

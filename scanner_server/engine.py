@@ -1821,10 +1821,18 @@ class ScanEngine:
         candidate = copy.copy(self)
         candidate.settings = replace(self.settings, voxel_m=self.settings.final_voxel_m)
         candidate.voxel_size = candidate.settings.voxel_m
+        planning_started = time.monotonic()
         required = candidate._required_fusion_blocks(self.poses, progress_cb, stage="final_reintegration")
+        planning_elapsed_ms = (time.monotonic() - planning_started) * 1000
         allocation = plan_fusion(self.device, required, candidate.voxel_size)
         candidate._fusion_block_limit = allocation["allocated_blocks"]
-        candidate.vbg = candidate._create_vbg(block_count=candidate._fusion_block_limit)
+        candidate._final_missing_only_activation = candidate.settings.confidence_fusion is True
+        allocated = candidate._fusion_block_limit
+        candidate._final_allocated_blocks = allocated
+        candidate.vbg = candidate._create_vbg(block_count=allocated)
+        initial_capacity = int(candidate.vbg.hashmap().capacity())
+        if candidate._final_missing_only_activation and initial_capacity != allocated:
+            raise ValueError("Weighted Final native initial capacity differs from the exact plan")
         for completed, (index, pose) in enumerate(self.poses, 1):
             rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
             candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
@@ -1832,10 +1840,13 @@ class ScanEngine:
                 progress_cb(
                     completed,
                     len(self.poses),
-                    {
-                        "message": f"Final fusion {completed}/{len(self.poses)} accepted views"
-                    },
+                    {"message": f"Final fusion {completed}/{len(self.poses)} accepted views"},
                 )
+        actual_capacity = int(candidate.vbg.hashmap().capacity())
+        actual_blocks = int(candidate.vbg.hashmap().size())
+        if candidate._final_missing_only_activation and (
+                actual_capacity != allocated or actual_blocks != required):
+            raise ValueError("Weighted Final capacity or unique block count differs from the exact plan")
         elapsed = (time.monotonic() - started) * 1000
         self.stage_totals_ms["final_reintegration"] = (
             self.stage_totals_ms.get("final_reintegration", 0) + elapsed
@@ -1845,8 +1856,16 @@ class ScanEngine:
             "applied": False,
             "reason": "Awaiting final surface validation",
             "voxel_m": candidate.voxel_size,
-            "blocks": int(candidate.vbg.hashmap().size()),
+            "blocks": actual_blocks,
             "block_limit": candidate._fusion_block_limit,
+            "required_blocks": required,
+            "requested_block_capacity": allocated,
+            "allocated_blocks": actual_capacity,
+            "initial_block_capacity": initial_capacity,
+            "allocation_strategy": "exact missing-key activation" if candidate._final_missing_only_activation else "automatic native activation",
+            "attribute_budget_mib": actual_capacity * 4096 * 20 / 2**20,
+            "planned_attribute_budget_mib": allocation["attribute_budget_mib"],
+            "planning_elapsed_ms": planning_elapsed_ms,
             "elapsed_ms": elapsed,
         }
         return candidate.vbg

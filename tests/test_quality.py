@@ -1,5 +1,6 @@
 """Regression coverage for actual geometry, protocol and capture ordering."""
 
+import importlib.util
 import os
 
 os.environ.setdefault("OMP_NUM_THREADS", "4")
@@ -278,6 +279,9 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(2, len(counts))
         self.assertTrue(all(100 < count <= 5000 for count in counts), counts)
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("PyQt6"), "Requires optional Qt client dependencies"
+    )
     def test_frame_batches_preserve_command_barriers(self):
         from kinect_scanner.server_task_worker import (
             ServerTask,

@@ -30,6 +30,12 @@ difference cannot automatically be credited entirely to kernel acceleration.
 
 ## Current release and expected scanning performance
 
+The [script index](../scripts/README.md) distinguishes maintained tools, active
+research and archived experiments. Current reproduction commands below use the
+organized paths. Saved reports retain their original measured paths and hashes;
+moving helpers changes their source fingerprints and requires fresh research
+proofs before timing a changed implementation.
+
 The [saved detailed report](benchmarks/cuda-pipeline/REPORT.md) and
 [processing chart](benchmarks/cuda-pipeline/pipeline-current-release.png) are
 available in a fresh checkout. [Saved CUDA results](benchmarks/CUDA_REPORTS.md)
@@ -655,11 +661,11 @@ $sessions = @('export/chest-3-scan-session_20261006_215208.zip',
               'export/chest-4-scan-session_20261007_173028.zip')
 python scripts/profile_cuda_pipeline.py @sessions --runs baseline cached sift sift-deferred --repeats 2 --output benchmark-output/cuda-pipeline/controlled-live/experiments.json
 python scripts/profile_cuda_pipeline.py @sessions --runs sift sift-deferred --finish --output benchmark-output/cuda-pipeline/finish/experiments.json
-python scripts/benchmark_cuda_matching.py @sessions --method sift --output benchmark-output/cuda-pipeline/sift-matching.json
-python scripts/benchmark_registration_options.py @sessions --output benchmark-output/cuda-pipeline/registration-options.json
-python scripts/benchmark_visual_refinement.py @sessions --output benchmark-output/cuda-pipeline/visual-refinement.json
-python scripts/benchmark_registration_options.py @sessions --include-nearest --include-threads --methods cpu_icp cuda_reranked_icp cpu_threads_8 cpu_threads_4 cpu_threads_1 --repeats 3 --output benchmark-output/cuda-pipeline/reranked-registration.json
-python scripts/benchmark_opencv_threads.py @sessions --output benchmark-output/cuda-pipeline/opencv-threads.json
+python scripts/benchmarks/benchmark_cuda_matching.py @sessions --method sift --output benchmark-output/cuda-pipeline/sift-matching.json
+python scripts/benchmarks/benchmark_registration_options.py @sessions --output benchmark-output/cuda-pipeline/registration-options.json
+python scripts/benchmarks/benchmark_visual_refinement.py @sessions --output benchmark-output/cuda-pipeline/visual-refinement.json
+python scripts/benchmarks/benchmark_registration_options.py @sessions --include-nearest --include-threads --methods cpu_icp cuda_reranked_icp cpu_threads_8 cpu_threads_4 cpu_threads_1 --repeats 3 --output benchmark-output/cuda-pipeline/reranked-registration.json
+python scripts/benchmarks/benchmark_opencv_threads.py @sessions --output benchmark-output/cuda-pipeline/opencv-threads.json
 python scripts/summarize_cuda_pipeline.py
 ```
 
@@ -670,8 +676,8 @@ python scripts/profile_cuda_pipeline.py @sessions --runs baseline legacy-cached 
 python scripts/profile_cuda_pipeline.py @sessions --runs legacy-cached --finish --quality-reference-directory benchmark-output/cuda-study --output benchmark-output/cuda-pipeline/production-control/experiments.json
 python scripts/profile_cuda_pipeline.py @sessions --runs legacy-adaptive-preview-10mm --finish --quality-reference-directory benchmark-output/cuda-study --output benchmark-output/cuda-pipeline/adaptive-repeat/experiments.json
 python scripts/profile_cuda_pipeline.py @sessions --runs cpu-baseline cpu-cached cpu-adaptive-preview-10mm --finish --quality-reference-directory benchmark-output/cuda-study --output benchmark-output/cuda-pipeline/cpu-control/experiments.json
-python scripts/benchmark_matching_exhaustive.py @sessions --output benchmark-output/cuda-pipeline/exhaustive-matching.json
-python scripts/benchmark_anchored_gpu_model.py --frames 60 --periods 0 6 12 --anchor-solver measured --references 3 --reset-submaps --output benchmark-output/cuda-pipeline/anchored-model-submaps.json
+python scripts/benchmarks/benchmark_matching_exhaustive.py @sessions --output benchmark-output/cuda-pipeline/exhaustive-matching.json
+python scripts/research/benchmark_anchored_gpu_model.py --frames 60 --periods 0 6 12 --anchor-solver measured --references 3 --reset-submaps --output benchmark-output/cuda-pipeline/anchored-model-submaps.json
 python scripts/check_cuda_backend.py
 ./scripts/start_cuda_server.ps1 -Recipe hybrid
 python scripts/check_cuda_server.py
@@ -734,7 +740,7 @@ the Windows profiling-only DLL teardown workaround; the server does not use it.
 
 ## Where unchanged bridge verification spends time
 
-The standalone [verification profiler](../scripts/profile_fragment_verification.py)
+The standalone [verification profiler](../scripts/benchmarks/profile_fragment_verification.py)
 replayed eight accepted/rejected Chest 3 fragment pairs from the original-raw
 fixture, with every recorded competing proposal in its original order. The
 fixture's measured fragment-local poses reproduce this component only; they
@@ -785,7 +791,7 @@ construction, neighbor search, solving and convergence timings here. Recorded
 the original profiler snapshot remain immutable under
 `benchmark-output/cuda-pipeline/verification-profile/`; the compact
 `chest-3-summary.json` is derived by
-[summarize_fragment_verification.py](../scripts/summarize_fragment_verification.py),
+[summarize_fragment_verification.py](../scripts/research/archive/summarize_fragment_verification.py),
 with raw-report, measured-script and postprocessing hashes. These are component
 measurements, not complete Finish timing or real-camera throughput.
 
@@ -797,7 +803,7 @@ Technical references: [Open3D CUDA RGB-D odometry](https://www.open3d.org/html/p
 
 ## RTX nearest-neighbour research
 
-The standalone [OptiX experiment](../scripts/OPTIX_RESEARCH.md) uses RTX AABB
+The standalone [OptiX experiment](../scripts/research/archive/OPTIX_RESEARCH.md) uses RTX AABB
 traversal to retrieve candidates, then original FP64 coordinates and distance
 arithmetic to choose neighbours. The original CPU Huber point-to-plane
 estimator, pose updates, radius stages, convergence and independent bridge
@@ -856,7 +862,7 @@ raw reports are preserved in `optix-nearest/conservative-v1/manifest.json`.
 The canonical [research summary](benchmarks/cuda-pipeline/optix-nearest/research-summary.json)
 includes source, component, script, binary, SDK, fixture, raw archive and raw
 report hashes; it is generated by
-[summarize_optix_research.py](../scripts/summarize_optix_research.py).
+[summarize_optix_research.py](../scripts/research/archive/summarize_optix_research.py).
 
 The separate `staged-v1` version moves all radius-bin traversal inside one
 OptiX raygen launch with register payload state. Its fresh synthetic host/device
@@ -877,7 +883,7 @@ mesh proof, and none is promoted to production or a default.
 
 ## GPU-resident FP64 ICP research
 
-The standalone [resident ICP prototype](../scripts/research_resident_icp.py)
+The standalone [resident ICP prototype](../scripts/research/archive/research_resident_icp.py)
 keeps original points, target normals, transformed queries, neighbour IDs and
 Huber point-to-plane equation reductions on the GPU. Each iteration copies 30
 FP64 terms and metrics to a separately compiled Eigen LDLT/Euler bridge;
@@ -930,7 +936,7 @@ mesh proof and adds no public scanner setting or production default.
 
 ## Exact native ICP result-cache observation
 
-The [signature observer](../scripts/research_native_icp_signatures.py) ran the
+The [signature observer](../scripts/research/archive/research_native_icp_signatures.py) ran the
 original full eight-pair fixed fixture with native ICP on frozen source `9331`,
 OMP 8 and Open3D/OpenCV 20 threads. It always called the original native
 function. Each signature included freshly hashed original FP64 point and normal
@@ -1108,7 +1114,7 @@ binds the immutable synthetic, audit and timing reports, exact original/new
 artifact and installed runtime hashes, proposal/input membership, disjoint
 timing partition and limits. Measured source snapshots and an honest worker
 execution/cleanup record are preserved in the same folder. Reproduction is in
-[FLAT_GRID_RESEARCH.md](../scripts/FLAT_GRID_RESEARCH.md); its preparation-time
+[FLAT_GRID_RESEARCH.md](../scripts/research/archive/FLAT_GRID_RESEARCH.md); its preparation-time
 status remains frozen as part of the measured artifact rather than being edited
 after the experiment.
 
@@ -1171,6 +1177,6 @@ The [canonical resident summary](benchmarks/cuda-pipeline/uniform-grid-nearest/d
 binds closed raw proofs/timings, exact source/runtime/solve/input/hardware
 identity, ordered proposals, actual settings, memory and timing limits.
 Measured source snapshots and execution logs are preserved alongside it.
-[DEVICE_FLAT_GRID_RESEARCH.md](../scripts/DEVICE_FLAT_GRID_RESEARCH.md)
+[DEVICE_FLAT_GRID_RESEARCH.md](../scripts/research/DEVICE_FLAT_GRID_RESEARCH.md)
 contains reproduction commands; its preparation-time status remains frozen
 as a measured artifact.

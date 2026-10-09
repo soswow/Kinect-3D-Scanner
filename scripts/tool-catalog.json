@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "scope": "CUDA performance tools introduced in f26e2e9; existing general scanner tools keep their paths",
+  "historical_results": "Saved measured reports retain their original paths/hashes. Relocation changes helper hashes; generate fresh research proofs.",
+  "entries": [
+    {
+      "legacy_path": "scripts/DEVICE_FLAT_GRID_RESEARCH.md",
+      "path": "scripts/research/DEVICE_FLAT_GRID_RESEARCH.md",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/FLAT_GRID_RESEARCH.md",
+      "path": "scripts/research/archive/FLAT_GRID_RESEARCH.md",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/OPTIX_RESEARCH.md",
+      "path": "scripts/research/archive/OPTIX_RESEARCH.md",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/PARALLEL_STAGED_GRID_RESEARCH.md",
+      "path": "scripts/research/archive/PARALLEL_STAGED_GRID_RESEARCH.md",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/STAGED_GRID_RESEARCH.md",
+      "path": "scripts/research/archive/STAGED_GRID_RESEARCH.md",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/UNIFORM_GRID_RESEARCH.md",
+      "path": "scripts/research/archive/UNIFORM_GRID_RESEARCH.md",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/adaptive_visual_experiment.py",
+      "path": "scripts/research/archive/adaptive_visual_experiment.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_anchored_gpu_model.py",
+      "path": "scripts/research/benchmark_anchored_gpu_model.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/benchmark_confidence_cache.py",
+      "path": "scripts/research/archive/benchmark_confidence_cache.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_cuda_fusion.py",
+      "path": "scripts/benchmarks/benchmark_cuda_fusion.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_cuda_matching.py",
+      "path": "scripts/benchmarks/benchmark_cuda_matching.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_cuda_threads.py",
+      "path": "scripts/benchmarks/benchmark_cuda_threads.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_dense_model.py",
+      "path": "scripts/research/benchmark_dense_model.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/benchmark_device_grid_resident.py",
+      "path": "scripts/research/benchmark_device_grid_resident.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/benchmark_device_grid_resident_timing.py",
+      "path": "scripts/research/benchmark_device_grid_resident_timing.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/benchmark_flat_grid_nn.py",
+      "path": "scripts/research/archive/benchmark_flat_grid_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_flat_grid_timing.py",
+      "path": "scripts/research/archive/benchmark_flat_grid_timing.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_gpu_prepare.py",
+      "path": "scripts/research/archive/benchmark_gpu_prepare.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_grid_host_diagnostics.py",
+      "path": "scripts/research/archive/benchmark_grid_host_diagnostics.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_grid_lookup_ablation.py",
+      "path": "scripts/research/archive/benchmark_grid_lookup_ablation.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_matching_exhaustive.py",
+      "path": "scripts/benchmarks/benchmark_matching_exhaustive.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_opencv_threads.py",
+      "path": "scripts/benchmarks/benchmark_opencv_threads.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_optix_nn.py",
+      "path": "scripts/research/archive/benchmark_optix_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_optix_staged.py",
+      "path": "scripts/research/archive/benchmark_optix_staged.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_parallel_fragments.py",
+      "path": "scripts/research/benchmark_parallel_fragments.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/benchmark_parallel_staged_grid_nn.py",
+      "path": "scripts/research/archive/benchmark_parallel_staged_grid_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_parallel_staged_grid_timing.py",
+      "path": "scripts/research/archive/benchmark_parallel_staged_grid_timing.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_registration_options.py",
+      "path": "scripts/benchmarks/benchmark_registration_options.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_selective_fragment_threads.py",
+      "path": "scripts/research/archive/benchmark_selective_fragment_threads.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_sift_distance_options.py",
+      "path": "scripts/benchmarks/benchmark_sift_distance_options.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/benchmark_staged_grid_nn.py",
+      "path": "scripts/research/archive/benchmark_staged_grid_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_staged_grid_timing.py",
+      "path": "scripts/research/archive/benchmark_staged_grid_timing.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_uniform_grid_nn.py",
+      "path": "scripts/research/archive/benchmark_uniform_grid_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_uniform_grid_timing.py",
+      "path": "scripts/research/archive/benchmark_uniform_grid_timing.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/benchmark_visual_refinement.py",
+      "path": "scripts/benchmarks/benchmark_visual_refinement.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/build_optix_nn.ps1",
+      "path": "scripts/research/archive/build_optix_nn.ps1",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/build_optix_staged.ps1",
+      "path": "scripts/research/archive/build_optix_staged.ps1",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/check_cuda_backend.py",
+      "path": "scripts/check_cuda_backend.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/check_cuda_kdtree.py",
+      "path": "scripts/research/archive/check_cuda_kdtree.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/check_cuda_native_server.py",
+      "path": "scripts/check_cuda_native_server.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/check_cuda_server.py",
+      "path": "scripts/check_cuda_server.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/check_device_flat_proof_contract.py",
+      "path": "scripts/research/check_device_flat_proof_contract.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/check_optix_enclosure.py",
+      "path": "scripts/research/archive/check_optix_enclosure.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/compare_session_profiles.py",
+      "path": "scripts/compare_session_profiles.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/cuda_device_flat_grid_registration.py",
+      "path": "scripts/research/cuda_device_flat_grid_registration.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/cuda_flat_grid_registration.py",
+      "path": "scripts/research/archive/cuda_flat_grid_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/cuda_kdtree_registration.py",
+      "path": "scripts/research/archive/cuda_kdtree_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/cuda_optix_registration.py",
+      "path": "scripts/research/archive/cuda_optix_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/cuda_optix_staged_registration.py",
+      "path": "scripts/research/archive/cuda_optix_staged_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/cuda_parallel_staged_grid_registration.py",
+      "path": "scripts/research/archive/cuda_parallel_staged_grid_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/cuda_staged_grid_registration.py",
+      "path": "scripts/research/archive/cuda_staged_grid_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/cuda_uniform_grid_registration.py",
+      "path": "scripts/research/archive/cuda_uniform_grid_registration.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/device_flat_grid_synthetic.py",
+      "path": "scripts/research/device_flat_grid_synthetic.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/http_check_safety.py",
+      "path": "scripts/http_check_safety.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/plot_gpu_model_experiments.py",
+      "path": "scripts/research/plot_gpu_model_experiments.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/process_metrics.py",
+      "path": "scripts/process_metrics.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/profile_capture.py",
+      "path": "scripts/profile_capture.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/profile_cuda_pipeline.py",
+      "path": "scripts/profile_cuda_pipeline.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/profile_fragment_verification.py",
+      "path": "scripts/benchmarks/profile_fragment_verification.py",
+      "group": "benchmarks"
+    },
+    {
+      "legacy_path": "scripts/profile_session.py",
+      "path": "scripts/profile_session.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/profile_session_backends.py",
+      "path": "scripts/profile_session_backends.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/publish_cuda_reports.py",
+      "path": "scripts/publish_cuda_reports.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/replay_scan.py",
+      "path": "scripts/replay_scan.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/research_device_flat_grid_nn.cu",
+      "path": "scripts/research/research_device_flat_grid_nn.cu",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/research_device_grid_resident_icp.py",
+      "path": "scripts/research/research_device_grid_resident_icp.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/research_flat_grid_nn.cu",
+      "path": "scripts/research/archive/research_flat_grid_nn.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_gpu_confidence_exact.py",
+      "path": "scripts/research/archive/research_gpu_confidence_exact.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_gpu_prepare.py",
+      "path": "scripts/research/archive/research_gpu_prepare.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_native_icp_signatures.py",
+      "path": "scripts/research/archive/research_native_icp_signatures.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_optix_nn.cu",
+      "path": "scripts/research/archive/research_optix_nn.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_optix_nn_host.cpp",
+      "path": "scripts/research/archive/research_optix_nn_host.cpp",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_optix_staged.cu",
+      "path": "scripts/research/archive/research_optix_staged.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_optix_staged_host.cpp",
+      "path": "scripts/research/archive/research_optix_staged_host.cpp",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_parallel_grid_nn.cu",
+      "path": "scripts/research/archive/research_parallel_grid_nn.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_parallel_staged_grid_nn.cu",
+      "path": "scripts/research/archive/research_parallel_staged_grid_nn.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_resident_icp.py",
+      "path": "scripts/research/archive/research_resident_icp.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_staged_grid_nn.cu",
+      "path": "scripts/research/archive/research_staged_grid_nn.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/research_uniform_grid_nn.cu",
+      "path": "scripts/research/archive/research_uniform_grid_nn.cu",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/start_cuda_server.ps1",
+      "path": "scripts/start_cuda_server.ps1",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/summarize_cuda_pipeline.py",
+      "path": "scripts/summarize_cuda_pipeline.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/summarize_cuda_study.py",
+      "path": "scripts/summarize_cuda_study.py",
+      "group": "maintained"
+    },
+    {
+      "legacy_path": "scripts/summarize_device_grid_resident_research.py",
+      "path": "scripts/research/summarize_device_grid_resident_research.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/summarize_flat_grid_research.py",
+      "path": "scripts/research/archive/summarize_flat_grid_research.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/summarize_fragment_verification.py",
+      "path": "scripts/research/archive/summarize_fragment_verification.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/summarize_grid_host_diagnostics.py",
+      "path": "scripts/research/archive/summarize_grid_host_diagnostics.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/summarize_optix_research.py",
+      "path": "scripts/research/archive/summarize_optix_research.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/summarize_selective_fragment_threads.py",
+      "path": "scripts/research/archive/summarize_selective_fragment_threads.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/summarize_staged_grid_nn.py",
+      "path": "scripts/research/archive/summarize_staged_grid_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/summarize_uniform_grid_nn.py",
+      "path": "scripts/research/archive/summarize_uniform_grid_nn.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/validate_device_flat_grid_proof.py",
+      "path": "scripts/research/validate_device_flat_grid_proof.py",
+      "group": "active"
+    },
+    {
+      "legacy_path": "scripts/validate_flat_grid_proof.py",
+      "path": "scripts/research/archive/validate_flat_grid_proof.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/validate_parallel_staged_grid_proof.py",
+      "path": "scripts/research/archive/validate_parallel_staged_grid_proof.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/validate_staged_grid_proof.py",
+      "path": "scripts/research/archive/validate_staged_grid_proof.py",
+      "group": "archive"
+    },
+    {
+      "legacy_path": "scripts/validate_uniform_grid_proof.py",
+      "path": "scripts/research/archive/validate_uniform_grid_proof.py",
+      "group": "archive"
+    }
+  ]
+}
