@@ -775,6 +775,24 @@
       "path": "scripts/research/profile_gpu_icp_finish_control.py",
       "group": "active",
       "role": "Frozen c12235c same-checkpoint direct original Finish with uncollected registration/gate history; measures observer overhead and exports original Final"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_finish_candidate.py",
+      "path": "scripts/research/gpu_icp_finish_candidate.py",
+      "group": "active",
+      "role": "Bounded bridge-only original-math GPU prototype with cold ownership checks, actual CPU-first shadows and separately qualified method timing"
+    },
+    {
+      "legacy_path": "scripts/research/profile_gpu_icp_finish_candidate.py",
+      "path": "scripts/research/profile_gpu_icp_finish_candidate.py",
+      "group": "active",
+      "role": "Fresh current-core raw Live checkpoints, direct native Finish and lower-overhead candidate audit/shadow/measure modes with original automatic Final allocation"
+    },
+    {
+      "legacy_path": "scripts/research/compare_gpu_icp_candidate_finishes.py",
+      "path": "scripts/research/compare_gpu_icp_candidate_finishes.py",
+      "group": "active",
+      "role": "Actual candidate method qualification and independent accepted-view, unrounded Final pose and fixed-coordinate surface comparison without exact historical trajectory claims"
     }
   ]
 }

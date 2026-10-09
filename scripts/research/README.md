@@ -110,6 +110,70 @@ comparison. Only complete quality, memory and latency evidence could support a
 future opt-in production integration. No automatic promotion follows from the
 component result.
 
+## Current-core whole-Finish GPU candidate
+
+[profile_gpu_icp_finish_candidate.py](profile_gpu_icp_finish_candidate.py) is
+the lower-overhead successor to the frozen strict Finish study. It creates
+its own fresh raw-Live checkpoint on the actual current production core,
+including automatic fusion allocation. The original fragment verifier and
+all reconstruction checks still run. One bounded GPU workspace persists
+across Finish; immutable cloud buffers persist across competing proposals
+for a directed pair. Detailed gate observers are omitted, and source/runtime
+inventory checks run at cold boundaries. This is a research prototype;
+production ICP selection is unchanged.
+
+The modes make their evidence and cost explicit:
+
+- `capture` replays all raw views without archived pose seeds and stores a
+  source-bound logical Live checkpoint.
+- `native` calls original Finish directly and exports its actual Final poses
+  and geometry. Internal registration, gate and optimizer traces are
+  explicitly uncollected.
+- `audit` checks every actual GPU nearest query and complete registration
+  against the original CPU on the same inputs.
+- `shadow` calls original CPU ICP before every GPU call on identical clouds
+  and the unrounded seed, then compares returned results. It does not claim
+  an exhaustive nearest-query audit.
+- `measure` requires a fresh positive exhaustive audit of these actual
+  source/runtime/configuration bytes. Each subsequent call binds its own
+  newly consumed inputs; it does not claim to replay an old RANSAC history
+  or prove a general input domain. CPU shadows and exhaustive query checks
+  are omitted. Setup, hashing, original build, selected-device completion,
+  allocation validation and cleanup remain charged inside Finish.
+
+Run only with exclusive hardware and the field server stopped after the scan
+is safe. From the main Windows checkout, use the CUDA environment and a fresh
+private directory; never overwrite previous measurements:
+
+```powershell
+$cudaStudyPython = '.venv/Scripts/python.exe'
+$cudaStudyRunner = 'scripts/research/profile_gpu_icp_finish_candidate.py'
+$rawStudySession = 'export/chest-5-scan-session.zip'
+$cudaStudyDirectory = 'benchmark-output/field-cuda-study/gpu-icp-candidate-v1/chest-5'
+& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode capture --checkpoint-directory "$cudaStudyDirectory/live" --output "$cudaStudyDirectory/capture.json" --run-allocated
+& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode native --checkpoint "$cudaStudyDirectory/live/checkpoint.json" --output "$cudaStudyDirectory/native.json" --run-allocated
+& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode audit --checkpoint "$cudaStudyDirectory/live/checkpoint.json" --output "$cudaStudyDirectory/audit.json" --run-allocated
+& $cudaStudyPython -s -u scripts/research/compare_gpu_icp_candidate_finishes.py "$cudaStudyDirectory/native.json" "$cudaStudyDirectory/audit.json" --output "$cudaStudyDirectory/audit-quality.json" --run-allocated
+& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode measure --checkpoint "$cudaStudyDirectory/live/checkpoint.json" --candidate-proof "$cudaStudyDirectory/audit.json" --output "$cudaStudyDirectory/measure-0.json" --run-allocated
+& $cudaStudyPython -s -u scripts/research/compare_gpu_icp_candidate_finishes.py "$cudaStudyDirectory/native.json" "$cudaStudyDirectory/measure-0.json" --output "$cudaStudyDirectory/measure-0-quality.json" --run-allocated
+```
+
+Check each command's exit before continuing. The independent comparator uses
+actual accepted views, unrounded Final poses within 0.5 mm / 0.1 degrees, and
+30,000-point physical surfaces in the original coordinates, with p95 at most
+0.5 mm and precision/completeness at least .999 within 5 mm. Published bridge
+and witness memberships are compared separately from unavailable optimizer
+traces. Compare every measured Finish against an independent native control;
+rotate multiple fresh native/GPU runs before reporting a speed gain. Audit
+and shadow walls include CPU validation and cannot establish GPU performance.
+Old strict failures and fixed-pair permits cannot authorize this new study.
+
+At source preparation, full-Finish candidate performance and physical Final
+quality on the current core remain unmeasured. See the
+[historical complete-Finish results](GPU_ICP_MICROBATCH_RESULTS.md#complete-finish-strict-audit-and-observer-overhead)
+for actual query/ICP evidence and the measured observer cost that motivated
+this separate experiment.
+
 ## Other active prototypes
 
 | Entry point | Status and next evidence |
