@@ -1,0 +1,118 @@
+{
+  "kind": "original-cpu-seed-reuse-scalar-census-v1",
+  "status": "passed",
+  "performance_authority_token_created": false,
+  "fixed_private_resources_rescanned": false,
+  "os_child_exit_independently_verified": false,
+  "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+  "pairs": 9,
+  "genuine_proposals": 30,
+  "original_cpu_calls": 714,
+  "original_gate_events": 6110,
+  "exact_directed_cloud_value_buckets": 292,
+  "thresholds": [
+    {
+      "seed_matrix_max_abs_threshold": 0.0,
+      "exact_full_seed_bytes": true,
+      "original_calls": 714,
+      "exact_cloud_value_buckets": 292,
+      "greedy_classes": 714,
+      "entries_after_first_representative": 0,
+      "repeated_classes": 0,
+      "canonical_id_changed_comparisons": 0,
+      "max_result_deltas": {
+        "transform_max_abs_delta": 0.0,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 0.0
+      },
+      "transitive_clustering": false,
+      "skipped_calls": 0,
+      "safe_reuse_established": false,
+      "speed_authority": false
+    },
+    {
+      "seed_matrix_max_abs_threshold": 1e-12,
+      "exact_full_seed_bytes": false,
+      "original_calls": 714,
+      "exact_cloud_value_buckets": 292,
+      "greedy_classes": 621,
+      "entries_after_first_representative": 93,
+      "repeated_classes": 58,
+      "canonical_id_changed_comparisons": 0,
+      "max_result_deltas": {
+        "transform_max_abs_delta": 6.300515664747763e-15,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 1.8388068845354155e-16
+      },
+      "transitive_clustering": false,
+      "skipped_calls": 0,
+      "safe_reuse_established": false,
+      "speed_authority": false
+    },
+    {
+      "seed_matrix_max_abs_threshold": 1e-10,
+      "exact_full_seed_bytes": false,
+      "original_calls": 714,
+      "exact_cloud_value_buckets": 292,
+      "greedy_classes": 542,
+      "entries_after_first_representative": 172,
+      "repeated_classes": 111,
+      "canonical_id_changed_comparisons": 0,
+      "max_result_deltas": {
+        "transform_max_abs_delta": 6.300515664747763e-15,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 3.0357660829594124e-16
+      },
+      "transitive_clustering": false,
+      "skipped_calls": 0,
+      "safe_reuse_established": false,
+      "speed_authority": false
+    },
+    {
+      "seed_matrix_max_abs_threshold": 1e-08,
+      "exact_full_seed_bytes": false,
+      "original_calls": 714,
+      "exact_cloud_value_buckets": 292,
+      "greedy_classes": 530,
+      "entries_after_first_representative": 184,
+      "repeated_classes": 110,
+      "canonical_id_changed_comparisons": 0,
+      "max_result_deltas": {
+        "transform_max_abs_delta": 6.300515664747763e-15,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 3.0357660829594124e-16
+      },
+      "transitive_clustering": false,
+      "skipped_calls": 0,
+      "safe_reuse_established": false,
+      "speed_authority": false
+    },
+    {
+      "seed_matrix_max_abs_threshold": 1e-06,
+      "exact_full_seed_bytes": false,
+      "original_calls": 714,
+      "exact_cloud_value_buckets": 292,
+      "greedy_classes": 529,
+      "entries_after_first_representative": 185,
+      "repeated_classes": 110,
+      "canonical_id_changed_comparisons": 0,
+      "max_result_deltas": {
+        "transform_max_abs_delta": 6.300515664747763e-15,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 3.0357660829594124e-16
+      },
+      "transitive_clustering": false,
+      "skipped_calls": 0,
+      "safe_reuse_established": false,
+      "speed_authority": false
+    }
+  ],
+  "skipped_calls": 0,
+  "safe_reuse_established": false,
+  "speed_authority": false,
+  "quality_authority": false,
+  "whole_finish_authority": false,
+  "scope": "Offline original-CPU observations only; threshold groups are candidates for a separate reuse experiment, not saved calls or guaranteed equivalent future results.",
+  "source_report_sha256": "dce069b5faff27b09758e1d097e493412e78d9dd71dd0b6b3b7df08b4104811f",
+  "publisher_source_family_sha256": "c09fd002fe53b450d9f21bb0791f681bfd85571af34b76afd132bd60733ad4f0"
+}

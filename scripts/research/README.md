@@ -57,6 +57,10 @@ unchanged because measured earlier component proofs bind its exact bytes.
 | [summarize_gpu_icp_owned_bridge.py](summarize_gpu_icp_owned_bridge.py) | Publish matched complete-proposal timings after closed owned-proof receipts |
 | [benchmark_warp_flat_grid_filtered_nn.py](benchmark_warp_flat_grid_filtered_nn.py) and [research_warp_flat_grid_filtered_nn.cu](research_warp_flat_grid_filtered_nn.cu) | Conservative warp float screening with exact original double outputs; measured 12.6% raw lookup wall reduction, without scanner speed authority |
 | [benchmark_icp_seed_reuse_census.py](benchmark_icp_seed_reuse_census.py) | Observe exact-cloud and near-seed repetition while executing every original CPU alignment and proposal check |
+| [summarize_icp_seed_reuse_census.py](summarize_icp_seed_reuse_census.py) | Publish closed census counts and result differences without private clouds, seeds or performance claims |
+| [near_seed_icp.py](near_seed_icp.py) and [benchmark_near_seed_reuse.py](benchmark_near_seed_reuse.py) | Bounded changed-method CPU result reuse with fresh actual-hit CPU audits; preserves the failed strict timing attempt |
+| [benchmark_near_seed_conformance.py](benchmark_near_seed_conformance.py) | Independent actual-input numerical conformance and all original controls/gates; measured 7.0% median matched cold-phase reduction across nine fixed pairs |
+| [summarize_near_seed_conformance.py](summarize_near_seed_conformance.py) | Recompute closed fixed-pair timing references and publish scalar receipts, including strict-v1 refusal; no production or whole-Finish authority |
 | [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py) | Explicit changed-budget/epsilon pilot through original proposal gates; measured shortcuts failed pose/witness comparison |
 | [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Ordering, memory ownership and integration requirements for proposal batching and complete device iterations |
 
@@ -69,7 +73,7 @@ libraries stay under ignored output folders and must be rebuilt locally.
 
 ## Device-resident nearest queries and ICP
 
-The latest fixed-component experiment measured **8.339 seconds first / 7.450
+An earlier fixed-component experiment measured **8.339 seconds first / 7.450
 seconds warm**, against **11.209 seconds native CPU**: approximately **1.34× /
 1.50× faster**. Fresh CPU audits checked 104,123,989 nearest queries with zero
 changed IDs or false misses, and all nine original proposal/witness/pose gates
@@ -92,8 +96,8 @@ and [full experiment report](../../docs/CUDA_EXPERIMENTS.md#true-device-flat-gri
 | [check_device_flat_proof_contract.py](check_device_flat_proof_contract.py) | Artificial stdlib contract/fault tests; no numerical authority |
 | [summarize_device_grid_resident_research.py](summarize_device_grid_resident_research.py) | Closed-report provenance, execution and disjoint host-wall summary |
 
-The next step is to regenerate proofs under this layout, then decide whether a
-controlled complete-session experiment is justified. Such an experiment must
+Current field-pair experiments above have separate fresh proofs and measured
+setup costs. A controlled complete-session experiment must
 retain original raw/live tracking inputs, all final acceptance gates and mesh
 comparison. Only complete quality, memory and latency evidence could support a
 future opt-in production integration. No automatic promotion follows from the

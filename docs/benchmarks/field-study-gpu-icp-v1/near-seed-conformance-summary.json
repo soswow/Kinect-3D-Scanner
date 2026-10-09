@@ -1,0 +1,234 @@
+{
+  "kind": "near-seed-fixed-pair-conformance-scalar-summary-v2",
+  "status": "passed",
+  "audit_sha256": "de444eb6d423e614687b381b4529a15aba791df9c08bd416683fbd9b6718c2e6",
+  "timing_sha256": "40d0f7241c323baeb1fcf4b4397f414ab5f293dc0686ef999fd0569af7f5caed",
+  "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+  "producer_sources_sha256": {
+    "near_seed_icp.py": "575e736d0d08a481892c8bfafc16a8d8eb0547fa46244238ef3c4ee22751bb1b",
+    "benchmark_near_seed_reuse.py": "360a9b4ad0ab09c8e5bc84633847f665237b6972b4661e558723ba27c5457b7e",
+    "test_near_seed_reuse.py": "72db08e3a44dd4e59d03372a795ecd1d60526e5b41cce67133b083c9c33ad9f2",
+    "benchmark_near_seed_conformance.py": "22660ef23db176ed9de7018f8755a9b519b962a21a77b71d924ea991db9d76db",
+    "test_near_seed_conformance.py": "5d64359c2ee21caae3095c7166082b67179ecfe38b90fc9dfe92077ef262acc2"
+  },
+  "scope": {
+    "captures": 2,
+    "pairs": 9,
+    "proposals": 30,
+    "calls_per_phase": 714,
+    "audit_hits_cpu_shadowed": 172,
+    "audit_misses": 542,
+    "timing_rounds": 3,
+    "timing_calls": 2142,
+    "timing_hits": 516
+  },
+  "conformance_policy": {
+    "policy": "fixed-nine-pair-unrounded-native-noise-conformance-v2",
+    "actual_seed_max_abs_delta": 1e-12,
+    "representative_seed_max_abs_delta": 1e-12,
+    "result_pose_max_abs_delta": 1e-12,
+    "result_metric_abs_delta": 1e-12,
+    "current_first_representative_threshold": 1e-10,
+    "quantization": false,
+    "whole_finish_authority": false,
+    "threshold_ball_authority": false
+  },
+  "maximum_actual_noise": {
+    "actual_seed_max_abs_delta": 1.3877787807814457e-15,
+    "representative_seed_max_abs_delta": 1.3322676295501878e-15,
+    "result_pose_max_abs_delta": 2.4980018054066022e-15,
+    "fitness_abs_delta": 0.0,
+    "rmse_abs_delta": 1.7520707107365752e-16
+  },
+  "wall_samples": [
+    {
+      "round": 0,
+      "order": [
+        "native",
+        "cache"
+      ],
+      "native_cold_whole_phase_s": 43.70394910000323,
+      "reuse_cold_whole_phase_s": 40.49017819999426,
+      "pairs": [
+        {
+          "ordinal": 0,
+          "native_inclusive_s": 2.9255739000072936,
+          "reuse_inclusive_s": 1.7014500000077533
+        },
+        {
+          "ordinal": 1,
+          "native_inclusive_s": 4.396777700007078,
+          "reuse_inclusive_s": 4.344486099987989
+        },
+        {
+          "ordinal": 2,
+          "native_inclusive_s": 11.556945300006191,
+          "reuse_inclusive_s": 8.710141300005489
+        },
+        {
+          "ordinal": 3,
+          "native_inclusive_s": 1.376545700011775,
+          "reuse_inclusive_s": 1.2256158999953186
+        },
+        {
+          "ordinal": 4,
+          "native_inclusive_s": 1.8682608999952208,
+          "reuse_inclusive_s": 1.8007637999980943
+        },
+        {
+          "ordinal": 5,
+          "native_inclusive_s": 11.293555500000366,
+          "reuse_inclusive_s": 11.891136699996423
+        },
+        {
+          "ordinal": 6,
+          "native_inclusive_s": 0.7661045999993803,
+          "reuse_inclusive_s": 0.7787431000033394
+        },
+        {
+          "ordinal": 7,
+          "native_inclusive_s": 0.19875570001022425,
+          "reuse_inclusive_s": 0.18625640000391286
+        },
+        {
+          "ordinal": 8,
+          "native_inclusive_s": 9.316518099993118,
+          "reuse_inclusive_s": 9.792517299996689
+        }
+      ]
+    },
+    {
+      "round": 1,
+      "order": [
+        "cache",
+        "native"
+      ],
+      "native_cold_whole_phase_s": 43.871065800005454,
+      "reuse_cold_whole_phase_s": 40.795452999998815,
+      "pairs": [
+        {
+          "ordinal": 0,
+          "native_inclusive_s": 2.893954200000735,
+          "reuse_inclusive_s": 1.8167725000093924
+        },
+        {
+          "ordinal": 1,
+          "native_inclusive_s": 4.358329200011212,
+          "reuse_inclusive_s": 4.42920569999842
+        },
+        {
+          "ordinal": 2,
+          "native_inclusive_s": 11.458692100000917,
+          "reuse_inclusive_s": 8.821227299995371
+        },
+        {
+          "ordinal": 3,
+          "native_inclusive_s": 1.3766161000094144,
+          "reuse_inclusive_s": 1.2276357999944594
+        },
+        {
+          "ordinal": 4,
+          "native_inclusive_s": 1.878317299997434,
+          "reuse_inclusive_s": 1.8734161000029417
+        },
+        {
+          "ordinal": 5,
+          "native_inclusive_s": 11.65130890000728,
+          "reuse_inclusive_s": 11.82856979999633
+        },
+        {
+          "ordinal": 6,
+          "native_inclusive_s": 0.7715228000015486,
+          "reuse_inclusive_s": 0.7895315999921877
+        },
+        {
+          "ordinal": 7,
+          "native_inclusive_s": 0.18769690000044648,
+          "reuse_inclusive_s": 0.21665980000398122
+        },
+        {
+          "ordinal": 8,
+          "native_inclusive_s": 9.290070200004266,
+          "reuse_inclusive_s": 9.73282879999897
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "order": [
+        "native",
+        "cache"
+      ],
+      "native_cold_whole_phase_s": 43.39193169999635,
+      "reuse_cold_whole_phase_s": 40.87180530000478,
+      "pairs": [
+        {
+          "ordinal": 0,
+          "native_inclusive_s": 2.9066715000080876,
+          "reuse_inclusive_s": 1.7079861000092933
+        },
+        {
+          "ordinal": 1,
+          "native_inclusive_s": 4.436542399998871,
+          "reuse_inclusive_s": 4.489690400005202
+        },
+        {
+          "ordinal": 2,
+          "native_inclusive_s": 11.383413200004725,
+          "reuse_inclusive_s": 8.815537799993763
+        },
+        {
+          "ordinal": 3,
+          "native_inclusive_s": 1.392021100007696,
+          "reuse_inclusive_s": 1.2327818000048865
+        },
+        {
+          "ordinal": 4,
+          "native_inclusive_s": 1.8885837999987416,
+          "reuse_inclusive_s": 1.8860193000000436
+        },
+        {
+          "ordinal": 5,
+          "native_inclusive_s": 11.282306900000549,
+          "reuse_inclusive_s": 11.861507599998731
+        },
+        {
+          "ordinal": 6,
+          "native_inclusive_s": 0.7674468000041088,
+          "reuse_inclusive_s": 0.8154346999945119
+        },
+        {
+          "ordinal": 7,
+          "native_inclusive_s": 0.1811601000081282,
+          "reuse_inclusive_s": 0.19208090000029188
+        },
+        {
+          "ordinal": 8,
+          "native_inclusive_s": 9.149149600008968,
+          "reuse_inclusive_s": 9.811224799996126
+        }
+      ]
+    }
+  ],
+  "median_native_cold_whole_phase_s": 43.70394910000323,
+  "median_reuse_cold_whole_phase_s": 40.795452999998815,
+  "strict_v1_refusal": {
+    "audit_sha256": "eb8975147b9262d2a83ca955e738d93d8eed86986e03744a6b46fd21c984f317",
+    "failed_timing_sha256": "d91ce3b81a0c85b870808eb6afdfb118ab5d54f3170c05eff95996afe7a46342",
+    "first_call_kind": "miss",
+    "reused_calls": 0,
+    "initial_seed_bytes_identical": true,
+    "canonical_ids_identical": true,
+    "cleanup_passed": true,
+    "pose_max_abs_delta": 1.2836953722228372e-16,
+    "fitness_abs_delta": 0.0,
+    "rmse_abs_delta": 1.734723475976807e-18,
+    "independent_process_exit_observed": false
+  },
+  "whole_finish_authority": false,
+  "production_authority": false,
+  "general_field_authority": false,
+  "native_history_bitwise_equivalent": false,
+  "performance_authority": false,
+  "limits": "Recorded receipts only; no raw/binary rescan or independent process-exit observation. Cold phase charges hashing/setup/reconstruction/copying/all original gates and cleanup; nested pair walls are not subtracted. Fixed-pair empirical conformance, not a near-seed neighborhood proof."
+}

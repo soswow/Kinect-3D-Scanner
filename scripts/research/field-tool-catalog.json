@@ -709,6 +709,36 @@
       "path": "scripts/research/benchmark_icp_seed_reuse_census.py",
       "group": "active",
       "role": "Original CPU call census with exact clouds and direct first-representative near-seed comparisons"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_icp_seed_reuse_census.py",
+      "path": "scripts/research/summarize_icp_seed_reuse_census.py",
+      "group": "active",
+      "role": "Recompute closed original CPU seed census and publish only scalar observations without reuse or speed authority"
+    },
+    {
+      "legacy_path": "scripts/research/near_seed_icp.py",
+      "path": "scripts/research/near_seed_icp.py",
+      "group": "active",
+      "role": "Bounded exact-cloud first-representative CPU result reuse with actual-hit native shadows and immutable owned payloads"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_near_seed_reuse.py",
+      "path": "scripts/research/benchmark_near_seed_reuse.py",
+      "group": "active",
+      "role": "Fresh complete-proposal changed-method CPU audit and strict actual-input timing; preserves native-bit-noise refusal"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_near_seed_conformance.py",
+      "path": "scripts/research/benchmark_near_seed_conformance.py",
+      "group": "active",
+      "role": "Separate fixed-pair actual-input numerical conformance with independent original controls and charged complete-phase timing"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_near_seed_conformance.py",
+      "path": "scripts/research/summarize_near_seed_conformance.py",
+      "group": "active",
+      "role": "Recompute all recorded fixed-pair reuse comparisons and publish scalar timing and strict refusal receipts without production authority"
     }
   ]
 }

@@ -231,6 +231,77 @@ faster. A changed-method reuse trial must audit every actual hit against a fresh
 original CPU call on its new trajectory, preserve all full proposal checks and
 measure hashing, cache storage, result reconstruction and cleanup. The census
 never rounds a seed or grants timing, whole-Finish or production authority.
+The [compact census](../../docs/benchmarks/field-study-gpu-icp-v1/seed-reuse-census-summary.json)
+contains all five thresholds and native-result maxima without private clouds,
+seeds or per-call records.
+
+### Executed bounded near-seed reuse trial
+
+The changed-method CPU trial now executes the same nine fixed pairs and all
+30 genuine proposals. It uses exact ordered point, normal and colour bytes and
+direction as the cloud key. A seed can reuse only the first immutable result
+whose unrounded matrix entries differ by at most 1e-10. There is no seed rounding
+or transitive chaining. Each pair starts with a cold, bounded cache, and a hit
+returns fresh writable result arrays to the original proposal verifier.
+
+The fresh audit checked all 172 actual hits against a new original CPU call on
+the changed trajectory. All canonical correspondence IDs and original complete
+proposal, witness, support and ambiguity checks passed. Maximum audited
+transformation-entry difference was 6.03e-15; fitness differences were zero and
+maximum RMSE difference was 2.85e-16. Peak owned payload was 4,497,557 bytes;
+cleanup released all owned payload.
+
+The strict v1 timing attempt refused its first call, a **cache miss**, before
+any reuse. The actual seed and canonical correspondence IDs matched the audit,
+but an independently repeated original CPU solve differed by 1.29e-16 in a
+transformation entry and 1.74e-18 in RMSE. This failed report is preserved. The
+separate v2 experiment declares a 1e-12 comparison for repeated actual seeds,
+first representatives and result values, while preserving exact cloud bytes,
+call order, classes and canonical correspondence IDs. Every v2 actual hit has
+its own fresh audit; no old proof unlocks it. This is empirical conformance of
+these fixed trajectories, not a proof for every seed in a neighbourhood.
+
+All three separately timed v2 rounds passed the own actual-input comparison,
+independent full original-CPU controls and original final proposal checks.
+Their cold complete-phase walls were:
+
+| Round | Original CPU (s) | CPU with reuse (s) | Reuse / original |
+|---|---:|---:|---:|
+| 0 | 43.704 | 40.490 | 0.9265 |
+| 1 | 43.871 | 40.795 | 0.9299 |
+| 2 | 43.392 | 40.872 | 0.9419 |
+
+The median matched ratio is 0.9299: **7.0% less complete-phase wall time**.
+Median walls are 43.704 and 40.795 seconds. Each timed phase makes 542 original
+CPU calls and reuses 172 of the original 714 results. The denominator includes
+all nine pairs, not just the pairs that improve. The complete-phase clocks
+charge cold setup, exact hashing, fragment reconstruction, lookup, copying,
+all original gates, reference checks and cleanup. Imports, raw-resource
+preflight and final producer closure are separate; these are not whole-Finish,
+camera-FPS or field scanning measurements.
+
+| Session / pair | Calls | Reused | Median original (s) | Median reuse (s) |
+|---|---:|---:|---:|---:|
+| 6 / 0,2 | 84 | 60 | 2.926 | 1.817 |
+| 7 / 0,11 | 112 | 18 | 4.437 | 4.490 |
+| 7 / 10,11 | 195 | 71 | 11.557 | 8.821 |
+| 7 / 0,12 | 36 | 12 | 1.392 | 1.233 |
+| 7 / 1,12 | 36 | 8 | 1.889 | 1.886 |
+| 7 / 0,3 | 117 | 0 | 11.651 | 11.891 |
+| 7 / 0,4 | 3 | 0 | 0.772 | 0.815 |
+| 7 / 0,5 | 1 | 0 | 0.199 | 0.217 |
+| 7 / 0,6 | 130 | 3 | 9.317 | 9.811 |
+
+These inclusive pair timers are nested within the complete phase and must not
+be subtracted to claim a gain. Reuse helps two expensive accepted pairs, but
+the expensive rejected pairs have almost no reuse and pay cache overhead.
+Production ICP remains unchanged.
+
+The [compact reuse receipt](../../docs/benchmarks/field-study-gpu-icp-v1/near-seed-conformance-summary.json)
+contains all three complete-phase samples, nested pair walls, actual numerical
+maxima, source/report hashes and the preserved strict-v1 refusal. The scalar
+publisher recomputes every recorded timing comparison and full gate check;
+it does not independently rescan raw archives or claim a process exit.
 
 Private reports are in `benchmark-output/field-cuda-study/`, including
 `gpu-icp-pruned-nn-v1`, `gpu-icp-warp-nn-v1`,
@@ -284,6 +355,17 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
   exact-output warp screening with charged host bounds and full fallback.
 - [benchmark_icp_seed_reuse_census.py](benchmark_icp_seed_reuse_census.py): original
   CPU call census and direct first-representative seed/result comparisons.
+- [summarize_icp_seed_reuse_census.py](summarize_icp_seed_reuse_census.py): recompute
+  and publish only closed original census scalar counts and result differences.
+- [near_seed_icp.py](near_seed_icp.py) and
+  [benchmark_near_seed_reuse.py](benchmark_near_seed_reuse.py): bounded changed-
+  method CPU reuse, fresh original-CPU hit shadows and strict timing refusal.
+- [benchmark_near_seed_conformance.py](benchmark_near_seed_conformance.py):
+  separately scoped actual-input numerical comparison with complete original
+  controls, gates and charged cold-phase timing.
+- [summarize_near_seed_conformance.py](summarize_near_seed_conformance.py):
+  publish fixed-pair scalar receipts after independently replaying all recorded
+  actual-input comparisons; preserves the strict-v1 counterexample.
 - [benchmark_microbatch_pruned_nn.py](benchmark_microbatch_pruned_nn.py),
   [benchmark_microbatch_warp_nn.py](benchmark_microbatch_warp_nn.py), and
   [benchmark_microbatch_warp_pruned_nn.py](benchmark_microbatch_warp_pruned_nn.py):
