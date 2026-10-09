@@ -134,6 +134,70 @@ evaluation; accepted-frame counts alone do not demonstrate improvement.
 
 ## Accelerometer calibration
 
+For guided recording, close the scanner and other Kinect applications, connect
+the Kinect's USB and external power, and run this in the scanner's Python
+environment (requires `numpy` and the working `freenect` binding, not a server):
+
+```bash
+python scripts/calibrate_accelerometer.py --interactive --output ~/Documents/measured-accelerometer.json
+```
+
+The terminal describes each physical position and waits for Enter. It records
+one second of settling followed by three seconds of acceleration, averages the
+original driver m/s² readings, and retries positions with motion, too few reliable
+reads, excessive read latency, or implausible acceleration. `--seconds 5` extends
+each recording, `--device-index 1` selects another Kinect, and `--id my-kinect`
+sets the profile identity instead of prompting for a name. Native USB acquisition
+runs in a spawned process with bounded waits and shutdown; RGB/depth images are
+not recorded and the tilt motor is never commanded.
+
+Individual stationary readings can fluctuate because of sensor noise. The guide
+checks sustained linear drift and differences between three interval averages
+separately from individual scatter. It accepts scatter up to 0.35 m/s² and peaks
+up to 0.8 m/s², while rejecting drift or interval shifts above 0.2 m/s². These
+are practical capture-quality limits, not proof of motion or physical accuracy;
+the fitter's 0.25 m/s² and 2° residual limits still apply. Unstable-read messages
+identify motion, vibration, and sensor noise as possible causes. Accepted
+observations retain scatter, peak, drift, and interval-shift diagnostics.
+
+Move and securely support the **whole Kinect**, preserving the head/base
+relationship throughout. Do not force the tilt joint. Align the actual camera
+axes using a level/square or an independently measured fixture; a level base
+does not guarantee horizontal lenses when the head is tilted. The positions are:
+
+| Position | Camera-up vector in native depth-camera axes |
+| --- | --- |
+| Upright, lenses horizontal, top toward ceiling | `[0, -1, 0]` |
+| Upside down, lenses horizontal, top toward floor | `[0, 1, 0]` |
+| Right side toward ceiling, viewed from behind, lenses horizontal | `[1, 0, 0]` |
+| Left side toward ceiling, viewed from behind, lenses horizontal | `[-1, 0, 0]` |
+| Lenses straight toward ceiling | `[0, 0, 1]` |
+| Lenses straight toward floor | `[0, 0, -1]` |
+
+Here x points right in the native image, y down, and z forward through the lenses.
+Automatic preview rotation does not change these directions. The guide then
+requests three fresh held-out captures (upright, right side up, and lenses up).
+Move away and independently realign each validation position; fitting samples
+are never reused. The accelerometer can detect changing readings, but cannot
+independently establish physical pose accuracy. At the start, the guide asks
+whether every reference alignment will be independently checked. Answering no
+keeps the output **unverified**, even if numerical fit and validation pass.
+
+The guide saves every completed attempt's raw readings, rejected attempts,
+accepted means, and reports in `measured-accelerometer.measurements.json`,
+checkpointed after each attempt and retained on quit/error. Type `q` or press
+Ctrl-C to stop. If the fit fails, re-record a numbered position or the complete
+set. Existing output files are preserved; choose a new filename for a new run.
+The guide does not automatically resume an interrupted run. A completed
+measurement file can also be refitted with the file-mode command below; an
+unconfirmed reference remains unverified on refit.
+
+After success, use **Load Accelerometer Calibration…** to select
+`measured-accelerometer.json` (the profile, not the measurements file) before
+starting a scan. Use the same device and fixed head tilt as during calibration.
+No physical alignment accuracy or real hardware performance is claimed by
+the automated synthetic tests of this guide.
+
 `scripts/calibrate_accelerometer.py` fits bias, diagonal scale, and a proper
 sensor-to-camera rotation from at least six stationary orientations spanning all
 axes. Each input supplies the measured `acceleration_m_s2` vector and an

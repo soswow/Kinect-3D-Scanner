@@ -87,6 +87,8 @@ class ScanSettings:
     relocalize: bool = False
     confidence_fusion: bool = False
     final_voxel_m: float | None = None
+    # Legacy archive/client field. Fusion now sizes itself from scene extent
+    # and available memory; this number no longer limits reconstruction.
     final_block_count: int = 5000
 
     sensor_calibration: "SensorCalibration | None" = None

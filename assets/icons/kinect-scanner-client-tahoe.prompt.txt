@@ -1,0 +1,9 @@
+Generated using the built-in image_gen tool to improve sensor contrast and remove the baked rounded tile and transparent margins.
+
+Use case: precise-object-edit
+Asset type: revised app icon artwork for native macOS Tahoe packaging.
+Input image: edit target showing Kinect v1 and reconstructed cube.
+Primary request: Keep the existing ivory/cyan reconstructed cube and accurate Xbox 360 Kinect v1 design, but improve readability of the black Kinect against its background. Replace the entire dark graphite rounded-square tile and transparent margins with a clean FULL-BLEED OPAQUE SQUARE background: a restrained medium slate-blue gradient in the upper area transitioning into a lighter powder-blue-gray in the lower area behind the Kinect. The cube should remain bright and distinct in the upper area; the black Kinect should have a strong crisp silhouette against the lighter lower area.
+Composition: a square 1024 by 1024 artwork, background color reaches every edge and every corner with NO rounded rectangle baked into the image, NO transparent padding, NO outer border, NO pale frame, NO black surround. The operating system will apply the rounded mask later. Make the cube and Kinect together occupy the canvas confidently while leaving sensible breathing room, with the Kinect and its short wedge base clearly legible in the lower third. The cube is the dominant upper symbol, Kinect is a prominent lower symbol.
+Invariants: preserve the cube's ivory upper faces and cyan lower triangular mesh, preserve the original Kinect v1's slim black bar, large pale turquoise IR projector on the left, two camera windows grouped near the middle, tiny indicator between projector and cameras, small XBOX 360 device marking on the right, and low wedge base. Keep the polished 3D icon illustration style.
+Avoid: near-black backdrop, chrome border, rounded background tile, transparency, thick outlines, excessive bloom, extra symbols or text.

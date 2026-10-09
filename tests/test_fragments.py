@@ -129,14 +129,15 @@ class FragmentTests(unittest.TestCase):
             self.assertLess(np.linalg.norm(pose[:3, 3] - truth[:3, 3]), 0.03)
         self.assertGreater(np.linalg.norm(engine.poses[-1][1][:3, 3] - poses[-1][1][:3, 3]), 0.5)
 
-    def test_budget_failure_is_reported_before_fusion_and_does_not_export_old_mesh_as_success(self):
+    def test_memory_shortage_is_reported_before_fusion_and_retains_previous_volume(self):
         engine, _ = self.disconnected()
         engine.settings = replace(engine.settings, final_block_count=1)
         volume = engine.vbg
-        with patch.object(engine, "_integrate_vbg", side_effect=AssertionError("Fusion before budget check")):
+        with patch("scanner_server.fusion_memory.available_memory", return_value={"RAM": 16 * 1024**2}), \
+                patch.object(engine, "_integrate_vbg", side_effect=AssertionError("Fusion before memory check")):
             ok, result = engine.build_mesh()
         self.assertFalse(ok, result)
-        self.assertIn("increase the final block budget", result["message"])
+        self.assertIn("Not enough RAM", result["message"])
         self.assertGreater(engine.fragment_reconnection["fusion_required_blocks"], 1)
         self.assertTrue(engine.fragment_reconnection["verified_bridges"])
         self.assertIs(engine.vbg, volume)

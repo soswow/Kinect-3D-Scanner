@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 import threading
+import time
 
 import httpx
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -32,6 +33,8 @@ class ServerClient(QObject):
     preview_done = pyqtSignal(str)  # PLY temp file path
     final_preview_done = pyqtSignal(str)
     export_done = pyqtSignal(bool, str)
+    project_opened = pyqtSignal(dict, str)
+    transfer_progress = pyqtSignal(str, float, float)
     save_mesh_done = pyqtSignal(bool, str)
     status_updated = pyqtSignal(dict)
     live_updated = pyqtSignal(dict)
@@ -235,9 +238,9 @@ class ServerClient(QObject):
         resp.raise_for_status()
         return resp.json()
 
-    def request_build(self) -> dict:
+    def request_build(self, options=None) -> dict:
         """Start a build. Progress comes via WebSocket."""
-        resp = self._http.post("/api/scan/build", timeout=600.0)
+        resp = self._http.post("/api/scan/build", timeout=600.0, **({"json": options} if options else {}))
         resp.raise_for_status()
         return resp.json()
 
@@ -274,26 +277,68 @@ class ServerClient(QObject):
 
     def request_export(self, fmt: str, save_path: str, options=None) -> bool:
         """Download and atomically replace the destination only after success."""
-        resp = self._http.get(
-            f"/api/scan/export/{fmt}", params=options or {}, timeout=600.0
-        )
-        resp.raise_for_status()
-        if "octet-stream" not in resp.headers.get("content-type", ""):
-            return False
         destination = os.path.abspath(save_path)
         fd, temporary = tempfile.mkstemp(
             prefix=".scanner-export-", dir=os.path.dirname(destination)
         )
+        started = time.monotonic()
         try:
             with os.fdopen(fd, "wb") as output:
-                output.write(resp.content)
+                with self._http.stream("GET", f"/api/scan/export/{fmt}",
+                                       params=options or {}, timeout=600.0) as resp:
+                    resp.raise_for_status()
+                    if "octet-stream" not in resp.headers.get("content-type", ""):
+                        return False
+                    prepared = time.monotonic()
+                    total = int(resp.headers.get("content-length", 0))
+                    downloaded = 0
+                    last_update = 0
+                    for chunk in resp.iter_bytes(chunk_size=1024 * 1024):
+                        output.write(chunk)
+                        downloaded += len(chunk)
+                        now = time.monotonic()
+                        if now - last_update >= .2:
+                            self.transfer_progress.emit("Downloading", downloaded, total)
+                            last_update = now
+                    if total and downloaded != total:
+                        raise OSError("Incomplete export download; existing file retained")
+                    self.transfer_progress.emit("Downloading", downloaded, total)
+                    logger.info("Export %s: preparation %.2f s, download %.2f s, %.1f MiB",
+                                fmt, prepared - started, time.monotonic() - prepared, downloaded / 1024**2)
+                self.task_started.emit("Finishing save to disk…")
+                finishing = time.monotonic()
                 output.flush()
                 os.fsync(output.fileno())
             os.replace(temporary, destination)
+            logger.info("Export %s: disk completion %.2f s, total %.2f s: %s", fmt,
+                        time.monotonic() - finishing, time.monotonic() - started, destination)
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
         return True
+
+    def request_open_project(self, path: str) -> dict:
+        total = os.path.getsize(path)
+
+        def chunks(source):
+            sent = 0
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                sent += len(chunk)
+                self.transfer_progress.emit("Uploading project", sent, total)
+                yield chunk
+            self.task_started.emit("Restoring project on server…")
+
+        with open(path, "rb") as source:
+            response = self._http.post("/api/scan/project", content=chunks(source),
+                                       headers={"Content-Type": "application/zip", "Content-Length": str(total)},
+                                       timeout=600.0)
+        response.raise_for_status()
+        result = response.json()
+        if not result.get("success"):
+            raise RuntimeError(result.get("message", "Could not open project"))
+        self.session_id = result.get("session_id")
+        self.last_status = dict(result)
+        return result
 
     def get_status(self) -> dict:
         resp = self._http.get("/api/scan/status", timeout=10.0)

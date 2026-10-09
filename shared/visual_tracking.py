@@ -157,6 +157,7 @@ class VisualTracker:
     # A track may support this short step yet be too uncertain to keep alive.
     MAX_RETENTION_PIXEL_ERROR = 0.5
     MAX_RETENTION_DEPTH_ERROR_M = 0.02
+    DEBUG_TRAIL_FRAMES = 20
 
     # Debug classifications follow the existing rejection gates, in order.
     FLOW_LOST, ROUNDTRIP_REJECTED, DEPTH_REJECTED, GEOMETRY_REJECTED, VERIFIED = range(5)
@@ -165,6 +166,19 @@ class VisualTracker:
         self.settings = settings
         self.debug_enabled = False
         self.reset()
+
+    @property
+    def debug_enabled(self):
+        return self._debug_enabled
+
+    @debug_enabled.setter
+    def debug_enabled(self, enabled):
+        enabled = bool(enabled)
+        if enabled != getattr(self, "_debug_enabled", False):
+            if hasattr(self, "_trail_frames"):
+                self._trail_frames.clear()
+            self.debug_snapshot = None
+        self._debug_enabled = enabled
 
     def reset(self):
         self.segment = uuid.uuid4().hex[:16]
@@ -177,6 +191,37 @@ class VisualTracker:
         self._matched_reference = None
         self._next_feature_id = 0
         self._last_detection_s = None
+        # Pixel positions only; the pose estimator still keeps five references.
+        self._trail_frames = deque(maxlen=self.DEBUG_TRAIL_FRAMES)
+
+    def _debug_trails(self, stamp):
+        """Link retained identities only across consecutive observed frames.
+
+        Empty entries age the display during rejected observations and break
+        paths. Snapshots own their arrays, so queued previews cannot be changed
+        by the next capture or by an identity being retired/replenished.
+        """
+        if not self._trail_frames:
+            self._trail_frames.append(None)
+        if self.history and self.history[-1].stamp == stamp:
+            reference = self.history[-1]
+            self._trail_frames[-1] = (reference.ids.copy(), reference.corners.reshape(-1, 2).copy())
+        frames = list(self._trail_frames)
+        segments, ages, identities = [], [], []
+        for index, (previous, current) in enumerate(zip(frames, frames[1:]), start=1):
+            if previous is None or current is None:
+                continue
+            ids, a, b = np.intersect1d(previous[0], current[0], assume_unique=True, return_indices=True)
+            if len(ids):
+                segments.append(np.stack((previous[1][a], current[1][b]), axis=1))
+                ages.append(np.full(len(ids), len(frames) - 1 - index, np.uint8))
+                identities.append(ids)
+        return {
+            "trail_segments": np.concatenate(segments) if segments else np.empty((0, 2, 2), np.float32),
+            "trail_age_frames": np.concatenate(ages) if ages else np.empty(0, np.uint8),
+            "trail_ids": np.concatenate(identities) if identities else np.empty(0, np.int64),
+            "trail_frame_count": len(frames), "trail_frame_limit": self.DEBUG_TRAIL_FRAMES,
+        }
 
     def _cell_indices(self, pixels):
         camera = self.settings.camera
@@ -375,6 +420,9 @@ class VisualTracker:
         self._matched_reference = None
         started = time.monotonic()
         stamp = metadata.get("timestamp_s", started)
+        if self.debug_enabled:
+            # Count camera observations, including timing/flow failures.
+            self._trail_frames.append(None)
         lag = metadata.get("rgb_depth_delta_ms")
         if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
             return {"valid": False, "reason": "RGB/depth timing exceeds 20 ms",
@@ -411,6 +459,7 @@ class VisualTracker:
                                      retained=retained, added=len(added),
                                      retired=stats.get("retention_rejected", 0), reason=replenishment)
         if self.debug_enabled:
+            trails = self._debug_trails(stamp)
             self.debug_snapshot = {
                 "image": rgb, "corners": added,
                 "detected": detected, "tracks": tracks,
@@ -422,6 +471,7 @@ class VisualTracker:
                     "Visual motion unverified; retaining recent references" if self.history else
                     "Fewer than 60 measured corners; no reference seeded",
                 **(self._match_debug or {}),
+                **trails,
             }
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
                 "steps": self.steps, "elapsed_ms": (time.monotonic() - started) * 1000,

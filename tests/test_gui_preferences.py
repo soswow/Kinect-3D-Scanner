@@ -129,7 +129,7 @@ class GuiPreferencesTests(unittest.TestCase):
         values = {
             "depth_near_spin": 700, "depth_far_spin": 2800,
             "crop_spin": 65, "voxel_spin": 8, "final_voxel_spin": 6,
-            "final_blocks_spin": 6200, "weight_spin": 3.5,
+            "weight_spin": 3.5,
             "server_port_spin": 8123,
         }
         for name, value in values.items():
@@ -279,7 +279,7 @@ class GuiPreferencesTests(unittest.TestCase):
         self.assertEqual(0, window.final_voxel_spin.value())
         self.assertAlmostEqual(0.5, window.auto_capture_spin.interval_seconds)
         self.assertEqual(8000, window.server_port_spin.value())
-        self.assertEqual(5000, window.final_blocks_spin.value())
+        self.assertFalse(hasattr(window, "final_blocks_spin"))
         self.assertFalse(window.crop_cb.isChecked())
         self.assertEqual(load_calibration().to_dict(), window._sensor_calibration.to_dict())
 
@@ -306,15 +306,15 @@ class GuiPreferencesTests(unittest.TestCase):
 
     def test_sound_toggle_is_remembered_in_injected_backing_store(self):
         first = self.window()
-        self.assertTrue(first.sound_action.isChecked())
-        first.sound_action.setChecked(False)
+        self.assertTrue(first.scan_sounds_cb.isChecked())
+        first.scan_sounds_cb.setChecked(False)
         self.assertFalse(first.capture_sound.enabled)
         second = self.window()
-        self.assertFalse(second.sound_action.isChecked())
+        self.assertFalse(second.scan_sounds_cb.isChecked())
         self.assertFalse(second.capture_sound.enabled)
-        second.sound_action.setChecked(True)
+        second.scan_sounds_cb.setChecked(True)
         third = self.window()
-        self.assertTrue(third.sound_action.isChecked())
+        self.assertTrue(third.scan_sounds_cb.isChecked())
         self.assertTrue(third.capture_sound.enabled)
 
     def test_custom_calibration_snapshot_restores_without_source_file(self):

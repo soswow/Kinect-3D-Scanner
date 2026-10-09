@@ -1,0 +1,4 @@
+This PNG is the flattened macOS rendering of kinect-scanner-client.icon, exported with Apple's ictool.
+The revised full-bleed artwork was generated with the built-in image_gen tool, then imported into Icon Composer with additional glass effects disabled.
+Generation prompt: kinect-scanner-client-tahoe.prompt.txt
+Original Kinect v1 hardware reference: https://commons.wikimedia.org/wiki/File:Xbox-360-Kinect-Standalone.png

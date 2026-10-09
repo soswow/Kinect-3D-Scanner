@@ -1,3 +1,7 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start_server.ps1"
-pause
+pushd "%~dp0"
+"%~dp0.venv\Scripts\python.exe" -m scanner_server %*
+set "server_exit=%errorlevel%"
+if not "%server_exit%"=="0" pause
+popd
+exit /b %server_exit%

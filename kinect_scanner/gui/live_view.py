@@ -3,7 +3,7 @@
 import time
 
 import numpy as np
-from PyQt6.QtCore import QRect, QTimer
+from PyQt6.QtCore import QRect, Qt, QTimer
 from PyQt6.QtGui import QColor, QImage, QPainter
 from PyQt6.QtWidgets import (
     QButtonGroup,
@@ -26,7 +26,12 @@ class LiveView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(300, 300)
-        self.setToolTip("Orbit: drag to rotate and wheel to zoom. Fit View frames the current cloud.")
+        navigation_help = (
+            "Orbit: left drag to rotate; right drag (trackpad secondary-click), "
+            "middle drag, or Shift+left drag to pan; scroll to zoom. "
+            "Fit View frames the current cloud and resets pan."
+        )
+        self.setToolTip(navigation_help)
         self.follow_cb = QCheckBox("Follow scanner", self)
         self.follow_cb.hide()  # Retained for integrations using the original API.
         self.follow_button = QPushButton("Follow", self)
@@ -50,6 +55,7 @@ class LiveView(QWidget):
                               (self.details_button, "Show reconstruction diagnostics")):
             button.setAccessibleName(label)
             button.setToolTip(label)
+        self.orbit_button.setToolTip(navigation_help)
         self.follow_button.clicked.connect(lambda: self.follow_cb.setChecked(True))
         self.orbit_button.clicked.connect(lambda: self.follow_cb.setChecked(False))
         self.follow_cb.toggled.connect(self._sync_view_mode)
@@ -134,8 +140,11 @@ class LiveView(QWidget):
         self.radius = 1
         self.yaw = self.pitch = 0
         self.zoom = 1
+        self.pan = np.zeros(2)
         self._set_colored(True)
         self._drag = None
+        self._drag_button = None
+        self._drag_mode = None
         self._received = None
         self._refresh_labels()
         self.update()
@@ -164,6 +173,7 @@ class LiveView(QWidget):
         self.update()
 
     def _sync_view_mode(self, follow):
+        self._drag = self._drag_button = self._drag_mode = None
         self.follow_button.setChecked(follow)
         self.orbit_button.setChecked(not follow)
         self.update()
@@ -184,6 +194,8 @@ class LiveView(QWidget):
             self.radius = max(0.1, float(np.linalg.norm(hi - lo) / 2))
         self.yaw = self.pitch = 0
         self.zoom = 1
+        self.pan = np.zeros(2)
+        self._drag = self._drag_button = self._drag_mode = None
         self.follow_cb.setChecked(False)
         self.update()
 
@@ -285,7 +297,7 @@ class LiveView(QWidget):
             )
             points = (self.points - self.center) @ rotation.T
             scale = min(width, height) * 0.42 * self.zoom / self.radius
-            xy = np.rint(points[:, :2] * scale + [width / 2, height / 2]).astype(int)
+            xy = np.rint((points[:, :2] + self.pan) * scale + [width / 2, height / 2]).astype(int)
             indices = np.arange(len(points))
         inside = (
             (xy[:, 0] >= 1) & (xy[:, 0] < width - 1)
@@ -330,19 +342,41 @@ class LiveView(QWidget):
             painter.drawImage(viewport.topLeft(), image)
 
     def mousePressEvent(self, event):
-        if not self.follow_cb.isChecked() and self.drawing_rect.contains(event.position().toPoint()):
+        if (not self.follow_cb.isChecked()
+                and self.drawing_rect.contains(event.position().toPoint())
+                and event.button() in (Qt.MouseButton.LeftButton,
+                                       Qt.MouseButton.RightButton,
+                                       Qt.MouseButton.MiddleButton)):
             self._drag = event.position()
+            self._drag_button = event.button()
+            self._drag_mode = (
+                "pan" if event.button() != Qt.MouseButton.LeftButton
+                or event.modifiers() & Qt.KeyboardModifier.ShiftModifier else "orbit"
+            )
+            event.accept()
 
     def mouseMoveEvent(self, event):
-        if self._drag is not None and not self.follow_cb.isChecked():
+        if (self._drag is not None and not self.follow_cb.isChecked()
+                and event.buttons() & self._drag_button):
             delta = event.position() - self._drag
-            self.yaw += delta.x() * 0.008
-            self.pitch = np.clip(self.pitch + delta.y() * 0.008, -1.5, 1.5)
+            if self._drag_mode == "pan":
+                viewport = self.drawing_rect
+                scale = min(viewport.width(), viewport.height()) * 0.42 * self.zoom / self.radius
+                if scale > 0:
+                    # Keep motion in the view plane, one pixel per dragged pixel,
+                    # regardless of orbit angle, cloud size, or zoom.
+                    self.pan += np.array([delta.x(), delta.y()]) / scale
+            else:
+                self.yaw += delta.x() * 0.008
+                self.pitch = np.clip(self.pitch + delta.y() * 0.008, -1.5, 1.5)
             self._drag = event.position()
             self.update()
+            event.accept()
 
     def mouseReleaseEvent(self, event):
-        self._drag = None
+        if event.button() == self._drag_button:
+            self._drag = self._drag_button = self._drag_mode = None
+            event.accept()
 
     def wheelEvent(self, event):
         if not self.follow_cb.isChecked():

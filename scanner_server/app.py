@@ -5,6 +5,7 @@ import logging
 import os
 import tempfile
 import time
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -83,6 +84,7 @@ def _ensure_live_worker():
         and engine.settings.live_reconstruction
         and not getattr(engine, "fusion_failure", None)
         and not getattr(engine, "input_failure", None)
+        and not getattr(engine, "_project_processing_paused", False)
         and engine.unprocessed_count
         and (_live_task is None or _live_task.done())
     ):
@@ -99,6 +101,7 @@ async def _live_worker():
                 if (
                     not engine.settings.live_reconstruction
                     or not engine.unprocessed_count
+                    or getattr(engine, "_project_processing_paused", False)
                 ):
                     break
                 await _engine_call(engine.process_frames, max_frames=1)
@@ -392,13 +395,27 @@ async def scan_frames_batch(request: Request):
 
 
 @app.post("/api/scan/build")
-async def scan_build():
+async def scan_build(request: Request):
     """Process all frames and build the final mesh."""
     global _latest_live
     if _exclusive:
         return {"success": False, "message": "Build already in progress"}
 
     async with _exclusive_operation("build"):
+        body = await request.body()
+        if body:
+            import json
+            try:
+                overrides = json.loads(body)
+                allowed = {"final_voxel_m", "final_block_count", "final_weight", "min_component_triangles"}
+                if not isinstance(overrides, dict) or overrides.keys() - allowed:
+                    raise ValueError("Only final surface settings can change during a build")
+                settings = ScanSettings.from_dict({**engine.settings.to_dict(), **overrides})
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if settings != engine.settings:
+                engine.settings = settings
+                engine._final_vbg = None
         loop = asyncio.get_event_loop()
         progress_queue: asyncio.Queue = asyncio.Queue()
 
@@ -456,7 +473,7 @@ async def scan_build():
             if engine.settings.final_voxel_m is not None:
                 final = proc_result["final_reconstruction"]
                 detail += (
-                    f"; final {final['voxel_m'] * 1000:g} mm, {final['blocks']} blocks"
+                    f"; final {final['voxel_m'] * 1000:g} mm"
                 )
             await _broadcast({"type": "done", "success": True, "detail": detail})
         else:
@@ -606,17 +623,64 @@ async def export_recording():
     fd, path = tempfile.mkstemp(suffix=".zip")
     os.close(fd)
     try:
-        async with _build_lock:
+        async with _exclusive_operation("save"):
             await _engine_call(export_session, engine, path)
-        return FileResponse(
+        response = FileResponse(
             path,
             media_type="application/octet-stream",
             filename="scan-session.zip",
             background=BackgroundTask(os.unlink, path),
         )
+        response.chunk_size = 1024 * 1024
+        return response
     except BaseException:
         os.unlink(path)
         raise
+
+
+@app.post("/api/scan/project")
+async def open_project(request: Request):
+    """Stage and fully validate a project before replacing the active scan."""
+    global engine, _latest_live, _pending_live
+    from .session import load_session
+
+    fd, path = tempfile.mkstemp(suffix=".zip")
+    candidate = None
+    committed = False
+    try:
+        size = 0
+        with os.fdopen(fd, "wb") as output:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > 8 * 1024**3:
+                    raise HTTPException(413, "Project upload exceeds 8 GiB")
+                await asyncio.to_thread(output.write, chunk)
+        async with _exclusive_operation("open"):
+            def stage():
+                nonlocal candidate
+                candidate = ScanEngine(device="cuda" if str(engine.device).startswith("CUDA") else "cpu",
+                                       tracking=engine.backend["tracking"])
+                load_session(candidate, path)
+
+            try:
+                await _engine_call(stage)
+            except (ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile, RuntimeError) as exc:
+                raise HTTPException(422, f"Cannot open project: {exc}") from exc
+            previous = engine
+            candidate._project_archive_path = path
+            candidate._project_processing_paused = True
+            engine = candidate
+            committed = True
+            _latest_live = None
+            _pending_live = None
+            previous.shutdown()
+        # Leave pending observations paused until the user previews, builds or resumes.
+        return {"success": True, **await scan_status()}
+    finally:
+        if not committed:
+            os.unlink(path)
+            if candidate is not None:
+                candidate.shutdown()
 
 
 @app.get("/api/scan/export/{fmt}")

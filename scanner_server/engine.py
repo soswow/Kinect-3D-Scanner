@@ -38,6 +38,7 @@ from .cuda_registration import registration_scope
 from .cuda_fusion import FusionUpdateError
 from .cuda_input import CudaInputError, InputPreparation
 from .cuda_confidence import ConfidencePreparation
+from .fusion_memory import plan_fusion
 
 _REG = o3d.pipelines.registration
 logger = logging.getLogger("scanner_server")
@@ -74,6 +75,7 @@ class ScanEngine:
     def reset(
         self, preset: ScanPreset | None = None, settings: ScanSettings | None = None
     ):
+        self._discard_project_archive()
         if preset is not None:
             self.preset = preset
         if settings is not None:
@@ -120,6 +122,7 @@ class ScanEngine:
         self._refined_count = None
         self._reconnection_count = None
         self._pose_seeds_only = False
+        self._project_processing_paused = False
         self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
         self.model_pcd = None
         self._live_points = np.empty((0, 3), dtype=np.float32)
@@ -428,8 +431,8 @@ class ScanEngine:
             added = int(np.count_nonzero(~found.cpu().numpy()))
             if volume.hashmap().size() + added > self._fusion_block_limit:
                 raise ValueError(
-                    f"Final volume exceeds {self._fusion_block_limit} blocks; "
-                    "use a coarser final voxel or increase the final block budget"
+                    "Fusion extent changed after allocation planning; "
+                    "the previous reconstruction is retained. Retry the build."
                 )
         if self.settings.confidence_fusion:
             from .weighted_fusion import integrate_weighted
@@ -1248,6 +1251,7 @@ class ScanEngine:
             }
         idx = len(self.raw_frames)
         self.raw_frames.append((rgb.copy(), depth.copy()))
+        self._project_processing_paused = False
         self._stored_monotonic.append(time.monotonic())
         self._final_vbg = None
         self.final_reconstruction = {"applied": False, "reason": "Awaiting final build"}
@@ -1551,18 +1555,14 @@ class ScanEngine:
             proposals, report = propose_fragment_poses(self, progress_cb)
             if proposals is not None:
                 candidate = copy.copy(self)
-                candidate._fusion_block_limit = self.settings.final_block_count
                 required = self._required_fusion_blocks(proposals, progress_cb)
+                report.update(fusion_required_blocks=required, fusion_voxel_m=self.voxel_size)
+                report.update(plan_fusion(self.device, required, self.voxel_size))
+                candidate._fusion_block_limit = report["allocated_blocks"]
                 report.update(fusion_required_blocks=required,
                               fusion_block_limit=candidate._fusion_block_limit,
                               fusion_voxel_m=self.voxel_size)
-                if required > candidate._fusion_block_limit:
-                    raise ValueError(
-                        f"Verified reconstruction needs {required} blocks at "
-                        f"{self.voxel_size * 1000:g} mm; increase the final block "
-                        f"budget from {candidate._fusion_block_limit} to at least {required}"
-                    )
-                candidate.vbg = self._create_vbg(block_count=max(1, required))
+                candidate.vbg = self._create_vbg(block_count=candidate._fusion_block_limit)
                 for completed, (index, pose) in enumerate(proposals, 1):
                     rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
                     candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
@@ -1642,7 +1642,7 @@ class ScanEngine:
         """Measure allocation before touching a candidate or existing volume.
 
         A one-block grid computes the exact frustum coordinates without voxel
-        activation. The configured block limit remains a hard memory budget.
+        activation. Allocation follows the measured scene extent.
         """
         scratch = self._create_vbg(block_count=1)
         blocks = set()
@@ -1659,7 +1659,7 @@ class ScanEngine:
             if progress_cb:
                 progress_cb(completed, len(proposals), {
                     "stage": stage,
-                    "message": f"Planning verified fusion {completed}/{len(proposals)} views: {len(blocks)} blocks",
+                    "message": f"Estimating reconstruction storage {completed}/{len(proposals)} views",
                 })
         return len(blocks)
 
@@ -1674,7 +1674,10 @@ class ScanEngine:
             proposals, report = propose_poses(self)
             if proposals is not None:
                 candidate = copy.copy(self)
-                candidate.vbg = self._create_vbg()
+                required = self._required_fusion_blocks(proposals, stage="refinement")
+                report.update(plan_fusion(self.device, required, self.voxel_size))
+                candidate._fusion_block_limit = report["allocated_blocks"]
+                candidate.vbg = self._create_vbg(block_count=candidate._fusion_block_limit)
                 for index, pose in proposals:
                     rgb, depth = self.raw_frames[index]
                     rgb, depth = self._prepare_input(rgb, depth, self.settings)
@@ -1752,14 +1755,14 @@ class ScanEngine:
                     if translation > MAX_TRANSLATION_M or angle > MAX_ROTATION_DEG:
                         raise ValueError("Bundle proposal exceeded camera correction bounds")
                 required = self._required_fusion_blocks(proposals, progress_cb, stage="bundle_adjustment")
-                limit = self.settings.final_block_count
+                report.update(fusion_required_blocks=required, fusion_voxel_m=self.voxel_size)
+                report.update(plan_fusion(self.device, required, self.voxel_size))
+                limit = report["allocated_blocks"]
                 report.update(fusion_required_blocks=required, fusion_block_limit=limit,
                               fusion_voxel_m=self.voxel_size)
-                if required > limit:
-                    raise ValueError(f"Joint refinement needs {required} blocks; increase the final block budget from {limit}")
                 candidate = copy.copy(self)
                 candidate._fusion_block_limit = limit
-                candidate.vbg = self._create_vbg(block_count=max(1, required))
+                candidate.vbg = self._create_vbg(block_count=limit)
                 for completed, (index, pose) in enumerate(proposals, 1):
                     rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
                     candidate._integrate_vbg(rgb, depth, np.linalg.inv(pose))
@@ -1818,27 +1821,13 @@ class ScanEngine:
         candidate = copy.copy(self)
         candidate.settings = replace(self.settings, voxel_m=self.settings.final_voxel_m)
         candidate.voxel_size = candidate.settings.voxel_m
-        candidate._fusion_block_limit = self.settings.final_block_count
+        planning_started = time.monotonic()
+        required = candidate._required_fusion_blocks(self.poses, progress_cb, stage="final_reintegration")
+        planning_elapsed_ms = (time.monotonic() - planning_started) * 1000
+        allocation = plan_fusion(self.device, required, candidate.voxel_size)
+        candidate._fusion_block_limit = allocation["allocated_blocks"]
         candidate._final_missing_only_activation = candidate.settings.confidence_fusion is True
-        required = None
         allocated = candidate._fusion_block_limit
-        planning_elapsed_ms = 0.0
-        if candidate._final_missing_only_activation:
-            planning_started = time.monotonic()
-            # Original frustum planner: Final voxel and original SDF truncation,
-            # original raw inputs/intrinsics/depth bounds/unrounded accepted poses.
-            required = candidate._required_fusion_blocks(
-                self.poses, progress_cb, stage="final_capacity_preflight"
-            )
-            planning_elapsed_ms = (time.monotonic() - planning_started) * 1000
-            if required > candidate._fusion_block_limit:
-                raise ValueError(
-                    f"Final {candidate.voxel_size:g} m model needs {required} blocks; "
-                    f"increase final_block_count from {candidate._fusion_block_limit} "
-                    f"to at least {required}, or choose a coarser final voxel. "
-                    "No Final fusion candidate was allocated."
-                )
-            allocated = max(1, required)
         candidate._final_allocated_blocks = allocated
         candidate.vbg = candidate._create_vbg(block_count=allocated)
         initial_capacity = int(candidate.vbg.hashmap().capacity())
@@ -1863,6 +1852,7 @@ class ScanEngine:
             self.stage_totals_ms.get("final_reintegration", 0) + elapsed
         )
         self.final_reconstruction = {
+            **allocation,
             "applied": False,
             "reason": "Awaiting final surface validation",
             "voxel_m": candidate.voxel_size,
@@ -1872,9 +1862,9 @@ class ScanEngine:
             "requested_block_capacity": allocated,
             "allocated_blocks": actual_capacity,
             "initial_block_capacity": initial_capacity,
-            "allocation_strategy": "exact missing-key activation" if candidate._final_missing_only_activation else "configured native activation",
+            "allocation_strategy": "exact missing-key activation" if candidate._final_missing_only_activation else "automatic native activation",
             "attribute_budget_mib": actual_capacity * 4096 * 20 / 2**20,
-            "configured_attribute_budget_mib": candidate._fusion_block_limit * 4096 * 20 / 2**20,
+            "planned_attribute_budget_mib": allocation["attribute_budget_mib"],
             "planning_elapsed_ms": planning_elapsed_ms,
             "elapsed_ms": elapsed,
         }
@@ -1940,7 +1930,7 @@ class ScanEngine:
             if self.settings.final_voxel_m is not None:
                 self._final_vbg = volume
                 self.final_reconstruction.update(
-                    applied=True, reason="Fresh bounded final fusion"
+                    applied=True, reason="Fresh fusion with automatic allocation"
                 )
             process_result["final_reconstruction"] = dict(self.final_reconstruction)
             return True, process_result
@@ -1986,3 +1976,13 @@ class ScanEngine:
 
     def shutdown(self):
         """Clean up resources. Call on application exit."""
+        self._discard_project_archive()
+
+    def _discard_project_archive(self):
+        path = getattr(self, "_project_archive_path", None)
+        if path:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        self._project_archive_path = None

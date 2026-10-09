@@ -41,7 +41,8 @@ class HashMap:
     def size(self): return len(self.keys)
     def capacity(self): return self.allocated
     def find(self, keys):
-        found = [value in self.keys for value in keys.values]
+        existing = set(self.keys)
+        found = [value in existing for value in keys.values]
         if self.omit_found_after_activation and self.activation_inputs and found:
             found[0] = False
         return None, Mask(found)
@@ -50,8 +51,11 @@ class HashMap:
         self.activation_inputs.append(rows)
         if self.size()+len(rows) > self.allocated:
             self.allocated = max(self.size()+len(rows), 2*self.allocated)
+        existing = set(self.keys)
         for value in rows:
-            if value not in self.keys: self.keys.append(value)
+            if value not in existing:
+                self.keys.append(value)
+                existing.add(value)
             if self.native_error is not None: raise self.native_error
         if self.force_growth: self.allocated += 1
         self.last_result = object()
@@ -228,7 +232,13 @@ engine_tree = ast.parse((ROOT / "scanner_server/engine.py").read_text(encoding="
 cls = next(node for node in engine_tree.body if isinstance(node,ast.ClassDef) and node.name == "ScanEngine")
 method = next(node for node in cls.body if isinstance(node,ast.FunctionDef) and node.name == "_final_volume")
 engine_scope = {"copy":copy,"replace":replace,"time":SimpleNamespace(monotonic=lambda:1.),
-                "np":SimpleNamespace(linalg=SimpleNamespace(inv=lambda pose:pose))}
+                "np":SimpleNamespace(linalg=SimpleNamespace(inv=lambda pose:pose)),
+                # Inject a successful memory plan; real memory planning and
+                # native integration are tested separately.
+                "plan_fusion":lambda device,blocks,voxel: {
+                    "allocation":"automatic", "required_blocks":blocks,
+                    "allocated_blocks":max(1,(blocks*102+99)//100),
+                    "attribute_budget_mib":max(1,(blocks*102+99)//100)*4096*20/2**20}}
 exec(compile(ast.Module(body=[method],type_ignores=[]),"<proposed-final-volume>","exec"),engine_scope)
 Engine._final_volume = engine_scope["_final_volume"]
 
@@ -242,41 +252,52 @@ class FinalContracts(unittest.TestCase):
         engine = Engine()
         before = owners(engine)
         value = engine._final_volume()
-        self.assertEqual(engine.allocations,[3])
+        self.assertEqual(engine.allocations,[4])
         self.assertEqual(value.mapping.activation_inputs,[[1,2],[3]])
         self.assertEqual(value.updates,{1:2,2:2,3:2})
         self.assertEqual(owners(engine),before)
         self.assertFalse(hasattr(engine,"_final_missing_only_activation"))
-        self.assertEqual(engine.plans[0][:3],(.005,.08,"final_capacity_preflight"))
+        self.assertEqual(engine.plans[0][:3],(.005,.08,"final_reintegration"))
         self.assertIs(engine.plans[0][3],engine.poses)
         self.assertEqual((engine.voxel_size,engine.sdf_trunc),(.01,.08))
-        self.assertEqual(engine.final_reconstruction["block_limit"],10)
-        self.assertEqual(engine.final_reconstruction["allocated_blocks"],3)
+        self.assertEqual(engine.final_reconstruction["block_limit"],4)
+        self.assertEqual(engine.final_reconstruction["allocated_blocks"],4)
         self.assertFalse(engine.final_reconstruction["applied"])
 
-    def test_c7_exact_logical_overflow_reports_full_count_before_candidate_allocation(self):
-        engine = Engine(required=13302,limit=10000)
-        before, report = owners(engine),engine.final_reconstruction
-        with self.assertRaisesRegex(ValueError,"needs 13302 blocks"):
-            engine._final_volume()
-        self.assertEqual(engine.allocations,[])
+    def test_c7_legacy_limit_does_not_reject_automatic_allocation(self):
+        engine = Engine(batches=(tuple(range(13302)),),limit=10000)
+        before = owners(engine)
+        value = engine._final_volume()
+        self.assertEqual(engine.allocations,[13569])
+        self.assertEqual(value.mapping.size(),13302)
+        self.assertEqual(engine.final_reconstruction["allocation"],"automatic")
         self.assertEqual(owners(engine),before)
-        self.assertIs(engine.final_reconstruction,report)
 
-    def test_unweighted_keeps_original_allocation_no_preplan_and_reports_actual_growth(self):
+    def test_unweighted_plans_automatically_and_reports_actual_native_growth(self):
         engine = Engine(batches=((1,2,3),(1,2,3)),limit=3,weighted=False)
         before = owners(engine)
         value = engine._final_volume()
-        self.assertEqual(engine.plans,[])
-        self.assertEqual(engine.allocations,[3])
+        self.assertEqual(len(engine.plans),1)
+        self.assertEqual(engine.allocations,[4])
         self.assertEqual(value.mapping.activation_inputs,[[1,2,3],[1,2,3]])
-        self.assertEqual(value.mapping.capacity(),6)
-        self.assertIsNone(engine.final_reconstruction["required_blocks"])
-        self.assertEqual(engine.final_reconstruction["allocated_blocks"],6)
-        self.assertEqual(engine.final_reconstruction["block_limit"],3)
-        self.assertEqual(engine.final_reconstruction["allocation_strategy"],"configured native activation")
-        self.assertGreater(engine.final_reconstruction["attribute_budget_mib"],engine.final_reconstruction["configured_attribute_budget_mib"])
+        self.assertEqual(value.mapping.capacity(),8)
+        self.assertEqual(engine.final_reconstruction["required_blocks"],3)
+        self.assertEqual(engine.final_reconstruction["allocated_blocks"],8)
+        self.assertEqual(engine.final_reconstruction["block_limit"],4)
+        self.assertEqual(engine.final_reconstruction["allocation_strategy"],"automatic native activation")
+        self.assertGreater(engine.final_reconstruction["attribute_budget_mib"],engine.final_reconstruction["planned_attribute_budget_mib"])
         self.assertEqual(owners(engine),before)
+
+    def test_memory_preflight_failure_preserves_owners_before_candidate_allocation(self):
+        engine = Engine()
+        before, report = owners(engine),engine.final_reconstruction
+        def unavailable(*args): raise ValueError("Not enough RAM")
+        with patch.dict(engine_scope,plan_fusion=unavailable):
+            with self.assertRaisesRegex(ValueError,"Not enough RAM"):
+                engine._final_volume()
+        self.assertEqual(engine.allocations,[])
+        self.assertEqual(owners(engine),before)
+        self.assertIs(engine.final_reconstruction,report)
 
     def test_disabled_and_cached_final_preserve_original_early_return(self):
         for disabled in (True,False):
@@ -335,7 +356,17 @@ class OriginalMathSeams(unittest.TestCase):
                 self.assertEqual(len(seam),1)
                 self.assertEqual(ast.unparse(seam[0].value),"activate_fusion_blocks(engine, hashmap, blocks)")
                 seam[0].value = ast.parse("hashmap.activate(blocks)").body[0].value
-                self.assertEqual(hashlib.sha256(ast.dump(node,include_attributes=False).encode()).hexdigest(),digest)
+                # Baseline digests use Python 3.12's AST representation.
+                # 3.13 omits empty fields by default; 3.10/3.11 do not yet
+                # expose type_params. Normalize metadata, preserving the
+                # original numerical-body digests across supported Pythons.
+                for item in ast.walk(node):
+                    if isinstance(item,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)) and "type_params" not in item._fields:
+                        item._fields = (*item._fields,"type_params")
+                        item.type_params = []
+                options = {"show_empty":True} if sys.version_info >= (3,13) else {}
+                normalized = ast.dump(node,include_attributes=False,**options)
+                self.assertEqual(hashlib.sha256(normalized.encode()).hexdigest(),digest)
 
 
 if __name__ == "__main__": unittest.main()

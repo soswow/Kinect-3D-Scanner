@@ -13,7 +13,7 @@ stage is a tested Git snapshot.
 3. Views: reconstruction prominence, compact camera preview, visible Follow/Orbit,
    Color/Shape and Fit controls, matching depth inclusion, crop outline and legend.
 4. Setup and output: collapsed advanced/experimental settings and connection
-   details, input validation, one export dialog, one Open Model action, clear
+   details, input validation, one export dialog, current-scan inspection, clear
    progress phases and nonmodal success notifications.
 5. Integration: regression tests, local client/server synthetic scan, responsive
    layout checks at 960×600 and 1280×800, documentation and independent review.
@@ -94,7 +94,7 @@ cloud details, paused capture, full Depth view and scrolled setup.
 ## Follow-up: capture sound
 
 A bundled 70 ms cue confirms successful captured-frame upload in Automatic and
-Manual modes. **Capture sound** in the toolbar toggles it and remembers mute
+Manual modes. **Scan sounds** in the sidebar’s **Feedback** section toggles it and remembers mute
 across launches. Failed/rejected uploads and old-session acknowledgements stay
 silent. Batches use one cue, rapid confirmations do not overlap, and mute,
 reset, cancellation and shutdown clear any cue waiting for its audio file to load.

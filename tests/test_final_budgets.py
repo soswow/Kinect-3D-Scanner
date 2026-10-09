@@ -51,16 +51,17 @@ class FinalBudgetTests(unittest.TestCase):
         engine.store_frame(*scene_frames(1)[0][:2])
         self.assertIsNone(engine._final_vbg)
 
-    def test_block_limit_and_native_failure_preserve_previous_result(self):
+    def test_memory_shortage_and_native_failure_preserve_previous_result(self):
         engine = self.make_engine()
         self.assertTrue(engine.build_mesh()[0])
         live, mesh, cloud = engine.vbg, engine.mesh, engine.point_cloud
         engine.settings = replace(
             engine.settings, final_voxel_m=0.002, final_block_count=1
         )
-        ok, result = engine.build_mesh()
+        with patch("scanner_server.fusion_memory.available_memory", return_value={"RAM": 16 * 1024**2}):
+            ok, result = engine.build_mesh()
         self.assertFalse(ok)
-        self.assertIn("exceeds 1 blocks", result["message"])
+        self.assertIn("Not enough RAM", result["message"])
         self.assertIs(engine.vbg, live)
         self.assertIs(engine.mesh, mesh)
         self.assertIs(engine.point_cloud, cloud)
@@ -72,6 +73,17 @@ class FinalBudgetTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("allocation failed", result["message"])
         self.assertIs(engine.mesh, mesh)
+
+    def test_legacy_block_count_does_not_limit_scene_coverage(self):
+        engine = self.make_engine()
+        engine.settings = replace(engine.settings, final_voxel_m=.003, final_block_count=1)
+        success, result = engine.build_mesh()
+        self.assertTrue(success, result)
+        report = result["final_reconstruction"]
+        self.assertEqual("automatic", report["allocation"])
+        self.assertGreater(report["required_blocks"], 1)
+        self.assertGreaterEqual(report["allocated_blocks"], report["blocks"])
+        self.assertEqual(.003, report["voxel_m"])
 
     def test_server_queue_age_and_rejection_guidance_are_bounded(self):
         engine = ScanEngine()

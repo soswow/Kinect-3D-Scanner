@@ -46,6 +46,7 @@ from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
+from ..runtime import data_root, export_root
 from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
@@ -59,11 +60,9 @@ from .widgets import (
     numpy_to_qimage,
 )
 
-# Default export directory (relative to where the app is launched)
-_PROJECT_ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
-EXPORT_DIR = os.path.join(_PROJECT_ROOT, "export")
+# Bundled code/resources are read-only; keep generated files in user folders.
+_PROJECT_ROOT = str(data_root())
+EXPORT_DIR = str(export_root())
 MESH_DIR = os.path.join(_PROJECT_ROOT, "mesh")
 
 
@@ -88,6 +87,8 @@ class MainWindow(QMainWindow):
         self._capture_run_id = uuid.uuid4().hex[:12]
         self._pending_action = None
         self._export_pending = None
+        self._project_path = None
+        self._project_to_open = None
         self._connect_pending = False
         self._restore_on_status = False
         self._session_settings = None
@@ -146,6 +147,8 @@ class MainWindow(QMainWindow):
         self.server_client.task_failed.connect(self._on_task_failed)
         self.server_client.websocket_status.connect(self._on_websocket_status)
         self.server_client.export_done.connect(self._on_export_done)
+        self.server_client.project_opened.connect(self._on_project_opened)
+        self.server_client.transfer_progress.connect(self._on_transfer_progress)
         self.server_client.save_mesh_done.connect(self._on_save_mesh_done)
         self.server_client.task_started.connect(self._on_task_started)
         self.server_client.task_error.connect(self._on_task_error)
@@ -194,7 +197,6 @@ class MainWindow(QMainWindow):
                 (self.orientation_combo, "camera/orientation"),
                 (self.gravity_tracking_cb, "scan/gravity_assistance"),
                 (self.final_voxel_spin, "scan/final_voxel_mm"),
-                (self.final_blocks_spin, "scan/final_blocks"),
                 (self.weight_spin, "scan/final_weight"),
                 (self.live_cb, "scan/live_reconstruction"),
                 (self.color_tracking_cb, "scan/color_tracking"),
@@ -344,6 +346,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.splitter, stretch=1)
 
     def _build_toolbar(self):
+        menu = self.menuBar().addMenu("File")
+        self.open_project_action = menu.addAction("Open Project…", self._open_project)
+        self.open_project_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.save_project_action = menu.addAction("Save Project", self._save_project)
+        self.save_project_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_project_as_action = menu.addAction("Save Project As…", self._export_session)
+        self.save_project_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         toolbar = QToolBar("Views")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
@@ -359,26 +368,6 @@ class MainWindow(QMainWindow):
             group.addAction(action)
             toolbar.addAction(action)
             self._mode_actions.append(action)
-        toolbar.addSeparator()
-        self.orientation_combo = QComboBox()
-        for label, mode in (("Orientation: Auto", "auto"), ("Landscape lock", "landscape"),
-                            ("Portrait left lock", "portrait_left"), ("Portrait right lock", "portrait_right")):
-            self.orientation_combo.addItem(label, mode)
-        self.orientation_combo.setToolTip("Auto follows gravity. Lock portrait when looking up/down or while recording.")
-        self.orientation_combo.currentIndexChanged.connect(self._change_orientation)
-        toolbar.addWidget(self.orientation_combo)
-        toolbar.addSeparator()
-        open_action = QAction("Open Model…", self)
-        open_action.setShortcut(QKeySequence.StandardKey.Open)
-        open_action.triggered.connect(self._view_3d_file)
-        toolbar.addAction(open_action)
-        toolbar.addSeparator()
-        self.sound_action = QAction("Scan sounds", self)
-        self.sound_action.setCheckable(True)
-        self.sound_action.setChecked(self.capture_sound.enabled)
-        self.sound_action.setToolTip("Capture confirmations, tracking-loss and recovery alerts. Toggle to mute or enable.")
-        self.sound_action.toggled.connect(self.capture_sound.set_enabled)
-        toolbar.addAction(self.sound_action)
         self.pause_action = QAction("Pause / Resume", self)
         self.pause_action.setShortcut(QKeySequence("Space"))
         self.pause_action.triggered.connect(self._shortcut_pause)
@@ -466,10 +455,14 @@ class MainWindow(QMainWindow):
         output_row = QHBoxLayout()
         self.btn_export = QPushButton("Export…")
         self.btn_export.clicked.connect(self._choose_export)
-        self.btn_export_session = QPushButton("Save Session…")
-        self.btn_export_session.clicked.connect(self._export_session)
+        self.btn_export_session = QPushButton("Save Project…")
+        self.btn_export_session.setToolTip("Save captures, calibration, reconstruction and final model in a reopenable ZIP project.")
+        self.btn_export_session.clicked.connect(self._save_project)
+        self.btn_open_project = QPushButton("Open Project…")
+        self.btn_open_project.clicked.connect(self._open_project)
         output_row.addWidget(self.btn_export)
         output_row.addWidget(self.btn_export_session)
+        layout.addWidget(self.btn_open_project)
         layout.addLayout(output_row)
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
@@ -485,8 +478,6 @@ class MainWindow(QMainWindow):
             ("btn_export_texture_obj", "Export textured OBJ", lambda: self._export_texture("obj.zip")),
             ("btn_preview_3d", "View snapshot", self._preview_3d),
             ("btn_save_mesh", "Save Mesh", self._save_mesh),
-            ("btn_load_mesh", "Open Model", self._load_mesh),
-            ("btn_view_file", "Open Model", self._view_3d_file),
         ):
             button = QPushButton(title, container)
             button.clicked.connect(handler)
@@ -532,6 +523,16 @@ class MainWindow(QMainWindow):
         self.full_camera_recording_cb = QCheckBox("Record all camera frames (large files)")
         self.full_camera_recording_cb.setToolTip("Optional research recording of every RGB/depth frame: about 3.5 GB/min at high resolution, or 2.8 GB/min at VGA. Leave off for selected images plus the small accelerometer log.")
         vg.addWidget(self.full_camera_recording_cb)
+        self.orientation_combo = QComboBox()
+        for label, mode in (("Auto", "auto"), ("Landscape lock", "landscape"),
+                            ("Portrait left lock", "portrait_left"), ("Portrait right lock", "portrait_right")):
+            self.orientation_combo.addItem(label, mode)
+        self.orientation_combo.setToolTip("Auto follows gravity. Lock portrait when looking up/down or while recording.")
+        self.orientation_combo.currentIndexChanged.connect(self._change_orientation)
+        orientation_label = QLabel("Camera orientation")
+        orientation_label.setBuddy(self.orientation_combo)
+        vg.addWidget(orientation_label)
+        vg.addWidget(self.orientation_combo)
         self.gravity_tracking_cb = QCheckBox("Use accelerometer to assist tracking")
         self.gravity_tracking_cb.setToolTip("Optional gravity assistance for the RGB-D motion prediction. Auto portrait orientation works independently of this setting.")
         vg.addWidget(self.gravity_tracking_cb)
@@ -597,15 +598,12 @@ class MainWindow(QMainWindow):
         self.final_voxel_spin.setValue(0)
         self.final_voxel_spin.setSuffix(" mm")
         self.final_voxel_spin.setSpecialValueText("Use live resolution")
-        self.final_blocks_spin = QSpinBox()
-        self.final_blocks_spin.setRange(128, 50000)
-        self.final_blocks_spin.setValue(5000)
-        self.final_blocks_spin.setToolTip("5000 blocks uses about 391 MiB, plus live reconstruction and working memory.")
+        self.final_voxel_spin.setToolTip("Controls reconstruction detail. Storage is allocated automatically for the scanned surface.")
         self.weight_spin = QDoubleSpinBox()
         self.weight_spin.setRange(0.5, 20)
         self.weight_spin.setValue(2)
         self.weight_spin.setSingleStep(0.5)
-        for title, control in (("Live voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final memory budget (blocks)", self.final_blocks_spin), ("Final surface confidence", self.weight_spin)):
+        for title, control in (("Live voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final surface confidence", self.weight_spin)):
             label = QLabel(title)
             label.setBuddy(control)
             av.addWidget(label)
@@ -648,13 +646,20 @@ class MainWindow(QMainWindow):
         motion_calibration_btn.clicked.connect(self._load_accelerometer_calibration)
         ev.addWidget(motion_calibration_btn)
         settings_layout.addWidget(self.settings_group)
+        self.feedback_section = CollapsibleSection("Feedback")
+        self.scan_sounds_cb = QCheckBox("Scan sounds")
+        self.scan_sounds_cb.setChecked(self.capture_sound.enabled)
+        self.scan_sounds_cb.setToolTip("Capture confirmations, tracking-loss and recovery alerts. Toggle to mute or enable.")
+        self.scan_sounds_cb.toggled.connect(self.capture_sound.set_enabled)
+        self.feedback_section.content_layout.addWidget(self.scan_sounds_cb)
+        settings_layout.addWidget(self.feedback_section)
         diagnostics = CollapsibleSection("Tracking diagnostics")
         self.tracking_diagnostics_section = diagnostics
         dv = diagnostics.content_layout
         self.flow_debug_cb = QCheckBox("Show tracking flow")
         self.flow_debug_cb.setToolTip(
             "Show camera-side feature motion during scans with live reconstruction and color-assisted tracking. "
-            "Uses the calibrated RGB image on the depth grid."
+            "Includes trails across the last 20 camera frames on the calibrated depth grid."
         )
         self.flow_windows_cb = QCheckBox("Show LK patch windows")
         self.flow_windows_cb.setToolTip(
@@ -664,7 +669,7 @@ class MainWindow(QMainWindow):
         dv.addWidget(self.flow_debug_cb)
         dv.addWidget(self.flow_windows_cb)
         legend = QLabel(
-            "Green: verified motion · cyan: new corners · red: flow lost · "
+            "Green: verified motion · fading green: 20-frame trails · cyan: new corners · red: flow lost · "
             "orange: round-trip rejection · purple: depth rejection · yellow: geometry rejection. "
             "Camera motion is checked independently by the server before fusion."
         )
@@ -752,6 +757,11 @@ class MainWindow(QMainWindow):
         self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
         self.btn_export.setEnabled(connected and self._has_mesh and not busy)
         self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy)
+        self.btn_open_project.setEnabled(connected and not busy)
+        if hasattr(self, "open_project_action"):
+            self.open_project_action.setEnabled(self.btn_open_project.isEnabled())
+            self.save_project_action.setEnabled(self.btn_export_session.isEnabled())
+            self.save_project_as_action.setEnabled(self.btn_export_session.isEnabled())
         for button in (self.btn_export_ply, self.btn_export_obj, self.btn_export_glb,
                        self.btn_export_texture_obj, self.btn_save_mesh):
             button.setEnabled(connected and self._has_mesh and not busy)
@@ -798,7 +808,7 @@ class MainWindow(QMainWindow):
         elif self._build_pending:
             state = "Building final surface…"
         elif self._export_pending:
-            state = "Saving captured session…" if self._export_pending["kind"] == "session" else "Exporting final model…"
+            state = {"session": "Saving project…", "open": "Opening project…"}.get(self._export_pending["kind"], "Exporting final model…")
         elif self._final_preview_pending:
             state = "Loading final model for inspection…"
         elif self._preview_pending:
@@ -1220,7 +1230,6 @@ class MainWindow(QMainWindow):
                 final_voxel_m=self.final_voxel_spin.value() / 1000
                 if self.final_voxel_spin.value()
                 else None,
-                final_block_count=self.final_blocks_spin.value(),
                 roi=roi,
             )
         except ValueError as exc:
@@ -1252,6 +1261,7 @@ class MainWindow(QMainWindow):
         self._session_id = None if cancelled else result.get("session_id")
         self._session_settings = None if cancelled else result.get("settings")
         self._session_dirty = False
+        self._project_path = None
         self._capture_revision = self._saved_revision = 0
         self._sensor_counts_seen = {}
         self.sensor_recording_label.setText("" if cancelled else "Starting sensor recording…")
@@ -1476,7 +1486,12 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
         self.progress_bar.setVisible(True)
 
-        self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH))
+        options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None}
+        if self._session_settings:
+            self._session_settings = {**self._session_settings, **options}
+        self._session_dirty = True
+        self._capture_revision += 1
+        self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH, {"options": options}))
         self._refresh_controls()
 
     def _preview_scan(self):
@@ -1543,19 +1558,66 @@ class MainWindow(QMainWindow):
             })
         self._begin_export("mesh", path, ServerTask(task_type, kwargs))
 
-    def _export_session(self, checked=False):
+    def _save_project(self, checked=False):
+        return self._export_session(path=self._project_path)
+
+    def _export_session(self, checked=False, path=None):
         if self._export_pending or not self.server_client.is_connected:
             return False
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save captured session", os.path.join(self._ensure_export_dir(), "scan-session.zip"),
-            "ZIP files (*.zip)",
-        )
+        if path is None:
+            filename = f"scan-session_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.zip"
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save Project", self._project_path or os.path.join(self._ensure_export_dir(), filename),
+                "Scanner projects and sessions (*.zip)",
+            )
         if not path:
             return False
         options = {"path": path}
         if self._sensor_recording_path and hasattr(self.worker, "flush_sensor_recording"):
             options.update(sensor_recorder=self.worker, sensor_path=self._sensor_recording_path)
         return self._begin_export("session", path, ServerTask(ServerTaskType.EXPORT_SESSION, options))
+
+    def _open_project(self, checked=False, *, path=None, protected=False):
+        if not self.btn_open_project.isEnabled():
+            return
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(self, "Open Project or Session", self._ensure_export_dir(),
+                                                "Scanner projects and sessions (*.zip)")
+        if not path:
+            return
+        self._project_to_open = path
+        if not protected and not self._protect_session("open_project"):
+            return
+        self.auto_capture_cb.setChecked(False)
+        self._begin_export("open", path, ServerTask(ServerTaskType.OPEN_PROJECT, {"path": path}))
+
+    def _on_project_opened(self, status, path):
+        self._export_pending = None
+        self._pending_action = None
+        self._project_to_open = None
+        self.progress_bar.hide()
+        self._sensor_recording_path = None
+        self._sensor_counts_seen = {}
+        self._build_failed = False
+        self._restore_server_session(status)
+        self._scanning = False
+        self._project_path = path
+        self._saved_revision = self._capture_revision
+        self._session_dirty = False
+        self._configure_sensor_recording()
+        self.statusBar().showMessage(f"Opened project: {path}", 10000)
+        self._refresh_controls()
+
+    def _on_transfer_progress(self, phase, done, total):
+        if not self._export_pending:
+            return
+        self.progress_bar.setRange(0, 100 if total else 0)
+        self.progress_bar.setValue(int(done / total * 100) if total else 0)
+        self.progress_bar.setFormat(f"{phase}: %p%")
+        self.progress_bar.show()
+        detail = f"{phase}: {done / 1024**2:.1f}"
+        detail += f" / {total / 1024**2:.1f} MB" if total else " MB"
+        self.statusBar().showMessage(detail)
 
     def _begin_export(self, kind, path, task):
         restore_capture = (self._scanning, self._paused)
@@ -1591,7 +1653,7 @@ class MainWindow(QMainWindow):
             return True
         if dialog.choice == "save":
             self._pending_action = reason
-            if self._export_session():
+            if self._save_project():
                 self._export_pending["restore_capture"] = restore_capture
                 return False  # Continue only after the saved session is confirmed.
             self._pending_action = None
@@ -1606,30 +1668,6 @@ class MainWindow(QMainWindow):
         path = os.path.join(MESH_DIR, filename)
         self.btn_save_mesh.setEnabled(False)
         self.task_worker.submit(ServerTask(ServerTaskType.SAVE_MESH, {"path": path}))
-
-    def _load_mesh(self):
-        start_dir = MESH_DIR if os.path.isdir(MESH_DIR) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load Mesh",
-            start_dir,
-            "PLY files (*.ply);;All 3D files (*.obj *.ply *.stl *.glb)",
-        )
-        if path:
-            self.statusBar().showMessage(f"Opening: {path}")
-            launch_viewer_subprocess(path)
-
-    def _view_3d_file(self):
-        start_dir = EXPORT_DIR if os.path.isdir(EXPORT_DIR) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open 3D File",
-            start_dir,
-            "3D files (*.obj *.ply *.stl *.glb);;OBJ files (*.obj);;PLY files (*.ply);;STL files (*.stl)",
-        )
-        if path:
-            self.statusBar().showMessage(f"Opening: {path}")
-            launch_viewer_subprocess(path)
 
     # ── Task/server signal handlers ──────────────────────────────────
     def _on_server_status(self, status):
@@ -1723,7 +1761,7 @@ class MainWindow(QMainWindow):
             self._operation_error = f"Cannot restore scan settings: {exc}"
             return
         controls = (self.depth_near_spin, self.depth_far_spin, self.voxel_spin,
-                    self.final_voxel_spin, self.final_blocks_spin, self.weight_spin,
+                    self.final_voxel_spin, self.weight_spin,
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
                     self.orientation_combo, self.gravity_tracking_cb, self.full_camera_recording_cb,
@@ -1741,7 +1779,6 @@ class MainWindow(QMainWindow):
             self.voxel_spin.setValue(profile.voxel_m * 1000)
             self.final_voxel_spin.setMaximum(profile.voxel_m * 1000)
             self.final_voxel_spin.setValue((profile.final_voxel_m or 0) * 1000)
-            self.final_blocks_spin.setValue(profile.final_block_count)
             self.weight_spin.setValue(profile.final_weight)
             self.rgb_mode_combo.setCurrentIndex(self.rgb_mode_combo.findData(profile.rgb_mode))
             self.rgb_exposure_combo.setCurrentIndex(self.rgb_exposure_combo.findData(profile.rgb_exposure_mode))
@@ -1923,12 +1960,13 @@ class MainWindow(QMainWindow):
         action, self._pending_action = self._pending_action, None
         if success:
             if pending and pending["kind"] == "session":
+                self._project_path = path
                 self._saved_revision = pending["revision"]
                 self._session_dirty = self._capture_revision != self._saved_revision
             self.statusBar().showMessage(f"Saved: {path}", 10000)
             self._operation_error = ""
         else:
-            self._operation_error = "Save failed · scan retained; choose Save Session to retry"
+            self._operation_error = "Save failed · scan retained; choose Save Project to retry"
             self.statusBar().showMessage(f"Could not save {path}; current scan is retained.")
         if pending and (not action or not success):
             self._scanning, self._paused = pending["restore_capture"]
@@ -1942,6 +1980,8 @@ class MainWindow(QMainWindow):
         elif success and action == "close":
             self._close_approved = True
             self.close()
+        elif success and action == "open_project":
+            self._open_project(path=self._project_to_open, protected=True)
 
     def _on_save_mesh_done(self, success: bool, path: str):
         self.statusBar().showMessage(f"Saved: {path}" if success else f"Save failed: {path}", 10000)
@@ -1949,6 +1989,9 @@ class MainWindow(QMainWindow):
 
     def _on_task_started(self, msg: str):
         self.statusBar().showMessage(msg)
+        if self._export_pending:
+            self.progress_bar.setRange(0, 0)
+            self.progress_bar.show()
 
     def _on_task_error(self, msg: str):
         # Recording/report warnings are independent of build or inspection success.
@@ -1979,6 +2022,11 @@ class MainWindow(QMainWindow):
             self._resume_capture()
         elif task_type == "FINAL_PREVIEW":
             self._final_preview_pending = False
+        elif task_type == "OPEN_PROJECT":
+            pending, self._export_pending = self._export_pending, None
+            if pending:
+                self._scanning, self._paused = pending["restore_capture"]
+            self._configure_sensor_recording()
         elif task_type in ("EXPORT_PLY", "EXPORT_OBJ", "EXPORT_TEXTURE", "EXPORT_SESSION"):
             if self._export_pending:
                 self._on_export_done(False, self._export_pending["path"])

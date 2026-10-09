@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kinect-3d-scanner"
+version = "0.1.0"
+description = "Independent Kinect desktop client and reconstruction server"
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+
+[project.scripts]
+kinect-scanner-server = "scanner_server.__main__:main"
+
+[project.gui-scripts]
+kinect-scanner = "kinect_scanner.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["kinect_scanner*", "scanner_server*", "shared*", "calibration"]
+
+[tool.setuptools.package-data]
+"kinect_scanner.gui" = ["assets/*.wav"]
+calibration = ["*.json", "*.bin"]

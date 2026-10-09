@@ -14,6 +14,8 @@ import numpy as np
 import open3d as o3d
 import trimesh
 
+from .runtime import viewer_command
+
 # Movement/rotation step sizes (tuned for smoother control)
 _MOVE_STEP = 0.08
 _ROTATE_DEG = 5.0
@@ -174,7 +176,7 @@ def launch_viewer_subprocess(filepath: str):
     """Launch the viewer in a separate process. Returns immediately."""
     args = json.dumps({"mode": "file", "filepath": os.path.abspath(filepath)})
     subprocess.Popen(
-        [sys.executable, "-m", "kinect_scanner.viewer", args],
+        viewer_command(args),
         start_new_session=True,
     )
 
@@ -197,7 +199,7 @@ def launch_mesh_viewer(mesh, point_cloud):
 
     args = json.dumps({"mode": "mesh_data", "temp_path": tmp_path})
     subprocess.Popen(
-        [sys.executable, "-m", "kinect_scanner.viewer", args],
+        viewer_command(args),
         start_new_session=True,
     )
 
@@ -205,16 +207,22 @@ def launch_mesh_viewer(mesh, point_cloud):
 # ── Subprocess entry point ────────────────────────────────────────────
 
 
-def _main():
+def _main(arguments=None):
     """Entry point when invoked as ``python -m kinect_scanner.viewer <json>``."""
-    if len(sys.argv) < 2:
+    arguments = sys.argv[1:] if arguments is None else arguments
+    if len(arguments) != 1:
         print("Usage: python -m kinect_scanner.viewer '<json_args>'")
         sys.exit(1)
 
-    cfg = json.loads(sys.argv[1])
+    cfg = json.loads(arguments[0])
     mode = cfg.get("mode")
 
-    if mode == "file":
+    if mode == "check":
+        mesh = o3d.io.read_triangle_mesh(cfg["filepath"])
+        if not len(mesh.triangles):
+            raise RuntimeError("Mesh helper could not read triangles")
+        print("mesh helper ok", flush=True)
+    elif mode == "file":
         filepath = cfg["filepath"]
         if not show_file_preview(filepath):
             print(f"Failed to load: {filepath}")

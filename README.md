@@ -16,58 +16,70 @@
 
 ---
 
-## Run Client and Server on One Machine
+## Start the Client and Server Separately
 
-The client and server can run on the same computer over loopback HTTP and
-WebSocket connections. Install the dependencies from `requirements.txt` into a
-Python environment with working `freenect` bindings, then run from the repository:
+The client and server have independent entry points and lifetimes. Closing the
+client does not stop the server. Current launch support is a macOS desktop client
+and a manually started server on macOS or Windows. They can run on separate LAN
+machines or on the same Mac; use `localhost` in the client for a local server.
+
+For daily use on Mac, open **Kinect 3D Scanner.app** from Finder, Dock, or
+Applications. The app includes Python, Qt, Open3D, the freenect bindings and their
+USB libraries; it does not search for a virtual environment or start a server.
+It remembers the server address and port. Start the server independently, then
+click **Connect** in the client. Only one application should use the Kinect at a time.
+
+To build the client app, use an environment with working Kinect bindings and a
+full Xcode 26+ installation selected by `xcode-select` (including Icon Composer):
 
 ```bash
-python scripts/start_scanner.py
+python -m pip install -r requirements-packaging.txt
+python scripts/build_macos_client.py
 ```
 
-The launcher starts a server on `127.0.0.1:8000`, waits for its health check,
-opens the GUI, and connects automatically. Closing the GUI stops the server.
-Only one application should use the Kinect at a time.
+The build creates `dist/Kinect 3D Scanner.app` and runs a hardware-free startup
+check that exercises the real Qt window, synthetic capture in a spawned process,
+calibration/sound resources, preferences, shutdown, and the mesh helper process.
+Copy the entire `.app` to Applications. Rebuild after changing the source code.
+The icon source is `assets/icons/kinect-scanner-client.icon`, editable in Icon
+Composer. The build compiles it into `Assets.car` for native Tahoe rendering and
+generates a flattened PNG, all standard/Retina PNG sizes (16–1024 pixels), and an
+ICNS fallback for older macOS versions. The bundle includes the catalog and ICNS
+in `Contents/Resources`, with `CFBundleIconName` and `CFBundleIconFile` pointing
+to the custom icon. Shipping the native catalog avoids Tahoe's extra backing
+tile around legacy icons. To regenerate only the icon assets, run
+`python scripts/build_macos_icon.py` on macOS.
+The bundle targets the Mac architecture used to build it. It is signed locally
+for local use; distributing it to other users requires Developer ID signing and
+notarization. No Linux or Windows client bundles are provided yet.
 
-On macOS, **Start Scanner.command** can be opened from Finder. It uses the
-repository's `.venv/`, the parent folder's `.venv/`, an activated virtual
-environment, or `python3` from PATH, in that order. Finder launches do not
-require activating either local environment in Terminal first.
-For an environment located elsewhere, run the launcher with that environment's
-Python interpreter directly. The driver and compiled Python bindings must both
-be installed; the Python dependencies alone do not provide `freenect`.
+Client logs rotate in `~/Library/Logs/Kinect3DScanner/client.log`. The bundled
+client saves local recordings and preview meshes under
+`~/Library/Application Support/Kinect3DScanner/`; the default export folder is
+`~/Documents/Kinect 3D Scanner/export/`. Source runs retain the repository's
+`recordings/`, `mesh/`, and `export/` folders.
+
+For development, install the commands into your configured environment:
+
+```bash
+python -m pip install --no-deps -e .
+kinect-scanner-server
+# In a separate terminal, using the client environment:
+kinect-scanner
+```
+
+The module commands `python -m scanner_server` and `python -m kinect_scanner`
+also remain available. Installation/build are explicit steps; startup never
+installs packages or compiles extensions. See the separate setup sections below
+for each component's dependencies.
 
 The software has been checked on Apple Silicon macOS with Python 3.13 and
-Open3D 0.20. A tested dependency snapshot is in `requirements-macos-lock.txt`:
+Open3D 0.20. `requirements-macos-lock.txt` records the tested Mac dependencies;
+`freenect` must be compiled separately before building the app. Synthetic checks
+cover reconstruction and the client workflow; live capture and mesh building
+have also been exercised on Kinect v1 hardware. Reconstruction quality depends
+on overlap, camera calibration, and the subject's geometry.
 
-```bash
-python -m pip install -r requirements-macos-lock.txt
-```
-
-This snapshot excludes `freenect`, which must be compiled separately. Synthetic
-checks cover reconstruction and the client workflow; live capture and mesh
-building have also been exercised on Kinect v1 hardware. Reconstruction quality
-depends on overlap, camera calibration, and the subject's geometry.
-
-The launcher uses four OpenMP threads and an initial 5,000-block TSDF allocation
-(roughly 400 MB of voxel attributes, plus overhead). Larger scans may need more
-blocks. These environment variables can override its defaults:
-
-| Variable | Launcher default | Purpose |
-|----------|------------------|---------|
-| `KINECT_SERVER_PORT` | `8000` | Local server and client port |
-| `KINECT_BLOCK_COUNT` | `5000` | Initial TSDF block budget |
-| `KINECT_MAX_FRAMES` | `500` | Stored-frame limit per session |
-| `OMP_NUM_THREADS` | `4` | OpenMP/native kernel threads; Open3D 0.20 uses its separate TBB policy |
-| `KINECT_NATIVE` | `auto` | Use installed C++ kernels; `off` selects NumPy, `on` requires native |
-
-```bash
-KINECT_SERVER_PORT=8001 KINECT_BLOCK_COUNT=10000 python scripts/start_scanner.py
-```
-
-Client and server output is saved in `logs/`, which is excluded from Git along
-with exports, meshes, virtual environments, and local environment files.
 The client reports missing hardware and retries automatically. Camera acquisition
 runs in an isolated process: a stalled USB driver times out and restarts, and
 cannot prevent the window from closing. RGB/depth pairing uses the Kinect v1's
@@ -102,7 +114,9 @@ finished mesh after a build. Final inspection downloads the actual final mesh,
 including any enabled final refinement, rather than an earlier preview.
 
 The point cloud offers visible **Follow**, **Orbit**, **Color**, **Shape**, and
-**Fit View** controls. In Orbit, drag to rotate and scroll to zoom. **Details**
+**Fit View** controls. In Orbit, left drag to rotate and scroll to zoom. Pan with
+right drag (secondary-click and drag on a trackpad), middle drag, or Shift+left
+drag. **Fit View** resets rotation, zoom, and pan. **Details**
 shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
 crop. **Minimum capture interval** sets the fastest automatic cadence. Live
@@ -123,9 +137,12 @@ view reports tracks kept/added/retired and their lifetimes.
 
 **Space** pauses/resumes capture and **C** captures in Manual mode, except while
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
-or plain OBJ; texture choices appear in that dialog. **Open Model…** opens a file.
-**Save Session…** preserves lossless observations for replay. New Scan, Cancel Scan and close
-offer Save Session / Discard / Cancel for unsaved captures, and continue only
+or plain OBJ; texture choices appear in that dialog. **Inspect Scan** previews the current scan.
+**Open Project…** reopens a saved ZIP, including older session ZIPs, without a Kinect connected.
+**Save Project** (Cmd/Ctrl+S) keeps lossless captures, calibration, settings, poses, diagnostics,
+sensor observations and the finished mesh. **File → Save Project As…** saves another copy.
+Projects use the same ZIP format as sessions; the finished mesh is an additional optional member.
+New Scan, Open Project, Cancel Scan and close offer Save project / Discard / Cancel, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
 paused; a failed build offers retry or resumed capture without resetting frames.
 
@@ -148,7 +165,7 @@ synthetic input and an offscreen Qt platform; it does not open a 3D viewer.
 Configure near/far clipping, voxel size, final surface confidence, optional central
 crop, RGB capture mode, and calibration **before starting a scan**. These settings
 now affect reconstruction. Capture fresh overlapping views while moving the
-Kinect around a stationary subject. **Save Session** keeps selected RGB-D images
+Kinect around a stationary subject. **Save Project** keeps selected RGB-D images
 and a continuous accelerometer/timing log for later reanalysis. Full camera-stream
 recording is optional and off by default. “Also keep selected captures locally”
 creates a separate local recording too. Recordings stay outside Git.
@@ -203,7 +220,7 @@ With the scanner closed, test a manual shutter and gain directly:
 python scripts/check_camera.py --exposure manual --shutter-speed 250 --gain 2
 ```
 
-**Scan sounds** in the toolbar plays a short confirmation when captured
+**Scan sounds** in the sidebar’s **Feedback** section plays a short confirmation when captured
 frames reach the server, in Automatic and Manual modes. Click it to mute; the
 preference is remembered. A batch of frames uses one cue, and rapid confirmations
 do not overlap. Skipped, rejected or failed uploads stay silent. Tracking loss
@@ -271,11 +288,25 @@ keyframe preparation caching and lazy model preparation. The launcher detects
 the existing virtual environment, starts a hidden server, checks health and
 writes logs under `logs/`. Use `-Recipe baseline` for the CUDA tracking control;
 see the experiment report for full scan timings and geometry checks.
+
+Server starts, shutdown signals, Python exception tracebacks and exit summaries
+are appended to `logs/server.lifecycle.log`. Native fatal errors also write
+Python thread stacks to stderr (`logs/server.stderr.log` with the CUDA launcher),
+including failures during interpreter teardown. Set `KINECT_LOG_DIR` to change
+the lifecycle diagnostic directory.
+The Windows CUDA launcher keeps a separate supervisor running after startup;
+it records the child server's exit code even when the server is forcibly killed.
+Other launch methods can use `python -m scanner_server.supervisor` with the same
+server arguments. Windows native crash status codes are decoded where known.
+An external kill does not always identify its cause or the program responsible.
+If the entire process tree is killed, or the machine loses power, the supervisor
+cannot write a final event either; the last start will have no matching exit.
+
 The optional `-Recipe adaptive` tries verified ORB tracking before SIFT fallback.
 Its measured fast-preview profile uses **Live voxel 10 mm / Final voxel 5 mm**
 in the client's advanced scan settings. Finish still uses the original recorded
 views at 5 mm; the live preview is coarser. The measured profile also uses a
-**10,000-block final budget** and **Final surface confidence 2**. See the experiment report for the
+**Final surface confidence 2**. Final volume storage is allocated automatically from the measured scan extent and available RAM/GPU memory. The historical benchmark used a 10,000-block cap. See the experiment report for the
 CPU/CUDA comparison, retained views and restrictions. Adaptive fallback is
 enabled only for that validated resolution pair; other settings use ORB.
 Add `-CudaInput auto` to accelerate calibrated native RGB/depth preparation on
@@ -304,12 +335,17 @@ texture. PLY preserves vertex colors. Textured exports use a separately simplifi
 mesh, defaulting to 50,000 triangles, a 1024-pixel atlas, and up to 24 RGB views.
 They preserve the full final mesh for PLY/plain OBJ export.
 
-**Save Session** packages lossless selected images, calibration, settings,
-estimated poses, diagnostics, and the client's continuous accelerometer log,
+**Save Project** packages lossless selected images, calibration, settings,
+estimated poses, diagnostics, the finished mesh when available, and the client's continuous accelerometer log,
 including failed reads. Camera images are saved only for selected captures by
 default. Live visual tracking can process intermediate images without retaining
 them all on disk. Normal archive size depends on the selected captures; the motion
-log adds a small amount of text data.
+log adds a small amount of text data. Opening restores saved poses by fresh fusion and keeps capture paused; a saved final mesh is immediately available for export. Independent sensor observations remain in the project when it is saved again.
+
+Saving reports preparation, download progress in MB, disk completion and sensor merging.
+Downloads stream into a temporary file and replace the destination only after completion.
+Client logs record preparation/download/disk timings; server logs record image encoding.
+A slow connection can take much longer to download an archive than it takes to encode it.
 
 **Record all camera frames (large files)** is an explicit, off-by-default option
 for research requiring exact intermediate-frame replay. Only this option adds
@@ -337,7 +373,17 @@ off-by-default **Use accelerometer to assist tracking** checkbox in scan setting
 Enabling this checkbox adds a bounded roll/pitch correction
 to the existing RGB-D initializer and retains the normal acceptance checks.
 The factory sensor axes are provisional; load a measured accelerometer profile
-for stronger assistance. Hardware orientation/performance and tracking gains
+for stronger assistance. To record and fit one with step-by-step terminal
+guidance, close the scanner and run in its Python environment:
+
+```bash
+python scripts/calibrate_accelerometer.py --interactive --output ~/Documents/measured-accelerometer.json
+```
+
+Follow the nine physical positioning prompts, then select the output JSON with
+**Load Accelerometer Calibration…** before scanning. Keep the head tilt fixed;
+independent camera-axis alignment checks are required for a verified profile.
+Hardware orientation/performance and tracking gains
 still need validation; see the [implementation and calibration guide](docs/KINECT_ACCELEROMETER.md).
 **Reconnect separated views at Finish** is enabled for new GUI scans. Finish
 reconstructs local fragments from retained raw frames, verifies overlapping
@@ -421,7 +467,8 @@ Ready ──> Start Scan ──> Capture ↔ Pause ──> Finish Scan ──> I
 3. Click **Start Scan** and move the Kinect around the stationary subject. In Manual, use **Capture Frame**.
 4. Pause/resume as needed, or **Cancel Scan** to return to setup without building. **Inspect Scan** temporarily suspends capture to prepare a mesh snapshot.
 5. Click **Finish Scan**. The finished mesh opens for inspection; failed builds retain captures for retry/resume.
-6. Use **Export…** for a model or **Save Session…** for replayable source captures.
+6. Use **Export…** for a model or **Save Project…** for a reopenable ZIP. **Open Project…** accepts existing session recordings too.
+7. **Final voxel size** controls reconstruction detail; the app measures scene extent and allocates volume storage automatically. Old session block counts are accepted for compatibility and do not limit reconstruction. If memory is insufficient, the build reports estimated/available RAM or GPU memory before fusion and retains the scan. Choose a coarser final voxel or free memory on the processing machine, then **Retry Build**.
 
 ---
 
@@ -468,26 +515,29 @@ reconstruction tests can finish successfully, then Python exits with
 `CUDA runtime error: driver shutting down`. During Windows validation, the
 server regression assertions and synthetic HTTP scan/exports passed, but the
 regression process exited abnormally during CUDA teardown. Explicit cache cleanup did not
-resolve the exit error. The background launcher's printed process-tree stop
-command terminates the server without relying on Open3D's teardown.
+resolve the exit error. For a server that fails to exit during CUDA teardown,
+stop its process through Windows Task Manager.
 
-Double-click **Start Server.cmd**, or run:
+Install the server command after the dependencies and native extension:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1
+.\.venv\Scripts\python.exe -m pip install --no-deps -e .
+.\.venv\Scripts\kinect-scanner-server.exe --device cuda --native on --tracking tensor --threads 8
 ```
 
-The launcher requires CUDA and the compiled native extension, binds to
-`0.0.0.0:8000`, and starts with 5,000 voxel blocks, 500 stored frames, and eight
-OpenMP threads. Existing environment variables override these defaults. Press
-Ctrl+C to stop. Add `-Background` to run hidden with output in
-`logs/server-<port>.*.log`; the launcher waits up to three minutes for health,
-then prints the process ID and stop command. It rejects an occupied port before
-starting another process. For example, select a different port before launch:
+Those explicit options require CUDA and native kernels, so missing components
+fail visibly. Without options, startup selects available CPU/CUDA and optional
+native kernels automatically. The shared startup defaults are port 8000, 5,000
+voxel blocks, 500 stored frames and four OpenMP threads. CLI options override
+existing environment variables. Press Ctrl+C to stop.
+
+For a source-checkout shortcut, double-click **Start Server.cmd**. It uses only
+that checkout's `.venv` and the same Python startup policy. The optional
+`scripts/start_server.ps1` wrapper forwards the same arguments. Neither wrapper
+starts the client or creates a hidden background process.
 
 ```powershell
-$env:KINECT_SERVER_PORT = "8001"
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_server.ps1 -Background
+.\.venv\Scripts\kinect-scanner-server.exe --device cuda --native on --port 8001
 ```
 
 Check `http://127.0.0.1:8000/api/health` for `device: CUDA:0`, tensor tracking,
@@ -537,19 +587,45 @@ still performs tracking, volume allocation, extraction, and CUDA integration.
 See [native backend measurements](docs/NATIVE_PERFORMANCE.md) for recorded-session
 comparisons and reproduction commands.
 
-### Run
+### Run (macOS and Windows)
+
+Install dependencies from the appropriate server requirements file, then install
+this project's command. On macOS, a fresh environment can be set up with:
 
 ```bash
-python -m scanner_server
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-server.txt
+.venv/bin/python -m pip install ./native
+.venv/bin/python -m pip install --no-deps -e .
+.venv/bin/kinect-scanner-server
 ```
 
-The server listens on `0.0.0.0:8000` by default.
+The server stays in the foreground and prints startup status and request logs.
+Ctrl+C stops it. The installed command works from any directory; alternatively,
+run `python -m scanner_server` from the checkout. On Windows use the commands in
+the Windows setup section above. Standalone server executables are not bundled
+in this version; the installed Python command is the supported launch path.
 
-For standalone processes, `KINECT_SERVER_HOST` and `KINECT_SERVER_PORT`
-configure the server's bind address and the client's connection fields.
-`KINECT_AUTOCONNECT=1` makes the client connect on startup. The standalone
-server retains a 50,000-block TSDF default; use `KINECT_BLOCK_COUNT` to change
-it. The combined launcher always binds to `127.0.0.1`.
+The server binds to `0.0.0.0:8000` by default, allowing LAN connections. Use
+`--host 127.0.0.1` when only local connections are needed. The client uses a
+concrete server hostname/IP, such as `localhost`, rather than the bind address.
+macOS uses the CPU backend when CUDA is unavailable.
+
+| CLI option | Environment fallback | Default |
+|------------|----------------------|---------|
+| `--host` | `KINECT_SERVER_HOST` | `0.0.0.0` |
+| `--port` | `KINECT_SERVER_PORT` | `8000` |
+| `--device` | `KINECT_DEVICE` | `auto` (`auto`, `cpu`, `cuda`) |
+| `--tracking` | `KINECT_TRACKING` | `auto` (`auto`, `legacy`, `tensor`) |
+| `--native` | `KINECT_NATIVE` | `auto` (`auto`, `off`, `on`) |
+| `--threads` | `OMP_NUM_THREADS` | `4` |
+| `--block-count` | `KINECT_BLOCK_COUNT` | `5000` |
+| `--max-frames` | `KINECT_MAX_FRAMES` | `500` |
+
+CLI options override environment variables. Invalid settings fail before the
+server loads its reconstruction dependencies. Advanced backend settings remain
+available through their existing environment variables. `scripts/start_cuda_server.ps1`
+is a separate research tool for measured CUDA recipes, not the normal server entry point.
 
 ### API Endpoints
 
@@ -567,7 +643,8 @@ it. The combined launcher always binds to `127.0.0.1`.
 | `GET` | `/api/scan/export/obj` | Download mesh as vertex-colored OBJ |
 | `GET` | `/api/scan/export/glb` | Download UV-textured GLB |
 | `GET` | `/api/scan/export/obj.zip` | Download OBJ/MTL/PNG texture bundle |
-| `GET` | `/api/scan/export/session` | Download lossless RGB-D session ZIP |
+| `GET` | `/api/scan/export/session` | Download project ZIP with lossless RGB-D captures and optional final mesh |
+| `POST` | `/api/scan/project` | Upload and open a project/session ZIP; invalid archives retain the active scan |
 | `WebSocket` | `/ws/progress` | Build/preview progress and bounded live geometry |
 
 ---
@@ -603,11 +680,13 @@ cd ../wrappers/python && pip install .
 python -m kinect_scanner
 ```
 
-On macOS, double-click **Start Client.command** in Finder to open only the client.
-It uses the repository's `.venv/`, the parent folder's `.venv/`, an activated
-virtual environment, or `python3` from PATH, in that order. Enter the server's
-LAN IP address and port in the GUI, then click **Connect**. **Start Scanner.command**
-continues to start both the client and a local server.
+For daily use on macOS, open **Kinect 3D Scanner.app**; see the build steps at
+the top of this README. For development, install `python -m pip install --no-deps -e .`
+and run `kinect-scanner` in the client environment. Both launch only the client.
+Enter the server's LAN hostname/IP and port in the GUI, then click **Connect**.
+The client remembers these fields across launches. `KINECT_SERVER_HOST` and
+`KINECT_SERVER_PORT` override the saved connection fields for source runs;
+`KINECT_AUTOCONNECT=1` optionally connects on startup.
 
 ### View Modes
 

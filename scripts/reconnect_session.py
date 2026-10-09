@@ -77,7 +77,7 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--save-session", action="store_true", help="Also export a new ZIP with recovery diagnostics")
     parser.add_argument("--final-weight", type=float, help="Override final surface confidence")
-    parser.add_argument("--block-budget", type=int, help="Maximum blocks for verified fresh fusion (1–50000)")
+    parser.add_argument("--block-budget", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--use-pose-seeds", action="store_true",
                         help="Revalidate archived pose guesses instead of repeating live tracking")
     parser.add_argument("--bundle-adjustment", action="store_true",
@@ -94,7 +94,7 @@ def main():
     if args.final_weight is not None:
         engine.settings = replace(engine.settings, final_weight=args.final_weight)
     if args.block_budget is not None:
-        engine.settings = replace(engine.settings, final_block_count=args.block_budget)
+        print("--block-budget is obsolete; fusion storage is allocated automatically.", flush=True)
     if args.bundle_adjustment:
         engine.settings = replace(engine.settings, bundle_adjustment=True)
     args.output_dir.mkdir(parents=True, exist_ok=True)
