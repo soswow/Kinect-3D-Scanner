@@ -134,6 +134,12 @@ it does not save camera images.
 The **Scan**, **Color**, and **Depth** views show the reconstruction or a full
 camera preview. In Scan view, the fused point cloud is prominent and the color
 and depth camera previews are stacked beside it, with color above depth.
+The **Logs** view after Depth shows timestamped connection, capture,
+reconstruction, save and diagnostic messages while capture continues. It keeps
+the latest 2,000 lines; **Copy Logs** copies the visible history and **Clear Logs**
+clears it without changing the log files on disk. Scan state, progress and
+actionable viewer warnings remain visible. Hover over settings and their labels
+for help, or the **Fused point cloud** title for the preview surface explanation.
 Choose **Automatic** or **Manual** before **Start Scan**.
 Automatic capture starts when the server acknowledges the new session; Manual
 offers **Capture Frame**. Keep the subject stationary and move the Kinect slowly
@@ -155,7 +161,7 @@ shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
 crop. **Minimum capture interval** sets the fastest automatic cadence. Live
 capture slows to match recent processing and upload/feedback times, with the
-adjusted pace shown below the interval. It allows one processing frame and one
+adjusted pace available by hovering over the interval. It allows one processing frame and one
 waiting capture, including uploads, and waits if live feedback disconnects.
 Move more slowly at longer intervals to preserve overlap between views.
 

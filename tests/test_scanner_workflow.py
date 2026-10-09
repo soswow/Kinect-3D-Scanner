@@ -65,6 +65,48 @@ class ScannerWorkflowTests(unittest.TestCase):
     def task_types(self):
         return [task.task_type for task in self.window.task_worker.tasks]
 
+    def test_logs_view_keeps_capture_running_and_receives_progress(self):
+        self.retain_scan()
+        self.window._switch_mode("logs")
+        self.assertIs(self.window.view_stack.currentWidget(), self.window.logs_panel)
+        self.assertEqual(["Scan", "Color", "Depth", "Logs"],
+                         [action.text() for action in self.window._mode_actions])
+        self.fresh_frame()
+        self.window._on_process_progress(1, 3, {"message": "Tracking accepted", "frame_count": 3})
+        self.assertTrue(self.window._scanning)
+        self.assertFalse(self.window._paused)
+        self.assertIs(self.window.view_stack.currentWidget(), self.window.logs_panel)
+        self.assertIn("Tracking accepted", self.window.logs_panel.text.toPlainText())
+        self.assertEqual("", self.window.statusBar().currentMessage())
+        self.window._switch_mode(main_window.MODE_DEPTH)
+        self.assertIs(self.window.view_stack.currentWidget(), self.window.splitter)
+
+    def test_empty_camera_has_one_error_and_stale_image_retains_warning(self):
+        self.window._last_rgb = None
+        self.window.view_label._image = None
+        self.window._on_error("Connect USB and external power.")
+        self.assertEqual("Connect USB and external power.", self.window.view_label.text())
+        self.assertTrue(self.window.view_label.stale_label.isHidden())
+        self.assertEqual("", self.window.statusBar().currentMessage())
+        self.fresh_frame()
+        self.window._on_error("Camera disconnected")
+        self.assertFalse(self.window.view_label.stale_label.isHidden())
+
+    def test_field_help_is_on_hover_and_recovery_guidance_stays_visible(self):
+        self.assertTrue(self.window.interval_help.isHidden())
+        self.assertTrue(self.window.readiness_label.isHidden())
+        self.assertTrue(self.window.guidance_label.isHidden())
+        self.assertIn("sharp recent frame", self.window.auto_capture_spin.toolTip())
+        self.assertIn("closer", self.window.depth_near_spin.toolTip())
+        self.retain_scan()
+        self.window._switch_mode(main_window.MODE_RGB)
+        self.window._on_live_updated({"session_id": "retained", "fusion_paused": True,
+                                      "guidance": "Return to the last good view"})
+        self.assertFalse(self.window.guidance_label.isHidden())
+        self.window._switch_mode("logs")
+        self.window._refresh_status()
+        self.assertTrue(self.window.guidance_label.isHidden())
+
     def test_manual_rgb_exposure_is_in_scan_settings_and_locked_during_scan(self):
         self.window.rgb_exposure_combo.setCurrentIndex(self.window.rgb_exposure_combo.findData("manual"))
         self.window.rgb_shutter_spin.setValue(250)

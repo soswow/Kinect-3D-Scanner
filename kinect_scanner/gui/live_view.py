@@ -250,7 +250,8 @@ class LiveView(QWidget):
             + (f" · return to Frame {s['last_tracked_index'] + 1}" if lost and s.get("last_tracked_index") is not None else "")
         )
         self.surface_label.setText(s.get("surface_description", ""))
-        self.surface_label.setVisible(bool(s.get("surface_description")))
+        self.surface_label.hide()
+        self.title_label.setToolTip(s.get("surface_description", ""))
         lag = result.get("metadata", {}).get("rgb_depth_delta_ms")
         sync_warning = (s.get("color_assistance_requested") and lag is not None
                         and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS)

@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -52,6 +53,7 @@ from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
+from .logs import LogsPanel
 from .preferences import ScannerPreferences
 from .tracking_debug import flow_image, flow_summary
 from .widgets import (
@@ -167,8 +169,8 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self.capture_sound = CaptureSound(self, settings=self.preferences.settings)
         self._build_toolbar()
-        self._build_dock()
         self._build_statusbar()
+        self._build_dock()
         self._restore_preferences()
 
         self._fps_timer = QTimer(self)
@@ -361,17 +363,20 @@ class MainWindow(QMainWindow):
         self.guidance_label.setWordWrap(True)
         self.guidance_label.setAccessibleName("Scanning guidance")
         layout.addWidget(self.guidance_label)
+        self.guidance_label.hide()
         self.camera_panel = QWidget()
         camera_layout = QVBoxLayout(self.camera_panel)
         camera_layout.setContentsMargins(0, 0, 0, 0)
         self.camera_title = QLabel("Live camera · Color")
         camera_layout.addWidget(self.camera_title)
-        self.sensor_status_label = QLabel("Orientation: waiting for acceleration")
+        # Keep diagnostic values available to integrations; display them in tooltips/logs.
+        self.sensor_status_label = QLabel("Orientation: waiting for acceleration", self.camera_panel)
         self.sensor_status_label.setWordWrap(True)
-        camera_layout.addWidget(self.sensor_status_label)
-        self.sensor_recording_label = QLabel()
+        self.sensor_status_label.hide()
+        self.sensor_recording_label = QLabel(self.camera_panel)
         self.sensor_recording_label.setWordWrap(True)
         camera_layout.addWidget(self.sensor_recording_label)
+        self.sensor_recording_label.hide()
         self.view_label = CameraPreview()
         camera_layout.addWidget(self.view_label, stretch=1)
         self.scan_depth_panel = QWidget()
@@ -393,7 +398,13 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.camera_panel)
         self.splitter.setStretchFactor(0, 3)
         self.splitter.setStretchFactor(1, 1)
-        layout.addWidget(self.splitter, stretch=1)
+        self.view_stack = QStackedWidget()
+        self.view_stack.addWidget(self.splitter)
+        self.logs_panel = LogsPanel()
+        self.view_stack.addWidget(self.logs_panel)
+        layout.addWidget(self.view_stack, stretch=1)
+        self.view_label.setToolTip(self.guidance_label.text())
+        self.camera_title.hide()
 
     def _build_toolbar(self):
         menu = self.menuBar().addMenu("File")
@@ -409,7 +420,7 @@ class MainWindow(QMainWindow):
         group = QActionGroup(self)
         group.setExclusive(True)
         self._mode_actions = []
-        for title, mode in (("Scan", MODE_SCANNER), ("Color", MODE_RGB), ("Depth", MODE_DEPTH)):
+        for title, mode in (("Scan", MODE_SCANNER), ("Color", MODE_RGB), ("Depth", MODE_DEPTH), ("Logs", "logs")):
             action = QAction(title, self)
             action.setData(mode)
             action.setCheckable(True)
@@ -466,9 +477,11 @@ class MainWindow(QMainWindow):
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.auto_capture_spin)
         layout.addWidget(self.interval_row)
-        self.interval_help = QLabel("Selects a sharp recent frame; slows to match live reconstruction.")
+        self.interval_help = QLabel("Selects a sharp recent frame; slows to match live reconstruction.", container)
         self.interval_help.setWordWrap(True)
-        layout.addWidget(self.interval_help)
+        self.interval_help.hide()
+        interval_label.setToolTip(self.interval_help.text())
+        self.interval_label = interval_label
         self.adaptive_capture_cb = QCheckBox(container)
         self.adaptive_capture_cb.setChecked(True)
         self.adaptive_capture_cb.hide()
@@ -517,9 +530,9 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
-        self.readiness_label = QLabel("Connect the server and wait for live camera frames.")
+        self.readiness_label = QLabel("Connect the server and wait for live camera frames.", container)
         self.readiness_label.setWordWrap(True)
-        layout.addWidget(self.readiness_label)
+        self.readiness_label.hide()
         # Old command entry points remain for API/pipeline compatibility, without UI duplication.
         for name, title, handler in (
             ("btn_export_ply", "Export PLY", self._export_ply),
@@ -718,13 +731,12 @@ class MainWindow(QMainWindow):
         )
         dv.addWidget(self.flow_debug_cb)
         dv.addWidget(self.flow_windows_cb)
-        legend = QLabel(
+        legend_text = (
             "Green: verified motion · fading green: 20-frame trails · cyan: new corners · red: flow lost · "
             "orange: round-trip rejection · purple: depth rejection · yellow: geometry rejection. "
             "Camera motion is checked independently by the server before fusion."
         )
-        legend.setWordWrap(True)
-        dv.addWidget(legend)
+        self.flow_debug_cb.setToolTip(self.flow_debug_cb.toolTip() + "\n" + legend_text)
         self.flow_debug_status = QLabel()
         self.flow_debug_status.setWordWrap(True)
         self.flow_debug_status.setAccessibleName("Camera tracking diagnostics")
@@ -766,14 +778,34 @@ class MainWindow(QMainWindow):
         self.depth_far_spin.valueChanged.connect(self._validate_setup)
         self.voxel_spin.valueChanged.connect(self._validate_setup)
         self.final_voxel_spin.valueChanged.connect(self._validate_setup)
+        self._add_field_tooltips(container)
         self._capture_mode_changed()
 
+    def _add_field_tooltips(self, container):
+        for control, help_text in (
+            (self.capture_mode_combo, "Automatic selects sharp recent frames at the minimum interval. Manual captures one frame when you press C or Capture Frame."),
+            (self.depth_near_spin, "Ignore surfaces closer than this distance from the Kinect."),
+            (self.depth_far_spin, "Ignore surfaces farther than this distance from the Kinect."),
+            (self.crop_cb, "Only reconstruct the central region of the depth image."),
+            (self.crop_spin, "Width and height of the central region, as a percentage of the image."),
+            (self.rgb_mode_combo, "Choose more color detail at 10 fps or smoother camera motion at 30 fps."),
+            (self.rgb_exposure_combo, "Auto adjusts exposure to available light. Manual lets you choose shutter speed and gain."),
+            (self.voxel_spin, "Smaller voxels show finer detail and use more reconstruction memory."),
+            (self.weight_spin, "Higher confidence removes weakly observed surface from the final model; scan areas from overlapping views."),
+            (self.live_cb, "Show the fused point cloud and tracking feedback while scanning."),
+            (self.server_ip_edit, "Address of the computer running the reconstruction server."),
+            (self.server_port_spin, "Port used by the reconstruction server (usually 8000)."),
+        ):
+            control.setToolTip(help_text)
+        for label in container.findChildren(QLabel):
+            if label.buddy() is not None:
+                label.setToolTip(label.buddy().toolTip())
+
     def _build_statusbar(self):
-        self.statusBar().showMessage("Ready")
         self.fps_label = QLabel("FPS: --")
-        self.kinect_label = QLabel("Kinect: connecting...")
+        self.kinect_label = QLabel("Kinect: connecting...", self)
         self.statusBar().addPermanentWidget(self.fps_label)
-        self.statusBar().addPermanentWidget(self.kinect_label)
+        self.kinect_label.hide()
 
     def _set_scan_controls_enabled(self, enabled: bool):
         if not enabled:
@@ -834,6 +866,8 @@ class MainWindow(QMainWindow):
         else:
             reason = "Space: pause/resume · C: capture in Manual mode"
         self.readiness_label.setText(reason)
+        self.scan_status_label.setToolTip(reason)
+        self.fps_label.setToolTip(self.kinect_label.text())
         self.btn_start_scan.setToolTip(reason if not self.btn_start_scan.isEnabled() else "Begin a new capture session")
         self.btn_connect.setEnabled(not (self._connect_pending or self._reset_pending or self._build_pending
                                         or self._preview_pending or self._export_pending or self._final_preview_pending))
@@ -896,12 +930,21 @@ class MainWindow(QMainWindow):
             state = "Scan retained · resume capture or finish"
         else:
             state = "Ready to scan" if self._camera_ready() else "Waiting for camera"
+        self.auto_capture_spin.set_capture_help(self.interval_help.text())
+        self.interval_label.setToolTip(self.interval_help.text())
+        if self.scan_status_label.text() != state:
+            self.logs_panel.append(state, "Scan")
         self.scan_status_label.setText(state)
+        self.guidance_label.setVisible(
+            self._scanning and self.live_view.isHidden()
+            and self.view_stack.currentWidget() is self.splitter
+            and (bool(self.live_view.snapshot.get("fusion_paused")) or not self._progress_link_ok)
+        )
 
     def _capture_mode_changed(self):
         automatic = self.capture_mode_combo.currentData() == "automatic"
         self.interval_row.setVisible(automatic)
-        self.interval_help.setVisible(automatic)
+        self.interval_help.hide()
         self.btn_capture.setVisible(not automatic)
         self.auto_capture_cb.setChecked(automatic and self._scanning)
         self._capture_waiting = ""
@@ -1014,7 +1057,7 @@ class MainWindow(QMainWindow):
         self._progress_link_ok = True
         self.live_view.set_feedback_connected(True)
         self._set_scan_controls_enabled(True)
-        self.statusBar().showMessage("Connected to reconstruction server", 4000)
+        self._show_message("Connected to reconstruction server", 4000)
 
     def _on_server_disconnected(self, reason: str):
         self._start_when_camera_ready = False
@@ -1027,7 +1070,7 @@ class MainWindow(QMainWindow):
         self.server_status_label.setStyleSheet("color: #b4382c;")
         self._set_scan_controls_enabled(False)
         self.connection_section.toggle.setChecked(True)
-        self.statusBar().showMessage(f"Server: {reason}")
+        self._show_message(f"Server: {reason}")
 
     def _on_websocket_status(self, state, detail):
         if not self.server_client.is_connected or self._closing:
@@ -1041,12 +1084,21 @@ class MainWindow(QMainWindow):
             if self._reconcile_on_status:
                 self._poll_server_status()
         self.server_status_label.setText("Connected" if self._progress_link_ok else "Connected · live feedback reconnecting")
-        self.statusBar().showMessage(detail, 5000)
+        self.logs_panel.append(detail, "Connection")
+        self._refresh_status()
 
     def _switch_mode(self, mode: str):
+        self.view_stack.setCurrentWidget(self.logs_panel if mode == "logs" else self.splitter)
+        for action in self._mode_actions:
+            action.setChecked(action.data() == mode)
+        if mode == "logs":
+            self.guidance_label.hide()
+            self.logs_panel.flush()
+            return
         self._mode = mode
+        self.camera_title.setVisible(mode == MODE_SCANNER)
         self.live_view.setVisible(mode == MODE_SCANNER and bool(self._session_id) and self.live_cb.isChecked())
-        self.guidance_label.setVisible(self.live_view.isHidden())
+        self.guidance_label.hide()
         if self.live_view.isVisible():
             self.splitter.setSizes([max(300, self.splitter.width() * 2 // 3), max(240, self.splitter.width() // 3)])
         self.camera_title.setText("Camera off" if self._camera_suspended else
@@ -1070,6 +1122,8 @@ class MainWindow(QMainWindow):
         if self._closing or self._camera_suspended:
             return
         self._fps_counter += 1
+        if not self._camera_ok:
+            self.logs_panel.append("Live color and depth frames received", "Camera")
         self._camera_ok = True
         self.kinect_label.setText("Kinect: live")
         self._last_rgb = video
@@ -1192,6 +1246,10 @@ class MainWindow(QMainWindow):
         metadata["orientation"] = decision
         self._display_rotation = decision["rotation_cw_degrees"]
         self.sensor_status_label.setText(f"{decision['reason']} · {self._display_rotation}°")
+        self.orientation_combo.setToolTip(
+            "Auto follows gravity. Lock portrait when looking up/down or while recording.\n"
+            + self.sensor_status_label.text()
+        )
 
     def _change_orientation(self):
         self._update_orientation()
@@ -1220,7 +1278,10 @@ class MainWindow(QMainWindow):
             drops = sum(status.get("dropped", {}).values())
             self.sensor_recording_label.setText(f"Sensor recording incomplete · {status.get('error') or str(drops) + ' dropped observations'}")
             self.sensor_recording_label.setStyleSheet("color: #ffb45b;")
+            self.logs_panel.append(self.sensor_recording_label.text(), "Warning")
+            self.sensor_recording_label.show()
         elif self._scanning:
+            self.sensor_recording_label.hide()
             counts = status.get("counts", {})
             if status.get("record_full_camera_streams"):
                 message = f"Recording all camera frames · {counts.get('rgb', 0)} RGB / {counts.get('depth', 0)} depth / {counts.get('accelerometer', 0)} acceleration"
@@ -1240,9 +1301,9 @@ class MainWindow(QMainWindow):
             self._accelerometer_calibration = profile
             self.preferences.write("camera/accelerometer_calibration", profile)
             self._restart_camera()
-            self.sensor_status_label.setText(f"Motion calibration loaded: {profile['id']}")
+            self._show_message(f"Motion calibration loaded: {profile['id']}")
         except (OSError, ValueError, TypeError, KeyError, RuntimeError) as exc:
-            self.sensor_status_label.setText(f"Invalid motion calibration: {exc}")
+            self._show_message(f"Invalid motion calibration: {exc}")
 
     def _set_camera_stale(self, message):
         for view in (self.view_label, self.scan_depth_view):
@@ -1348,6 +1409,7 @@ class MainWindow(QMainWindow):
         self._project_path = None
         self._capture_revision = self._saved_revision = 0
         self._sensor_counts_seen = {}
+        self.sensor_recording_label.hide()
         self.sensor_recording_label.setText("" if cancelled else "Starting sensor recording…")
         self._pending_action = None
         self._has_mesh = False
@@ -1376,12 +1438,12 @@ class MainWindow(QMainWindow):
         self._switch_mode(MODE_RGB if cancelled else MODE_SCANNER)
         if cancelled:
             self.guidance_label.setText("Keep the subject stationary. Move the Kinect slowly around it with overlapping views.")
-        self.guidance_label.setVisible(self.live_view.isHidden())
+        self.guidance_label.hide()
         self.auto_capture_cb.setChecked(self._scanning and self.capture_mode_combo.currentData() == "automatic")
         self.frame_count_label.setText("Captured: 0 · Added to model: 0")
         self.progress_bar.hide()
         self._refresh_controls()
-        self.statusBar().showMessage("Scan cancelled · ready for a new scan" if cancelled else "Scan started", 4000)
+        self._show_message("Scan cancelled · ready for a new scan" if cancelled else "Scan started", 4000)
 
     def _configure_camera_tracking(self):
         self._configure_sensor_recording()
@@ -1692,7 +1754,7 @@ class MainWindow(QMainWindow):
         self._saved_revision = self._capture_revision
         self._session_dirty = False
         self._configure_sensor_recording()
-        self.statusBar().showMessage(f"Opened project: {path}", 10000)
+        self._show_message(f"Opened project: {path}", 10000)
         self._refresh_controls()
 
     def _on_transfer_progress(self, phase, done, total):
@@ -1704,7 +1766,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.show()
         detail = f"{phase}: {done / 1024**2:.1f}"
         detail += f" / {total / 1024**2:.1f} MB" if total else " MB"
-        self.statusBar().showMessage(detail)
+        self._show_message(detail)
 
     def _begin_export(self, kind, path, task):
         restore_capture = (self._scanning, self._paused)
@@ -1727,7 +1789,7 @@ class MainWindow(QMainWindow):
         if not self._session_dirty:
             return True
         if self._export_pending:
-            self.statusBar().showMessage("Wait for the current save or export to finish.")
+            self._show_message("Wait for the current save or export to finish.")
             return False
         restore_capture = (self._scanning, self._paused)
         was_paused = self._paused
@@ -1916,6 +1978,9 @@ class MainWindow(QMainWindow):
             snapshot, time.monotonic(),
             learn_completion=not (self._preview_pending or self._build_pending),
         )
+        for key in ("guidance", "surface_description"):
+            if snapshot.get(key) and snapshot.get(key) != self.live_view.snapshot.get(key):
+                self.logs_panel.append(snapshot[key], "Reconstruction")
         self.live_view.set_snapshot(snapshot)
         self._on_server_status(snapshot)
         if not self._scanning:
@@ -1951,7 +2016,7 @@ class MainWindow(QMainWindow):
         )
         self.btn_export_session.setEnabled(self._server_stored > 0)
         self._refresh_controls()
-        self.statusBar().showMessage(result.get("message", "Frame stored"), 3000)
+        self.logs_panel.append(result.get("message", "Frame stored"), "Capture")
 
     def _on_process_progress(self, current: int, total: int, result: dict):
         if result.get("session_id") and result["session_id"] != self._session_id:
@@ -1973,7 +2038,7 @@ class MainWindow(QMainWindow):
         self.frame_count_label.setText(
             f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
-        self.statusBar().showMessage(result.get("message", "Processing captured frames"), 3000)
+        self.logs_panel.append(result.get("message", "Processing captured frames"), "Reconstruction")
         self._refresh_status()
 
     def _on_build_mesh_done(self, success: bool, detail: str):
@@ -1986,7 +2051,7 @@ class MainWindow(QMainWindow):
         self._configure_camera_tracking()
         self.progress_bar.hide()
         self._operation_error = "" if success else detail
-        self.statusBar().showMessage(detail, 8000)
+        self._show_message(detail, 8000)
         self._refresh_controls()
         if success and not self._pending_action:
             self._request_final_preview()
@@ -2054,11 +2119,11 @@ class MainWindow(QMainWindow):
                 self._project_path = path
                 self._saved_revision = pending["revision"]
                 self._session_dirty = self._capture_revision != self._saved_revision
-            self.statusBar().showMessage(f"Saved: {path}", 10000)
+            self._show_message(f"Saved: {path}", 10000)
             self._operation_error = ""
         else:
             self._operation_error = "Save failed · scan retained; choose Save Project to retry"
-            self.statusBar().showMessage(f"Could not save {path}; current scan is retained.")
+            self._show_message(f"Could not save {path}; current scan is retained.")
         if pending and (not action or not success):
             self._scanning, self._paused = pending["restore_capture"]
             self._reset_auto_capture_cadence()
@@ -2075,12 +2140,12 @@ class MainWindow(QMainWindow):
             self._open_project(path=self._project_to_open, protected=True)
 
     def _on_save_mesh_done(self, success: bool, path: str):
-        self.statusBar().showMessage(f"Saved: {path}" if success else f"Save failed: {path}", 10000)
+        self._show_message(f"Saved: {path}" if success else f"Save failed: {path}", 10000)
         self._refresh_controls()
 
     def _on_task_started(self, msg: str):
         logger.info("Operation session=%s %s", self._session_id, msg)
-        self.statusBar().showMessage(msg)
+        self._show_message(msg)
         if self._export_pending:
             self.progress_bar.setRange(0, 0)
             self.progress_bar.show()
@@ -2088,10 +2153,12 @@ class MainWindow(QMainWindow):
     def _on_task_error(self, msg: str):
         logger.error("Operation error session=%s %s", self._session_id, msg)
         # Recording/report warnings are independent of build or inspection success.
-        self.statusBar().showMessage(msg, 10000)
+        self._show_message(msg, 10000)
         if "incomplete sensor recording" in msg:
             self.sensor_recording_label.setText("Saved session has incomplete sensor recording · see its recording report")
             self.sensor_recording_label.setStyleSheet("color: #ffb45b;")
+            self.logs_panel.append(self.sensor_recording_label.text(), "Warning")
+            self.sensor_recording_label.show()
 
     def _on_task_failed(self, task_type, message):
         logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message)
@@ -2156,10 +2223,13 @@ class MainWindow(QMainWindow):
             self.kinect_label.setText("Kinect: waiting for frames")
         self._refresh_controls()
 
+    def _show_message(self, message, timeout=5000):
+        self.logs_panel.append(message)
+        self.statusBar().showMessage(message, timeout)
+
     def _on_error(self, msg: str):
         if self._closing:
             return
-        self.rgb_exposure_status_label.setText(msg)
         self._camera_ok = False
         self.kinect_label.setText("Kinect: unavailable")
         self._set_camera_stale("Camera unavailable · reconnecting")
@@ -2167,7 +2237,7 @@ class MainWindow(QMainWindow):
         if self._last_rgb is None:
             self.view_label.setText(msg)
             self.scan_depth_view.setText(msg)
-        self.statusBar().showMessage(f"Error: {msg}")
+        self.logs_panel.append(msg, "Camera error")
 
     def closeEvent(self, event):
         if not self._closing and not self._close_approved and not self._protect_session("close"):
@@ -2190,9 +2260,10 @@ class MainWindow(QMainWindow):
                 if self.worker.isRunning()
                 else "Finishing current server request before closing..."
             )
-            self.statusBar().showMessage(message)
+            self._show_message(message)
             event.ignore()
             QTimer.singleShot(200, self.close)
             return
+        self.logs_panel.stop()
         self.server_client.disconnect(notify=False)
         super().closeEvent(event)

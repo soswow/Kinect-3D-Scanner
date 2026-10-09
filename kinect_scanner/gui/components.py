@@ -60,7 +60,7 @@ class CameraPreview(QLabel):
 
     def set_stale(self, stale, message="Camera unavailable · last image"):
         self.stale_label.setText(message)
-        self.stale_label.setVisible(stale)
+        self.stale_label.setVisible(stale and self._image is not None)
         self.stale_label.setGeometry(8, 8, max(1, self.width() - 16), 50)
         self.stale_label.raise_()
 
