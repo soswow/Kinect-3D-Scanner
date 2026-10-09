@@ -96,6 +96,29 @@ class GuiPreferencesTests(unittest.TestCase):
         self.assertTrue(settings["record_full_camera_streams"])
         self.assertEqual(settings["orientation_mode"], "auto")
 
+    def test_offline_geometry_default_and_optional_live_fusion_are_persisted(self):
+        window = self.window()
+        self.assertEqual("depth", window.offline_registration_combo.currentData())
+        self.assertFalse(window.live_cb.isChecked())
+        self.assertFalse(window.bundle_cb.isEnabled())
+        window.live_cb.setChecked(True)
+        window.offline_registration_combo.setCurrentIndex(window.offline_registration_combo.findData("fragments"))
+        second = self.window()
+        self.assertTrue(second.live_cb.isChecked())
+        self.assertEqual("fragments", second.offline_registration_combo.currentData())
+        self.assertTrue(second.bundle_cb.isEnabled())
+
+    def test_opened_session_can_choose_depth_registration_at_finish(self):
+        window = self.window()
+        window.server_client._connected = True
+        window._server_stored = 2
+        window._session_settings = ScanSettings().to_dict()
+        window.offline_registration_combo.setCurrentIndex(window.offline_registration_combo.findData("depth"))
+        window._stop_and_build()
+        options = window.task_worker.tasks[-1].kwargs["options"]
+        self.assertEqual("depth", options["offline_registration"])
+        self.assertEqual("depth", window._session_settings["offline_registration"])
+
     def test_portrait_changes_preview_and_metadata_without_rotating_measurements(self):
         window = self.window()
         window.orientation_combo.setCurrentIndex(window.orientation_combo.findData("portrait_left"))

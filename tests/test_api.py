@@ -9,6 +9,7 @@ import threading
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import httpx
 import numpy as np
@@ -90,6 +91,27 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             response = await self.http.post("/api/scan/build", json=overrides)
             self.assertEqual(422, response.status_code)
             self.assertEqual(before, server.engine.settings)
+
+    async def test_final_registration_switch_invalidates_pose_cache_without_resetting_captures(self):
+        from scanner_server.engine import ScanEngine
+        from shared.settings import ScanSettings
+        engine = ScanEngine(device="cpu")
+        self.addCleanup(engine.shutdown)
+        engine.reset(settings=ScanSettings())
+        engine.store_frame(np.zeros((480,640,3),np.uint8),np.full((480,640),1000,np.uint16))
+        engine._reconnection_count = engine._refined_count = engine._bundle_count = 1
+        session_id, volume = engine.session_id, engine.vbg
+        server.engine = engine
+        with patch.object(engine,"build_mesh",return_value=(False,{"message":"Deliberate failed build"})):
+            response = await self.http.post("/api/scan/build",json={"offline_registration":"depth"})
+        self.assertEqual(200,response.status_code)
+        self.assertEqual("depth",engine.settings.offline_registration)
+        self.assertIsNone(engine._reconnection_count)
+        self.assertIsNone(engine._refined_count)
+        self.assertIsNone(engine._bundle_count)
+        self.assertEqual(1,engine.stored_count)
+        self.assertEqual(session_id,engine.session_id)
+        self.assertIs(volume,engine.vbg)
 
     async def test_invalid_settings_do_not_reset_session(self):
         before = server.engine.vbg

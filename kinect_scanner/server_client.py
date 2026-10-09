@@ -262,7 +262,8 @@ class ServerClient(QObject):
 
     def request_build(self, options=None) -> dict:
         """Start a build. Progress comes via WebSocket."""
-        resp = self._http.post("/api/scan/build", timeout=600.0, **({"json": options} if options else {}))
+        timeout = httpx.Timeout(None, connect=10.0) if (options or {}).get("offline_registration") == "depth" else 600.0
+        resp = self._http.post("/api/scan/build", timeout=timeout, **({"json": options} if options else {}))
         resp.raise_for_status()
         return resp.json()
 

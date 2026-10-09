@@ -1,0 +1,537 @@
+{
+  "kind": "offline-depth-registration-qualification-v1",
+  "date": "2026-10-10",
+  "starting_commit": "3664182c37d45ff350f5706e5cd7f60399ac2ec9",
+  "source_sha256": {
+    "scanner_server/geometry_registration.py": "89168d30e21c1218f20527fac7e96cebcb90a9cc5199058ced77f8985751d13a",
+    "scanner_server/depth_graph.py": "8c77d0e333ceaec1399aced97e44564981cb350c4548863afa05ef07c7568ff7"
+  },
+  "versions": {
+    "open3d": "0.20.0",
+    "numpy": "2.5.3"
+  },
+  "scope": {
+    "distinct_full_recordings": 7,
+    "captures": 776,
+    "copies_deduplicated": true,
+    "derived_box_subset_covered_by_full_hard_recording": true,
+    "historical_mac_only_recordings_not_available_here": [
+      "chest-1",
+      "chest-2"
+    ]
+  },
+  "rgb_used_for_camera_estimation": false,
+  "saved_poses_used_for_registration": false,
+  "backend": {
+    "gpu": "RTX 3080 Ti",
+    "requested_device": "cuda",
+    "cuda_stages": [
+      "depth projective odometry",
+      "CuPy descriptor matching",
+      "rebuilt hard-scan TSDF fusion"
+    ],
+    "cpu_stages": [
+      "FPFH",
+      "RANSAC",
+      "GICP / robust ICP",
+      "point-pair voting",
+      "depth verification",
+      "pose graph optimization"
+    ],
+    "graph_audit_open3d_threads": 20,
+    "server_depth_proposer_open3d_threads": 4
+  },
+  "limits": [
+    "Geometric self-consistency is not ground-truth accuracy or proof of physical identity.",
+    "Numerical thresholds are engineering policies, not calibrated sensor probabilities.",
+    "Different components have independent gauges; their relative placement is unknown.",
+    "Every capture is considered; retrieval budgets do not exhaust all possible nonadjacent hypotheses.",
+    "Pair proposal counts precede component-wide checks and must not be called recovered frames.",
+    "Reports reuse depth-revalidated candidate caches and ran alongside other checks; timings are not cold performance comparisons."
+  ],
+  "sessions": [
+    {
+      "archive": "chest-3-scan-session_20261006_215208.zip",
+      "archive_sha256": "08b8f2615348dfd6ceb9a14b8c9b964ea05efbc3ca0351b8f3d94783f9c4a3e4",
+      "observations_id": "76311ce35335df96cf4e70698d55dd3bbbcbe913913e27e9948a191cd9fad650",
+      "captures": 126,
+      "saved_accepted": 68,
+      "saved_trajectory_visibility_control": {
+        "accepted": false,
+        "tested_surface_projections": 15332498,
+        "free_space_fraction": 0.05887605529118608,
+        "conflicting_view_pairs": 419
+      },
+      "validated_component_sizes": [
+        126
+      ],
+      "rejected_component_sizes": [],
+      "selected_fusion_captures": 126,
+      "components": [
+        {
+          "captures": 126,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 51339783,
+            "free_space_fraction": 0.029634679211635935,
+            "conflicting_view_pairs": 293
+          }
+        }
+      ],
+      "rejected_graph_edges": 0,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 6,
+        "supported_proposals": {
+          "projective": 1,
+          "multiscale": 5,
+          "ppf": 5,
+          "gicp": 3,
+          "fpfh": 5,
+          "pca": 3
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 50.094000000011874
+    },
+    {
+      "archive": "chest-4-scan-session_20261007_173028.zip",
+      "archive_sha256": "ab0465d56d05c172074075b056c22f10a3337c83b2e564c148d4f10ea64ce49f",
+      "observations_id": "b8acacaa196be3ce4dd2e18548eaf71a6a71b7a2fc0f9b986c9ad82fca131022",
+      "captures": 164,
+      "saved_accepted": 4,
+      "saved_trajectory_visibility_control": {
+        "accepted": true,
+        "tested_surface_projections": 52858,
+        "free_space_fraction": 0.006243142003102653,
+        "conflicting_view_pairs": 0
+      },
+      "validated_component_sizes": [
+        120,
+        1
+      ],
+      "rejected_component_sizes": [
+        43
+      ],
+      "selected_fusion_captures": 120,
+      "components": [
+        {
+          "captures": 120,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 47843388,
+            "free_space_fraction": 0.07070396017940869,
+            "conflicting_view_pairs": 2107
+          }
+        },
+        {
+          "captures": 1,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 0,
+            "free_space_fraction": 0.0,
+            "conflicting_view_pairs": 0
+          }
+        },
+        {
+          "captures": 43,
+          "visibility": {
+            "accepted": false,
+            "tested_surface_projections": 5008263,
+            "free_space_fraction": 0.031735154483700234,
+            "conflicting_view_pairs": 133
+          }
+        }
+      ],
+      "rejected_graph_edges": 3,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 16,
+        "supported_proposals": {
+          "projective": 0,
+          "multiscale": 1,
+          "ppf": 1,
+          "gicp": 11,
+          "fpfh": 1,
+          "pca": 0
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 1005.25
+    },
+    {
+      "archive": "chest-5-scan-session.zip",
+      "archive_sha256": "599eae75263c7398cda0cef84efe2ef23b87391b269c988ec8a2dbf60ed1907a",
+      "observations_id": "3bdc25b86b970213bf2ebe1a4c9810a11a2eb3bbd520c99423bb0171329fcd76",
+      "captures": 27,
+      "saved_accepted": 7,
+      "saved_trajectory_visibility_control": {
+        "accepted": true,
+        "tested_surface_projections": 149206,
+        "free_space_fraction": 0.016225889039314774,
+        "conflicting_view_pairs": 0
+      },
+      "validated_component_sizes": [
+        27
+      ],
+      "rejected_component_sizes": [],
+      "selected_fusion_captures": 27,
+      "components": [
+        {
+          "captures": 27,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 2363854,
+            "free_space_fraction": 0.026843451414512064,
+            "conflicting_view_pairs": 14
+          }
+        }
+      ],
+      "rejected_graph_edges": 0,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 1,
+        "supported_proposals": {
+          "projective": 0,
+          "multiscale": 0,
+          "ppf": 0,
+          "gicp": 1,
+          "fpfh": 0,
+          "pca": 0
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 9.485000000015134
+    },
+    {
+      "archive": "chest-6-scan-session_20261009_002019.zip",
+      "archive_sha256": "53b15492e2df455392b2b322d97a67c8a76fab3151ea4535c047d05734f53642",
+      "observations_id": "d2785f4d73284f3ef7cb84ed676e1acf25a617626bde8f073bc6a1091254b4e0",
+      "captures": 38,
+      "saved_accepted": 38,
+      "saved_trajectory_visibility_control": {
+        "accepted": false,
+        "tested_surface_projections": 6221988,
+        "free_space_fraction": 0.021754943918246065,
+        "conflicting_view_pairs": 59
+      },
+      "validated_component_sizes": [
+        38
+      ],
+      "rejected_component_sizes": [],
+      "selected_fusion_captures": 38,
+      "components": [
+        {
+          "captures": 38,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 6316281,
+            "free_space_fraction": 0.028972111912057112,
+            "conflicting_view_pairs": 8
+          }
+        }
+      ],
+      "rejected_graph_edges": 0,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 2,
+        "supported_proposals": {
+          "projective": 0,
+          "multiscale": 0,
+          "ppf": 0,
+          "gicp": 2,
+          "fpfh": 0,
+          "pca": 0
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 12.875
+    },
+    {
+      "archive": "chest-7-scan-session_20261009_003259.zip",
+      "archive_sha256": "04aaf71b2dc02b12698367d54726b080efc461ceaeed55413ae32367076a22a8",
+      "observations_id": "4db31ecd6b5cb45151a0f3cf91cdf4d8ac93d0b922e0793eaf393482642a3291",
+      "captures": 115,
+      "saved_accepted": 108,
+      "saved_trajectory_visibility_control": {
+        "accepted": false,
+        "tested_surface_projections": 31002295,
+        "free_space_fraction": 0.06087475136921315,
+        "conflicting_view_pairs": 1207
+      },
+      "validated_component_sizes": [
+        31,
+        1
+      ],
+      "rejected_component_sizes": [
+        83
+      ],
+      "selected_fusion_captures": 31,
+      "components": [
+        {
+          "captures": 31,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 3268097,
+            "free_space_fraction": 0.028327800551819608,
+            "conflicting_view_pairs": 25
+          }
+        },
+        {
+          "captures": 1,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 0,
+            "free_space_fraction": 0.0,
+            "conflicting_view_pairs": 0
+          }
+        },
+        {
+          "captures": 83,
+          "visibility": {
+            "accepted": false,
+            "tested_surface_projections": 17995221,
+            "free_space_fraction": 0.10977397832457851,
+            "conflicting_view_pairs": 2477
+          }
+        }
+      ],
+      "rejected_graph_edges": 2,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 10,
+        "supported_proposals": {
+          "projective": 3,
+          "multiscale": 8,
+          "ppf": 7,
+          "gicp": 6,
+          "fpfh": 8,
+          "pca": 4
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 847.2029999999795
+    },
+    {
+      "archive": "chest-8-scan-20261009-145-captures-refinement-checked.zip",
+      "archive_sha256": "0599b081fcedcfb2f274309ef3a653f5f893d2ddfd005ae24c0d4b454dc71fca",
+      "observations_id": "78401937d2beec0918f8c4eddee2a1940c3afa1831b3853c10da18491c47430a",
+      "captures": 145,
+      "saved_accepted": 143,
+      "saved_trajectory_visibility_control": {
+        "accepted": false,
+        "tested_surface_projections": 54883496,
+        "free_space_fraction": 0.052763639546576986,
+        "conflicting_view_pairs": 1787
+      },
+      "validated_component_sizes": [
+        57
+      ],
+      "rejected_component_sizes": [
+        88
+      ],
+      "selected_fusion_captures": 57,
+      "components": [
+        {
+          "captures": 57,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 10290620,
+            "free_space_fraction": 0.0491394104534032,
+            "conflicting_view_pairs": 266
+          }
+        },
+        {
+          "captures": 88,
+          "visibility": {
+            "accepted": false,
+            "tested_surface_projections": 22366359,
+            "free_space_fraction": 0.08380085466749417,
+            "conflicting_view_pairs": 1573
+          }
+        }
+      ],
+      "rejected_graph_edges": 0,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 4,
+        "supported_proposals": {
+          "projective": 0,
+          "multiscale": 0,
+          "ppf": 2,
+          "gicp": 2,
+          "fpfh": 0,
+          "pca": 1
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 1320.0469999999914
+    },
+    {
+      "archive": "scan-912b6d41-original.zip",
+      "archive_sha256": "4a85146e72c2b4b3b474752ef87e54fc120bd8d70d215a0cac7410ad49a7e71e",
+      "observations_id": "121aa4d9cae33cff38d40dfe04ba6d83cfe6a7e74d86ba931c0496097e822477",
+      "captures": 161,
+      "saved_accepted": 22,
+      "saved_trajectory_visibility_control": {
+        "accepted": false,
+        "tested_surface_projections": 1712119,
+        "free_space_fraction": 0.07499478716140642,
+        "conflicting_view_pairs": 91
+      },
+      "validated_component_sizes": [
+        55,
+        40,
+        25,
+        21,
+        7,
+        1
+      ],
+      "rejected_component_sizes": [
+        12
+      ],
+      "selected_fusion_captures": 55,
+      "components": [
+        {
+          "captures": 55,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 3392436,
+            "free_space_fraction": 0.02300647676183132,
+            "conflicting_view_pairs": 14
+          }
+        },
+        {
+          "captures": 40,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 3609147,
+            "free_space_fraction": 0.015942271123897143,
+            "conflicting_view_pairs": 18
+          }
+        },
+        {
+          "captures": 25,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 868277,
+            "free_space_fraction": 0.03608410680001889,
+            "conflicting_view_pairs": 11
+          }
+        },
+        {
+          "captures": 21,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 513491,
+            "free_space_fraction": 0.02408221370968527,
+            "conflicting_view_pairs": 1
+          }
+        },
+        {
+          "captures": 7,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 163303,
+            "free_space_fraction": 0.030764897154369485,
+            "conflicting_view_pairs": 2
+          }
+        },
+        {
+          "captures": 1,
+          "visibility": {
+            "accepted": true,
+            "tested_surface_projections": 0,
+            "free_space_fraction": 0.0,
+            "conflicting_view_pairs": 0
+          }
+        },
+        {
+          "captures": 12,
+          "visibility": {
+            "accepted": false,
+            "tested_surface_projections": 318724,
+            "free_space_fraction": 0.05791531230782746,
+            "conflicting_view_pairs": 17
+          }
+        }
+      ],
+      "rejected_graph_edges": 2,
+      "proposal_trial": {
+        "previously_failed_adjacent_pairs": 51,
+        "supported_proposals": {
+          "projective": 3,
+          "multiscale": 25,
+          "ppf": 17,
+          "gicp": 7,
+          "fpfh": 25,
+          "pca": 11
+        }
+      },
+      "graph_seconds_excluding_preparation_and_cached_proposal_generation": 1472.6879999999946
+    }
+  ],
+  "rejected_large_hard_candidate": {
+    "captures": 157,
+    "visibility": {
+      "accepted": false,
+      "tested_surface_projections": 24437205,
+      "free_space_fraction": 0.1884896001813628,
+      "conflicting_view_pairs": 3946
+    },
+    "action": "Rejected; mesh and session outputs marked REJECTED.md and never loaded into the running server."
+  },
+  "registration_range_probe": {
+    "source_range_m": 3,
+    "alternative_range_m": 4,
+    "local_pairs_tested": 477,
+    "supported_at_3m_in_initial_probe": 209,
+    "supported_at_4m_in_initial_probe": 208,
+    "local_component_membership_changed": false,
+    "fusion_range_changed": false
+  },
+  "hard_export": {
+    "success": true,
+    "selected_fusion_captures": 55,
+    "all_raw_captures_retained": 161,
+    "source_archive_unchanged": true,
+    "verification": {
+      "raw_captures": 161,
+      "matching_rgb_depth_png_crcs": 322,
+      "timestamps_equal": true,
+      "metadata_equal": true,
+      "source_archive_sha256": "4a85146e72c2b4b3b474752ef87e54fc120bd8d70d215a0cac7410ad49a7e71e",
+      "source_archive_unchanged": true,
+      "selected_fusion_captures": 55,
+      "mesh_vertices": 614651,
+      "mesh_triangles": 1173231,
+      "finite_vertices": true,
+      "valid_triangle_indices": true
+    },
+    "cli_exit_code": 1,
+    "post_export_error": "Open3D CUDA driver shutting down during interpreter exit; reproduced on unchanged master with legacy CLI.",
+    "cpu_cli_smoke_exit_code": 0,
+    "output_directory": "benchmark-output/offline-geometry/hard-release-rebuilt"
+  },
+  "validation": {
+    "focused_geometry_gui_projects_quality_fragments_catalog": {
+      "tests": 86,
+      "result": "passed with explicit CPU fusion and CUDA descriptor checks"
+    },
+    "final_gui_api_transport_workflow_checks": {
+      "tests": 123,
+      "result": "passed"
+    },
+    "cuda_available_geometry_checks": {
+      "tests": 13,
+      "result": "passed"
+    },
+    "final_geometry_fragments_preferences_transport_catalog_checks": {
+      "tests": 84,
+      "result": "passed; exit code 0"
+    },
+    "broad_suite_initial_run": {
+      "tests": 1834,
+      "failures": 10,
+      "errors": 15,
+      "baseline_reproduced_failures": 9,
+      "baseline_reproduced_errors": 15,
+      "introduced_catalog_failure": "fixed; catalog checks pass"
+    },
+    "cuda_auto_backend_harness_shutdown": "86 assertions pass, then existing Open3D interpreter-exit cleanup error; explicit CPU fusion run exits cleanly."
+  },
+  "deployment": {
+    "mac_app_installed": false,
+    "mac_install_blocker": "Windows execution host; no connected Mac build/install host.",
+    "running_server_updated": false,
+    "server_restart_pending_reason": "Original 161-capture in-memory scan preserved; restart is still required."
+  }
+}

@@ -210,6 +210,7 @@ class MainWindow(QMainWindow):
                 (self.refine_cb, "scan/refine_poses"),
                 (self.bundle_cb, "scan/bundle_adjustment"),
                 (self.reconnect_fragments_cb, "scan/reconnect_fragments"),
+                (self.offline_registration_combo, "scan/offline_registration"),
                 (self.relocalize_cb, "scan/relocalize"),
                 (self.confidence_cb, "scan/confidence"),
                 (self.rgb_exposure_combo, "camera/exposure_mode"),
@@ -225,6 +226,7 @@ class MainWindow(QMainWindow):
                              restore="KINECT_SERVER_PORT" not in os.environ)
             self.crop_spin.setEnabled(self.crop_cb.isChecked())
             self._update_exposure_controls()
+            self._update_offline_registration_controls()
             self._capture_mode_changed()
             self._validate_setup()
             self._update_tracking_debug()
@@ -324,6 +326,12 @@ class MainWindow(QMainWindow):
     def _selected_camera_configuration(self):
         return (self.rgb_mode_combo.currentData(), self.rgb_exposure_combo.currentData(),
                 self.rgb_shutter_spin.value(), self.rgb_gain_combo.currentData())
+
+    def _update_offline_registration_controls(self):
+        depth = self.offline_registration_combo.currentData() == "depth"
+        self.reconnect_fragments_cb.setEnabled(not depth)
+        self.refine_cb.setEnabled(not depth)
+        self.bundle_cb.setEnabled(not depth)
 
     def _update_exposure_controls(self):
         previous_speed = self.rgb_shutter_spin.value()
@@ -665,21 +673,32 @@ class MainWindow(QMainWindow):
         self.final_voxel_spin.setRange(0, 5)
         self.final_voxel_spin.setValue(0)
         self.final_voxel_spin.setSuffix(" mm")
-        self.final_voxel_spin.setSpecialValueText("Use live resolution")
+        self.final_voxel_spin.setSpecialValueText("Use fusion resolution")
         self.final_voxel_spin.setToolTip("Controls reconstruction detail. Storage is allocated automatically for the scanned surface.")
         self.weight_spin = QDoubleSpinBox()
         self.weight_spin.setRange(0.5, 20)
         self.weight_spin.setValue(2)
         self.weight_spin.setSingleStep(0.5)
-        for title, control in (("Live voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final surface confidence", self.weight_spin)):
+        for title, control in (("Fusion voxel size", self.voxel_spin), ("Final voxel size", self.final_voxel_spin), ("Final surface confidence", self.weight_spin)):
             label = QLabel(title)
             label.setBuddy(control)
             av.addWidget(label)
             av.addWidget(control)
         self.live_cb = QCheckBox("Show live reconstruction")
-        self.live_cb.setChecked(True)
+        self.live_cb.setChecked(False)
         av.addWidget(self.live_cb)
-        self.reconnect_fragments_cb = QCheckBox("Reconnect separated views at Finish")
+        self.offline_registration_combo = QComboBox()
+        self.offline_registration_combo.addItem("Depth geometry (experimental)", "depth")
+        self.offline_registration_combo.addItem("Existing fragment registration", "fragments")
+        self.offline_registration_combo.setToolTip(
+            "Depth geometry estimates camera positions from all saved depth captures at Finish. "
+            "It does not require color or live tracking. Separate components are retained when their connection is unknown."
+        )
+        final_registration_label = QLabel("Final registration")
+        final_registration_label.setBuddy(self.offline_registration_combo)
+        av.addWidget(final_registration_label)
+        av.addWidget(self.offline_registration_combo)
+        self.reconnect_fragments_cb = QCheckBox("Reconnect separated views (fragment mode)")
         self.reconnect_fragments_cb.setChecked(True)
         self.reconnect_fragments_cb.setToolTip(
             "Search retained frames for overlapping fragments, verify links, and rebuild the connected scan. "
@@ -710,6 +729,8 @@ class MainWindow(QMainWindow):
             control.setToolTip(help_text)
             ev.addWidget(control)
         vg.addWidget(experimental)
+        self.offline_registration_combo.currentIndexChanged.connect(self._update_offline_registration_controls)
+        self._update_offline_registration_controls()
         motion_calibration_btn = QPushButton("Load Accelerometer Calibration…")
         motion_calibration_btn.clicked.connect(self._load_accelerometer_calibration)
         ev.addWidget(motion_calibration_btn)
@@ -1389,9 +1410,10 @@ class MainWindow(QMainWindow):
                 final_weight=self.weight_spin.value(),
                 color_recovery=self.color_tracking_cb.isChecked(),
                 live_reconstruction=self.live_cb.isChecked(),
-                refine_poses=self.refine_cb.isChecked(),
-                bundle_adjustment=self.bundle_cb.isChecked(),
+                refine_poses=self.refine_cb.isChecked() and self.offline_registration_combo.currentData() != "depth",
+                bundle_adjustment=self.bundle_cb.isChecked() and self.offline_registration_combo.currentData() != "depth",
                 reconnect_fragments=self.reconnect_fragments_cb.isChecked(),
+                offline_registration=self.offline_registration_combo.currentData(),
                 relocalize=self.relocalize_cb.isChecked(),
                 confidence_fusion=self.confidence_cb.isChecked(),
                 final_voxel_m=self.final_voxel_spin.value() / 1000
@@ -1677,7 +1699,8 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
         self.progress_bar.setVisible(True)
 
-        options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None}
+        options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None,
+                   "offline_registration": self.offline_registration_combo.currentData()}
         if self._session_settings:
             self._session_settings = {**self._session_settings, **options}
         self._session_dirty = True
@@ -1964,7 +1987,8 @@ class MainWindow(QMainWindow):
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
                     self.orientation_combo, self.gravity_tracking_cb, self.full_camera_recording_cb,
-                    self.color_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb, self.relocalize_cb, self.confidence_cb)
+                    self.color_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb,
+                    self.offline_registration_combo, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
         exposure_changed = (self.rgb_exposure_combo.currentData() != profile.rgb_exposure_mode
@@ -1989,6 +2013,7 @@ class MainWindow(QMainWindow):
             self.refine_cb.setChecked(profile.refine_poses)
             self.bundle_cb.setChecked(profile.bundle_adjustment)
             self.reconnect_fragments_cb.setChecked(profile.reconnect_fragments)
+            self.offline_registration_combo.setCurrentIndex(self.offline_registration_combo.findData(profile.offline_registration))
             self.relocalize_cb.setChecked(profile.relocalize)
             self.confidence_cb.setChecked(profile.confidence_fusion)
             self.gravity_tracking_cb.setChecked(profile.gravity_assistance)
@@ -2006,6 +2031,7 @@ class MainWindow(QMainWindow):
             for control, blocked in zip(controls, previous):
                 control.blockSignals(blocked)
         self.crop_spin.setEnabled(self.crop_cb.isChecked())
+        self._update_offline_registration_controls()
         self._update_exposure_controls()
         self.auto_capture_spin.set_fps(RGB_MODE_FPS[profile.rgb_mode])
         if rgb_changed or calibration_changed or exposure_changed or motion_calibration_changed:

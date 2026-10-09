@@ -420,13 +420,18 @@ async def scan_build(request: Request):
             import json
             try:
                 overrides = json.loads(body)
-                allowed = {"final_voxel_m", "final_block_count", "final_weight", "min_component_triangles"}
+                allowed = {"final_voxel_m", "final_block_count", "final_weight", "min_component_triangles",
+                           "offline_registration"}
                 if not isinstance(overrides, dict) or overrides.keys() - allowed:
-                    raise ValueError("Only final surface settings can change during a build")
+                    raise ValueError("Only final surface and offline registration settings can change during a build")
                 settings = ScanSettings.from_dict({**engine.settings.to_dict(), **overrides})
             except (ValueError, TypeError) as exc:
                 raise HTTPException(422, str(exc)) from exc
             if settings != engine.settings:
+                if settings.offline_registration != engine.settings.offline_registration:
+                    engine._reconnection_count = None
+                    engine._refined_count = None
+                    engine._bundle_count = None
                 engine.settings = settings
                 engine._final_vbg = None
         loop = asyncio.get_event_loop()
@@ -474,7 +479,7 @@ async def scan_build(request: Request):
             )
             refinement = proc_result.get("refinement", {})
             recovery = proc_result.get("fragment_reconnection", {})
-            if engine.settings.reconnect_fragments:
+            if engine.settings.reconnect_fragments or engine.settings.offline_registration == "depth":
                 detail += "; " + recovery.get("reason", "Fragment reconnection finished")
                 remaining = len(recovery.get("unconnected_fragments", []))
                 if remaining:

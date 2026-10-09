@@ -231,3 +231,12 @@ tests/test_gpu_icp_temporal_diagnostics.py text eol=lf
 tests/test_gpu_icp_worker_monitor.py text eol=lf
 scripts/research/build_cached_target_geometry_native.py text eol=lf
 tests/test_build_cached_target_geometry_native.py text eol=lf
+
+# Offline depth qualification records exact source hashes across checkouts.
+scanner_server/geometry_registration.py text eol=lf
+scanner_server/depth_graph.py text eol=lf
+scripts/benchmarks/benchmark_offline_geometry.py text eol=lf
+scripts/benchmarks/audit_depth_visibility.py text eol=lf
+scripts/benchmarks/render_depth_graph.py text eol=lf
+tests/test_geometry_registration.py text eol=lf
+docs/benchmarks/offline-depth-registration.json text eol=lf

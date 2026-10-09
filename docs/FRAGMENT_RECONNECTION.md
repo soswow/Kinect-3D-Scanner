@@ -1,5 +1,185 @@
 # Reconnecting separated scan fragments
 
+## Experimental depth-only final registration
+
+The new **Final registration** selector provides **Depth geometry (experimental)**
+alongside the existing fragment algorithm described below. Live reconstruction
+is a separate option. New UI scans start with live reconstruction off; saved
+preferences and old session settings retain their choices. Depth registration
+does not depend on accepted live poses, RGB features, or continuous visual
+tracking. It prepares every retained raw capture and runs at Finish.
+An opened project can switch final registration before Finish without resetting
+its captures. Switching modes invalidates the previous registration cache;
+calibration and capture settings remain fixed. Depth mode also skips legacy
+RGB pose refinement retained in an older project's settings.
+
+The old requirement for two distinct camera positions on each side was a
+conservative defense against repeated surfaces and partial false matches, not
+a mathematical requirement for rigid registration. A pair of asymmetric depth
+views can determine a camera transform. A plane, sphere, repeated corner, or
+insufficient overlap may leave several transforms plausible, regardless of how
+many times the same view was captured.
+
+Depth mode replaces the fixed camera-count rule with separately sampled depth,
+bidirectional overlap, six-direction pose conditioning, measured empty-space
+checks, competing hypotheses, reciprocal refinement, graph checks, and
+component-wide visibility validation. Millimetre range noise can falsely make a
+plane appear determined; validation normals use larger neighborhoods to reduce
+that effect. Samples are disjoint before point-cloud downsampling, but depth
+filtering mixes neighboring pixels, so they are not independent sensor-noise
+draws. Numerical thresholds are engineering policies, not calibrated confidence
+probabilities.
+
+It searches robust local ICP, GICP, multiscale FPFH/RANSAC, a bounded point-pair voting
+prototype, and dense depth odometry. Accumulated component geometry supplies
+additional global proposals. Temporal interpolation supplies guesses only; it
+never authorizes a pose. There is no 32-fragment/16-view ceiling, minimum camera
+count, fixed timestamp-gap rejection, or 30 cm/30 degree pose rejection in this
+mode. Search still uses computational budgets: nearby captures and selected
+descriptor candidates. Unsearched or ambiguous connections remain unresolved.
+
+All existing views on both sides must remain compatible with a bridge. Final
+components are checked against every other depth view, including pairs that
+were never graph edges. A pose graph can have mutually consistent edges yet
+place a desk in space another view measured as empty. Such a candidate must not
+be promoted merely because it includes more frames. The selected validated
+component is fused; separate components and their independent camera poses
+remain in the report/session. Their relative placement is unknown. Rigid poses,
+metric calibration, real overlap and available memory remain necessary.
+
+CUDA is used for dense depth odometry, optional CuPy descriptor matching and
+TSDF fusion on a CUDA engine. FPFH computation, RANSAC, point-pair voting,
+verification and graph optimization currently run on CPU. CPU execution is
+supported. GICP, single-scale FPFH and PCA proposals are also benchmarked; a
+method's pair-match count is not evidence of a correct complete reconstruction.
+
+### Assumptions reconsidered
+
+| Previous policy | Decision in depth mode | What the evidence still requires |
+| --- | --- | --- |
+| Two distinct camera positions on each side of a bridge | Removed; one pair can connect isolated views | Six determined pose directions, plausible alternative poses checked, raw-depth consistency |
+| Live tracking determines which captures are usable | Removed from offline registration | Every stored depth frame is considered; unconnected frames keep independent component poses |
+| The first accepted fragment fixes the model | Largest component that passes the final checks is selected | Each independent component needs a coordinate gauge; its relative placement remains unknown |
+| Motion above 30 cm / 30 degrees or long capture gaps is unacceptable | Removed as an acceptance rule | Motion and time may order guesses; measured depth determines whether a guess works |
+| Up to 32 fragments and 16 views represent the session | Removed | All frames participate; descriptor retrieval still limits proposal search and can miss a connection |
+| RGB supplies necessary disambiguation | Removed from this pipeline | Depth-only registration can remain ambiguous on repeated or featureless geometry |
+| More connected frames or agreeing graph edges imply a better model | Rejected | Optimize local maps before placement and check non-edge depth observations for contradictions |
+| ICP refinement necessarily improves a good seed | Rejected | Test multiple initial poses; a coarse refinement can drift along a plane |
+| Diverse surface normals determine the camera pose | Replaced with a centered six-direction Jacobian check | A sphere has diverse normals but ambiguous rotation; noisy planes can create false apparent information |
+| Reconstruction clipping is also the right registration range | Tested separately with `--registration-far` | Source depth must actually contain extra useful measurements; fusion settings remain unchanged |
+| GPU support decides which methods are worth trying | Rejected | CPU implementations remain eligible; measure useful CUDA stages separately |
+
+This is an experimental consistency filter, not a proof of physical identity or
+absolute accuracy. No recorded trajectory is ground truth. Moving objects,
+mirrors, calibration errors, repeated room structure and genuinely missing
+overlap can still defeat these checks. Component-wide verification can reject a
+bad connection without identifying the correct replacement; retained captures
+remain available to later methods.
+
+```sh
+python scripts/reconnect_session.py export/your-session.zip \
+  --depth-geometry --output-dir export/depth-registration --save-session
+python scripts/benchmarks/benchmark_offline_geometry.py export/*.zip \
+  --graph --device cuda --output benchmark-output/depth-graphs.json
+```
+
+The audit deduplicates raw observation/calibration copies and reports saved
+trajectories only as comparisons. Its optional `--registration-far` experiment
+tests whether reconstruction clipping removed useful pose-estimation context;
+it does not edit recordings or change fusion clipping. Pair caches are matched
+to observation/calibration fingerprints and depth-revalidated. Keep captures,
+meshes and large diagnostic reports in ignored output directories.
+
+Further viable candidates include [TEASER++](https://github.com/MIT-SPARK/TEASER-plusplus)
+for robust correspondence fitting, and learned depth features/matching from
+[FCGF](https://github.com/chrischoy/FCGF) and
+[GeoTransformer](https://github.com/qinzheng93/GeoTransformer). These are not
+implemented or qualified here. Their build/runtime and pretrained-model
+requirements need separate evaluation on the same recordings. A robust pose
+solver does not certify that repeated surfaces represent the same physical
+place. GPU availability determines an implementation route, not eligibility.
+This Windows host also has an Ubuntu WSL2 instance with Python 3.12 and the RTX
+3080 Ti visible to `nvidia-smi`; an isolated Linux learning runtime is feasible.
+PyTorch and WarpConvNet are not installed there yet. Rendering the diagnostic
+figures additionally needs Matplotlib; CuPy is optional for descriptor matching.
+
+### Methods in the shared chat
+
+Descriptors, correspondence solvers, local refinement and spatial indexing are
+different stages. Adding a descriptor still needs a pose solver and the same
+raw-depth checks; changing the solver cannot repair correspondences between two
+different but similarly shaped objects. The following assessment concerns this
+repository and the current Windows server, rather than claiming every possible
+implementation has the same backend.
+
+| Method | Present implementation / feasible addition | GPU route and priority |
+| --- | --- | --- |
+| FPFH and multiscale FPFH | Existing fragment FPFH plus new separate radii and concatenated descriptors; RANSAC proposals validated on all seven available recordings | CPU feature extraction/RANSAC; optional CUDA descriptor matching executed here |
+| ICP / GICP | Existing robust ICP; new raw-view GICP recovery and multiscale refinement | New verifier/refinement uses CPU. Existing tensor CUDA ICP is available elsewhere in the server; it needs separate parity/quality qualification before replacing this refinement |
+| RANSAC | Existing and new geometric correspondence fitting | CPU Open3D implementation; eligible regardless of backend |
+| TEASER++ | Feasible robust correspondence solver, absent from this runtime | CPU C++/Python integration is useful; not dependent on a GPU. Test correspondence failure separately from pose fitting |
+| ISS + FPFH | [Open3D ISS](https://open3d.org/docs/latest/tutorial/geometry/iss_keypoint_detector.html) is callable, but not integrated into this pipeline | Low-cost CPU candidate. Test whether selecting stable corners improves matches or removes needed overlap |
+| SHOT, 3D Shape Context, Spin Images | [PCL supplies these descriptors](https://pointclouds.org/documentation/group__features.html); they need a compiled adapter and pose fitting here | CPU first. Alternative shape descriptions are worth testing on failed pairs; no demonstrated improvement on these scans yet |
+| PPF | New sampled oriented point-pair voting prototype; absent from the installed OpenCV surface-matching build | CPU voting executed here. It is not a complete implementation of OpenCV's Drost detector |
+| Super4PCS | Feasible [OpenGR](https://github.com/STORM-IRIT/OpenGR) global geometric proposer, absent here | CPU C++ adapter. Useful because it supplies hypotheses without descriptor correspondences; no recorded-session result yet |
+| FCGF | Feasible pretrained depth feature proposer, not implemented here | CUDA. The maintained [FCGF](https://github.com/chrischoy/FCGF) WarpConvNet route currently specifies Linux x86_64, PyTorch and CUDA; isolate its environment instead of replacing the scanner runtime |
+| GeoTransformer | Feasible pretrained geometric matcher, not implemented here | CUDA/PyTorch candidate for low-overlap components; model/operator installation and Kinect-domain evaluation are still required ([upstream](https://github.com/qinzheng93/GeoTransformer)) |
+| PointNet++ | A feature-learning backbone, not a ready camera-pose solution; upstream provides classification/segmentation networks | GPU learning is possible, but [PointNet++](https://github.com/charlesq34/pointnet2) alone does not supply pretrained registration correspondences. Prefer testing FCGF/GeoTransformer first |
+| Octrees / spatial hierarchies | Spatial indexing can reduce search work; the current geometry uses voxel sampling and KD-trees | CPU/GPU implementations possible; changing the index does not resolve repeated geometry by itself |
+| RGB + depth | Existing legacy visual assistance remains available | Not used for camera estimation in this experiment; stored RGB can still color the final surface |
+
+The next substantive feature experiment is pretrained geometry matching on the
+unconnected components, followed by TEASER++ or Super4PCS as alternative pose
+proposers. This is a priority judgment, not a measured superiority claim. Each
+must face all available recordings and the same non-edge visibility checks;
+the hard scan cannot be declared solved on pair overlap alone.
+
+### Recorded qualification, 10 October 2026
+
+All seven distinct full recordings available on this Windows host were tested,
+covering 776 raw captures. Copies with revised trajectories were deduplicated;
+the 21-view box subset is covered by the full hard recording. Historical
+chest-1/chest-2 recordings on the Mac were not accessible here. Measurements and
+exact registration-source hashes are in
+[offline-depth-registration.json](benchmarks/offline-depth-registration.json).
+
+| Recording | Captures | Saved accepted count | Components passing the new checks | Rejected component sizes |
+| --- | ---: | ---: | --- | --- |
+| chest-3 | 126 | 68 | 126 | none |
+| chest-4 | 164 | 4 | 120, 1 | 43 |
+| chest-5 | 27 | 7 | 27 | none |
+| chest-6 | 38 | 38 | 38 | none |
+| chest-7 | 115 | 108 | 31, 1 | 83 |
+| chest-8 | 145 | 143 | 57 | 88 |
+| Live-off hard scan, `912b6d41` | 161 | 22 | 55, 40, 25, 21, 7, 1 | 12 |
+
+These are consistency results, not accuracy measurements. Saved accepted counts
+are comparisons, not reference truth: the archived trajectories for chest-3,
+chest-6, chest-7, chest-8 and the hard scan fail the same empty-space audit. The
+new thresholds may also overreject. In particular, chest-7/chest-8 remain partial;
+the depth mode is an experimental alternative, not a universal replacement.
+
+For the hard scan, an earlier 157-capture candidate was rejected after 18.85% of
+24.44 million sampled surface projections contradicted measured empty space.
+The final selected 55-view map has 2.30% conflicts across 3.39 million tested
+projections and passes the current supported-pair thresholds. Its new CUDA-fused
+mesh has 614,651 vertices and 1,173,231 triangles. All 161 observations remain in
+the exported session; all 322 PNG CRCs, timestamps and capture metadata match
+the original. The other passing maps have independent camera coordinates, so
+149 captures across those maps do not constitute a complete registered room.
+The original ZIP and the running 161-capture server scan are unchanged.
+
+The focused 86-test geometry/UI/project/legacy-fragment run passes with explicit
+CPU fusion; the subsequent 123-test UI/API/transport/workflow run also passes.
+CUDA descriptor checks pass, and real hard-scan CUDA fusion produced the verified
+artifacts. This Open3D build raises a CUDA driver-shutdown error at interpreter
+exit after export, reproduced with the unchanged master's legacy CLI. CPU CLI
+execution exits cleanly. A broad 1,834-test run exposed 24 existing failures/errors
+reproduced on master, plus a new script-catalog issue that was fixed. No historical
+source-proof hashes or unrelated guards were relaxed to make that suite green.
+
+## Existing fragment mode
+
 Enable **Reconnect separated views at Finish** under advanced scan settings,
 then capture and press **Finish Scan**. The GUI enables it for new scans and
 remembers your choice. The server setting is `reconnect_fragments`; legacy API

@@ -84,6 +84,9 @@ class ScanSettings:
     refine_poses: bool = False
     bundle_adjustment: bool = False
     reconnect_fragments: bool = False
+    # Legacy sessions retain their original algorithm. New UI scans can choose
+    # the depth-only graph, which works independently of live reconstruction.
+    offline_registration: str = "fragments"
     relocalize: bool = False
     confidence_fusion: bool = False
     final_voxel_m: float | None = None
@@ -105,6 +108,8 @@ class ScanSettings:
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
             raise TypeError("Invalid camera calibration")
+        if self.offline_registration not in ("fragments", "depth"):
+            raise ValueError("Offline registration must be fragments or depth")
         if self.rgb_mode not in ("rgb_high_res", "rgb_low_res"):
             raise ValueError("RGB mode must be rgb_high_res or rgb_low_res")
         if self.sensor_calibration is not None:

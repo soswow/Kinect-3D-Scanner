@@ -1,5 +1,13 @@
 # Tracking and reconstruction algorithm review
 
+This records the 6–7 October implementation and its historical decisions.
+The 10 October depth-only experiment reconsiders camera-count, live-pose, RGB,
+motion, fragment-size and anchoring restrictions; see
+[experimental depth registration](FRAGMENT_RECONNECTION.md#experimental-depth-only-final-registration)
+for the current alternative and its recorded-session qualification. The
+historical recommendation below to retain multiple camera witnesses is not a
+requirement of that new mode.
+
 Review dates: 6–7 October 2026. Starting code: `e31c03e`. Scope: the active
 camera/client pipeline, calibrated RGB-D preparation, live registration, TSDF
 fusion, offline fragment registration, pose refinement, mesh extraction, and

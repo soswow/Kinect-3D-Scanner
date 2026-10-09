@@ -24,6 +24,17 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
 
 
 class ServerClientTests(unittest.TestCase):
+    def test_depth_build_waits_for_cpu_registration_with_bounded_connection(self):
+        client = ServerClient()
+        client._http = Mock()
+        client._http.post.return_value = response({"success":True})
+        client.request_build({"offline_registration":"depth"})
+        timeout = client._http.post.call_args.kwargs["timeout"]
+        self.assertIsNone(timeout.read)
+        self.assertEqual(10.,timeout.connect)
+        client.request_build({"offline_registration":"fragments"})
+        self.assertEqual(600.,client._http.post.call_args.kwargs["timeout"])
+
     def test_loopback_uploads_use_stored_zlib_and_remote_uploads_use_compression(self):
         for host, level in (("localhost", 0), ("127.0.0.1", 0), ("127.4.5.6", 0),
                             ("192.168.1.10", 1), ("scanner.local", 1)):

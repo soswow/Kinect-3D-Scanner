@@ -440,7 +440,17 @@ Follow the nine physical positioning prompts, then select the output JSON with
 independent camera-axis alignment checks are required for a verified profile.
 Hardware orientation/performance and tracking gains
 still need validation; see the [implementation and calibration guide](docs/KINECT_ACCELEROMETER.md).
-**Reconnect separated views at Finish** is enabled for new GUI scans. Finish
+**Final registration** offers an experimental depth-only camera pose graph and
+the existing fragment registration. New GUI scans start with live fusion off;
+**Show live reconstruction** remains available and saved preferences are kept.
+Depth mode estimates poses from every raw depth capture independently of live
+tracking and RGB. It permits single-pair bridges when geometry supports them,
+checks all available component views for contradictory empty space, and retains
+unconnected components with their own camera poses. Read the
+[depth-only registration checks and experiments](docs/FRAGMENT_RECONNECTION.md#experimental-depth-only-final-registration).
+
+In existing fragment mode, **Reconnect separated views at Finish** is enabled
+for new GUI scans. Finish
 reconstructs local fragments from retained raw frames, verifies overlapping
 fragments, optimizes their pose graph, and rebuilds a fresh volume from the
 connected views. Unconnected fragments remain in the saved session and are

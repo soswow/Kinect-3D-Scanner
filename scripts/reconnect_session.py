@@ -6,6 +6,7 @@ The input ZIP and a running scanner server are left unchanged.
 """
 
 import argparse
+import gc
 import json
 import os
 import sys
@@ -38,7 +39,8 @@ def load_session(engine, path):
             with archive.open(frame["depth"]) as source, Image.open(source) as image:
                 depth = np.array(image, dtype=np.uint16)
             metadata = dict(frame.get("metadata", {}))
-            metadata.update(frame_id=index, timestamp_s=frame["timestamp_s"])
+            metadata.setdefault("frame_id", index)
+            metadata["timestamp_s"] = frame["timestamp_s"]
             result = engine.store_frame(rgb, depth, metadata)
             if not result["success"]:
                 raise ValueError(f"Cannot load frame {index + 1}: {result['message']}")
@@ -83,12 +85,32 @@ def main():
     parser.add_argument("--bundle-adjustment", action="store_true",
                         help="Attempt validated joint RGB-D camera/feature refinement after reconnection")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument("--depth-geometry", action="store_true", help="Estimate poses from all depth captures independently of live tracking and RGB")
+    parser.add_argument("--depth-pair-cache", type=Path, nargs="+",
+                        help="Reuse pair hypotheses for matching raw observations; every pose is depth-revalidated")
     args = parser.parse_args()
     destination = args.output_dir / "reconnected-session.zip"
     if args.save_session and destination.resolve() == args.session.resolve():
         parser.error("Output session must differ from the source ZIP")
     engine = ScanEngine(device=args.device)
     load_session(engine, args.session)
+    if args.depth_geometry:
+        engine.settings = replace(engine.settings, offline_registration="depth", refine_poses=False,
+                                  bundle_adjustment=False)
+    if args.depth_pair_cache:
+        if not args.depth_geometry:
+            parser.error("--depth-pair-cache requires --depth-geometry")
+        from scripts.benchmarks.benchmark_offline_geometry import inventory
+        fingerprint = inventory([args.session])[0][0]["observations_id"]
+        rows = []
+        for path in args.depth_pair_cache:
+            audit = json.loads(path.read_text(encoding="utf-8"))
+            for result in audit.get("results", audit.get("runs", [])):
+                if result["observations_id"] == fingerprint:
+                    rows.extend(result.get("pairs", []))
+        if not rows:
+            raise ValueError("Pair cache does not match these raw observations and calibration")
+        engine._offline_depth_pair_cache = rows
     if args.use_pose_seeds:
         load_pose_seeds(engine, args.session)
     if args.final_weight is not None:
@@ -116,6 +138,15 @@ def main():
                       "unconnected_fragments": recovery.get("unconnected_fragments", []),
                       "bundle_adjustment": report["bundle_adjustment"],
                       "reason": recovery["reason"]}, indent=2))
+    # Release native grids while the CUDA runtime is still alive, rather than
+    # relying on interpreter shutdown ordering after a successful export.
+    cuda = str(engine.device).startswith("CUDA")
+    engine.shutdown()
+    del engine
+    gc.collect()
+    if cuda:
+        import open3d as o3d
+        o3d.core.cuda.synchronize()
     return 0 if success else 1
 
 

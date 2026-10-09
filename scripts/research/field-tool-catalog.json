@@ -865,6 +865,24 @@
       "group": "active",
       "path": "scripts/research/build_cached_target_geometry_native.py",
       "role": "Explicit source-bound MSVC build of the cached immutable target helper with pinned headers and failed compiler receipts"
+    },
+    {
+      "legacy_path": "scripts/benchmarks/benchmark_offline_geometry.py",
+      "path": "scripts/benchmarks/benchmark_offline_geometry.py",
+      "group": "benchmarks",
+      "role": "Depth-only pair and pose graph validation across distinct retained sessions"
+    },
+    {
+      "legacy_path": "scripts/benchmarks/render_depth_graph.py",
+      "path": "scripts/benchmarks/render_depth_graph.py",
+      "group": "benchmarks",
+      "role": "Static depth geometry and camera trajectory review without RGB"
+    },
+    {
+      "legacy_path": "scripts/benchmarks/audit_depth_visibility.py",
+      "path": "scripts/benchmarks/audit_depth_visibility.py",
+      "group": "benchmarks",
+      "role": "All-view empty-space validation of offline depth trajectories"
     }
   ]
 }

@@ -1547,7 +1547,10 @@ class ScanEngine:
         """Commit connected raw fragments only after a complete fresh fusion."""
         if self._reconnection_count == self.stored_count:
             return not self.fragment_reconnection.get("failed", False)
-        from .fragments import propose_fragment_poses
+        if self.settings.offline_registration == "depth":
+            from .depth_graph import propose_depth_poses as propose_fragment_poses
+        else:
+            from .fragments import propose_fragment_poses
 
         started = time.monotonic()
         report = {"applied": False}
@@ -1575,23 +1578,29 @@ class ScanEngine:
                 if candidate.model_pcd is None or len(candidate.model_pcd.points) < 100:
                     raise ValueError("Reconnected volume has insufficient geometry")
                 diagnostics = [dict(result) for result in self.diagnostics]
+                while len(diagnostics) < self.stored_count:
+                    index = len(diagnostics)
+                    diagnostics.append({"index": index, "success": False,
+                        "metadata": self.frame_metadata[index], "session_id": self.session_id,
+                        "message": "Awaiting offline depth registration"})
                 connected = {i for i, _ in proposals}
                 fragment_by_frame = {i: f["id"] for f in report["fragments"] for i in f["frame_indices"]}
                 for result in diagnostics:
-                    if result["success"] and result["index"] not in connected:
+                    if result["index"] not in connected:
                         result.update(success=False, excluded_offline=True,
                                       message_before_reconnection=result.get("message"),
                                       pose_before_reconnection=result.get("pose"),
-                                      message="Excluded: no verified connection to the anchored reconstruction")
+                                      message="Excluded: no verified connection to the selected reconstruction")
                         result.pop("pose", None)
                 for index, pose in proposals:
                     result = diagnostics[index]
                     if result.get("pose") is not None:
                         result["pose_before_reconnection"] = result["pose"]
                     if not result["success"]:
-                        result.update(success=True, recovered_offline=True, method="fragment+graph",
+                        result.update(success=True, recovered_offline=True,
+                                      method="depth+graph" if self.settings.offline_registration == "depth" else "fragment+graph",
                                       message_before_reconnection=result.get("message"),
-                                      message="Recovered through verified fragment registration")
+                                      message="Registered from validated depth geometry" if self.settings.offline_registration == "depth" else "Recovered through verified fragment registration")
                     result.update(pose=pose.tolist(), fragment_id=fragment_by_frame.get(index))
                 count, lost_at, last_tracked = 0, None, None
                 for result in diagnostics:
@@ -1608,6 +1617,10 @@ class ScanEngine:
                               fusion_blocks=int(candidate.vbg.hashmap().size()),
                               fusion_block_limit=candidate._fusion_block_limit,
                               fusion_voxel_m=self.voxel_size)
+                if self.settings.offline_registration == "depth":
+                    sizes = report["validated_component_sizes"]
+                    report["reason"] = (f"Depth registered {sum(sizes)}/{self.stored_count} captures across {len(sizes)} maps; "
+                                        f"{len(proposals)} fused in the selected map")
                 # Native work has succeeded; commit the candidate as one state.
                 self.original_poses = [(i, p.copy()) for i, p in self.poses]
                 for name in ("vbg", "model_pcd", "_live_points", "_live_colors", "_model_feature_cloud",
@@ -1615,6 +1628,7 @@ class ScanEngine:
                              "_integrations_since_preview", "_pending_model_cloud", "_pending_model_frame_count"):
                     setattr(self, name, getattr(candidate, name))
                 self.poses, self.diagnostics = proposals, diagnostics
+                self._processed_count = self.stored_count
                 self._pose_seeds_only = False
                 self.frame_count = len(proposals)
                 self.cumulative_T = last_pose.copy()
@@ -1873,25 +1887,30 @@ class ScanEngine:
     @registration_scope
     def build_mesh(self, progress_cb=None) -> tuple[bool, dict]:
         """Build transactionally; a failed final build preserves existing geometry."""
-        process_result = self.process_frames(progress_cb=progress_cb)
-        if self.frame_count == 0:
-            return False, process_result
-        if self.settings.reconnect_fragments:
+        if self.settings.offline_registration == "depth":
+            process_result = {"success": True, "frame_count": self.frame_count, "skipped_count": 0}
+        else:
+            process_result = self.process_frames(progress_cb=progress_cb)
+            if self.frame_count == 0:
+                return False, process_result
+        if self.settings.reconnect_fragments or self.settings.offline_registration == "depth":
             if not self._reconnect_volume(progress_cb):
                 process_result.update(success=False, message=self.fragment_reconnection["reason"],
                                       fragment_reconnection=self.fragment_reconnection)
                 return False, process_result
         else:
             self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
+        if self.frame_count == 0:
+            return False, {**process_result, "success": False, "message": "No verified camera poses"}
         process_result.update(frame_count=self.frame_count,
                               skipped_count=sum(not d["success"] for d in self.diagnostics),
                               fragment_reconnection=self.fragment_reconnection)
-        if self.settings.refine_poses:
+        if self.settings.refine_poses and self.settings.offline_registration != "depth":
             self._refine_volume()
         else:
             self.refinement = {"applied": False, "reason": "Not requested"}
         process_result["refinement"] = self.refinement
-        if self.settings.bundle_adjustment:
+        if self.settings.bundle_adjustment and self.settings.offline_registration != "depth":
             if not self._bundle_volume(progress_cb):
                 process_result.update(success=False, message=self.bundle_adjustment["reason"],
                                       bundle_adjustment=self.bundle_adjustment)
