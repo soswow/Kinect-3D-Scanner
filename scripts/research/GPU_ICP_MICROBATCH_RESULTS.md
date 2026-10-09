@@ -152,6 +152,39 @@ measure this overhead without weakening exact input, terminal or gate checks.
 The old v1 reports and failed/aborted profiling attempts remain private and
 unchanged; profiling samples are excluded from performance publication.
 
+## Conservative float neighbor screening
+
+A separate two-pass raw lookup keeps the original dyadic cell candidate set,
+then screens candidates using float distances and a rigorously upward-rounded
+error enclosure. The final first-two distinct neighbor IDs and distances are
+computed with the original double expression, including all possible ties.
+Unsupported or declined screening uses the full original double candidate scan.
+Float arithmetic is only a conservative screening tool; it never supplies an
+ICP correspondence distance or pose update.
+
+The v2 physical pilot passed all five raw output columns bit-for-bit against the
+original shader across 23 cases and 30,735 rows, with fresh original CPU hit,
+miss, ambiguity and unsupported-query resolution. Cases include 12 historical
+real query arrays used only as inputs, three fresh random clouds, and focused
+duplicate, subnormal, float-rounding, cell-boundary, insufficient-neighbor,
+declined-bound, edge-cell and unsupported-query inputs. All source, shadow,
+input, loaded backend and selected-stream cleanup checks closed successfully.
+
+The retained double evaluations fell to 0.44–20.69% of original candidate visits
+on the real batches. Nevertheless, the sum of their twelve median kernel-enqueue
+and selected-stream-completion walls increased from 0.8474 to 1.0644 ms. One real
+coarse batch improved 1.158x; the random coarse batch improved 1.656x. Extra passes,
+block reductions and per-query bound calculation offset the arithmetic saving.
+These are preuploaded, preallocated raw lookup timers, with grid/shadow/query
+setup and output copies separate; they establish no ICP or scanner speed gain.
+
+The first v1 attempt failed before kernel launch because CuPy already appends
+its FTZ compiler option. Its failed report and source snapshot are preserved.
+The distinct v2 driver omits the duplicate option and binds the actual CuPy
+compiler wrapper. The enclosure includes FTZ and gradual-underflow behavior.
+Warp-level screening and a separately charged precomputed conservative bound
+are the next measurements; production lookup remains unchanged.
+
 Private reports are in `benchmark-output/field-cuda-study/`, including
 `gpu-icp-pruned-nn-v1`, `gpu-icp-warp-nn-v1`,
 `gpu-icp-warp-pruned-nn-v1`, `gpu-icp-microbatch-v2`, and
@@ -188,6 +221,10 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
   publish small scalar receipts from those closed audit and timing reports.
 - [profile_complete_bridge.py](profile_complete_bridge.py): observational Python
   boundary attribution; its instrumented runs cannot establish a speed gain.
+- [benchmark_flat_grid_filtered_nn.py](benchmark_flat_grid_filtered_nn.py),
+  [research_flat_grid_filtered_nn.cu](research_flat_grid_filtered_nn.cu) and
+  [flat_grid_filter_bound.py](flat_grid_filter_bound.py): conservative float
+  candidate screening with exact original double outputs and fresh CPU audits.
 - [benchmark_microbatch_pruned_nn.py](benchmark_microbatch_pruned_nn.py),
   [benchmark_microbatch_warp_nn.py](benchmark_microbatch_warp_nn.py), and
   [benchmark_microbatch_warp_pruned_nn.py](benchmark_microbatch_warp_pruned_nn.py):

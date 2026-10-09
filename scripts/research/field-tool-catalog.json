@@ -649,6 +649,24 @@
       "path": "scripts/research/profile_complete_bridge.py",
       "group": "active",
       "role": "Instrumented Python boundary attribution; no uninstrumented performance authority"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_flat_grid_filtered_nn.py",
+      "path": "scripts/research/benchmark_flat_grid_filtered_nn.py",
+      "group": "active",
+      "role": "Fresh exact-output GPU neighbor-screening audit and separately labelled raw-kernel timing"
+    },
+    {
+      "legacy_path": "scripts/research/research_flat_grid_filtered_nn.cu",
+      "path": "scripts/research/research_flat_grid_filtered_nn.cu",
+      "group": "active",
+      "role": "Conservative float candidate filter followed by original exact double top-two distances"
+    },
+    {
+      "legacy_path": "scripts/research/flat_grid_filter_bound.py",
+      "path": "scripts/research/flat_grid_filter_bound.py",
+      "group": "active",
+      "role": "Upward-rounded error enclosure, distinct-neighbor inclusion theorem and host reference"
     }
   ]
 }
