@@ -317,6 +317,20 @@ keyframe preparation caching and lazy model preparation. The launcher detects
 the existing virtual environment, starts a hidden server, checks health and
 writes logs under `logs/`. Use `-Recipe baseline` for the CUDA tracking control;
 see the experiment report for full scan timings and geometry checks.
+
+Server starts, shutdown signals, Python exception tracebacks and exit summaries
+are appended to `logs/server.lifecycle.log`. Native fatal errors also write
+Python thread stacks to stderr (`logs/server.stderr.log` with the CUDA launcher),
+including failures during interpreter teardown. Set `KINECT_LOG_DIR` to change
+the lifecycle diagnostic directory.
+The Windows CUDA launcher keeps a separate supervisor running after startup;
+it records the child server's exit code even when the server is forcibly killed.
+Other launch methods can use `python -m scanner_server.supervisor` with the same
+server arguments. Windows native crash status codes are decoded where known.
+An external kill does not always identify its cause or the program responsible.
+If the entire process tree is killed, or the machine loses power, the supervisor
+cannot write a final event either; the last start will have no matching exit.
+
 The optional `-Recipe adaptive` tries verified ORB tracking before SIFT fallback.
 Its measured fast-preview profile uses **Live voxel 10 mm / Final voxel 5 mm**
 in the client's advanced scan settings. Finish still uses the original recorded

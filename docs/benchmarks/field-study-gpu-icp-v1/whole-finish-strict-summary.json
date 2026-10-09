@@ -1,0 +1,199 @@
+{
+  "kind": "gpu-icp-whole-finish-strict-scalar-summary-v1",
+  "measurement_date_utc": "2026-10-09",
+  "parent_commit": "c12235c68c00368943599f6be81f697fbc7e7cd4",
+  "measured_core_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+  "source_freeze_sha256": "baaa86c1f7aebe6081da1d2163019ec81cf865bca292129e28b092c1cf8d2327",
+  "frozen_sources_count": 96,
+  "scope": "Historical core at c12235c; fresh unseeded raw Live checkpoint per session; bridge-only original-math GPU ICP inside original full Finish. Audit includes exhaustive CPU query and complete CPU result shadows.",
+  "whole_finish_gpu_timing_qualified": false,
+  "whole_scanner_speed_claim": false,
+  "production_gpu_icp_enabled": false,
+  "sessions": [
+    {
+      "session": 5,
+      "raw_views": 27,
+      "live_accepted": 21,
+      "live_s": 11.997813999987557,
+      "final_accepted_views": 7,
+      "observed_native_finish_s": 21.213380900007905,
+      "gpu_audit_finish_s_not_performance": 201.1103737999947,
+      "gpu_calls": 89,
+      "query_cpu_audit": {
+        "queries": 4696,
+        "query_rows": 49538392,
+        "audited_hits": 22112439,
+        "audited_misses": 27425953,
+        "cpu_ambiguity_rows": 0
+      },
+      "max_actual_cpu_shadow_differences": {
+        "transform_max_abs_delta": 2.7200464103316335e-15,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 1.214306433183765e-16
+      },
+      "strict_quality_checks": {
+        "same_checkpoint": true,
+        "same_accepted_indices": true,
+        "same_retained_graph": true,
+        "same_ordered_gate_memberships": false,
+        "same_mesh_success": true,
+        "pose_bounds": true,
+        "actual_gpu_calls_shadowed": true,
+        "actual_gpu_query_rows_shadowed": true
+      },
+      "strict_quality_metrics": {
+        "pose_translation_max_m": 0.0,
+        "pose_rotation_max_deg": 1.2074182697257333e-06,
+        "actual_gpu_calls": 89,
+        "actual_gpu_query_rows": 49538392,
+        "original_gate_calls": 922,
+        "numeric_max_abs_delta": 0.0,
+        "information_max_abs_delta": 0.0,
+        "transform_max_abs_delta": 7.91033905045424e-16
+      },
+      "retained_graph_endpoints_and_components_equal": true,
+      "surface_comparison_performed": false,
+      "surface_comparison_skipped_reason": "Strict original gate or graph comparison failed before physical surface dispatch",
+      "receipts": {
+        "capture": {
+          "report_sha256": "340b2c4dbf286f6f162ccc0773561733a7cd4eae46cdef122b05c8a08001f26f",
+          "root_exit_receipt_sha256": "069169285c0e792ccd8f7fa4b21cf4afe58374fed9f87c154303541886d4d93b",
+          "actual_worker_exit_code": 0
+        },
+        "native": {
+          "report_sha256": "86d9f55300506d5330918eb57cbbb64c7fc0882e3f4e3abd2c634fd32042ea33",
+          "root_exit_receipt_sha256": "4983698792465dbb1aa11ac23e2739146ac46e52fd650b6ad6075863b21de8f9",
+          "actual_worker_exit_code": 0
+        },
+        "audit": {
+          "report_sha256": "eaad1010c03c56032f4fd1d2bb0ea7e9995a740f9698678fadbafbac4c5f9beb",
+          "root_exit_receipt_sha256": "9942955177e5777740d78f4e37ab7098d34f2e674ff640f6fa1cede96152df68",
+          "actual_worker_exit_code": 0
+        },
+        "quality": {
+          "report_sha256": "f03ef27fff8caba1f777b56efbdb8615dcc9806bd3302646f760f29745b41b73",
+          "root_exit_receipt_sha256": "236d266c6ab975aced41e98f39afdb07f720c90037f094376ec3e3af0ea98df3",
+          "actual_worker_exit_code": 1
+        }
+      }
+    },
+    {
+      "session": 6,
+      "raw_views": 38,
+      "live_accepted": 33,
+      "live_s": 12.17942500000936,
+      "final_accepted_views": 38,
+      "observed_native_finish_s": 29.20785549998982,
+      "gpu_audit_finish_s_not_performance": 148.09632150000834,
+      "gpu_calls": 84,
+      "query_cpu_audit": {
+        "queries": 4312,
+        "query_rows": 28766412,
+        "audited_hits": 21918643,
+        "audited_misses": 6847769,
+        "cpu_ambiguity_rows": 0
+      },
+      "max_actual_cpu_shadow_differences": {
+        "transform_max_abs_delta": 1.3739009929736312e-15,
+        "fitness_abs_delta": 0.0,
+        "rmse_abs_delta": 5.724587470723463e-17
+      },
+      "strict_quality_checks": {
+        "same_checkpoint": true,
+        "same_accepted_indices": true,
+        "same_retained_graph": false,
+        "same_ordered_gate_memberships": false,
+        "same_mesh_success": true,
+        "pose_bounds": true,
+        "actual_gpu_calls_shadowed": true,
+        "actual_gpu_query_rows_shadowed": true
+      },
+      "strict_quality_metrics": {
+        "pose_translation_max_m": 1.380791941426476e-15,
+        "pose_rotation_max_deg": 6.273929367455621e-06,
+        "actual_gpu_calls": 84,
+        "actual_gpu_query_rows": 28766412,
+        "original_gate_calls": 836,
+        "numeric_max_abs_delta": 4.0945025148175773e-13,
+        "information_max_abs_delta": 0.02331029898050474,
+        "transform_max_abs_delta": 4.274358644806853e-15
+      },
+      "retained_graph_endpoints_and_components_equal": true,
+      "surface_comparison_performed": false,
+      "surface_comparison_skipped_reason": "Strict original gate or graph comparison failed before physical surface dispatch",
+      "receipts": {
+        "capture": {
+          "report_sha256": "94f3d3e8a777549112c7fc5f5f9524e9716e46d4858e4731b8110ad8a49f16f7",
+          "root_exit_receipt_sha256": "53793d1c2e92899a33b90158f82eec61d368a5c0faed8a549db1365a0ba96dbc",
+          "actual_worker_exit_code": 0
+        },
+        "native": {
+          "report_sha256": "fad7649b78541de6cc92f1183bca750091e8615009db7cc2b159c431a75dabf7",
+          "root_exit_receipt_sha256": "0c45aa33e11d3cd48523447d1ae38181d35a93293ee524976b1a3ca8b2460ede",
+          "actual_worker_exit_code": 0
+        },
+        "audit": {
+          "report_sha256": "fcda729f35d8e7b1e215ff9edf28e2445ad854187cf8f8d84c5c4db4c6991a06",
+          "root_exit_receipt_sha256": "3f03907df29952cfc30d495790d1ad1905b6e8e16249f4ea39a9d0d5ebe1b794",
+          "actual_worker_exit_code": 0
+        },
+        "quality": {
+          "report_sha256": "65b2d12d3ad05a9ff0ada514a5833a048e2f3ee66dc4f676013126e694d0d049",
+          "root_exit_receipt_sha256": "cef8ffac92493492a9cd9232584ab6ddfe54ea1230d08b702775f4575c6b5cb3",
+          "actual_worker_exit_code": 1
+        }
+      }
+    }
+  ],
+  "session5_native_repeat": {
+    "observed_native_finish_s": 21.197306800007937,
+    "different_ordered_gate_records": 13,
+    "first_different_function": "fragments._global_seed",
+    "same_final_pose_inventory": true,
+    "same_accepted_indices": true,
+    "exact_ransac_input_arrays_recorded": false,
+    "interpretation": "Independent CPU Finish repeats already vary in original proposal outputs or path; exact coarse and feature inputs were not captured, so this does not isolate intrinsic RANSAC nondeterminism.",
+    "receipt": {
+      "report_sha256": "306310e38a6c38f712e34cc6e0182dae9b8bb204834b5a1f6ccc76a5a59dc654",
+      "root_exit_receipt_sha256": "5d2268decb3ecbe685c9024f5df3072e8786a6bd3b10c61f5ff4004ed8374386",
+      "actual_worker_exit_code": 0
+    }
+  },
+  "session5_unobserved_original_control": {
+    "finish_s": 11.02946159998828,
+    "final_accepted_views": 7,
+    "original_build_calls": 1,
+    "gate_and_registration_history_collected": false,
+    "finish_s_includes_build_completion_and_final_validation": true,
+    "receipt": {
+      "report_sha256": "3f398c52ecb16fec02312c5f2180dbef73a6e9da9792f6994b48f035c7c3b358",
+      "root_exit_receipt_sha256": "6b036b36a5f3ceeca3c003fa8eb2e8e6cbb06483928ed85a7429b404ae4e6996",
+      "actual_worker_exit_code": 0
+    },
+    "interpretation": "Observed instrumentation roughly doubles this small-session CPU Finish; no validation-overhead subtraction is used to claim GPU performance."
+  },
+  "total_actual_gpu_calls": 173,
+  "total_actual_query_cpu_audit_rows": 78304804,
+  "not_measured": [
+    "Session 7 full Finish on this source family",
+    "Authorized no-shadow full-Finish GPU timing",
+    "Physical fixed-coordinate Final surface comparison",
+    "Current automatic-memory core performance",
+    "Live camera throughput"
+  ],
+  "publication_scope": "Scalar observations recomputed with stdlib from private closed reports and root-observed exit receipts; no raw clouds, transforms, archived poses, timing permit or production authority.",
+  "measured_new_producer_sources": {
+    "scripts/research/device_loop_finish_workspace.py": "321a567b9ad0345d40f80e1b51460ee4c5315605cc125297da4c0e0044ccb1fe",
+    "scripts/research/gpu_icp_finish_protocol.py": "28c61b429c7049e24526b0186cc00ed93ef916c12af8c0ac601cc25d15259fb9",
+    "scripts/research/gpu_icp_finish_scope.py": "74a170090f2131b28735d9ab8c2466f572aa215c128369707747c749d7a4982a",
+    "scripts/research/profile_gpu_icp_finish.py": "86b3912f72849735328266d2672e208e88cd62e60c51881b85cf055cb3508984",
+    "scripts/research/compare_gpu_icp_finishes.py": "559b7786af0c27d83a7c2e2f4faedd5675a4f4bd8d44446433016afdfb8a6ca8",
+    "scripts/research/profile_gpu_icp_finish_control.py": "297994a9cce8137f1bb5bfe000c2d916bf0ff6e8a02d71653d2bc581aa17658f",
+    "tests/test_device_loop_finish_workspace.py": "890c6610b8469c78f205939edbcc597324151681d2d062c6643d9a0c02cdad09",
+    "tests/test_gpu_icp_finish_protocol.py": "bf89448ec9689489f78b32fecb01d81a42cf5821e68414cf313c9a578eba3aa7",
+    "tests/test_gpu_icp_finish_scope.py": "1647318e467cf2541aae717d8f7e5512b4e782e930a0e3c3ca2879ed5e61af72",
+    "tests/test_gpu_icp_finish_profile.py": "b28a27751bc009b2474679c49d8db12f0936716d5fc7c2082b018d77285c0ca6",
+    "tests/test_gpu_icp_finish_quality.py": "9608edf884b844e0f1e83c538b2ed3754b6bcc811028b6dd5af81f4fe88db3f0",
+    "tests/test_gpu_icp_finish_control.py": "3e860d49ea9e5a02506d4b0ebed2aa8c3ef36b5c4ef867ac72828a105666eb2c"
+  }
+}

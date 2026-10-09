@@ -177,3 +177,42 @@ still change later seed bytes between its own audit and timing. Preserve a
 timing refusal even if Final quality passes; the fixed-pair CPU near-seed
 comparison does not authorize changed clouds or an entire GPU Finish history.
 Production integration remains unmeasured.
+
+## Next experiment: share immutable geometry search indexes
+
+The whole-Finish strict study and direct control are now executed for sessions
+5 and 6; see [the measured results](GPU_ICP_MICROBATCH_RESULTS.md#complete-finish-strict-audit-and-observer-overhead).
+The distinct current-core lower-overhead candidate and reproduction commands
+are in the [research README](README.md#current-core-whole-finish-gpu-candidate).
+Its physical quality and complete Finish timings remain pending an exclusive
+hardware window. Historical strict failures remain failed.
+
+A separate useful target is repeated construction of target search indexes.
+Open3D 0.20 constructs a target KD-tree on each `EvaluateRegistration` call
+and each information-matrix call, even when the target geometry is unchanged.
+This follows directly from the
+[pinned registration implementation](https://github.com/isl-org/Open3D/blob/v0.20.0/cpp/open3d/pipelines/registration/Registration.cpp#L128).
+The completed session-5 GPU audit recorded 105 original held-out checks with
+both directions evaluated, hence 210 native geometry evaluations. The direct
+CPU control recorded 9.234 seconds in fragment reconnection. Tree construction
+alone has not been timed, so those observations establish repeated work,
+not the size of a possible gain.
+
+After the candidate benchmarks, measure target-tree construction separately
+from transformation, search and reduction on a genuine verifier trajectory.
+If material, test a bounded native evaluator that caches only immutable owned
+target points and their index. Preserve original queries, strict radii,
+correspondence ordering, reductions, thresholds and every proposal verdict.
+Invalidate on point replacement or mutation; retain owners through completion.
+Compare every actual gate result against the fresh original API before timing.
+Keep pose-dependent answers fresh, including independent witnesses and graph
+pose revalidation. The Python registration API has no injected-tree parameter;
+per-row Python searches would add a new overhead.
+
+The smaller related seam is `refinement._distance`: Open3D also constructs a
+target tree on each point-cloud distance call in its
+[pinned implementation](https://github.com/isl-org/Open3D/blob/v0.20.0/cpp/open3d/geometry/PointCloud.cpp#L123).
+Preserve the original square-root, clamp, square and mean sequence. Session 5
+recorded only six such calls, so held-out verifier evaluations are the first
+measurement target. Descriptor matches are already cached, and fragment
+unions/FPFH are prepared once per fragment.
