@@ -696,7 +696,7 @@ class MainWindow(QMainWindow):
         self.relocalize_cb = QCheckBox("Recover lost tracking")
         self.confidence_cb = QCheckBox("Use sensor confidence")
         for control, help_text in (
-            (self.color_tracking_cb, "Tracks motion between camera frames during live scans and verifies color/depth matches against nearby saved views."),
+            (self.color_tracking_cb, "Tracks motion between camera frames while capturing, including when live reconstruction is off. Verifies color/depth matches against nearby saved views."),
             (self.refine_cb, "Validates loop matches and rebuilds fusion; needs extra time and memory."),
             (self.bundle_cb, "Refines camera positions and shared surface features together using color and measured depth. Adds processing time and memory; retains the current reconstruction if evidence is insufficient."),
             (self.relocalize_cb, "Attempts verified recovery after skipped frames; repeated scenes may be ambiguous."),
@@ -721,7 +721,7 @@ class MainWindow(QMainWindow):
         dv = diagnostics.content_layout
         self.flow_debug_cb = QCheckBox("Show tracking flow")
         self.flow_debug_cb.setToolTip(
-            "Show camera-side feature motion during scans with live reconstruction and color-assisted tracking. "
+            "Show camera-side feature motion during scans with color-assisted tracking. "
             "Includes trails across the last 20 camera frames on the calibrated depth grid."
         )
         self.flow_windows_cb = QCheckBox("Show LK patch windows")
@@ -792,7 +792,7 @@ class MainWindow(QMainWindow):
             (self.rgb_exposure_combo, "Auto adjusts exposure to available light. Manual lets you choose shutter speed and gain."),
             (self.voxel_spin, "Smaller voxels show finer detail and use more reconstruction memory."),
             (self.weight_spin, "Higher confidence removes weakly observed surface from the final model; scan areas from overlapping views."),
-            (self.live_cb, "Show the fused point cloud and tracking feedback while scanning."),
+            (self.live_cb, "Process captured views and show the fused point cloud while scanning. When off, reconstruction and its tracking checks wait until Finish; camera-side color tracking stays available."),
             (self.server_ip_edit, "Address of the computer running the reconstruction server."),
             (self.server_port_spin, "Port used by the reconstruction server (usually 8000)."),
         ):
@@ -878,6 +878,12 @@ class MainWindow(QMainWindow):
 
     def _refresh_status(self):
         interval = self._effective_capture_interval()
+        offline = not (self._session_settings or {}).get("live_reconstruction", self.live_cb.isChecked())
+        camera_motion_unverified = (
+            self._scanning and not self._paused and offline
+            and (self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
+            and self._last_frame_metadata.get("visual_tracking", {}).get("valid") is False
+        )
         if self._camera_suspended:
             self.interval_help.setText("Capture finished · stopping camera…" if self.worker.isRunning()
                                        else "Capture finished · camera and sensors are off.")
@@ -922,8 +928,12 @@ class MainWindow(QMainWindow):
             state = self._capture_waiting
         elif self._scanning and not self._camera_ready():
             state = "Waiting for fresh camera frames · scan retained"
+        elif camera_motion_unverified:
+            state = "Camera motion unverified · move slowly with overlapping views · reconstruction checked at Finish"
         elif self._scanning:
             state = "Capturing automatically" if self.auto_capture_cb.isChecked() else "Manual capture · ready"
+            if offline:
+                state += " · reconstruction checked at Finish"
         elif self._has_mesh:
             state = "Scan finished · camera off · inspect, save or export"
         elif self._server_stored:
@@ -935,10 +945,14 @@ class MainWindow(QMainWindow):
         if self.scan_status_label.text() != state:
             self.logs_panel.append(state, "Scan")
         self.scan_status_label.setText(state)
+        if camera_motion_unverified and not self.live_view.snapshot.get("fusion_paused") and self._progress_link_ok:
+            self.guidance_label.setText("Camera motion could not be verified. Slow down and keep overlapping detail in view. Captures are retained; reconstruction is checked at Finish.")
+            self.guidance_label.setStyleSheet("")
         self.guidance_label.setVisible(
             self._scanning and self.live_view.isHidden()
             and self.view_stack.currentWidget() is self.splitter
-            and (bool(self.live_view.snapshot.get("fusion_paused")) or not self._progress_link_ok)
+            and (bool(self.live_view.snapshot.get("fusion_paused")) or not self._progress_link_ok
+                 or camera_motion_unverified)
         )
 
     def _capture_mode_changed(self):
@@ -1196,7 +1210,7 @@ class MainWindow(QMainWindow):
         else:
             reason = self._last_frame_metadata.get("visual_tracking", {}).get("reason")
             self.flow_debug_status.setText(reason or
-                "Waiting for tracking frames. Start a scan with Show live reconstruction and Color-assisted tracking enabled.")
+                "Waiting for tracking frames. Start a scan with Color-assisted tracking enabled.")
 
     def _update_tracking_debug(self):
         enabled = self.flow_debug_cb.isChecked()
@@ -1452,7 +1466,7 @@ class MainWindow(QMainWindow):
                 settings = ScanSettings.from_dict(self._session_settings) if self._session_settings else None
             except (TypeError, ValueError):
                 settings = None
-            if settings is not None and not (self._scanning and settings.live_reconstruction and settings.color_recovery):
+            if settings is not None and not (self._scanning and settings.color_recovery):
                 settings = None
             configuration = (self.worker, self._session_id, settings)
             if getattr(self, "_tracking_configuration", None) == configuration:

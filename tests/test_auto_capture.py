@@ -120,6 +120,40 @@ class AutoCaptureTests(unittest.TestCase):
         self.window._on_reset_done({"session_id": "empty", "settings": profile.to_dict()})
         self.assertIsNone(self.window.worker.tracking_settings[-1])
 
+    def test_color_tracking_is_retained_when_live_reconstruction_is_off(self):
+        self.window.rgb_mode_combo.setCurrentIndex(1)
+        profile = ScanSettings(color_recovery=True, live_reconstruction=False)
+        self.window._on_reset_done({"session_id": "offline-motion", "settings": profile.to_dict()})
+        self.assertEqual(profile, self.window.worker.tracking_settings[-1])
+        requests = len(self.window.worker.tracking_settings)
+        self.window._apply_session_settings(profile.to_dict())
+        self.assertEqual(requests, len(self.window.worker.tracking_settings),
+                         "Status updates must preserve offline motion tracking")
+        self.receive()
+        self.window._refresh_status()
+        self.assertIn("reconstruction checked at Finish", self.window.scan_status_label.text())
+        self.assertTrue(self.window.live_view.isHidden())
+        self.window._on_build_mesh_done(False, "Synthetic failed build")
+        self.assertIsNone(self.window.worker.tracking_settings[-1])
+
+    def test_disabled_color_tracking_remains_off_without_live_reconstruction(self):
+        profile = ScanSettings(color_recovery=False, live_reconstruction=False)
+        self.window._on_reset_done({"session_id": "offline-no-motion", "settings": profile.to_dict()})
+        self.assertIsNone(self.window.worker.tracking_settings[-1])
+
+    def test_offline_motion_warning_keeps_capturing_and_clears_on_recovery(self):
+        profile = ScanSettings(color_recovery=True, live_reconstruction=False)
+        self.window._on_reset_done({"session_id": "offline-warning", "settings": profile.to_dict()})
+        self.window._progress_link_ok = True
+        self.receive(visual_tracking={"valid": False, "reason": "Visual motion unverified"})
+        self.assertIn("Camera motion unverified", self.window.scan_status_label.text())
+        self.assertFalse(self.window.guidance_label.isHidden())
+        self.assertFalse(self.window._paused)
+        self.assertTrue(self.window.auto_capture_cb.isChecked())
+        self.receive(visual_tracking={"valid": True})
+        self.assertNotIn("Camera motion unverified", self.window.scan_status_label.text())
+        self.assertTrue(self.window.guidance_label.isHidden())
+
     def test_interval_editor_caps_frequency_and_steps_whole_frames(self):
         spin = self.window.auto_capture_spin
         self.assertEqual(5, spin.value())

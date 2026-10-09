@@ -148,6 +148,14 @@ Automatic capture starts when the server acknowledges the new session; Manual
 offers **Capture Frame**. Keep the subject stationary and move the Kinect slowly
 around it with overlapping views. Turntable scanning is not supported.
 
+With **Show live reconstruction** off, captures are retained and server-side
+reconstruction/tracking checks wait until **Finish Scan**. **Color-assisted
+tracking** still measures motion between camera frames and saves motion seeds
+with selected captures. Those seeds help later registration; they do not prove
+alignment. Enable live reconstruction for immediate reconstruction-loss alerts.
+Without live reconstruction, an unverified camera-motion notice still prompts
+slower movement and overlapping views; it does not stop capture.
+
 Scan actions stay visible while setup settings scroll independently. **Pause**
 and **Resume Capture** retain the current scan; **Finish Scan** builds the final
 model. **Cancel Scan** returns to setup without a build, offering to save or
