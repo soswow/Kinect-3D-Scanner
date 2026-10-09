@@ -416,10 +416,10 @@ def _validate_bridge_pose(edge, poses, fragments, camera):
     if translation > 0.03 or angle > 3:
         return False
     scope = edge.get("validation_scope")
-    if scope in ("independent camera pairs", "sequential camera pair", "visual and held-out camera pairs"):
+    if scope in ("independent camera pairs", "sequential camera pair", "temporal camera pair", "visual and held-out camera pairs"):
         a_views = {v.index: v for v in fragments[a].context + fragments[a].views}
         b_views = {v.index: v for v in fragments[b].context + fragments[b].views}
-        minimum = 0.4 if scope == "sequential camera pair" else 0.5
+        minimum = {"sequential camera pair": 0.4, "temporal camera pair": 0.45}.get(scope, 0.5)
         for i, j in edge["support"]:
             relative = np.linalg.inv(b_views[j].pose) @ transform @ a_views[i].pose
             if not _heldout(a_views[i].heldout, b_views[j].heldout, relative, minimum)[0]:
@@ -429,6 +429,118 @@ def _validate_bridge_pose(edge, poses, fragments, camera):
                 return False
         return True
     return _heldout(fragments[a].heldout, fragments[b].heldout, transform)[0]
+
+
+def _temporal_bridges(engine, fragments, edges, baseline, gap_limit, progress):
+    """Retain raw visual ties hidden by first-success fragment ownership.
+
+    Only three capture steps are searched, within the ordinary capture gap.
+    World estimates are seeds, never constraints. Every tie needs distributed
+    RGB-D feature identities and independent held-out depth at the same pose.
+    """
+    owned = {v.index: (fragment.index, v) for fragment in fragments for v in fragment.views}
+    measured = {}
+    for index in sorted(owned):
+        owner, view = owned[index]
+        _notify(progress, index + 1, len(engine.raw_frames), "Verifying nearby fragment boundaries")
+        for before in range(max(0, index - 3), index):
+            if before not in owned or owned[before][0] == owner:
+                continue
+            other, reference = owned[before]
+            stamp = engine.frame_metadata[index].get("timestamp_s")
+            last_stamp = engine.frame_metadata[before].get("timestamp_s")
+            if stamp is not None and last_stamp is not None and not 0 < stamp - last_stamp <= gap_limit:
+                continue
+            if len(_matches(view, reference)) < 40:
+                continue
+            initial = (np.linalg.inv(baseline[before]) @ baseline[index]
+                       if before in baseline and index in baseline else None)
+            relative = _local_match(view, reference, engine.settings.camera, engine.settings,
+                                    initial, measured_first=True)
+            if relative is None:
+                continue
+            valid, stats = _visual_witness(view, reference, relative, engine.settings.camera)
+            if not valid:
+                continue
+            # relative maps the later camera into the earlier camera.
+            transform = view.pose @ np.linalg.inv(relative) @ np.linalg.inv(reference.pose)
+            a, b, support = other, owner, (before, index)
+            if a > b:
+                a, b, support, transform = b, a, support[::-1], np.linalg.inv(transform)
+            measured.setdefault((a, b), []).append((transform, support, {
+                "source_index": index, "target_index": before, **stats}))
+    ambiguous = []
+    added = 0
+    for (a, b), witnesses in sorted(measured.items()):
+        witnesses.sort(key=lambda row: -row[2]["features"]["inliers"])
+        transform = witnesses[0][0]
+        # A contradictory short-range measurement is ambiguity, not a vote.
+        if any(_disagrees(transform, pose, 0.03, 3) for pose, _, _ in witnesses[1:]):
+            ambiguous.append([a, b])
+            continue
+        edge = {"source": a, "target": b, "transform": transform,
+                "information": REG.get_information_matrix_from_point_clouds(
+                    fragments[a].train, fragments[b].train, 0.03, transform),
+                "support": [witnesses[0][1]], "validation_scope": "temporal camera pair",
+                "validation": {"camera_pairs": [witnesses[0][2]]},
+                "visual_constraint": True, "temporal_constraint": True}
+        existing = next((e for e in edges if (e["source"], e["target"]) == (a, b)), None)
+        if existing is not None:
+            if _disagrees(existing["transform"], transform, 0.03, 3):
+                ambiguous.append([a, b])
+                continue
+            # A storage-boundary measurement already supplies this constraint.
+            continue
+        if np.isfinite(edge["information"]).all() and _validate_bridge_pose(
+                edge, {a: np.eye(4), b: np.linalg.inv(transform)}, fragments, engine.settings.camera):
+            edges.append(edge)
+            added += 1
+    return added, ambiguous
+
+
+def _bridge_world(fragments, edges, roots):
+    """Build a maximum-evidence forest before choosing world coordinates.
+
+    Connecting from the root greedily can reach a component through a false
+    geometric loop before its visual/temporal ties are visited. Kruskal's
+    forest preserves those ties even when that component is initially detached.
+    """
+    def rank(edge):
+        if edge.get("temporal_constraint") or edge.get("validation_scope") == "sequential camera pair":
+            return 0
+        if edge.get("visual_constraint") or edge.get("validation_scope") == "visual and held-out camera pairs":
+            return 1
+        return 2
+
+    groups = list(range(len(fragments)))
+    def root(i):
+        while groups[i] != i:
+            i = groups[i]
+        return i
+
+    tree = []
+    for edge in sorted(edges, key=rank):
+        a, b = root(edge["source"]), root(edge["target"])
+        if a != b:
+            groups[a] = b
+            tree.append(edge)
+    world = {i: fragments[i].seed.copy() for i in roots}
+    for _ in fragments:
+        for edge in tree:
+            a, b, pose = edge["source"], edge["target"], edge["transform"]
+            if a in world and b not in world:
+                world[b] = world[a] @ np.linalg.inv(pose)
+            elif b in world and a not in world:
+                world[a] = world[b] @ pose
+    return world, {(e["source"], e["target"]) for e in tree}
+
+
+def _boundary_conflicts(edges, poses, fragments, camera):
+    """Pruning a measured boundary cannot make contradictory output safe."""
+    return [[e["source"], e["target"]] for e in edges
+            if (e.get("temporal_constraint") or e.get("validation_scope") == "sequential camera pair")
+            and e["source"] in poses and e["target"] in poses
+            and not _validate_bridge_pose(e, poses, fragments, camera)]
 
 
 def _reachable(count, edges, roots):
@@ -558,6 +670,8 @@ def propose_fragment_poses(engine, progress_cb=None):
                           "validation": stats, "validation_scope": "sequential camera pair",
                           "visual_constraint": _visual_witness(b, a, relative, engine.settings.camera)[0]})
     report["sequential_bridges"] = len(edges)
+    report["temporal_bridges"], report["ambiguous_temporal_pairs"] = _temporal_bridges(
+        engine, fragments, edges, baseline, gap_limit, progress_cb)
     sequential_pairs = {(e["source"], e["target"]) for e in edges}
     candidates = []
     eligible = {f.index for f in fragments if _has_independent_views(f)}
@@ -648,17 +762,7 @@ def propose_fragment_poses(engine, progress_cb=None):
     connected = _reachable(len(fragments), edges, roots)
     # Initialize from measured bridges, independently of the drifted live poses.
     primary = roots[0]
-    world = {i: fragments[i].seed.copy() for i in roots}
-    tree_pairs = set()
-    for _ in fragments:
-        for edge in edges:
-            a, b, pose = edge["source"], edge["target"], edge["transform"]
-            if a in world and b not in world:
-                world[b] = world[a] @ np.linalg.inv(pose)
-                tree_pairs.add((a, b))
-            elif b in world and a not in world:
-                world[a] = world[b] @ pose
-                tree_pairs.add((a, b))
+    world, tree_pairs = _bridge_world(fragments, edges, roots)
     node_ids = sorted(connected)
     nodes = {i: j for j, i in enumerate(node_ids)}
     graph = REG.PoseGraph()
@@ -689,6 +793,10 @@ def propose_fragment_poses(engine, progress_cb=None):
         if not valid:
             rejected.append([a, b])
         valid_graph &= valid
+    boundary_conflicts = _boundary_conflicts(edges, optimized, fragments, engine.settings.camera)
+    valid_graph &= not boundary_conflicts
+    if boundary_conflicts:
+        report["rejected_optimized_boundaries"] = boundary_conflicts
     if not valid_graph:
         # Optimization is optional. Restore measured spanning-tree poses and
         # revalidate every surviving bridge in those coordinates. Pruned edges
@@ -701,8 +809,14 @@ def propose_fragment_poses(engine, progress_cb=None):
         connected = _reachable(len(fragments), retained, roots)
         optimized = {i: world[i].copy() for i in connected}
         valid_graph = all(_rigid(p) for p in optimized.values())
+        conflicts = _boundary_conflicts(edges, optimized, fragments, engine.settings.camera)
+        if conflicts:
+            report["reason"] = "Conflicting measured fragment boundaries; previous reconstruction retained"
+            report["rejected_fallback_boundaries"] = conflicts
+            valid_graph = False
         if not valid_graph:
-            report["reason"] = "Measured bridge poses failed independent validation"
+            if not conflicts:
+                report["reason"] = "Measured bridge poses failed independent validation"
             connected, optimized = set(roots), {i: fragments[i].seed for i in roots}
     proposals = {}
     for fragment in fragments:

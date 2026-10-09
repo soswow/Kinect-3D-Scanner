@@ -154,3 +154,79 @@ Exact SHA256 fingerprints:
 
 This investigation documents an observed failure and targeted raw-data checks.
 It does not certify the remaining poses or the resulting mesh as correct.
+
+## Algorithm correction and rebuilt session
+
+The subsequent production correction retains verified short-range camera ties
+across fragment boundaries, constructs the spanning forest in temporal/visual
+evidence order before anchoring it, and checks all measured output boundaries
+even when optimization prunes their original edges. If fallback still violates
+those measurements, Finish fails before fusion and preserves the previous
+volume and diagnostic evidence. See [the algorithm guide](FRAGMENT_RECONNECTION.md).
+
+Eight additional temporal bridges are found in chest 8, including the direct
+zero-based `[56, 59]` and `[127, 128]` RGB-D connections reproduced above. Three
+existing storage-boundary bridges remain. The resulting graph tests seven
+global pairs rather than the archive's 88. Early completion follows the existing
+connected-plus-redundant-cycle rule after these measurements establish coverage.
+This comparison describes graph work; the archived CUDA timing and the fresh CPU
+timing are not interchangeable performance benchmarks.
+
+The corrected algorithm was checked in two isolated replays:
+
+1. Original live poses as seeds: reconnects 143 of 145 observations.
+2. Already-flipped final poses as seeds: full Finish succeeds with 143 accepted
+   observations, fresh 5 mm fusion, mesh extraction and session export. None of
+   the original 134 accepted observations is excluded. Nine additional views
+   are recovered and 82 previously accepted poses are corrected. Raw indices
+   25 and 42 remain unconnected.
+
+| Captures, one-based | Archived final rotation / displacement | Rebuilt final rotation / displacement |
+| --- | --- | --- |
+| 57 → 58 | 155.366° / 2.069 m | 23.490° / 0.435 m |
+| 128 → 129 | 175.280° / 2.079 m | 10.958° / 0.111 m |
+
+The largest relative rotation between retained output captures is now 38.518°;
+that transition spans a missing capture. All eleven retained temporal/storage
+boundaries pass a fresh calibrated raw visual/held-out check with the current
+source after export. The optional later pose-refinement and bundle-adjustment
+stages did not apply, so the repaired trajectory is the reconnection result.
+Final fusion activates 15,926 blocks at 5 mm with automatic capacity allocation.
+
+The new archive is
+`export/chest-8-scan-20261009-145-captures-temporal-fixed.zip`. It contains the
+rebuilt mesh and all 145 raw RGB/depth captures. Every image retains the original
+CRC and uncompressed size, and the entire new ZIP passes CRC verification.
+The original archive remains intact. Local evidence is in the ignored
+`benchmark-output/chest8-improved/` directory, including `boundary-validation.json`,
+the complete rebuilt report, logs, mesh, and `pose-jumps-fixed.png`.
+
+To reproduce a full isolated rebuild from the already-flipped estimates:
+
+```powershell
+$env:OMP_NUM_THREADS = '4'
+$env:KINECT_NATIVE = 'off'
+$env:KINECT_CUDA_INPUT = 'off'
+$env:KINECT_CUDA_REGISTRATION = 'cpu'
+python scripts/reconnect_session.py export/chest-8-scan-20261009-145-captures.zip `
+  --use-pose-seeds --device cpu --save-session `
+  --output-dir benchmark-output/chest8-rebuild
+```
+
+The numerical environment was the same Open3D 0.20.0 / OpenCV 5.0.0 / NumPy
+2.5.3 server environment used in the investigation, with four OpenMP/OpenCV
+threads. A separate chest-6 replay retains all 38 captures, excludes none, and
+has a largest relative rotation of 13.968°. Regression coverage includes 24
+fragment tests, 31 additional appearance/fusion/feature checks, and 40 research
+contracts; one optional client check is skipped. New regressions exercise raw
+temporal recovery, conflicting measurements, timestamp pauses, unsynchronized
+RGB-D, false geometric loop ordering, and failure before fusion with diagnostics
+preserved.
+
+The offline marker-insertion research adapter is explicitly rebound as policy
+v2 to the changed production function. Its exact-source and insertion-removal
+checks still pass. Historical v1 reports are unchanged and do not establish
+numerical or timing authority for this new algorithm.
+
+These results address the observed half-turn failure. They do not provide a
+ground-truth trajectory or certify every surface in the rebuilt mesh.

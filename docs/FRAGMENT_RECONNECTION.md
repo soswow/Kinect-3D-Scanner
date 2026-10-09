@@ -31,7 +31,14 @@ fragment graph optimization described here remains a Finish operation.
    only the first retained fragment fixes the world coordinate system. A size
    boundary also retains the two preceding cameras as local overlap witnesses;
    those context captures are not owned or fused a second time.
-2. Search for fragment overlap independently of the broken live trajectory.
+2. Preserve additional short-range RGB-D connections across fragment boundaries.
+   Finding one local reference must not discard a different valid reference in
+   another fragment. Search at most three capture steps, within the ordinary
+   timestamp-gap limit, using measured feature refinement, distributed visual
+   identities, held-out depth and the existing per-step motion limits. These
+   temporal ties require synchronized RGB-D and do not accept archived or client
+   poses as authority. Contradictory measurements are reported as ambiguity.
+   Then search for fragment overlap independently of the broken live trajectory.
    Synchronized ORB/PnP matches propose transforms; FPFH descriptors and bounded
    RANSAC also propose transforms using depth alone. RGB-D pairs over 20 ms
    apart cannot provide appearance proposals.
@@ -46,15 +53,24 @@ fragment graph optimization described here remains a Finish operation.
    A short fragment can use its measured overlap context. Reject competing verified
    transforms that disagree by over 5 cm or 5°.
 4. Optimize the anchored fragment pose graph with Open3D's Levenberg–Marquardt
-   optimizer. Its measured spanning tree supplies the initial trajectory;
+   optimizer. Build the measured spanning forest before choosing world poses:
+   sequential and verified temporal connections come first, followed by visual
+   bridges, then geometric-only bridges. This preserves measured connectivity
+   even inside a component that has not yet reached the world anchor. The forest
+   supplies the initial trajectory;
    additional bridges are uncertain constraints. Recompute connectivity after edge
    pruning, then validate optimized bridges against held-out geometry and any
    supporting visual correspondences again.
+   Revalidate every measured temporal/storage boundary whose endpoints remain
+   connected, even if the optimizer pruned its original edge. Pruning a constraint
+   cannot authorize a contradictory pose through a different graph route.
    If the adjustment fails those checks, revalidate the measured spanning-tree
    poses and retain only still-valid surviving links connected to the first
    fragment. Optimization-pruned edges remain removed, and diagnostics explicitly
    record the fallback. This preserves measured connectivity without claiming
    that global drift was corrected.
+   If fallback poses still contradict a measured boundary, fail before fusion
+   and preserve the previous reconstruction, including the full diagnostic report.
    Re-estimate accepted poses as well as skipped views. Exclude observations
    without a verified connection to the first fragment. Optional final pose
    refinement can subsequently refine that connected trajectory using its
@@ -75,13 +91,17 @@ background when capturing a bridge.
 
 ## Budgets and diagnostics
 
-The pass considers at most 32 fragments and 256 fragment pairs, with up to five
-owned key views plus two overlap witnesses per fragment, 12,000 aggregate training points, 30,000 validation points,
+The pass considers at most 32 fragments and 256 global fragment pairs, with the
+first and last five owned key views plus a midpoint and two overlap witnesses per
+fragment, 12,000 aggregate training points, 30,000 validation points,
 and two geometric RANSAC proposals of at most 12,000 iterations each. Pairs
 crossing from the anchored reconstruction to an unconnected fragment are tested
 first. Once no crossing pair can connect a remaining component, pairs entirely
 inside that unreachable component are skipped. Original evidence ranking still
-determines graph initialization and which loop candidates precede early completion.
+orders global candidates within their evidence class and determines which loop
+candidates precede early completion. The separate temporal pass considers only
+cross-fragment cameras at most three capture steps apart; cameras lacking 40
+mutual feature matches skip that pass's registration work.
 Exact mutual descriptor matches are cached for at most sixteen target views per
 prepared camera; pose-dependent verification is never cached. Preparation is bounded by the
 scanner's raw frame limit. Search time varies with captured geometry; it is not
@@ -98,6 +118,10 @@ local camera poses for every prepared fragment, connected/unconnected fragment
 IDs, geometric bridge evidence and connection status, ambiguous pairs, recovered
 view count, corrected/excluded accepted views, elapsed time, required fusion blocks,
 fusion budget, and whether a search cap was reached.
+`temporal_bridges` counts additional measured boundary edges;
+`ambiguous_temporal_pairs` records contradictory nearby measurements.
+`rejected_optimized_boundaries` and `rejected_fallback_boundaries` identify
+output placements that violate retained raw boundary evidence.
 Unassigned indices identify observations beyond the fragment cap. All retained
 raw frames remain in **Save Session…**, including unconnected and unassigned
 views. They are excluded from the world mesh until a connection is verified.

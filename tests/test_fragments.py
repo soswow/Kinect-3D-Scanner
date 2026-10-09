@@ -21,6 +21,9 @@ from scanner_server.engine import ScanEngine
 from scanner_server.fragments import (
     Fragment,
     _matches,
+    _bridge_world,
+    _boundary_conflicts,
+    _temporal_bridges,
     _prepare_fragment,
     _verify_bridge,
     _view,
@@ -209,6 +212,76 @@ class FragmentTests(unittest.TestCase):
         self.assertEqual([4, 5, 6, 7], report["fragments"][1]["frame_indices"])
         self.assertEqual(8, len({i for i, _ in poses}), "Context must not duplicate fusion")
 
+    def test_raw_temporal_tie_recovers_a_link_hidden_by_fragment_ownership(self):
+        engine = ScanEngine(device="cpu")
+        for index, frame in enumerate(self.scene[:6]):
+            engine.store_frame(*frame[:2], {"timestamp_s": index * .2})
+        # Simulate a failed boundary view starting a new fragment, followed by
+        # successful local tracking inside it. Only the first world anchor is
+        # supplied; all cross-fragment measurements come from raycast RGB-D.
+        fragments = []
+        for owner, indices in enumerate(([0, 1, 2], [3, 4, 5])):
+            views = [_view(engine, i) for i in indices]
+            origin = self.scene[indices[0]][2]
+            for view in views:
+                view.pose = np.linalg.inv(origin) @ self.scene[view.index][2]
+            fragment = Fragment(owner, views=views, seed=np.eye(4) if owner == 0 else None)
+            _prepare_fragment(fragment)
+            fragments.append(fragment)
+        edges = []
+        count, ambiguous = _temporal_bridges(engine, fragments, edges, {0: np.eye(4)}, 2, None)
+        self.assertEqual([], ambiguous)
+        self.assertEqual(1, count)
+        self.assertTrue(edges[0]["temporal_constraint"])
+        world, _ = _bridge_world(fragments, edges, [0])
+        for view in fragments[1].views:
+            pose = world[1] @ view.pose
+            self.assertLess(np.linalg.norm(pose[:3, 3] - self.scene[view.index][2][:3, 3]), .02)
+        self.assertEqual([], _boundary_conflicts(edges, world, fragments, engine.settings.camera))
+        # An optimizer can prune an edge but cannot authorize its flipped views
+        # through a different route. The original measurement still vetoes it.
+        flipped = world[1].copy()
+        flipped[:3, :3] = flipped[:3, :3] @ o3d.geometry.get_rotation_matrix_from_xyz((0, np.pi, 0))
+        self.assertEqual([[0, 1]], _boundary_conflicts(edges, {0: world[0], 1: flipped}, fragments,
+                                                   engine.settings.camera))
+        # If individually good raw measurements contradict the fragment's
+        # internal geometry, no highest-inlier vote may manufacture a tie.
+        original = fragments[1].views[0].pose.copy()
+        fragments[1].views[0].pose = original @ np.diag([-1., 1., -1., 1.])
+        self.assertEqual((0, [[0, 1]]), _temporal_bridges(engine, fragments, [], {0: np.eye(4)}, 2, None))
+        fragments[1].views[0].pose = original
+        # A real capture pause must not be converted into temporal authority.
+        for index in range(3, 6):
+            engine.frame_metadata[index]["timestamp_s"] += 10
+        self.assertEqual((0, []), _temporal_bridges(engine, fragments, [], {0: np.eye(4)}, 2, None))
+        for index, metadata in enumerate(engine.frame_metadata):
+            metadata.update(timestamp_s=index * .2, rgb_depth_delta_ms=30)
+        for fragment in fragments:
+            fragment.views = [_view(engine, v.index) for v in fragment.views]
+        self.assertEqual((0, []), _temporal_bridges(engine, fragments, [], {0: np.eye(4)}, 2, None))
+
+    def test_visual_component_is_built_before_a_false_geometric_loop(self):
+        fragments = [Fragment(i, seed=np.eye(4) if i == 0 else None) for i in range(4)]
+        truth = [np.eye(4) for _ in fragments]
+        for i, pose in enumerate(truth):
+            pose[:3, :3] = o3d.geometry.get_rotation_matrix_from_xyz((.01 * i, .2 * i, -.03 * i))
+            pose[:3, 3] = [.1 * i, .02 * i, .03 * i]
+        def edge(a, b, scope):
+            return {"source": a, "target": b, "transform": np.linalg.inv(truth[b]) @ truth[a],
+                    "validation_scope": scope}
+        false = edge(0, 2, "independent camera pairs")
+        false["transform"] = false["transform"] @ np.diag([-1., 1., -1., 1.])
+        # False geometry appears before the visual link, as in Chest 8. Build
+        # the detached visual component first, then anchor it through frame 3.
+        edges = [false, edge(0, 1, "sequential camera pair"),
+                 edge(1, 3, "temporal camera pair"), edge(2, 3, "visual and held-out camera pairs")]
+        edges[2]["temporal_constraint"] = True
+        for ordered in (edges, list(reversed(edges))):
+            world, tree = _bridge_world(fragments, ordered, [0])
+            self.assertNotIn((0, 2), tree)
+            for index, pose in world.items():
+                np.testing.assert_allclose(truth[index], pose, atol=1e-12)
+
     def test_size_boundary_does_not_bridge_a_real_tracking_failure(self):
         engine = ScanEngine(device="cpu")
         engine.reset(settings=ScanSettings(max_translation_m=0.05))
@@ -288,6 +361,24 @@ class FragmentTests(unittest.TestCase):
         self.assertEqual([0, 1, 2, 3], [i for i, _ in poses], report)
         self.assertEqual([1], report["unconnected_fragments"])
         self.assertFalse(report["verified_bridges"][0]["connected_to_scan"])
+
+    def test_conflicting_fallback_boundaries_preserve_volume_and_diagnostic_evidence(self):
+        engine = ScanEngine(device="cpu")
+        for index, frame in enumerate(self.scene[:8]):
+            engine.store_frame(*frame[:2], {"timestamp_s": index * .2})
+        engine.poses = [(0, np.eye(4))]
+        engine.frame_count = 1
+        original_volume = engine.vbg
+        with patch("scanner_server.fragments.MAX_FRAGMENT_VIEWS", 4), \
+             patch("scanner_server.fragments._boundary_conflicts", return_value=[[0, 1]]), \
+             patch.object(engine, "_required_fusion_blocks", side_effect=AssertionError("unsafe fusion")):
+            self.assertFalse(engine._reconnect_volume())
+        self.assertIs(engine.vbg, original_volume)
+        self.assertEqual([0], [i for i, _ in engine.poses])
+        self.assertEqual([[0, 1]], engine.fragment_reconnection["rejected_fallback_boundaries"])
+        self.assertEqual(2, len(engine.fragment_reconnection["fragments"]))
+        self.assertTrue(engine.fragment_reconnection["verified_bridges"])
+        self.assertFalse(any(e["connected_to_scan"] for e in engine.fragment_reconnection["verified_bridges"]))
 
     def test_search_does_not_spend_budget_on_unreachable_fragment_pairs(self):
         engine = ScanEngine(device="cpu")

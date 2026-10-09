@@ -15,8 +15,11 @@ import time
 from types import FunctionType
 
 ROOT = Path(__file__).resolve().parents[2]
-POLICY = "native-marker-additional-global-fragment-proposals-v1"
-ORIGINAL_AST_SHA256 = "b7099c53225900b87355f004bb37cccd77ad4786ffb6815b6f0b08446ac03277"
+# v2 binds the unchanged marker insertion to the temporal-boundary production
+# algorithm. Historical v1 measurements remain historical; new runs must emit
+# this policy and fresh source fingerprints rather than reuse those reports.
+POLICY = "native-marker-additional-global-fragment-proposals-v2"
+ORIGINAL_AST_SHA256 = "bca7ccfddacd150328bd1df59bd6e8e4c93dad557fb626529f1a6861c13a998f"
 PROVIDER_SYMBOL = "_offline_global_marker_seed_provider"
 MAX_ADDITIONAL_SEEDS = 4
 MAX_KEYS_PER_FRAGMENT = 18
