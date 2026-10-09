@@ -116,3 +116,6 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
 All numerical runs require exclusive hardware outside active scanning. Original
 CPU gates, actual proposal/graph outcomes and Final pose/surface comparisons are
 required before a component experiment can support a whole-scanner change.
+
+The detailed independent-seed report, cold setup costs and publication command
+are in [GPU_ICP_SEED_BATCH_RESULTS.md](GPU_ICP_SEED_BATCH_RESULTS.md).

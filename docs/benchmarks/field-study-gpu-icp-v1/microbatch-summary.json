@@ -1,0 +1,400 @@
+{
+  "kind": "gpu-icp-microbatch-scalar-summary-v1",
+  "status": "passed",
+  "created_utc": "2026-10-09T00:11:23.092751+00:00",
+  "whole_finish_authority": false,
+  "performance_authority_token_created": false,
+  "fixed_resource_bytes_rehashed_by_summary": false,
+  "cases": [
+    {
+      "case": "chest-6",
+      "status": "passed",
+      "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+      "source_points": 8203,
+      "target_points": 6235,
+      "genuine_proposals": 4,
+      "audit_coverage": {
+        "query_rows": 5955378,
+        "audited_hits": 4343160,
+        "audited_misses": 1612218,
+        "exact_cpu_queries": 0
+      },
+      "original_native_and_complete_proposal_gates_passed": true,
+      "timing_groups": [
+        {
+          "seeds": 2,
+          "native_cpu": {
+            "samples": 3,
+            "first_s": 0.06807900000421796,
+            "median_s": 0.06643150000309106,
+            "min_s": 0.06509089999599382,
+            "max_s": 0.06807900000421796,
+            "all_s": [
+              0.06807900000421796,
+              0.06643150000309106,
+              0.06509089999599382
+            ]
+          },
+          "serial": {
+            "samples": 3,
+            "first_s": 0.10025940000195988,
+            "median_s": 0.19156170000496786,
+            "min_s": 0.10025940000195988,
+            "max_s": 0.19417209998937324,
+            "all_s": [
+              0.10025940000195988,
+              0.19156170000496786,
+              0.19417209998937324
+            ],
+            "nested_adapter_wall_s": [
+              0.08852449999540113,
+              0.17890170001192018,
+              0.18155629999819212
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.011734900006558746,
+              0.012659999993047677,
+              0.01261579999118112
+            ],
+            "gpu_to_native_median_wall_ratio": 2.883597389733101
+          },
+          "concurrent": {
+            "samples": 3,
+            "first_s": 0.07130969999707304,
+            "median_s": 0.15919669999857433,
+            "min_s": 0.07130969999707304,
+            "max_s": 0.1833690000057686,
+            "all_s": [
+              0.07130969999707304,
+              0.1833690000057686,
+              0.15919669999857433
+            ],
+            "nested_adapter_wall_s": [
+              0.05817709999973886,
+              0.17064060000120662,
+              0.1467928999918513
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.013132599997334182,
+              0.01272840000456199,
+              0.012403800006723031
+            ],
+            "gpu_to_native_median_wall_ratio": 2.396403814322526
+          }
+        },
+        {
+          "seeds": 4,
+          "native_cpu": {
+            "samples": 3,
+            "first_s": 0.13013689999934286,
+            "median_s": 0.1302958000014769,
+            "min_s": 0.13013689999934286,
+            "max_s": 0.1424195999861695,
+            "all_s": [
+              0.13013689999934286,
+              0.1302958000014769,
+              0.1424195999861695
+            ]
+          },
+          "serial": {
+            "samples": 3,
+            "first_s": 0.12928890000330284,
+            "median_s": 0.29582260000461247,
+            "min_s": 0.12928890000330284,
+            "max_s": 0.3316248000046471,
+            "all_s": [
+              0.12928890000330284,
+              0.3316248000046471,
+              0.29582260000461247
+            ],
+            "nested_adapter_wall_s": [
+              0.11660130000382196,
+              0.319316399996751,
+              0.28386280000268016
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.01268759999948088,
+              0.012308400007896125,
+              0.011959800001932308
+            ],
+            "gpu_to_native_median_wall_ratio": 2.2703924455067575
+          },
+          "concurrent": {
+            "samples": 3,
+            "first_s": 0.22683250000409316,
+            "median_s": 0.25533409998752177,
+            "min_s": 0.22683250000409316,
+            "max_s": 0.2583137999899918,
+            "all_s": [
+              0.22683250000409316,
+              0.2583137999899918,
+              0.25533409998752177
+            ],
+            "nested_adapter_wall_s": [
+              0.21163779999187682,
+              0.24540939999860711,
+              0.24271690000023227
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.015194700012216344,
+              0.012904399991384707,
+              0.012617199987289496
+            ],
+            "gpu_to_native_median_wall_ratio": 1.9596495050847962
+          }
+        }
+      ],
+      "cold_unaudited_helper_setup_s": 0.08436439999786671,
+      "setup_scope": "Unaudited helper construction only; audit-validation probe construction, full proof validation and original gold/gate work are outside this value and the batch timer.",
+      "nested_source_checks_s": 0.06851259995892178,
+      "source_checks": 36,
+      "peak_owned_gpu_bytes": 6526500,
+      "binding_sha256": "06b5ae11f7f7e699fbf24665adfb3f95f1672e44ea73bc5ef3cbd3d41cc6a1a3",
+      "pair_binding_sha256": "f0ae55f6b847bb3f0e18a33812b47ed1b76005204e639b1c43117f8d28172408",
+      "fixed_resource_manifest_sha256": "435225d0c7d424e42131233a957a34f83023b144695f9b2a3525b1c9106f9780",
+      "fixed_resource_count": 12,
+      "helper_source_artifacts_sha256": {
+        "scripts/research/microbatch_icp.py": "20fc30b861e6333275b1f65059b81862a1021412fb14077c200a3d6bf33e4570",
+        "scripts/research/cuda_device_flat_grid_registration.py": "9e501379fae126b085c0b40ca7ae0d337e4e519f6050a311469d7ecdcd6b10f2",
+        "scripts/research/research_device_flat_grid_nn.cu": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+        "scripts/research/archive/cuda_flat_grid_registration.py": "82618dfb02e56dd74e8c7923c9886d9389e059a5bfcc9e87fa412c70eb55dd84",
+        "scripts/research/archive/research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+        "scripts/research/archive/cuda_uniform_grid_registration.py": "890e5e8f3753042fd938f5b1716d650877403d28b5f1b05cb7c666066a082d1c",
+        "scripts/research/archive/research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+        "scripts/research/archive/research_resident_icp.py": "a06c0cccf455b3165dab6aca314609ceebe4aeca08cefc84f6d5f3e1ca58d015",
+        "scanner_server/fragments.py": "a77b7c2f0c8830c10e7c509864d1e8f8079b47d50b80d407caa701ea4f34916d",
+        "scripts/tool_paths.py": "ba276d8f518b930cbf38d8f6b24540b44239990c0c4f07d8abb258a454f76259",
+        "scripts/tool-catalog.json": "1fc02ada838fe8794f716ab5177d643eedf2ffe4bf467033553455c128d8356e",
+        "scripts/profile_session.py": "f228243cf071231b978fb891584da5af11d5a143df9edbdd9f983f98f8880a35",
+        "tests/test_microbatch_icp.py": "18b3eed7d5a1e30b720440abc57097259e78f85a981d024c59447c5dac2120c5",
+        "scripts/research/gpu_icp_experiment_driver.py": "86b3e09efaaef53b70ca07c38bc96534ace277bf5b1614cced06cc2ea12399a9",
+        "scripts/research/gpu_icp_experiment_protocol.py": "0a475cdcc3327b4b271f7683dd5013f9ed94f1e913fa918f2a92c9b3fcf7907b",
+        "scripts/research/gpu_icp_experiment_capture.py": "fd8996013b486c854c3cadd3fe47c36ed45c07307952367f0ae2f03467687927",
+        "tests/test_gpu_icp_experiment_protocol.py": "a1e486fc3a88a9e3f38d343a585dd0713a7295870461996892e518611519f2b5",
+        "tests/test_gpu_icp_experiment_capture.py": "253f0c444bd6632e65a5912512db6f5504286522a06df33811be6296bb4a5d13"
+      },
+      "method_policy": "independent-seed-explicit-stream-original-resident-cpu-solve-v1",
+      "thread_policy": {
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "omp_threads": "8"
+      },
+      "gpu_event_statistics_uncollected": [
+        "gpu_transform_ms",
+        "gpu_equations_ms"
+      ],
+      "whole_finish_authority": false,
+      "reports": {
+        "audit": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-microbatch-v2/chest-6-seed-audit.json",
+          "sha256": "44d2e332be2f9cbaa99cd6966f43b817b1d5efb8fd89a952553ee1218876835d"
+        },
+        "timing": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-microbatch-v2/chest-6-seed-timing.json",
+          "sha256": "d8746dfe7f5465d02ec54aeffc16548b9660c5754fb88e863ec2decfcb17df2c"
+        }
+      }
+    },
+    {
+      "case": "chest-7",
+      "status": "passed",
+      "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+      "source_points": 9501,
+      "target_points": 11390,
+      "genuine_proposals": 4,
+      "audit_coverage": {
+        "query_rows": 5529582,
+        "audited_hits": 5086574,
+        "audited_misses": 443008,
+        "exact_cpu_queries": 0
+      },
+      "original_native_and_complete_proposal_gates_passed": true,
+      "timing_groups": [
+        {
+          "seeds": 2,
+          "native_cpu": {
+            "samples": 3,
+            "first_s": 0.065681099993526,
+            "median_s": 0.065681099993526,
+            "min_s": 0.06493670000054408,
+            "max_s": 0.06579690000216942,
+            "all_s": [
+              0.065681099993526,
+              0.06579690000216942,
+              0.06493670000054408
+            ]
+          },
+          "serial": {
+            "samples": 3,
+            "first_s": 0.10166410000238102,
+            "median_s": 0.10166410000238102,
+            "min_s": 0.06181030000152532,
+            "max_s": 0.20026720000896603,
+            "all_s": [
+              0.10166410000238102,
+              0.20026720000896603,
+              0.06181030000152532
+            ],
+            "nested_adapter_wall_s": [
+              0.08896639999875333,
+              0.1872031000093557,
+              0.04922650000662543
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.012697700003627688,
+              0.013064099999610335,
+              0.012583799994899891
+            ],
+            "gpu_to_native_median_wall_ratio": 1.5478440527397037
+          },
+          "concurrent": {
+            "samples": 3,
+            "first_s": 0.06488649999664631,
+            "median_s": 0.20258159999502823,
+            "min_s": 0.06488649999664631,
+            "max_s": 0.20686530000239145,
+            "all_s": [
+              0.06488649999664631,
+              0.20686530000239145,
+              0.20258159999502823
+            ],
+            "nested_adapter_wall_s": [
+              0.05153989999962505,
+              0.193280199993751,
+              0.1901505999994697
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.013346599997021258,
+              0.013585100008640438,
+              0.012430999995558523
+            ],
+            "gpu_to_native_median_wall_ratio": 3.0843210606246867
+          }
+        },
+        {
+          "seeds": 4,
+          "native_cpu": {
+            "samples": 3,
+            "first_s": 0.13264270000217948,
+            "median_s": 0.13198469999770168,
+            "min_s": 0.12490759999491274,
+            "max_s": 0.13264270000217948,
+            "all_s": [
+              0.13264270000217948,
+              0.12490759999491274,
+              0.13198469999770168
+            ]
+          },
+          "serial": {
+            "samples": 3,
+            "first_s": 0.34542870000586845,
+            "median_s": 0.33717490000708494,
+            "min_s": 0.30143029999453574,
+            "max_s": 0.34542870000586845,
+            "all_s": [
+              0.34542870000586845,
+              0.30143029999453574,
+              0.33717490000708494
+            ],
+            "nested_adapter_wall_s": [
+              0.33302619999449234,
+              0.28823790000751615,
+              0.3248316000099294
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.012402500011376105,
+              0.013192399987019598,
+              0.012343299997155555
+            ],
+            "gpu_to_native_median_wall_ratio": 2.554651410451032
+          },
+          "concurrent": {
+            "samples": 3,
+            "first_s": 0.27642029999697115,
+            "median_s": 0.27642029999697115,
+            "min_s": 0.1100356999959331,
+            "max_s": 0.3349430999951437,
+            "all_s": [
+              0.27642029999697115,
+              0.3349430999951437,
+              0.1100356999959331
+            ],
+            "nested_adapter_wall_s": [
+              0.2633652000076836,
+              0.3208641999954125,
+              0.0955450000037672
+            ],
+            "enclosing_policy_and_call_wall_s": [
+              0.013055099989287555,
+              0.01407889999973122,
+              0.0144906999921659
+            ],
+            "gpu_to_native_median_wall_ratio": 2.0943359344059167
+          }
+        }
+      ],
+      "cold_unaudited_helper_setup_s": 0.08037739999417681,
+      "setup_scope": "Unaudited helper construction only; audit-validation probe construction, full proof validation and original gold/gate work are outside this value and the batch timer.",
+      "nested_source_checks_s": 0.06890990000101738,
+      "source_checks": 36,
+      "peak_owned_gpu_bytes": 8176192,
+      "binding_sha256": "06b5ae11f7f7e699fbf24665adfb3f95f1672e44ea73bc5ef3cbd3d41cc6a1a3",
+      "pair_binding_sha256": "9f8694d08db6308e12f613d6158738c42ef3cb0f51341563627c57e5a6e90c90",
+      "fixed_resource_manifest_sha256": "8d93e1c0776a194b114706dcfcf5d48fbe67d38326ac32293ede3a7fec9b18df",
+      "fixed_resource_count": 12,
+      "helper_source_artifacts_sha256": {
+        "scripts/research/microbatch_icp.py": "20fc30b861e6333275b1f65059b81862a1021412fb14077c200a3d6bf33e4570",
+        "scripts/research/cuda_device_flat_grid_registration.py": "9e501379fae126b085c0b40ca7ae0d337e4e519f6050a311469d7ecdcd6b10f2",
+        "scripts/research/research_device_flat_grid_nn.cu": "edbef00ec3162eb367deb81148e97c2b5619d6ee57eb7528a3a923b1b2018399",
+        "scripts/research/archive/cuda_flat_grid_registration.py": "82618dfb02e56dd74e8c7923c9886d9389e059a5bfcc9e87fa412c70eb55dd84",
+        "scripts/research/archive/research_flat_grid_nn.cu": "9720428f3c6c1376f7c151b94d1380914c035aab1ef8d7e0609016f3ccd9738d",
+        "scripts/research/archive/cuda_uniform_grid_registration.py": "890e5e8f3753042fd938f5b1716d650877403d28b5f1b05cb7c666066a082d1c",
+        "scripts/research/archive/research_uniform_grid_nn.cu": "b2e26bcff9c51c619a6e7c5b7e7a314a42400874b2d24f28b83fa9384d7e1182",
+        "scripts/research/archive/research_resident_icp.py": "a06c0cccf455b3165dab6aca314609ceebe4aeca08cefc84f6d5f3e1ca58d015",
+        "scanner_server/fragments.py": "a77b7c2f0c8830c10e7c509864d1e8f8079b47d50b80d407caa701ea4f34916d",
+        "scripts/tool_paths.py": "ba276d8f518b930cbf38d8f6b24540b44239990c0c4f07d8abb258a454f76259",
+        "scripts/tool-catalog.json": "1fc02ada838fe8794f716ab5177d643eedf2ffe4bf467033553455c128d8356e",
+        "scripts/profile_session.py": "f228243cf071231b978fb891584da5af11d5a143df9edbdd9f983f98f8880a35",
+        "tests/test_microbatch_icp.py": "18b3eed7d5a1e30b720440abc57097259e78f85a981d024c59447c5dac2120c5",
+        "scripts/research/gpu_icp_experiment_driver.py": "86b3e09efaaef53b70ca07c38bc96534ace277bf5b1614cced06cc2ea12399a9",
+        "scripts/research/gpu_icp_experiment_protocol.py": "0a475cdcc3327b4b271f7683dd5013f9ed94f1e913fa918f2a92c9b3fcf7907b",
+        "scripts/research/gpu_icp_experiment_capture.py": "fd8996013b486c854c3cadd3fe47c36ed45c07307952367f0ae2f03467687927",
+        "tests/test_gpu_icp_experiment_protocol.py": "a1e486fc3a88a9e3f38d343a585dd0713a7295870461996892e518611519f2b5",
+        "tests/test_gpu_icp_experiment_capture.py": "253f0c444bd6632e65a5912512db6f5504286522a06df33811be6296bb4a5d13"
+      },
+      "method_policy": "independent-seed-explicit-stream-original-resident-cpu-solve-v1",
+      "thread_policy": {
+        "open3d_threads": 20,
+        "opencv_threads": 20,
+        "omp_threads": "8"
+      },
+      "gpu_event_statistics_uncollected": [
+        "gpu_transform_ms",
+        "gpu_equations_ms"
+      ],
+      "whole_finish_authority": false,
+      "reports": {
+        "audit": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-microbatch-v2/chest-7-seed-audit.json",
+          "sha256": "a4b2514eed6ff144f5e4c850745e1c7f9f52c67b259dee07c384e382c7e0dce5"
+        },
+        "timing": {
+          "path": "benchmark-output/field-cuda-study/gpu-icp-microbatch-v2/chest-7-seed-timing.json",
+          "sha256": "e4613d275a2399d7dc4d78bb18110047babc68a487b0973ba4ce2a4236c3da38"
+        }
+      }
+    }
+  ],
+  "timer_scope": "Enclosing driver call host wall includes permit/source/policy checks, shared preparation/upload, target cache misses, lane iterations, CPU Eigen solve, final result copies and stream/thread completion. The adapter's narrower timer is nested; their difference measures enclosing call/policy work, not a separate GPU stage. Cold helper setup and original CPU result/complete proposal gate shadows are outside the batch timer. Persistent target cache is shared; source/normals are uploaded per batch. Source-check time is nested, not additive. First sample is the first occurrence for that seed count/schedule, not an isolated cold start.",
+  "limitations": [
+    "Two selected prepared field pairs, genuine original seed prefixes and three small repeated controls do not establish whole scanning/Finish/FPS performance.",
+    "Original CPU solve and dependent reverse/camera/witness/gate calls remain on CPU. Concurrent streams batch only independent initial-forward seeds.",
+    "Measured report resource manifests were hashed before/after numerical jobs. Publication rechecks helper source bytes and report bindings without rescanning private ZIP/library bytes.",
+    "Later samples share the same helper target cache but do not assume monotonically faster warm timings. Per-group minima/maxima are retained."
+  ],
+  "audited_query_rows": 11484960,
+  "producer_artifacts_sha256": {
+    "scripts/research/summarize_gpu_icp_microbatch.py": "4ca3bda68660cd2e5647450cdf17a397f2c1ce8ed32451a8cb5272ec862ce5a3",
+    "tests/test_gpu_icp_microbatch_summary.py": "a89111fbf214ee0486de46dcb27423e2b40e8e9e2a00aa46c3261245b61114fd"
+  }
+}

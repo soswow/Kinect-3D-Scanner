@@ -63,6 +63,12 @@
       "role": "Executed current-input GPU ICP experiments, including negative neighbour and batch results"
     },
     {
+      "legacy_path": "scripts/research/GPU_ICP_SEED_BATCH_RESULTS.md",
+      "path": "scripts/research/GPU_ICP_SEED_BATCH_RESULTS.md",
+      "group": "active",
+      "role": "Detailed negative batch timings, cold costs, evidence closure and reproduction command"
+    },
+    {
       "legacy_path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
       "path": "scripts/research/MARKER_PROPOSAL_RESEARCH.md",
       "group": "active",
@@ -345,6 +351,18 @@
       "role": "Offline marker proposals through every original fragment bridge authority."
     },
     {
+      "legacy_path": "scripts/research/gpu_icp_device_loop_experiment.py",
+      "path": "scripts/research/gpu_icp_device_loop_experiment.py",
+      "group": "active",
+      "role": "Own current-input exhaustive device-loop audit and separately authorized setup-charged graph timing"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_device_loop_protocol.py",
+      "path": "scripts/research/gpu_icp_device_loop_protocol.py",
+      "group": "active",
+      "role": "Distinct registered current-array device-loop timing authority, exact terminal and query-stage contracts"
+    },
+    {
       "legacy_path": "scripts/research/gpu_icp_experiment_capture.py",
       "path": "scripts/research/gpu_icp_experiment_capture.py",
       "group": "active",
@@ -523,6 +541,12 @@
       "path": "scripts/research/summarize_field_study.py",
       "group": "active",
       "role": "Publishable scalar evidence from closed local field reports; stdlib only."
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_microbatch.py",
+      "path": "scripts/research/summarize_gpu_icp_microbatch.py",
+      "group": "active",
+      "role": "Stdlib scalar publication from closed independent-seed audit/timing reports, without authority creation"
     },
     {
       "legacy_path": "scripts/research/summarize_production_allocation.py",
