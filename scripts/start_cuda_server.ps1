@@ -160,7 +160,7 @@ $rootIdentity = $null
 $knownProcesses = @{}
 $serverReady = $false
 try {
-    $serverProcess = Start-Process -FilePath $Python -ArgumentList '-m', 'scanner_server' `
+    $serverProcess = Start-Process -FilePath $Python -ArgumentList '-m', 'scanner_server.supervisor' `
         -WorkingDirectory $workspaceRoot -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logDirectory 'server.stdout.log') `
         -RedirectStandardError (Join-Path $logDirectory 'server.stderr.log')
@@ -180,7 +180,8 @@ try {
             if ($health.backend.device -ne 'CUDA:0') { throw "Launched server did not select CUDA:0." }
             if ($health.backend.cuda_input.requested -ne $CudaInput -or $health.backend.depth_confidence.requested -ne $CudaConfidence) { throw "Launched server did not apply the requested CUDA input/confidence flags." }
             $serverReady = $true
-            Write-Output "CUDA server ready on port $Port; recipe=$Recipe; PID=$($serverProcess.Id)"
+            Write-Output "CUDA server ready on port $Port; recipe=$Recipe; supervisor PID=$($serverProcess.Id)"
+            Write-Output "Exit diagnostics: $logDirectory/server.lifecycle.log; native faults: $logDirectory/server.stderr.log"
             if ($Recipe -eq 'adaptive') {
                 Write-Output 'Adaptive recovery activates at Live voxel 10 mm / Final voxel 5 mm; other resolutions use ORB. Enable color-assisted recovery.'
             }

@@ -5,6 +5,7 @@ import io
 import os
 from pathlib import Path
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -18,6 +19,9 @@ class ServerStartupTests(unittest.TestCase):
         self.environment = patch.dict(os.environ, {}, clear=True)
         self.environment.start()
         self.addCleanup(self.environment.stop)
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        os.environ["KINECT_LOG_DIR"] = directory.name
 
     def test_defaults_do_not_require_cuda_or_native_extension(self):
         args = configure([])
@@ -27,9 +31,14 @@ class ServerStartupTests(unittest.TestCase):
     def test_cli_overrides_environment_before_api_import(self):
         os.environ.update(KINECT_DEVICE="cuda", KINECT_SERVER_PORT="8001")
         calls = []
-        def run(app, **kwargs):
+        def config(app, **kwargs):
             calls.append((app, kwargs, os.environ.copy()))
-        with patch.dict(sys.modules, {"uvicorn": SimpleNamespace(run=run)}):
+        class Server:
+            def __init__(self, config):
+                self.started = True
+            def run(self):
+                pass
+        with patch.dict(sys.modules, {"uvicorn": SimpleNamespace(Config=config, Server=Server)}):
             self.assertEqual(main(["--device", "cpu", "--port", "8002", "--threads", "2"]), 0)
         self.assertEqual(calls[0][1], {"host": "0.0.0.0", "port": 8002})
         self.assertEqual(calls[0][2]["KINECT_DEVICE"], "cpu")

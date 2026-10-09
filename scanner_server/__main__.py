@@ -2,7 +2,10 @@
 
 import argparse
 import os
+import signal
 import sys
+
+from .exit_diagnostics import ExitDiagnostics
 
 
 CHOICES = {
@@ -56,15 +59,43 @@ def main(argv=None):
     # Set native-thread/backend options before importing Open3D or the API.
     print(f"Starting Kinect server on {args.host}:{args.port}; device={args.device}, "
           f"tracking={args.tracking}, native={args.native}. Press Ctrl+C to stop.", flush=True)
+    diagnostics = ExitDiagnostics(native_faults=True)
+    diagnostics.record(f"Starting on {args.host}:{args.port}; device={args.device}, "
+                       f"tracking={args.tracking}, native={args.native}")
+    server = None
     try:
         import uvicorn
 
-        uvicorn.run("scanner_server.app:app", host=args.host, port=args.port)
+        class DiagnosticServer(uvicorn.Server):
+            exit_signal = None
+
+            def handle_exit(self, sig, frame):
+                self.exit_signal = signal.Signals(sig).name
+                diagnostics.record(f"Shutdown requested by {self.exit_signal}")
+                super().handle_exit(sig, frame)
+
+            async def shutdown(self, sockets=None):
+                await super().shutdown(sockets=sockets)
+                outcome = "failed" if getattr(self.lifespan, "shutdown_failed", False) else "completed"
+                diagnostics.record(f"Shutdown {outcome}; reason={self.exit_signal or 'server requested exit'}")
+
+        server = DiagnosticServer(uvicorn.Config("scanner_server.app:app", host=args.host, port=args.port))
+        server.run()
+        if not server.started and not server.exit_signal:
+            diagnostics.record("Server exited before startup completed; exit_code=3")
+            return 3
+        diagnostics.record(f"Server loop returned; reason={server.exit_signal or 'server requested exit'}; exit_code=0")
     except KeyboardInterrupt:
+        diagnostics.record("Server exited after keyboard interruption; exit_code=0")
         return 0
+    except SystemExit as exc:
+        diagnostics.record(f"Server raised SystemExit; exit_code={exc.code}")
+        raise
     except Exception as exc:
-        print(f"Server startup failed: {exc}", file=sys.stderr, flush=True)
+        diagnostics.exception("Server failed with an unhandled exception; exit_code=1", exc)
         return 1
+    finally:
+        diagnostics.close()
     return 0
 
 
