@@ -286,6 +286,143 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertTrue(self.window._camera_suspended)
         self.assertFalse(self.window._scanning)
 
+    def finish_scan(self):
+        self.retain_scan()
+        self.window._last_preview_path = "/tmp/finished-preview.ply"
+        self.window._project_path = "/tmp/previous-project.zip"
+        self.window._session_settings = {"live_reconstruction": True}
+        self.window._stop_and_build()
+        self.assertTrue(self.window.worker.wait(1000))
+        with patch.object(self.window, "_request_final_preview"):
+            self.window._on_build_mesh_done(True, "Done")
+        self.app.processEvents()
+
+    def test_reset_finished_scan_clears_model_and_returns_to_idle_camera_setup(self):
+        self.finish_scan()
+        self.assertFalse(self.window.btn_cancel_scan.isEnabled())
+        self.assertTrue(self.window.btn_reset_scan.isEnabled())
+        self.protection("discard")
+        self.window.btn_reset_scan.click()
+        self.assertEqual(ServerTaskType.RESET, self.task_types()[-1])
+        self.assertFalse(self.window.task_worker.tasks[-1].kwargs["record"])
+        self.assertIn("Resetting scan", self.window.scan_status_label.text())
+        self.assertTrue(self.window._has_mesh)
+        self.assertEqual(3, self.window._server_stored)
+        with patch.object(self.window, "_start_camera", wraps=self.window._start_camera) as start:
+            self.window._on_reset_done({"session_id": "empty", "settings": {"live_reconstruction": True}})
+            start.assert_called_once()
+        self.assertFalse(self.window._camera_suspended)
+        self.assertFalse(self.window._start_when_camera_ready)
+        self.assertFalse(self.window._scanning)
+        self.assertFalse(self.window._paused)
+        self.assertFalse(self.window.auto_capture_cb.isChecked())
+        self.assertFalse(self.window._has_mesh)
+        self.assertIsNone(self.window._session_id)
+        self.assertIsNone(self.window._session_settings)
+        self.assertIsNone(self.window._last_preview_path)
+        self.assertIsNone(self.window._project_path)
+        self.assertEqual({}, self.window.live_view.snapshot)
+        self.assertEqual(0, self.window._server_stored)
+        self.assertEqual(0, self.window._server_integrated)
+        self.assertFalse(self.window._session_dirty)
+        self.assertEqual(main_window.MODE_RGB, self.window._mode)
+        self.assertTrue(self.window.settings_group.isEnabled())
+        self.assertFalse(self.window.btn_reset_scan.isEnabled())
+        self.assertFalse(self.window.btn_export.isEnabled())
+        self.assertFalse(self.window.btn_pause.isEnabled())
+        self.fresh_frame()
+        self.window._on_live_updated({"session_id": "retained", "stored_count": 3})
+        self.window._auto_capture_tick()
+        self.assertEqual(0, self.window._server_stored)
+        self.assertEqual([], self.window.task_worker.frames)
+        self.assertEqual([ServerTaskType.BUILD_MESH, ServerTaskType.RESET], self.task_types())
+        self.assertTrue(self.window.btn_start_scan.isEnabled())
+        self.assertEqual("Start Scan", self.window.btn_start_scan.text())
+        self.window.btn_start_scan.click()
+        self.assertEqual(ServerTaskType.RESET, self.task_types()[-1])
+        self.window._on_reset_done({"session_id": "next", "settings": {}})
+        self.assertTrue(self.window._scanning)
+        self.assertTrue(self.window.auto_capture_cb.isChecked())
+
+    def test_declining_reset_retains_finished_scan_and_keeps_camera_off(self):
+        self.finish_scan()
+        self.protection("cancel")
+        self.window._reset_scan()
+        self.assertEqual([ServerTaskType.BUILD_MESH], self.task_types())
+        self.assertTrue(self.window._camera_suspended)
+        self.assertTrue(self.window._has_mesh)
+        self.assertEqual(3, self.window._server_stored)
+
+    def test_reset_after_save_waits_for_success_without_starting_capture(self):
+        self.finish_scan()
+        self.protection("save")
+        self.window._reset_scan()
+        self.assertEqual(ServerTaskType.EXPORT_SESSION, self.task_types()[-1])
+        self.assertNotIn(ServerTaskType.RESET, self.task_types())
+        self.window._on_export_done(True, self.window._export_pending["path"])
+        self.assertEqual(ServerTaskType.RESET, self.task_types()[-1])
+        self.window._on_reset_done({"session_id": "empty", "settings": {}})
+        self.fresh_frame()
+        self.assertFalse(self.window._scanning)
+        self.assertFalse(self.window.auto_capture_cb.isChecked())
+
+    def test_failed_save_before_reset_retains_finished_scan(self):
+        self.finish_scan()
+        self.protection("save")
+        self.window._reset_scan()
+        self.window._on_export_done(False, self.window._export_pending["path"])
+        self.assertNotIn(ServerTaskType.RESET, self.task_types())
+        self.assertTrue(self.window._has_mesh)
+        self.assertTrue(self.window._session_dirty)
+        self.assertTrue(self.window._camera_suspended)
+
+    def test_failed_reset_reconciles_finished_scan_without_starting_camera(self):
+        self.finish_scan()
+        self.protection("discard")
+        self.window._reset_scan()
+        self.window._on_task_failed("RESET", "HTTP timeout")
+        self.assertEqual(ServerTaskType.STATUS, self.task_types()[-1])
+        self.assertTrue(self.window._has_mesh)
+        self.assertEqual(3, self.window._server_stored)
+        self.assertTrue(self.window._camera_suspended)
+        self.assertTrue(self.window._reset_to_setup_pending)
+        with patch.object(self.window, "_request_final_preview"):
+            self.window._on_server_status({"session_id": "retained", "stored_count": 3,
+                                          "frame_count": 2, "has_mesh": True, "settings": {}})
+        self.assertTrue(self.window._has_mesh)
+        self.assertFalse(self.window._scanning)
+        self.assertFalse(self.window._reset_to_setup_pending)
+
+    def test_reset_timeout_returns_to_setup_when_server_confirms_empty_scan(self):
+        self.finish_scan()
+        self.protection("discard")
+        self.window._reset_scan()
+        self.window._on_task_failed("RESET", "HTTP timeout")
+        self.window._on_server_status({"session_id": "empty", "stored_count": 0,
+                                      "frame_count": 0, "settings": {}})
+        self.assertFalse(self.window._reset_to_setup_pending)
+        self.assertFalse(self.window._camera_suspended)
+        self.assertFalse(self.window._scanning)
+        self.assertFalse(self.window.auto_capture_cb.isChecked())
+        self.assertIsNone(self.window._session_id)
+        self.assertEqual(main_window.MODE_RGB, self.window._mode)
+
+    def test_reset_is_blocked_during_operations_and_without_connection(self):
+        self.retain_scan()
+        self.window._session_dirty = False
+        for flag in ("_build_pending", "_preview_pending", "_final_preview_pending", "_reset_pending", "_restore_on_status"):
+            setattr(self.window, flag, True)
+            self.window._refresh_controls()
+            self.assertFalse(self.window.btn_reset_scan.isEnabled())
+            self.window._reset_scan()
+            self.assertEqual([], self.task_types())
+            setattr(self.window, flag, False)
+        self.window.server_client._connected = False
+        self.window._refresh_controls()
+        self.assertFalse(self.window.btn_reset_scan.isEnabled())
+        self.window._reset_scan()
+        self.assertEqual([], self.task_types())
+
 
     def test_cancel_protection_restores_capture_and_retains_frames(self):
         self.retain_scan()
