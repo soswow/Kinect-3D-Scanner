@@ -59,6 +59,35 @@ client saves local recordings and preview meshes under
 `~/Documents/Kinect 3D Scanner/export/`. Source runs retain the repository's
 `recordings/`, `mesh/`, and `export/` folders.
 
+Operational logs use UTC timestamps (the `Z` suffix), process/thread IDs and
+server session IDs. `client.log` records scan commands, upload acknowledgements,
+build stages received from the server, downloads, saves and error tracebacks.
+`viewer.log` records mesh loading in the separate preview process; `capture.log`
+records sensor-journal starts, stops and disk errors. Each log keeps a 5 MB active
+file and three rotated backups. Preserve all these files soon after a failure.
+Every 15 seconds, the client and viewer log resident memory, child-process memory,
+available system memory, swap usage and free space on the log volume. This sampler
+runs outside the UI thread, so it can report while the window is unresponsive.
+The client also logs capture state, upload queue length and how many preview
+frames were replaced because the UI fell behind. Preview delivery retains only
+the latest camera frame; full sensor recording remains independent.
+
+The server writes `logs/server.log` relative to its launch directory, with the
+same rotation and resource sampling. Set `KINECT_SERVER_LOG` to choose another
+path. Server logs include build progress and operation durations/failures. Update
+and restart the server separately to enable new server logging; updating the Mac
+app does not update a remote server. Logging cannot record events after a forced
+kill or while the OS has suspended the process, and a full disk can prevent writes.
+
+**Finish Scan is not Save Project.** It builds on the server, then downloads a
+mesh and opens a local viewer. Preview downloads stream to disk and stop if they
+would leave less than 256 MiB free. If the client crashes, reconnect to the same
+still-running server and use **Save Project** before starting/resetting a scan.
+The server retains its current scan in memory, not as an automatic disk project;
+a server restart loses unsaved captures. Optional local selected-frame recordings
+can preserve images, but the default accelerometer journals alone cannot restore
+a scan. Use **Save Project** for a reopenable archive of images and the model.
+
 For development, install the commands into your configured environment:
 
 ```bash

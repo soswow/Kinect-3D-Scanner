@@ -5,6 +5,7 @@ Can also be invoked as a subprocess:
 """
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -15,6 +16,8 @@ import open3d as o3d
 import trimesh
 
 from .runtime import viewer_command
+
+logger = logging.getLogger(__name__)
 
 # Movement/rotation step sizes (tuned for smoother control)
 _MOVE_STEP = 0.08
@@ -108,6 +111,7 @@ def show_file_preview(filepath: str) -> bool:
 
     Supports OBJ, GLB, PLY, and STL files. Returns False if loading fails.
     """
+    logger.info("Viewer loading path=%s bytes=%s", filepath, os.path.getsize(filepath))
     ext = filepath.lower().rsplit(".", 1)[-1] if "." in filepath else ""
 
     if ext in ("obj", "glb"):
@@ -143,6 +147,7 @@ def show_file_preview(filepath: str) -> bool:
     elif ext == "ply":
         try:
             mesh = o3d.io.read_triangle_mesh(filepath)
+            logger.info("Viewer mesh loaded vertices=%s triangles=%s", len(mesh.vertices), len(mesh.triangles))
             if len(mesh.vertices) > 0:
                 mesh.compute_vertex_normals()
                 show_mesh_preview(mesh=mesh)
@@ -153,6 +158,7 @@ def show_file_preview(filepath: str) -> bool:
                 return True
             return False
         except Exception:
+            logger.exception("Viewer failed path=%s", filepath)
             return False
 
     elif ext == "stl":
@@ -175,10 +181,11 @@ def show_file_preview(filepath: str) -> bool:
 def launch_viewer_subprocess(filepath: str):
     """Launch the viewer in a separate process. Returns immediately."""
     args = json.dumps({"mode": "file", "filepath": os.path.abspath(filepath)})
-    subprocess.Popen(
+    process = subprocess.Popen(
         viewer_command(args),
         start_new_session=True,
     )
+    logger.info("Viewer launched pid=%s path=%s", process.pid, filepath)
 
 
 def launch_mesh_viewer(mesh, point_cloud):
@@ -246,4 +253,13 @@ def _main(arguments=None):
 
 
 if __name__ == "__main__":
-    _main()
+    from shared.diagnostics import ResourceMonitor, configure_logging
+    from .runtime import log_path
+    path = log_path().with_name("viewer.log")
+    configure_logging(path)
+    monitor = ResourceMonitor(path.parent).start()
+    try:
+        _main()
+    finally:
+        logger.info("Viewer exiting")
+        monitor.stop()

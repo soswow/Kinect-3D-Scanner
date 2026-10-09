@@ -12,8 +12,8 @@ import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from shared.capture import validate_rgb_exposure
-from shared.visual_tracking import VisualTracker
 from shared.sensor_recording import journal_snapshot
+from shared.visual_tracking import VisualTracker
 
 from .capture_process import DEPTH_SHAPE, RGB_SHAPE, capture_frames
 
@@ -25,6 +25,7 @@ class KinectWorker(QThread):
 
     frame_ready = pyqtSignal(np.ndarray, np.ndarray)
     frame_pair_ready = pyqtSignal(np.ndarray, np.ndarray, dict)
+    frame_available = pyqtSignal()
     error_occurred = pyqtSignal(str)
     accelerometer_ready = pyqtSignal(dict)
     sensor_recording_status = pyqtSignal(dict)
@@ -68,6 +69,30 @@ class KinectWorker(QThread):
         self._flush_results = {}
         self._recording_control_errors = {}
         self._accelerometer_enabled = True
+        self.coalesce_frames = False
+        self._frame_lock = threading.Lock()
+        self._latest_frame = None
+        self.preview_frames_replaced = 0
+
+    def take_latest_frame(self):
+        with self._frame_lock:
+            frame, self._latest_frame = self._latest_frame, None
+        return frame
+
+    def _deliver_frame(self, rgb, depth, metadata):
+        if not self.coalesce_frames:
+            self.frame_pair_ready.emit(rgb, depth, metadata)
+            self.frame_ready.emit(rgb, depth)
+            return
+        # Queue one tiny notification, never an unbounded queue of image arrays.
+        # Full sensor recordings remain independent in the acquisition process.
+        with self._frame_lock:
+            notify = self._latest_frame is None
+            if not notify:
+                self.preview_frames_replaced += 1
+            self._latest_frame = (rgb, depth, metadata)
+        if notify:
+            self.frame_available.emit()
 
     def set_sensor_recording(self, path, settings=None):
         configuration = {"path": str(path), "settings": settings} if path else None
@@ -245,8 +270,7 @@ class KinectWorker(QThread):
                                 self._rgb_shape,
                             )
                             streaming = True
-                        self.frame_pair_ready.emit(rgb, depth, metadata)
-                        self.frame_ready.emit(rgb, depth)
+                        self._deliver_frame(rgb, depth, metadata)
                         deadline = time.monotonic() + self._frame_timeout
                     elif not process.is_alive():
                         raise RuntimeError("Kinect camera process stopped unexpectedly")

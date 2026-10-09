@@ -3,6 +3,7 @@
 import signal
 import time
 import unittest
+import weakref
 from unittest.mock import patch
 
 import cv2
@@ -56,6 +57,27 @@ def wait_for(predicate, timeout=5):
 
 
 class CaptureWorkerTests(unittest.TestCase):
+    def test_stalled_gui_retains_only_latest_frame_and_one_notification(self):
+        worker = KinectWorker()
+        worker.coalesce_frames = True
+        notifications, legacy, references = [], [], []
+        worker.frame_available.connect(lambda: notifications.append(True), Qt.ConnectionType.DirectConnection)
+        worker.frame_pair_ready.connect(lambda *args: legacy.append(args), Qt.ConnectionType.DirectConnection)
+        for index in range(2000):
+            rgb = np.full((10, 10, 3), index % 256, np.uint8)
+            depth = np.zeros((10, 10), np.uint16)
+            references.append(weakref.ref(rgb))
+            worker._deliver_frame(rgb, depth, {"frame_id": index})
+        self.assertEqual(len(notifications), 1)
+        self.assertEqual(legacy, [])
+        self.assertEqual(sum(ref() is not None for ref in references), 1)
+        self.assertEqual(worker.preview_frames_replaced, 1999)
+        frame = worker.take_latest_frame()
+        self.assertEqual(frame[2]["frame_id"], 1999)
+        self.assertIsNone(worker.take_latest_frame())
+        worker._deliver_frame(rgb, depth, {"frame_id": 2000})
+        self.assertEqual(len(notifications), 2)
+
     def start_worker(self, target, **kwargs):
         worker = KinectWorker(capture_target=target, rgb_mode="rgb_low_res", **kwargs)
         self.addCleanup(self.stop_worker, worker)

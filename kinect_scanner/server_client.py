@@ -4,6 +4,7 @@ import ipaddress
 import json
 import logging
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -67,6 +68,7 @@ class ServerClient(QObject):
         """Connect synchronously; the GUI invokes this through ServerTaskWorker."""
         self.disconnect(notify=False)
         self._base_url = f"http://{host}:{port}"
+        logger.info("Connecting server=%s", self._base_url)
         try:
             loopback = ipaddress.ip_address(host).is_loopback
         except ValueError:
@@ -90,6 +92,8 @@ class ServerClient(QObject):
         self._connected = True
         self.session_id = status.get("session_id")
         self.last_status = dict(status)
+        logger.info("Connected session=%s stored=%s has_mesh=%s", self.session_id,
+                    status.get("stored_count"), status.get("has_mesh"))
         self._ws_stop = threading.Event()
         self._ws_thread = threading.Thread(
             target=self._ws_listener,
@@ -103,6 +107,7 @@ class ServerClient(QObject):
 
     def disconnect(self, notify=True):
         """Stop local transports without resetting the server's scan session."""
+        logger.info("Disconnect session=%s notify=%s", self.session_id, notify)
         self._ws_generation += 1
         self._ws_stop.set()
         sock, self._ws_socket = self._ws_socket, None
@@ -150,6 +155,7 @@ class ServerClient(QObject):
                 if not active():
                     break
                 self._ws_socket = sock
+                logger.info("Progress connection established session=%s", self.session_id)
                 self.websocket_status.emit("connected", "Progress connection established")
                 while active():
                     try:
@@ -184,6 +190,9 @@ class ServerClient(QObject):
         msg_type = msg.get("type")
 
         if msg_type == "progress":
+            logger.info("Server progress session=%s current=%s total=%s message=%s",
+                        self.session_id, msg.get("current"), msg.get("total"),
+                        msg.get("result", {}).get("message", msg.get("message", "")))
             self.process_progress.emit(
                 msg.get("current", 0),
                 msg.get("total", 0),
@@ -195,8 +204,10 @@ class ServerClient(QObject):
             # Both preview and final build broadcast "done". Their HTTP
             # responses are handled by ServerTaskWorker with the correct signal.
             # Treating preview completion as a build enables exports too early.
-            pass
+            logger.info("Server done session=%s success=%s detail=%s", self.session_id,
+                        msg.get("success"), msg.get("detail"))
         elif msg_type == "error":
+            logger.error("Server error session=%s %s", self.session_id, msg.get("message"))
             self.task_error.emit(msg.get("message", "Unknown server error"))
 
     # ── API methods (called from ServerTaskWorker thread) ──────────────
@@ -246,15 +257,7 @@ class ServerClient(QObject):
 
     def request_preview(self) -> str | None:
         """Request preview, save returned PLY to a temp file, return path."""
-        resp = self._http.post("/api/scan/preview", timeout=600.0)
-        resp.raise_for_status()
-
-        content_type = resp.headers.get("content-type", "")
-        if "octet-stream" not in content_type:
-            # Got JSON error response
-            return None
-
-        return self._save_temp_mesh(resp.content)
+        return self._download_preview("POST", "/api/scan/preview")
 
     @staticmethod
     def _save_temp_mesh(content: bytes) -> str:
@@ -269,11 +272,41 @@ class ServerClient(QObject):
 
     def request_final_preview(self) -> str | None:
         """Download the current final mesh without rebuilding a preview."""
-        resp = self._http.get("/api/scan/export/ply", timeout=600.0)
-        resp.raise_for_status()
-        if "octet-stream" not in resp.headers.get("content-type", ""):
-            return None
-        return self._save_temp_mesh(resp.content)
+        return self._download_preview("GET", "/api/scan/export/ply")
+
+    def _download_preview(self, method, endpoint):
+        started = time.monotonic()
+        fd, path = tempfile.mkstemp(suffix=".ply")
+        complete = False
+        logger.info("Preview download started session=%s endpoint=%s path=%s", self.session_id, endpoint, path)
+        try:
+            with os.fdopen(fd, "wb") as output:
+                with self._http.stream(method, endpoint, timeout=600.0) as resp:
+                    resp.raise_for_status()
+                    if "octet-stream" not in resp.headers.get("content-type", ""):
+                        return None
+                    total = int(resp.headers.get("content-length", 0))
+                    downloaded = 0
+                    reserve = 256 * 1024**2
+                    free = shutil.disk_usage(os.path.dirname(path)).free
+                    if total + reserve > free:
+                        raise OSError("Not enough free disk space for mesh preview")
+                    for chunk in resp.iter_bytes(chunk_size=1024 * 1024):
+                        # Also protect unknown-length responses and concurrent disk use.
+                        if shutil.disk_usage(os.path.dirname(path)).free < len(chunk) + reserve:
+                            raise OSError("Low disk space; preview download stopped")
+                        output.write(chunk)
+                        downloaded += len(chunk)
+                    if total and downloaded != total:
+                        raise OSError("Incomplete preview download")
+                output.flush()
+            complete = True
+            logger.info("Preview download finished session=%s bytes=%s seconds=%.2f path=%s",
+                        self.session_id, downloaded, time.monotonic() - started, path)
+            return path
+        finally:
+            if not complete:
+                os.unlink(path)
 
     def request_export(self, fmt: str, save_path: str, options=None) -> bool:
         """Download and atomically replace the destination only after success."""

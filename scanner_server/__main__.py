@@ -4,7 +4,6 @@ import argparse
 import os
 import sys
 
-
 CHOICES = {
     "device": ("auto", "cpu", "cuda"),
     "tracking": ("auto", "legacy", "tensor"),
@@ -53,6 +52,8 @@ def configure(argv=None):
 
 def main(argv=None):
     args = configure(argv)
+    from shared.diagnostics import configure_logging
+    configure_logging(os.environ.get("KINECT_SERVER_LOG", "logs/server.log"))
     # Set native-thread/backend options before importing Open3D or the API.
     print(f"Starting Kinect server on {args.host}:{args.port}; device={args.device}, "
           f"tracking={args.tracking}, native={args.native}. Press Ctrl+C to stop.", flush=True)

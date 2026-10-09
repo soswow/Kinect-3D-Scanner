@@ -1,7 +1,6 @@
 """Entry point: python -m kinect_scanner"""
 
 import logging
-from logging.handlers import RotatingFileHandler
 import multiprocessing
 import subprocess
 import sys
@@ -11,16 +10,16 @@ def main():
     # Frozen children reuse the app executable. Divert them before Qt/Open3D.
     multiprocessing.freeze_support()
     app = None
+    monitor = None
     from .runtime import log_path
 
     path = log_path()
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handlers = [RotatingFileHandler(path, maxBytes=5_000_000, backupCount=3)]
-        if sys.stderr is not None:
-            handlers.append(logging.StreamHandler())
-        logging.basicConfig(level=logging.INFO, handlers=handlers,
-                            format="%(asctime)s %(process)d %(levelname)s %(name)s: %(message)s")
+        from shared.diagnostics import ResourceMonitor, configure_logging
+        if len(sys.argv) > 1 and sys.argv[1] == "--viewer":
+            path = path.with_name("viewer.log")
+        configure_logging(path)
+        monitor = ResourceMonitor(path.parent).start()
         if len(sys.argv) > 1 and sys.argv[1] == "--viewer":
             from .viewer import _main
 
@@ -31,6 +30,7 @@ def main():
             return run_check()
 
         from PyQt6.QtWidgets import QApplication, QMessageBox
+
         from .gui.main_window import MainWindow
 
         app = QApplication(sys.argv)
@@ -64,6 +64,10 @@ def main():
         if sys.stderr is not None:
             print(message, file=sys.stderr)
         return 1
+    finally:
+        logging.getLogger(__name__).info("Process exiting")
+        if monitor is not None:
+            monitor.stop()
 
 
 if __name__ == "__main__":

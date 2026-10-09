@@ -125,14 +125,43 @@ class ServerClientTests(unittest.TestCase):
     def test_final_preview_downloads_final_export_without_preview_post(self):
         client = ServerClient()
         client._http = Mock()
-        client._http.get.return_value = response()
+        reply = response()
+        client._http.stream.return_value.__enter__ = Mock(return_value=reply)
+        client._http.stream.return_value.__exit__ = Mock(return_value=False)
         path = client.request_final_preview()
         try:
             self.assertEqual(Path(path).read_bytes(), b"ply\nfinal mesh")
-            client._http.get.assert_called_once_with("/api/scan/export/ply", timeout=600.0)
+            client._http.stream.assert_called_once_with("GET", "/api/scan/export/ply", timeout=600.0)
+            reply.iter_bytes.assert_called_once_with(chunk_size=1024 * 1024)
+            client._http.get.assert_not_called()
             client._http.post.assert_not_called()
         finally:
             os.unlink(path)
+
+    def test_preview_stream_failure_removes_partial_file(self):
+        for failure in ("truncated", "disk_full", "transport", "json"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                client = ServerClient()
+                client._http = Mock()
+                reply = response(content_type="application/json" if failure == "json" else "application/octet-stream")
+                if failure == "truncated":
+                    reply.headers["content-length"] = "999"
+                if failure == "transport":
+                    def broken_stream(**kwargs):
+                        yield b"partial"
+                        raise OSError("Connection lost")
+                    reply.iter_bytes.side_effect = broken_stream
+                client._http.stream.return_value.__enter__ = Mock(return_value=reply)
+                client._http.stream.return_value.__exit__ = Mock(return_value=False)
+                with patch("kinect_scanner.server_client.tempfile.tempdir", directory), \
+                        patch("kinect_scanner.server_client.shutil.disk_usage",
+                              return_value=SimpleNamespace(free=0 if failure == "disk_full" else 1024**3)):
+                    if failure == "json":
+                        self.assertIsNone(client.request_preview())
+                    else:
+                        with self.assertRaises(OSError):
+                            client.request_preview()
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_atomic_export_keeps_previous_file_if_replace_fails(self):
         client = ServerClient()

@@ -18,9 +18,9 @@ from shared.protocol import unpack_frame_with_metadata, unpack_frames
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
-from .engine import ScanEngine
 from .cuda_fusion import FusionUpdateError
 from .cuda_input import CudaInputError
+from .engine import ScanEngine
 
 logger = logging.getLogger("scanner_server")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -29,10 +29,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 @asynccontextmanager
 async def lifespan(app):
     global _shutting_down
+    from shared.diagnostics import ResourceMonitor, configure_logging
+    log_path = Path(os.environ.get("KINECT_SERVER_LOG", "logs/server.log"))
+    configure_logging(log_path)
+    monitor = ResourceMonitor(log_path.parent).start()
+    logger.info("Server ready session=%s", engine.session_id)
     _shutting_down = False
     try:
         yield
     finally:
+        logger.info("Server stopping session=%s", engine.session_id)
+        monitor.stop()
         _shutting_down = True
         if _live_task is not None:
             _live_task.cancel()
@@ -67,14 +74,20 @@ async def _exclusive_operation(kind):
     global _exclusive, _exclusive_kind
     _exclusive = True
     _exclusive_kind = kind
+    started = time.monotonic()
     try:
+        logger.info("Operation started kind=%s session=%s", kind, engine.session_id)
         async with _build_lock:
             # Finish earlier live updates before manual progress/final messages.
             await _flush_live_feedback()
             yield
+    except BaseException:
+        logger.exception("Operation failed kind=%s session=%s", kind, engine.session_id)
+        raise
     finally:
         _exclusive = False
         _exclusive_kind = None
+        logger.info("Operation ended kind=%s session=%s seconds=%.2f", kind, engine.session_id, time.monotonic() - started)
 
 
 def _ensure_live_worker():
@@ -420,6 +433,8 @@ async def scan_build(request: Request):
         progress_queue: asyncio.Queue = asyncio.Queue()
 
         def progress_cb(current, total, result):
+            logger.info("Build progress session=%s current=%s total=%s message=%s",
+                        engine.session_id, current, total, result.get("message", ""))
             loop.call_soon_threadsafe(
                 progress_queue.put_nowait,
                 {
@@ -482,6 +497,7 @@ async def scan_build(request: Request):
             )
             await _broadcast({"type": "done", "success": False, "detail": detail})
 
+        logger.info("Build result session=%s success=%s detail=%s", engine.session_id, success, detail)
         return {"success": success, "detail": detail, **proc_result}
 
 

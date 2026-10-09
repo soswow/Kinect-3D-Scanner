@@ -1,10 +1,11 @@
 """MainWindow — primary application window (client/server mode)."""
 
+import hashlib
+import json
+import logging
 import os
 import time
 import uuid
-import hashlib
-import json
 from datetime import datetime, timezone
 
 import numpy as np
@@ -35,18 +36,18 @@ from PyQt6.QtWidgets import (
 
 from shared.calibration import raw_depth_to_mm
 from shared.capture import RGB_GAIN_CHOICES, RGB_MODE_FPS
+from shared.inertial import OrientationTracker, calibration_profile, rotate_display
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
-from shared.inertial import OrientationTracker, calibration_profile, rotate_display
 
 from ..capture_pacing import CapturePacer
 from ..capture_selection import CaptureSelector
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
+from ..runtime import data_root, export_root
 from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
-from ..runtime import data_root, export_root
 from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
@@ -64,6 +65,7 @@ from .widgets import (
 _PROJECT_ROOT = str(data_root())
 EXPORT_DIR = str(export_root())
 MESH_DIR = os.path.join(_PROJECT_ROOT, "mesh")
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -236,7 +238,14 @@ class MainWindow(QMainWindow):
         def received(*args):
             if worker is self.worker:
                 self._on_frame(*args)
-        if hasattr(worker, "frame_pair_ready"):
+        if hasattr(worker, "take_latest_frame"):
+            worker.coalesce_frames = True
+            def received_latest():
+                frame = worker.take_latest_frame()
+                if frame is not None:
+                    received(*frame)
+            worker.frame_available.connect(received_latest)
+        elif hasattr(worker, "frame_pair_ready"):
             worker.frame_pair_ready.connect(received)
         else:
             worker.frame_ready.connect(received)
@@ -864,6 +873,7 @@ class MainWindow(QMainWindow):
             self._operation_error = ""
             self.auto_capture_cb.setChecked(self.capture_mode_combo.currentData() == "automatic")
         self._capture_waiting = ""
+        logger.info("Capture state session=%s scanning=%s paused=%s", self._session_id, self._scanning, self._paused)
         self._reset_auto_capture_cadence()
         self._refresh_controls()
 
@@ -1129,6 +1139,11 @@ class MainWindow(QMainWindow):
         self._switch_mode(self._mode)
 
     def _on_sensor_recording_status(self, status):
+        signature = (status.get("root"), status.get("recording_segment"), status.get("error"),
+                     status.get("closed"), tuple(sorted(status.get("dropped", {}).items())))
+        if signature != getattr(self, "_logged_sensor_status", None):
+            self._logged_sensor_status = signature
+            logger.info("Sensor recording session=%s status=%s", self._session_id, status)
         if status.get("root") and status["root"] != self._sensor_recording_path:
             return
         if self._session_id and status.get("root") == self._sensor_recording_path:
@@ -1466,6 +1481,9 @@ class MainWindow(QMainWindow):
             return
         if not self._server_stored and not getattr(self.task_worker, "queued_task_count", 0):
             return
+        logger.info("Finish scan requested session=%s stored=%s upload_queue=%s final_voxel_mm=%s",
+                    self._session_id, self._server_stored, self.task_worker.queued_task_count,
+                    self.final_voxel_spin.value())
         self._build_pending = True
         self._build_failed = False
         self._operation_error = ""
@@ -1888,6 +1906,7 @@ class MainWindow(QMainWindow):
         self._refresh_status()
 
     def _on_build_mesh_done(self, success: bool, detail: str):
+        logger.info("Build finished session=%s success=%s detail=%s", self._session_id, success, detail)
         self._build_pending = False
         self._build_failed = not success
         self._has_mesh = success
@@ -1952,6 +1971,7 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _on_export_done(self, success: bool, path: str):
+        logger.info("Export finished session=%s success=%s path=%s", self._session_id, success, path)
         pending = self._export_pending
         if pending and pending["path"] != path:
             return
@@ -1988,12 +2008,14 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _on_task_started(self, msg: str):
+        logger.info("Operation session=%s %s", self._session_id, msg)
         self.statusBar().showMessage(msg)
         if self._export_pending:
             self.progress_bar.setRange(0, 0)
             self.progress_bar.show()
 
     def _on_task_error(self, msg: str):
+        logger.error("Operation error session=%s %s", self._session_id, msg)
         # Recording/report warnings are independent of build or inspection success.
         self.statusBar().showMessage(msg, 10000)
         if "incomplete sensor recording" in msg:
@@ -2001,6 +2023,7 @@ class MainWindow(QMainWindow):
             self.sensor_recording_label.setStyleSheet("color: #ffb45b;")
 
     def _on_task_failed(self, task_type, message):
+        logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message)
         self.progress_bar.hide()
         self._operation_error = f"{message} · current scan retained"
         if task_type == "CONNECT":
@@ -2042,6 +2065,14 @@ class MainWindow(QMainWindow):
 
 
     def _update_fps(self):
+        now = time.monotonic()
+        if now - getattr(self, "_last_diagnostic_at", 0) >= 15:
+            self._last_diagnostic_at = now
+            logger.info("Client state session=%s scanning=%s paused=%s build=%s preview=%s stored=%s integrated=%s upload_queue=%s preview_frames_replaced=%s",
+                        self._session_id, self._scanning, self._paused, self._build_pending,
+                        self._final_preview_pending or self._preview_pending, self._server_stored,
+                        self._server_integrated, self.task_worker.queued_task_count,
+                        getattr(self.worker, "preview_frames_replaced", 0))
         now = time.time()
         elapsed = now - self._last_fps_time
         if elapsed > 0:

@@ -4,12 +4,11 @@ Same pattern as the original ScanTaskManager, but sends requests to the
 remote server instead of calling ScanEngine directly.
 """
 
-import queue
+import logging
 import os
-import traceback
+import queue
 import tempfile
 import time
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
@@ -20,6 +19,8 @@ from PyQt6.QtCore import QThread
 
 from shared.recording import RecordingWriter
 from shared.sensor_recording import augment_session_archive
+
+logger = logging.getLogger(__name__)
 
 
 class ServerTaskType(Enum):
@@ -65,7 +66,11 @@ class ServerTaskWorker(QThread):
         if self._stop_flag:
             return False
         if task.task_type == ServerTaskType.SEND_FRAME and self._queue.qsize() >= 100:
+            logger.warning("Capture rejected: upload queue full session=%s", self._client.session_id)
             return False
+        if task.task_type != ServerTaskType.SEND_FRAME:
+            logger.info("Task queued task=%s session=%s queue=%s", task.task_type.name,
+                        self._client.session_id, self._queue.qsize())
         self._queue.put(task)
         return True
 
@@ -83,12 +88,18 @@ class ServerTaskWorker(QThread):
             self._pending = None
             if task is None:
                 break
+            started = time.monotonic()
+            logger.info("Task started task=%s session=%s queue=%s", task.task_type.name,
+                        self._client.session_id, self._queue.qsize())
             try:
                 self._dispatch(task)
             except Exception as exc:  # noqa: BLE001 — contain failures at the queued task boundary.
-                traceback.print_exc()
+                logger.exception("Task exception task=%s session=%s", task.task_type.name, self._client.session_id)
                 self._client.task_error.emit(f"{task.task_type.name}: {exc}")
                 self._client.task_failed.emit(task.task_type.name, str(exc))
+            finally:
+                logger.info("Task ended task=%s session=%s seconds=%.2f queue=%s", task.task_type.name,
+                            self._client.session_id, time.monotonic() - started, self._queue.qsize())
 
     _MAX_BATCH = 100  # max frames per HTTP request
 
@@ -115,6 +126,8 @@ class ServerTaskWorker(QThread):
                 self._pending = task
                 break
             frames.append(frame(task))
+        logger.info("Uploading captures session=%s count=%s frame_ids=%s", self._client.session_id,
+                    len(frames), [metadata.get("frame_id") for _, _, metadata in frames])
         try:
             if len(frames) == 1:
                 result = self._client.send_frame(*frames[0])
@@ -133,6 +146,9 @@ class ServerTaskWorker(QThread):
             })
             raise
         acknowledgements = result.get("results", [result] if len(frames) == 1 else [])
+        logger.info("Capture upload session=%s count=%s success=%s stored=%s frame_ids=%s",
+                    self._client.session_id, len(frames), result.get("success"), result.get("stored_count"),
+                    [metadata.get("frame_id") for _, _, metadata in frames])
         capture_acks = acknowledgements or [{"success": result.get("success", False)}] * len(frames)
         result = {
             **result,
@@ -155,6 +171,7 @@ class ServerTaskWorker(QThread):
                             metadata["server_index"] = ack["index"]
                         self._recording.append(rgb, depth, metadata)
             except OSError as exc:
+                logger.exception("Local capture recording stopped path=%s", self._recording.path)
                 self._recording = None
                 self._client.task_error.emit(f"Recording stopped: {exc}")
         return result
@@ -210,9 +227,11 @@ class ServerTaskWorker(QThread):
                 try:
                     self._recording = RecordingWriter(path, result["settings"])
                     self._recording_session_id = result.get("session_id")
+                    logger.info("Local capture recording started session=%s path=%s", self._recording_session_id, path)
                 except Exception as exc:  # noqa: BLE001 — optional recording must not undo a committed reset.
                     self._client.task_error.emit(f"Local recording unavailable: {exc}")
             # The server already committed the new session, even if local disk setup failed.
+            logger.info("Scan reset session=%s settings=%s", self._client.session_id, result["settings"])
             self._client.reset_done.emit(result)
 
         elif tt == ServerTaskType.BUILD_MESH:

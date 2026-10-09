@@ -5,6 +5,7 @@ httpx
 websocket-client
 open3d
 trimesh
+psutil
 
 # freenect — not on PyPI, must be built from source:
 #   git clone https://github.com/OpenKinect/libfreenect

@@ -30,6 +30,9 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
     journal = None
     retired_journals = []
     try:
+        from shared.diagnostics import configure_logging
+        from .runtime import log_path
+        configure_logging(log_path().with_name("capture.log"))
         import freenect
 
         validate_rgb_exposure(rgb_exposure_mode, rgb_shutter_speed,

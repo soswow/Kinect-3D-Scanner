@@ -5,6 +5,7 @@ only the images selected for fusion. A bounded writer reports every overflow.
 """
 
 import json
+import logging
 import queue
 import shutil
 import threading
@@ -46,6 +47,7 @@ class SensorJournal:
         }, indent=2, allow_nan=False) + "\n")
         self.thread = threading.Thread(target=self._write, name="Sensor recording", daemon=True)
         self.thread.start()
+        logging.getLogger(__name__).info("Sensor journal started path=%s full_images=%s", self.path, self.record_images)
 
     def submit(self, stream, metadata, array=None):
         if stream not in STREAMS:
@@ -135,6 +137,7 @@ class SensorJournal:
                     with self.lock:
                         self.counts[stream] += 1
                 except (OSError, ValueError, cv2.error) as exc:
+                    logging.getLogger(__name__).exception("Sensor journal write failed path=%s stream=%s", self.path, stream)
                     with self.lock:
                         self.error = str(exc)
                         if stream in STREAMS:
@@ -144,7 +147,9 @@ class SensorJournal:
             with self.lock:
                 self.closed = True
             self._checkpoint(handles)
+            logging.getLogger(__name__).info("Sensor journal closed status=%s", self.status())
         except Exception as exc:  # Disk failures must be visible without killing USB capture.
+            logging.getLogger(__name__).exception("Sensor journal stopped path=%s", self.path)
             with self.lock:
                 self.error = str(exc)
         finally:
