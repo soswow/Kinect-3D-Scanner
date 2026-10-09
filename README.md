@@ -83,8 +83,9 @@ kill or while the OS has suspended the process, and a full disk can prevent writ
 checkpoints the local sensor journal and shuts down camera acquisition (including
 USB retries). It builds on the server, then downloads a mesh and opens a local
 viewer. The camera stays off after success or failure, during inspection/export,
-and when reconnecting to a finished scan. Only **Resume Capture** or **New Scan**
-turns it back on; a new scan waits for a fresh frame before resetting the server.
+and when reconnecting to a finished scan. **Resume Capture**, **New Scan**, or
+**Reset Scan** turns it back on. Reset clears the scan and opens camera setup
+without capturing; a new scan waits for a fresh frame before resetting the server.
 Preview downloads stream to disk and stop if they
 would leave less than 256 MiB free. If the client crashes, reconnect to the same
 still-running server and use **Save Project** before starting/resetting a scan.
@@ -152,6 +153,9 @@ Scan actions stay visible while setup settings scroll independently. **Pause**
 and **Resume Capture** retain the current scan; **Finish Scan** builds the final
 model. **Cancel Scan** returns to setup without a build, offering to save or
 discard unsaved captures. Click **Start Scan** afterward to restart.
+**Reset Scan** also clears finished models and returns to live camera setup.
+It offers to save unsaved work and waits for the server to confirm the reset;
+capture stays off until you click **Start Scan**.
 **Inspect Scan** generates a temporary mesh during capture and opens the
 finished mesh after a build. Final inspection downloads the actual final mesh,
 including any enabled final refinement, rather than an earlier preview.
@@ -185,7 +189,7 @@ or plain OBJ; texture choices appear in that dialog. **Inspect Scan** previews t
 **Save Project** (Cmd/Ctrl+S) keeps lossless captures, calibration, settings, poses, diagnostics,
 sensor observations and the finished mesh. **File → Save Project As…** saves another copy.
 Projects use the same ZIP format as sessions; the finished mesh is an additional optional member.
-New Scan, Open Project, Cancel Scan and close offer Save project / Discard / Cancel, and continue only
+New Scan, Open Project, Cancel Scan, Reset Scan and close offer Save project / Discard / Cancel, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
 paused; a failed build offers retry or resumed capture without resetting frames.
 

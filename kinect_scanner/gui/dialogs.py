@@ -98,6 +98,7 @@ class SessionProtectionDialog(QDialog):
         closing = reason in ("close", "closing", "quit", "exit")
         action = "closing the scanner" if closing else (
             "opening another project" if reason == "open_project" else
+            "resetting the scan" if reason == "reset_scan" else
             "cancelling the scan" if reason == "cancel_scan" else "starting a new scan"
         )
         self.message_label = QLabel(
