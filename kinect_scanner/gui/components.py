@@ -52,6 +52,12 @@ class CameraPreview(QLabel):
         self.set_stale(False)
         self._refresh_image()
 
+    def show_stopped(self):
+        self._image = None
+        self.clear()
+        self.setText("Camera off · scan finished")
+        self.set_stale(False)
+
     def set_stale(self, stale, message="Camera unavailable · last image"):
         self.stale_label.setText(message)
         self.stale_label.setVisible(stale)

@@ -1,6 +1,7 @@
 """Regression tests for driver stalls, retries and shared-buffer ownership."""
 
 import signal
+import threading
 import time
 import unittest
 import weakref
@@ -57,6 +58,38 @@ def wait_for(predicate, timeout=5):
 
 
 class CaptureWorkerTests(unittest.TestCase):
+    def test_finish_checkpoints_recording_before_stop_without_delivering_more_images(self):
+        worker = KinectWorker()
+        worker.coalesce_frames = True
+        entered, release = threading.Event(), threading.Event()
+        def flush(path, stop=False):
+            self.assertEqual(path, "/recording")
+            self.assertTrue(stop)
+            entered.set()
+            release.wait(2)
+            return {"complete": True, "root": path}
+        image = np.zeros((2, 2, 3), np.uint8)
+        worker._deliver_frame(image, image, {})
+        with patch.object(worker, "flush_sensor_recording", side_effect=flush):
+            worker.finish_capture("/recording")
+            try:
+                self.assertTrue(entered.wait(1))
+                self.assertFalse(worker._stop_event.is_set())
+                worker._deliver_frame(image, image, {})
+                self.assertIsNone(worker.take_latest_frame())
+            finally:
+                release.set()
+                worker._finish_thread.join(2)
+        self.assertTrue(worker._stop_event.is_set())
+
+    def test_finish_stops_even_if_sensor_checkpoint_fails(self):
+        worker = self.start_worker(silent_capture)
+        with patch.object(worker, "flush_sensor_recording", side_effect=OSError("disk full")):
+            worker.finish_capture("/recording")
+            worker._finish_thread.join(2)
+        self.assertTrue(worker.wait(2500))
+        self.assertTrue(worker._stop_event.is_set())
+
     def test_stalled_gui_retains_only_latest_frame_and_one_notification(self):
         worker = KinectWorker()
         worker.coalesce_frames = True

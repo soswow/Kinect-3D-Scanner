@@ -56,14 +56,17 @@ def run_check():
         window.worker.error_occurred.connect(errors.append)
         def close_when_ready():
             if window._frame_sequence:
-                window.close()
+                if not window._camera_suspended:
+                    window._stop_camera_after_finish()
+                elif not window.worker.isRunning():
+                    window.close()
         timer = QTimer()
         timer.timeout.connect(close_when_ready)
         timer.start(100)
         QTimer.singleShot(20_000, window.close)
         app.exec()
         frames = window._frame_sequence
-        if not frames or errors or window.worker.isRunning():
+        if not frames or errors or window.worker.isRunning() or window._last_rgb is not None:
             raise RuntimeError(f"Capture/window check failed: frames={frames}, errors={errors}")
         if window.server_ip_edit.text() != "192.0.2.42":
             raise RuntimeError("Server preferences were not restored")
@@ -73,7 +76,7 @@ def run_check():
                                 capture_output=True, text=True, timeout=20)
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
-    report = {"status": "ok", "synthetic_frames": frames, "mesh_helper": "ok",
+    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0

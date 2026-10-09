@@ -46,6 +46,7 @@ class KinectWorker(QThread):
     ):
         super().__init__(parent)
         self._stop_event = threading.Event()
+        self._finishing = threading.Event()
         self._capture_target = capture_target
         self._startup_timeout = startup_timeout
         self._frame_timeout = frame_timeout
@@ -80,6 +81,8 @@ class KinectWorker(QThread):
         return frame
 
     def _deliver_frame(self, rgb, depth, metadata):
+        if self._finishing.is_set():
+            return
         if not self.coalesce_frames:
             self.frame_pair_ready.emit(rgb, depth, metadata)
             self.frame_ready.emit(rgb, depth)
@@ -154,6 +157,31 @@ class KinectWorker(QThread):
 
     def stop(self):
         self._stop_event.set()
+        with self._flush_condition:
+            self._flush_condition.notify_all()
+
+    def finish_capture(self, path=None):
+        """Stop delivery now, checkpoint recording, then shut down USB off the UI thread."""
+        if self._finishing.is_set():
+            return
+        self._finishing.set()
+        self.take_latest_frame()
+
+        def finish():
+            logger.info("Camera shutdown requested recording=%s", path)
+            try:
+                snapshot = self.flush_sensor_recording(path, stop=True)
+                if snapshot is not None:
+                    logger.info("Final sensor checkpoint complete=%s root=%s", snapshot["complete"], snapshot["root"])
+                    self.sensor_recording_status.emit(snapshot)
+            except Exception as exc:  # Shutdown must proceed even if the camera/disk failed.
+                logger.exception("Final sensor checkpoint failed")
+                self.sensor_recording_status.emit({"complete": False, "error": str(exc)})
+            finally:
+                self.stop()
+
+        self._finish_thread = threading.Thread(target=finish, name="Finish camera recording", daemon=True)
+        self._finish_thread.start()
 
     @staticmethod
     def _stop_capture(process, stop_event):
@@ -232,6 +260,11 @@ class KinectWorker(QThread):
                             continue
                         if kind != "frame":
                             raise RuntimeError("Invalid camera process message")
+                        if self._finishing.is_set():
+                            # Keep the control/flush handshake moving without copying or tracking images.
+                            parent.send("copied")
+                            deadline = time.monotonic() + self._frame_timeout
+                            continue
                         rgb = (
                             np.frombuffer(rgb_buffer, np.uint8)
                             .reshape(self._rgb_shape)
@@ -281,6 +314,8 @@ class KinectWorker(QThread):
                             "check USB connection and external power."
                         )
             except Exception as exc:  # noqa: BLE001 -- acquisition boundary must recover
+                if self._finishing.is_set():
+                    self.stop()  # Never retry USB after Finish, including a failed checkpoint.
                 if not self._stop_event.is_set():
                     message = str(exc) or "Kinect camera process disconnected"
                     logger.warning("Camera acquisition failed: %s", message)
@@ -291,6 +326,8 @@ class KinectWorker(QThread):
                     logger.warning("Disabling acceleration after a stalled native sensor read")
                 if started:
                     self._stop_capture(process, stop_event)
+                    if self._finishing.is_set():
+                        logger.info("Camera process stopped after Finish")
                 parent.close()
                 child.close()
                 with self._tracking_lock:

@@ -82,6 +82,8 @@ class MainWindow(QMainWindow):
         self._build_pending = False
         self._build_failed = False
         self._camera_ok = False
+        self._camera_suspended = False
+        self._start_when_camera_ready = False
         self._capture_waiting = ""
         self._session_dirty = False
         self._capture_revision = 0
@@ -236,7 +238,7 @@ class MainWindow(QMainWindow):
         worker = self.worker
         # Ignore any queued observation from the old worker after a mode change.
         def received(*args):
-            if worker is self.worker:
+            if worker is self.worker and not self._camera_suspended:
                 self._on_frame(*args)
         if hasattr(worker, "take_latest_frame"):
             worker.coalesce_frames = True
@@ -249,7 +251,9 @@ class MainWindow(QMainWindow):
             worker.frame_pair_ready.connect(received)
         else:
             worker.frame_ready.connect(received)
-        self.worker.error_occurred.connect(self._on_error)
+        self.worker.error_occurred.connect(
+            lambda message: self._on_error(message) if worker is self.worker and not self._camera_suspended else None)
+        self.worker.finished.connect(self._refresh_controls)
         if hasattr(self.worker, "sensor_recording_status"):
             self.worker.sensor_recording_status.connect(
                 lambda status: self._on_sensor_recording_status(status) if worker is self.worker else None)
@@ -258,6 +262,8 @@ class MainWindow(QMainWindow):
         self._update_tracking_debug()
 
     def _restart_camera(self):
+        if self._camera_suspended:
+            return  # Changing setup or restoring a project must not reopen USB after Finish.
         self.worker.stop()
         if not self.worker.wait(2500):
             raise RuntimeError("Camera did not stop within 2.5 seconds")
@@ -266,6 +272,41 @@ class MainWindow(QMainWindow):
         self._set_camera_stale("Camera restarting…")
         self._last_frame_metadata = {}
         self._reset_auto_capture_cadence()
+        self._start_camera()
+
+    def _stop_camera_after_finish(self):
+        if self._camera_suspended:
+            return
+        self._camera_suspended = True
+        self._start_when_camera_ready = False
+        self._camera_ok = False
+        self._last_rgb = self._last_depth = self._last_tracking_debug = None
+        self._last_frame_metadata = {}
+        self._capture_selector.clear()
+        self._fps_value = self._fps_counter = 0
+        self.fps_label.setText("Camera: off")
+        self.kinect_label.setText("Kinect: stopped")
+        self.camera_title.setText("Camera off")
+        self.sensor_status_label.setText("Sensor stopped")
+        self.sensor_recording_label.setText("Sensor recording stopped")
+        for view in (self.view_label, self.scan_depth_view):
+            view.show_stopped()
+        self.scan_depth_panel.hide()
+        self.depth_legend_label.hide()
+        logger.info("Capture finished; shutting down camera session=%s", self._session_id)
+        if hasattr(self.worker, "finish_capture"):
+            self.worker.finish_capture(self._sensor_recording_path)
+        else:
+            self.worker.stop()
+
+    def _resume_camera(self):
+        if not self._camera_suspended:
+            return
+        self._camera_suspended = False
+        self.kinect_label.setText("Kinect: connecting…")
+        self.camera_title.setText("Live camera · Color")
+        self._set_camera_stale("Camera starting…")
+        self._switch_mode(self._mode)
         self._start_camera()
 
     def _change_rgb_mode(self):
@@ -750,14 +791,20 @@ class MainWindow(QMainWindow):
         busy = self._reset_pending or self._preview_pending or self._build_pending or bool(self._export_pending)
         busy = busy or self._connect_pending or self._final_preview_pending
         busy = busy or bool(self._server_operation) or self._restore_on_status
+        camera_stopping = self._camera_suspended and hasattr(self, "worker") and self.worker.isRunning()
+        if self._camera_suspended:
+            self.kinect_label.setText("Kinect: stopping…" if camera_stopping else "Kinect: stopped")
+            self.camera_title.setText("Stopping camera…" if camera_stopping else "Camera off")
+        busy = busy or camera_stopping
+        can_start_camera = ready or self._camera_suspended
         active = self._scanning
         frames = self._server_stored > 0 or getattr(self.task_worker, "queued_task_count", 0) > 0
         valid_setup = self.depth_near_spin.value() < self.depth_far_spin.value() and (
             self.final_voxel_spin.value() == 0 or self.final_voxel_spin.value() >= 2
         )
-        self.btn_start_scan.setEnabled(connected and ready and valid_setup and not busy and (not active or self._paused))
+        self.btn_start_scan.setEnabled(connected and can_start_camera and valid_setup and not busy and (not active or self._paused))
         self.btn_start_scan.setText("New Scan" if self._session_id else "Start Scan")
-        self.btn_pause.setEnabled(connected and ready and not busy and (active or frames))
+        self.btn_pause.setEnabled(connected and can_start_camera and not busy and (active or frames))
         self.btn_pause.setText("Resume Capture" if self._paused or not active else "Pause")
         self.btn_capture.setEnabled(connected and ready and active and not self._paused and not busy)
         self.btn_stop_build.setEnabled(connected and frames and not busy)
@@ -780,6 +827,8 @@ class MainWindow(QMainWindow):
         self.auto_capture_cb.setEnabled(connected and active and not busy)
         if not connected:
             reason = "Connect the reconstruction server."
+        elif self._camera_suspended:
+            reason = "Stopping camera…" if camera_stopping else "Camera off · Resume Capture or New Scan turns it on."
         elif not ready:
             reason = "Waiting for fresh color and depth frames from the Kinect."
         else:
@@ -795,7 +844,10 @@ class MainWindow(QMainWindow):
 
     def _refresh_status(self):
         interval = self._effective_capture_interval()
-        if self._scanning and self.live_view.snapshot.get("fusion_paused"):
+        if self._camera_suspended:
+            self.interval_help.setText("Capture finished · stopping camera…" if self.worker.isRunning()
+                                       else "Capture finished · camera and sensors are off.")
+        elif self._scanning and self.live_view.snapshot.get("fusion_paused"):
             self.interval_help.setText("Checking fresh views as soon as each recovery check finishes.")
         elif self._scanning and interval > self.auto_capture_spin.interval_seconds + 1e-9:
             self.interval_help.setText(
@@ -839,7 +891,7 @@ class MainWindow(QMainWindow):
         elif self._scanning:
             state = "Capturing automatically" if self.auto_capture_cb.isChecked() else "Manual capture · ready"
         elif self._has_mesh:
-            state = "Final model ready · inspect or export"
+            state = "Scan finished · camera off · inspect, save or export"
         elif self._server_stored:
             state = "Scan retained · resume capture or finish"
         else:
@@ -863,10 +915,14 @@ class MainWindow(QMainWindow):
             return
         if self._scanning and not self._paused:
             self._paused = True
-        elif self._camera_ready() and (self._scanning or self._server_stored):
+        elif (self._camera_ready() or self._camera_suspended) and (self._scanning or self._server_stored):
+            if self._camera_suspended and self.worker.isRunning():
+                return
             self._apply_session_settings(self._session_settings)
+            self._resume_camera()
             self._scanning = True
             self._paused = False
+            self._configure_camera_tracking()
             self._build_failed = False
             self._has_mesh = False
             self._last_preview_path = None
@@ -961,6 +1017,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Connected to reconstruction server", 4000)
 
     def _on_server_disconnected(self, reason: str):
+        self._start_when_camera_ready = False
         self._connect_pending = False
         self._status_pending = False
         self._server_operation = None
@@ -992,9 +1049,10 @@ class MainWindow(QMainWindow):
         self.guidance_label.setVisible(self.live_view.isHidden())
         if self.live_view.isVisible():
             self.splitter.setSizes([max(300, self.splitter.width() * 2 // 3), max(240, self.splitter.width() // 3)])
-        self.camera_title.setText("Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
-        self.scan_depth_panel.setVisible(mode == MODE_SCANNER)
-        self.depth_legend_label.setVisible(mode in (MODE_DEPTH, MODE_SCANNER))
+        self.camera_title.setText("Camera off" if self._camera_suspended else
+                                  "Live camera · Depth" if mode == MODE_DEPTH else "Live camera · Color")
+        self.scan_depth_panel.setVisible(mode == MODE_SCANNER and not self._camera_suspended)
+        self.depth_legend_label.setVisible(mode in (MODE_DEPTH, MODE_SCANNER) and not self._camera_suspended)
         if self._last_rgb is not None and self._last_depth is not None:
             if mode == MODE_SCANNER:
                 self._show_scanner(self._last_rgb, self._last_depth)
@@ -1009,7 +1067,7 @@ class MainWindow(QMainWindow):
 
     # ── frame display ─────────────────────────────────────────────────
     def _on_frame(self, video: np.ndarray, depth: np.ndarray, metadata=None):
-        if self._closing:
+        if self._closing or self._camera_suspended:
             return
         self._fps_counter += 1
         self._camera_ok = True
@@ -1039,6 +1097,10 @@ class MainWindow(QMainWindow):
         self._last_frame_metadata["frame_id"] = f"{self._capture_run_id}:{self._frame_sequence}"
         self._last_frame_metadata.setdefault("timestamp_s", time.time())
         self._capture_selector.offer(video, depth, self._last_frame_metadata, self._last_frame_time)
+        if self._start_when_camera_ready:
+            self._start_when_camera_ready = False
+            if self.server_client.is_connected:
+                self._start_scan(protected=True)
         self._update_tracking_debug_status()
 
         if self._mode == MODE_RGB:
@@ -1211,6 +1273,13 @@ class MainWindow(QMainWindow):
             return
 
         if self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or self._server_operation or self._connect_pending or self._restore_on_status or (self._scanning and not self._paused and not protected):
+            return
+        if self._camera_suspended:
+            if self.worker.isRunning() or (not protected and not self._protect_session("new_scan")):
+                return
+            self._start_when_camera_ready = True
+            self._resume_camera()
+            self._refresh_controls()
             return
         if not self._camera_ready():
             self._capture_waiting = "Waiting for a fresh camera frame"
@@ -1489,7 +1558,7 @@ class MainWindow(QMainWindow):
         self._operation_error = ""
         self._last_preview_path = None
         self._scanning = False
-        self._configure_camera_tracking()
+        self._stop_camera_after_finish()
         self.capture_sound.reset_tracking()
         self._reset_auto_capture_cadence()
         self.auto_capture_cb.setChecked(False)
@@ -1746,6 +1815,8 @@ class MainWindow(QMainWindow):
             self._capture_revision += max(1, self._server_stored - previous_stored)
             self._session_dirty = True
         self._server_operation = status.get("operation")
+        if self._has_mesh or self._server_operation == "build":
+            self._stop_camera_after_finish()
         if self._server_operation:
             self._scanning = False
             self._reconcile_on_status = True
@@ -2079,7 +2150,7 @@ class MainWindow(QMainWindow):
             self._fps_value = self._fps_counter / elapsed
         self._fps_counter = 0
         self._last_fps_time = now
-        self.fps_label.setText(f"Camera: {self._fps_value:.1f} fps")
+        self.fps_label.setText("Camera: off" if self._camera_suspended else f"Camera: {self._fps_value:.1f} fps")
         if self._last_rgb is not None and not self._camera_ready():
             self._set_camera_stale("Camera delayed · last image")
             self.kinect_label.setText("Kinect: waiting for frames")
@@ -2107,7 +2178,8 @@ class MainWindow(QMainWindow):
             self.capture_sound.stop()
             self._reset_auto_capture_cadence()
             self._fps_timer.stop()
-            self.worker.stop()
+            if not self._camera_suspended:
+                self.worker.stop()
             self.task_worker.stop()
         self.worker.wait(100)
         self.task_worker.wait(100)

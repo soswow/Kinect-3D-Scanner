@@ -79,8 +79,13 @@ and restart the server separately to enable new server logging; updating the Mac
 app does not update a remote server. Logging cannot record events after a forced
 kill or while the OS has suspended the process, and a full disk can prevent writes.
 
-**Finish Scan is not Save Project.** It builds on the server, then downloads a
-mesh and opens a local viewer. Preview downloads stream to disk and stop if they
+**Finish Scan is not Save Project.** It stops camera delivery immediately,
+checkpoints the local sensor journal and shuts down camera acquisition (including
+USB retries). It builds on the server, then downloads a mesh and opens a local
+viewer. The camera stays off after success or failure, during inspection/export,
+and when reconnecting to a finished scan. Only **Resume Capture** or **New Scan**
+turns it back on; a new scan waits for a fresh frame before resetting the server.
+Preview downloads stream to disk and stop if they
 would leave less than 256 MiB free. If the client crashes, reconnect to the same
 still-running server and use **Save Project** before starting/resetting a scan.
 The server retains its current scan in memory, not as an automatic disk project;

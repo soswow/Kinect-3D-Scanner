@@ -167,6 +167,8 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.retain_scan()
         self.window._stop_and_build()
         self.window._on_build_mesh_done(False, "Capture more overlapping views")
+        self.assertTrue(self.window.worker.wait(1000))
+        self.app.processEvents()
         self.assertEqual("Retry Build", self.window.btn_stop_build.text())
         self.assertTrue(self.window.btn_stop_build.isEnabled())
         self.window._stop_and_build()
@@ -176,6 +178,58 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertFalse(self.window._paused)
         self.assertEqual(3, self.window._server_stored)
         self.assertEqual([ServerTaskType.BUILD_MESH, ServerTaskType.BUILD_MESH], self.task_types())
+
+    def test_finish_stops_camera_clears_images_and_ignores_late_frames(self):
+        self.retain_scan()
+        worker = self.window.worker
+        with patch.object(worker, "stop") as stop:
+            self.window._stop_and_build()
+            stop.assert_called_once()
+        self.assertTrue(worker.wait(1000))
+        self.app.processEvents()
+        self.assertTrue(self.window._camera_suspended)
+        self.assertIsNone(self.window._last_rgb)
+        self.assertIsNone(self.window._last_depth)
+        self.assertFalse(self.window._capture_selector.frames)
+        self.fresh_frame()
+        self.assertIsNone(self.window._last_rgb)
+        worker.error_occurred.emit("late driver error")
+        self.assertEqual("Kinect: stopped", self.window.kinect_label.text())
+        with patch.object(self.window, "_request_final_preview"):
+            self.window._on_build_mesh_done(True, "Done")
+        self.assertIn("camera off", self.window.scan_status_label.text())
+        self.assertTrue(self.window.btn_start_scan.isEnabled())
+        self.assertTrue(self.window.btn_pause.isEnabled())
+        self.assertTrue(self.window.btn_export_session.isEnabled())
+        with patch.object(self.window, "_start_camera") as start:
+            self.window._restart_camera()
+            self.window._update_fps()
+            start.assert_not_called()
+
+    def test_new_scan_after_finish_restarts_only_after_protection_and_waits_for_frame(self):
+        self.retain_scan()
+        self.window._stop_and_build()
+        self.window._on_build_mesh_done(False, "failed")
+        self.assertTrue(self.window.worker.wait(1000))
+        self.app.processEvents()
+        with patch.object(self.window, "_protect_session", return_value=False):
+            self.window._start_scan()
+        self.assertTrue(self.window._camera_suspended)
+        with patch.object(self.window, "_protect_session", return_value=True):
+            self.window._start_scan()
+        self.assertFalse(self.window._camera_suspended)
+        self.assertTrue(self.window._start_when_camera_ready)
+        self.assertNotIn(ServerTaskType.RESET, self.task_types())
+        self.fresh_frame()
+        self.assertEqual(ServerTaskType.RESET, self.task_types()[-1])
+
+    def test_reconnecting_finished_scan_stops_camera(self):
+        with patch.object(self.window, "_request_final_preview"):
+            self.window._restore_server_session({"session_id": "finished", "stored_count": 3,
+                                                  "frame_count": 3, "has_mesh": True})
+        self.assertTrue(self.window._camera_suspended)
+        self.assertFalse(self.window._scanning)
+
 
     def test_cancel_protection_restores_capture_and_retains_frames(self):
         self.retain_scan()
