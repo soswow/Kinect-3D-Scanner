@@ -116,6 +116,7 @@ def recording(archive, poses_path=None, *, archived_poses=False):
 
     return SimpleNamespace(settings=ScanSettings.from_dict(manifest["settings"]),
                            poses=poses, raw_frames=Frames(), pose_provenance=provenance,
+                           fragment_reconnection=reconstruction.get("fragment_reconnection", {}),
                            frame_metadata=[entry.get("metadata", {}) for entry in manifest["frames"]])
 
 

@@ -230,3 +230,52 @@ numerical or timing authority for this new algorithm.
 
 These results address the observed half-turn failure. They do not provide a
 ground-truth trajectory or certify every surface in the rebuilt mesh.
+
+## Camera-level loops and the bundle view limit
+
+The follow-up implements [camera-level loop diagnostics and denser sampling](POSE_REFINEMENT.md)
+and removes the bundle pass's hard 128-view refusal. Bundle validation now
+streams all output views through an eight-cloud cache; solver work remains
+bounded independently at 24 selected cameras, 800 landmarks and 96 pairs.
+
+In the final full CPU Finish from the original archive, 64 selected keyframes
+produce 22 measured loop constraints, and the optimizer retains all 22. Nine
+come from exact camera support pairs in the committed fragment report, eight
+from appearance retrieval, and five from geometric retrieval. All eleven
+temporal/storage boundaries are remeasured as protected constraints. The
+end/start camera pair at zero-based indices `[0, 140]` passes the loop gates.
+Candidates now report specific rejection gates and measured statistics.
+
+Independent keyframe loss falls from `0.000803339241838256` to
+`0.000787393090907004` square metres: a **1.984983%** improvement. The existing
+minimum is 2%, so this camera-level proposal is deliberately refused before
+fusion. Finding loop edges therefore does not imply an applied drift correction.
+An earlier full replay passed keyframe validation but exposed a problem in
+interpolated cameras, motivating mandatory all-output depth checks and anchored
+correction interpolation. A pre-existing partial-overlap pair uses the same
+five-percentage-point loss tolerance as other existing-trajectory pairs; it
+cannot evade per-pair error, mean improvement, or boundary checks.
+
+Bundle adjustment actually examines the 143 accepted views rather than refusing
+their count. It finds 24 verified pairs and 483 three-view landmarks, but 13 of
+24 selected cameras have fewer than the required 24 track observations. Those
+cameras, including the anchored first view, are reported by stored capture
+index. No joint camera/landmark correction is applied. Increasing the recording
+limit alone does not supply missing connected feature identities.
+
+Finish still succeeds with 143/145 observations, fresh 5 mm fusion, mesh and ZIP
+export. The half-turn repair remains: the two original jump boundaries retain
+23.490° and 10.958° relative rotations. A separate post-export raw check passes
+all eleven retained boundaries. All 290 image CRCs and sizes and all capture
+timestamps match the original; the new archive passes full CRC verification.
+
+The checked archive is
+`export/chest-8-scan-20261009-145-captures-refinement-checked.zip`. Detailed local
+reports are in `benchmark-output/chest8-refinement/`, and a compact reproducible
+summary is committed at [chest8-loop-refinement.json](benchmarks/chest8-loop-refinement.json).
+The final checks cover 55 geometry/integration/benchmark tests, 24 fragment
+tests and 72 research contracts; the CPU run skips one CUDA-only test and the
+optional Qt client test. A genuine camera/landmark solve on a 143-view synthetic
+recording validates every output view with bounded cache residency. That fixture
+contains six distinct measured raycast viewpoints with denser repeated captures;
+it establishes bounded coverage, not evidence of absolute accuracy on chest 8.

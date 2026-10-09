@@ -9,6 +9,7 @@ must perform bounded fresh fusion before committing a proposal.
 """
 
 from dataclasses import dataclass
+from collections import OrderedDict
 import time
 
 import cv2
@@ -18,11 +19,13 @@ from shared.calibration import prepare_rgbd
 from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 from .appearance import Features, correspondences, extract_features, propose_transform
+from .pose_candidates import choose_keyframes, fragment_pairs, validate_fragment_boundaries
 
 MAX_KEYFRAMES = 24
 MAX_TRACKS = 800
 MAX_PAIRS = 96
-MAX_VALIDATION_VIEWS = 128
+# Validation covers every output view, with bounded resident sampled clouds.
+VALIDATION_CACHE_VIEWS = 8
 MAX_VALIDATION_POINTS = 2000
 MAX_EVALUATIONS = 60
 MAX_SECONDS = 45.0
@@ -47,8 +50,8 @@ class _BudgetExceeded(RuntimeError):
     pass
 
 
-def _check_budget(started):
-    if time.monotonic() - started > MAX_SECONDS:
+def _check_budget(started, seconds=None):
+    if time.monotonic() - started > (MAX_SECONDS if seconds is None else seconds):
         raise _BudgetExceeded("Bundle adjustment exceeded its time budget")
 
 
@@ -286,12 +289,18 @@ def _supported(problem, camera, report=None):
         report["observations_per_keyframe"] = counts
         report["unsupported_keyframes"] = [view for view, count in enumerate(counts)
                                            if count < MIN_TRACKS_PER_VIEW]
+        report["support_failure"] = None
     for view in range(len(problem.poses)):
         selected = problem.cameras == view
         if counts[view] < MIN_TRACKS_PER_VIEW:
+            if report is not None:
+                report["support_failure"] = "too_few_three_view_tracks"
             return False
         pixels = problem.pixels[selected] / [camera.width, camera.height]
         if np.linalg.eigvalsh(np.cov(pixels.T))[0] < 0.001:
+            if report is not None:
+                report["support_failure"] = "insufficient_spatial_distribution"
+                report["spatially_unsupported_keyframe"] = view
             return False
     # Every camera must be connected through common multi-view landmarks to 0.
     reached = {0}
@@ -302,6 +311,10 @@ def _supported(problem, camera, report=None):
             if reached & views:
                 new.update(views)
         if new == reached:
+            if report is not None:
+                report["disconnected_keyframes"] = sorted(set(range(len(problem.poses))) - reached)
+                if len(reached) != len(problem.poses):
+                    report["support_failure"] = "disconnected_landmark_graph"
             return len(reached) == len(problem.poses)
         reached = new
 
@@ -331,33 +344,95 @@ def _pair_distance(source, target, transform):
     return float(np.mean(np.minimum(distance, 0.04) ** 2)), float(np.mean(distance < 0.04))
 
 
-def validate_depth(clouds, originals, proposals, pairs, *, started=None):
-    """Symmetric saturated depth loss retains lost overlap in the score."""
-    before, after, overlaps_before, overlaps_after = [], [], [], []
+def validate_depth(clouds, originals, proposals, pairs, *, started=None,
+                   budget_seconds=None, minimum_improvement=0.02,
+                   retain_initial_overlap=False):
+    """Symmetric saturated loss; clouds may be a bounded on-demand provider."""
+    before_sum = after_sum = 0.0
+    count = pair_count = 0
+    min_overlap = 1.0
+    consistent = True
+    rejected = []
     for i, j in pairs:
         if started is not None:
-            _check_budget(started)
-        if min(len(clouds[i]), len(clouds[j])) < 100:
-            return False, {"reason": "Insufficient independent measured depth"}
+            _check_budget(started, budget_seconds)
+        source_cloud, target_cloud = clouds[i], clouds[j]
+        if min(len(source_cloud), len(target_cloud)) < 100:
+            return False, {"validation_failure": "Insufficient independent measured depth",
+                           "validation_failed_pair": [i, j], "validation_pairs": pair_count}
         for source, target in ((i, j), (j, i)):
+            if started is not None:
+                _check_budget(started, budget_seconds)
             old = np.linalg.inv(originals[target]) @ originals[source]
             new = np.linalg.inv(proposals[target]) @ proposals[source]
-            b, overlap_b = _pair_distance(clouds[source], clouds[target], old)
-            a, overlap_a = _pair_distance(clouds[source], clouds[target], new)
-            before.append(b)
-            after.append(a)
-            overlaps_before.append(overlap_b)
-            overlaps_after.append(overlap_a)
-    if not before:
-        return False, {"reason": "No independent depth validation pairs"}
-    report = {"validation_before_m2": float(np.mean(before)),
-              "validation_after_m2": float(np.mean(after)),
-              "validation_pairs": len(pairs),
-              "validation_min_overlap": float(min(overlaps_after))}
-    valid = (np.mean(after) < np.mean(before) * 0.98
-             and all(a <= b * 1.1 + 1e-6 for a, b in zip(after, before))
-             and all(a >= 0.35 and a >= b - 0.05 for a, b in zip(overlaps_after, overlaps_before)))
+            a_cloud, b_cloud = ((source_cloud, target_cloud) if source == i
+                                else (target_cloud, source_cloud))
+            b, overlap_b = _pair_distance(a_cloud, b_cloud, old)
+            a, overlap_a = _pair_distance(a_cloud, b_cloud, new)
+            if started is not None:
+                _check_budget(started, budget_seconds)
+            before_sum += b
+            after_sum += a
+            count += 1
+            min_overlap = min(min_overlap, overlap_a)
+            good = (np.isfinite([a, b, overlap_a, overlap_b]).all()
+                    and a <= b * 1.1 + 1e-6
+                    and overlap_a >= (min(0.35, max(0, overlap_b - 0.05))
+                                      if retain_initial_overlap else 0.35)
+                    and overlap_a >= overlap_b - 0.05)
+            consistent &= good
+            if not good and len(rejected) < 20:
+                rejected.append({"source_position": source, "target_position": target,
+                                 "before_m2": b, "after_m2": a,
+                                 "overlap_before": overlap_b, "overlap_after": overlap_a})
+        pair_count += 1
+    if not count:
+        return False, {"validation_failure": "No independent depth validation pairs"}
+    report = {"validation_before_m2": before_sum / count,
+              "validation_after_m2": after_sum / count,
+              "validation_pairs": pair_count, "validation_min_overlap": float(min_overlap),
+              "validation_rejected_pairs": rejected}
+    valid = consistent and after_sum < before_sum * (1 - minimum_improvement)
     return bool(valid), report
+
+
+class _DepthClouds:
+    """Load calibrated held-out samples on demand; never retain all depth images."""
+
+    def __init__(self, engine, features, started, report, progress_cb=None, *, budget_seconds=None):
+        self.engine, self.features, self.started = engine, features, started
+        self.report, self.progress_cb = report, progress_cb
+        self.budget_seconds = budget_seconds
+        self.cache = OrderedDict()
+        self.visited = set()
+        report.update(validation_views=0, validation_cloud_loads=0,
+                      validation_peak_cached_views=0, validation_peak_cache_bytes=0)
+
+    def __getitem__(self, position):
+        _check_budget(self.started, self.budget_seconds)
+        if position not in self.cache:
+            # Evict before allocating the next cloud, including cross-batch pairs.
+            if len(self.cache) >= VALIDATION_CACHE_VIEWS:
+                self.cache.popitem(last=False)
+            index, _ = self.engine.poses[position]
+            prepare = getattr(self.engine, "_prepare_input", None)
+            _, depth = (prepare_rgbd(*self.engine.raw_frames[index], self.engine.settings)
+                        if prepare is None else prepare(*self.engine.raw_frames[index],
+                            self.engine.settings, cpu_prepare=prepare_rgbd))
+            _check_budget(self.started, self.budget_seconds)
+            self.cache[position] = _heldout_points(depth, self.engine.settings.camera,
+                                                   self.features.get(position))
+            self.visited.add(position)
+            self.report["validation_views"] = len(self.visited)
+            self.report["validation_cloud_loads"] += 1
+            self.report["validation_peak_cached_views"] = max(
+                self.report["validation_peak_cached_views"], len(self.cache))
+            self.report["validation_peak_cache_bytes"] = max(
+                self.report["validation_peak_cache_bytes"], sum(c.nbytes for c in self.cache.values()))
+            _notify(self.progress_cb, len(self.visited), len(self.engine.poses),
+                    "Checking refined positions against independent depth")
+        self.cache.move_to_end(position)
+        return self.cache[position]
 
 
 def _interpolate(a, b, fraction):
@@ -369,17 +444,20 @@ def _interpolate(a, b, fraction):
 
 
 def _output_poses(poses, chosen, refined):
-    # Camera-local corrections are invariant to an arbitrary world origin.
-    # Interpolating world-space delta translations can introduce origin-dependent
-    # shifts when nearby corrections also rotate.
-    corrections = [np.linalg.inv(poses[index][1]) @ new for index, new in zip(chosen, refined)]
+    # Interpolate correction fields in the anchored first-camera world frame.
+    # This is world-origin invariant and avoids rotating a correction into a
+    # different camera-local axis system at each omitted view.
+    anchor = poses[0][1]
+    inverse_anchor = np.linalg.inv(anchor)
+    corrections = [inverse_anchor @ new @ np.linalg.inv(poses[index][1]) @ anchor
+                   for index, new in zip(chosen, refined)]
     proposals = []
     for position, (index, pose) in enumerate(poses):
         right = min(int(np.searchsorted(chosen, position, side="right")), len(chosen) - 1)
         left = max(0, right - 1)
         fraction = (position - chosen[left]) / max(1, chosen[right] - chosen[left])
         correction = _interpolate(corrections[left], corrections[right], fraction)
-        proposals.append((index, pose @ correction))
+        proposals.append((index, anchor @ correction @ inverse_anchor @ pose))
     proposals[0] = (poses[0][0], poses[0][1].copy())
     return proposals
 
@@ -393,7 +471,7 @@ def propose_bundle_poses(engine, progress_cb=None):
               "validation": "independent measured depth outside all feature patches, all output views",
               "depth_weighting": "engineering range-dependent model, not calibrated confidence",
               "max_keyframes": MAX_KEYFRAMES, "max_landmarks": MAX_TRACKS,
-              "max_pairs": MAX_PAIRS, "max_validation_views": MAX_VALIDATION_VIEWS,
+              "max_pairs": MAX_PAIRS, "validation_cache_views": VALIDATION_CACHE_VIEWS,
               "max_solver_evaluations": MAX_EVALUATIONS, "time_budget_s": MAX_SECONDS}
 
     def finish(proposals=None):
@@ -404,14 +482,22 @@ def propose_bundle_poses(engine, progress_cb=None):
         # Missing optional server dependency is a conservative no-op.
         from scipy.optimize import least_squares  # noqa: F401
         poses = engine.poses
-        if len(poses) < 3 or len(poses) > MAX_VALIDATION_VIEWS:
-            report["reason"] = "Bundle adjustment requires 3 to 128 accepted views"
+        report.update(accepted_views=len(poses), stage="input")
+        if len(poses) < 3:
+            report["reason"] = "Bundle adjustment requires at least 3 accepted views"
             return finish()
         if any(not _rigid(pose) for _, pose in poses):
             report["reason"] = "Invalid input camera pose"
             return finish()
-        chosen = np.unique(np.linspace(0, len(poses) - 1, min(MAX_KEYFRAMES, len(poses)), dtype=int))
-        features, prepared = [], {}
+        hints = fragment_pairs(engine)
+        chosen = choose_keyframes(len(poses), MAX_KEYFRAMES, hints[:MAX_PAIRS])
+        report["keyframe_indices"] = [int(poses[position][0]) for position in chosen]
+        selected = {int(position): i for i, position in enumerate(chosen)}
+        hint_pairs = {tuple(sorted((selected[a], selected[b]))) for a, b in hints
+                      if a in selected and b in selected}
+        report["fragment_candidate_pairs"] = len(hint_pairs)
+        report["stage"] = "features"
+        features = []
         for completed, position in enumerate(chosen, 1):
             _check_budget(started)
             index, _ = poses[position]
@@ -424,15 +510,15 @@ def propose_bundle_poses(engine, progress_cb=None):
                               engine.settings, cpu_prepare=prepare_rgbd))
             feature = _distinct_features(extract_features(rgb, depth, engine.settings.camera, method="sift"))
             features.append(feature)
-            prepared[position] = depth
             _notify(progress_cb, completed, len(chosen), "Finding features for joint RGB-D refinement")
         report["keyframes"] = len(chosen)
         originals = [poses[position][1] for position in chosen]
         pairs = [(i, j) for i in range(len(chosen)) for j in range(i + 1, len(chosen))]
-        pairs.sort(key=lambda pair: (0 if pair[1] - pair[0] <= 2 else 1,
+        pairs.sort(key=lambda pair: (-1 if pair in hint_pairs else 0 if pair[1] - pair[0] <= 2 else 1,
                                     pair[1] - pair[0] if pair[1] - pair[0] <= 2 else
                                     np.linalg.norm(originals[pair[0]][:3, 3] - originals[pair[1]][:3, 3]), pair))
         verified = []
+        report["stage"] = "matching"
         for completed, (i, j) in enumerate(pairs[:MAX_PAIRS], 1):
             _check_budget(started)
             matches = _verified_matches(features[i], features[j], engine.settings.camera)
@@ -445,7 +531,10 @@ def propose_bundle_poses(engine, progress_cb=None):
                       observations=sum(len(track) for track in tracks))
         problem = make_problem(originals, features, tracks)
         if not _supported(problem, engine.settings.camera, report):
+            report["unsupported_keyframe_indices"] = [int(poses[chosen[i]][0])
+                for i in report.get("unsupported_keyframes", [])]
             return finish()
+        report["stage"] = "solve"
         refined, _, solver_report = solve_bundle(problem, engine.settings.camera,
                                                  started=started, progress_cb=progress_cb)
         report.update(solver_report)
@@ -458,29 +547,29 @@ def propose_bundle_poses(engine, progress_cb=None):
             if not _rigid(new) or translation > MAX_TRANSLATION_M or angle > MAX_ROTATION_DEG:
                 report["reason"] = "Bundle optimization exceeded camera correction bounds"
                 return finish()
-        clouds = []
+        report["stage"] = "validation"
         by_position = dict(zip(chosen, features))
-        for completed, (index, _) in enumerate(poses, 1):
-            _check_budget(started)
-            position = completed - 1
-            depth = prepared.get(position)
-            if depth is None:
-                prepare = getattr(engine, "_prepare_input", None)
-                _, depth = (prepare_rgbd(*engine.raw_frames[index], engine.settings)
-                             if prepare is None else prepare(*engine.raw_frames[index],
-                                 engine.settings, cpu_prepare=prepare_rgbd))
-            clouds.append(_heldout_points(depth, engine.settings.camera, by_position.get(position)))
-            _notify(progress_cb, completed, len(poses), "Checking refined positions against independent depth")
+        clouds = _DepthClouds(engine, by_position, started, report, progress_cb)
         validation_pairs = set((i, i + 1) for i in range(len(poses) - 1))
         validation_pairs.update((int(chosen[i]), int(chosen[j])) for i, j, _ in verified)
         valid, validation = validate_depth(clouds, [p for _, p in poses], [p for _, p in proposals],
                                            sorted(validation_pairs), started=started)
         report.update(validation)
         _check_budget(started)
-        if not valid:
+        if not valid or report["validation_views"] != len(poses):
             report["reason"] = "Independent depth did not improve consistently across output views"
             return finish()
+        def budget_check():
+            _check_budget(started)
+            return True
+        valid, boundary_report = validate_fragment_boundaries(engine, proposals, budget_check)
+        report.update(boundary_report)
+        _check_budget(started)
+        if not valid:
+            report["reason"] = "Bundle adjustment conflicts with a retained measured fragment boundary"
+            return finish()
         report["reason"] = "Validated joint camera/landmark proposal; awaiting bounded fresh fusion"
+        report["stage"] = "complete"
         return finish(proposals)
     except ImportError:
         report["reason"] = "SciPy is required for optional joint RGB-D bundle adjustment"

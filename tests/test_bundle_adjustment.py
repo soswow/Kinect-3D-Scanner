@@ -11,8 +11,9 @@ import cv2
 import numpy as np
 
 from scanner_server.appearance import Features
+from scanner_server import bundle_adjustment as bundle
 from scanner_server.bundle_adjustment import (
-    MAX_VALIDATION_VIEWS, _heldout_points, _output_poses, _timely, build_tracks, make_problem,
+    VALIDATION_CACHE_VIEWS, _DepthClouds, _heldout_points, _output_poses, _timely, build_tracks, make_problem,
     propose_bundle_poses, solve_bundle, validate_depth,
 )
 from shared.settings import CameraCalibration, ScanSettings
@@ -109,6 +110,21 @@ class BundleAdjustmentTests(unittest.TestCase):
         for (_, a), (_, b) in zip(output, transformed):
             np.testing.assert_allclose(world @ a, b, atol=1e-10)
 
+    def test_interpolation_keeps_world_correction_direction_when_cameras_turn(self):
+        poses = []
+        for index in range(5):
+            pose = np.eye(4)
+            pose[:3, :3] = cv2.Rodrigues(np.array([0.0, index * 0.35, 0.0]))[0]
+            pose[:3, 3] = [index * 0.1, 0, 0]
+            poses.append((index, pose))
+        selected = np.array([0, 4])
+        refined = [poses[0][1].copy(), poses[4][1].copy()]
+        refined[1][0, 3] += 0.04
+        output = _output_poses(poses, selected, refined)
+        for (index, old), (_, new) in zip(poses, output):
+            np.testing.assert_allclose(new[:3, 3] - old[:3, 3], [index * 0.01, 0, 0], atol=1e-12)
+            np.testing.assert_allclose(new[:3, :3], old[:3, :3], atol=1e-12)
+
     def test_joint_optimizer_recovers_cameras_and_landmarks_with_noisy_metric_data(self):
         camera, world, truth, initial, features, tracks = bundle_fixture()
         problem = make_problem(initial, features, tracks)
@@ -184,6 +200,22 @@ class BundleAdjustmentTests(unittest.TestCase):
         self.assertFalse(valid, report)
         self.assertGreater(report["validation_after_m2"], report["validation_before_m2"])
 
+    def test_existing_partial_overlap_keeps_the_same_loss_tolerance(self):
+        cloud = np.ones((120, 3))
+        poses = [np.eye(4), np.eye(4)]
+        # Refinement of an existing partial trajectory retains the ordinary
+        # 5-percentage-point overlap tolerance. BA retains its absolute floor.
+        for overlap, expected in ((0.325, True), (0.26, False)):
+            measured = [(0.001, 0.33), (0.0008, overlap)] * 2
+            with patch("scanner_server.bundle_adjustment._pair_distance", side_effect=measured):
+                valid, report = validate_depth([cloud, cloud], poses, poses, [(0, 1)],
+                                              retain_initial_overlap=True)
+            self.assertEqual(expected, valid, report)
+        with patch("scanner_server.bundle_adjustment._pair_distance",
+                   side_effect=[(0.001, 0.33), (0.0008, 0.325)] * 2):
+            valid, _ = validate_depth([cloud, cloud], poses, poses, [(0, 1)])
+        self.assertFalse(valid)
+
     def test_timing_gates_nonfinite_or_malformed_lags(self):
         for lag in (30, -30, float("nan"), float("inf"), "bad"):
             self.assertFalse(_timely({"rgb_depth_delta_ms": lag}))
@@ -218,16 +250,73 @@ class BundleAdjustmentTests(unittest.TestCase):
                 for a, b in zip(before, engine.poses):
                     np.testing.assert_array_equal(a[1], b[1])
 
-    def test_size_and_runtime_budgets_decline_before_unsafe_work(self):
-        engine = self.engine(3)
-        engine.poses = [(i, np.eye(4)) for i in range(MAX_VALIDATION_VIEWS + 1)]
-        with patch("scanner_server.bundle_adjustment.prepare_rgbd", side_effect=AssertionError("unbounded input")):
-            self.assertIsNone(propose_bundle_poses(engine)[0])
+    def test_large_recording_attempts_bounded_keyframes_instead_of_size_refusal(self):
+        engine = self.engine(143)
+        with patch("scanner_server.bundle_adjustment.extract_features",
+                   wraps=bundle.extract_features) as extract:
+            proposals, report = propose_bundle_poses(engine)
+        self.assertIsNone(proposals, report)  # Blank scene cannot support landmarks.
+        self.assertEqual(24, extract.call_count)
+        self.assertEqual(143, report["accepted_views"])
+        self.assertEqual(24, report["keyframes"])
+        self.assertIn("tracks", report["reason"])
+
+    def test_runtime_budget_declines_before_unsafe_work(self):
         engine = self.engine(3)
         with patch("scanner_server.bundle_adjustment.MAX_SECONDS", 0):
             proposals, report = propose_bundle_poses(engine)
         self.assertIsNone(proposals)
         self.assertTrue(report["budget_exceeded"])
+
+    def test_streaming_validation_covers_143_views_and_rejects_bad_late_view(self):
+        import time
+        engine = self.engine(143)
+        report = {}
+        old = [pose.copy() for _, pose in engine.poses]
+        new = [pose.copy() for pose in old]
+        # A bad late correction must be seen even after early cache eviction.
+        new[-1][0, 3] = 0.3
+        clouds = _DepthClouds(engine, {}, time.monotonic(), report)
+        valid, validation = validate_depth(clouds, old, new,
+            [(i, i + 1) for i in range(142)] + [(0, 142)])
+        self.assertFalse(valid, validation)
+        self.assertEqual(143, report["validation_views"])
+        self.assertEqual(143, validation["validation_pairs"])
+        self.assertLessEqual(report["validation_peak_cached_views"], VALIDATION_CACHE_VIEWS)
+        self.assertLessEqual(report["validation_peak_cache_bytes"], VALIDATION_CACHE_VIEWS * 2000 * 3 * 8)
+        self.assertTrue(any(row["source_position"] == 142 or row["target_position"] == 142
+                            for row in validation["validation_rejected_pairs"]))
+        # Missing independent depth in the last omitted camera must also fail.
+        rgb, depth = engine.raw_frames[142]
+        engine.raw_frames[142] = (rgb, np.zeros_like(depth))
+        clouds = _DepthClouds(engine, {}, time.monotonic(), {})
+        valid, validation = validate_depth(clouds, old, old, [(141, 142)])
+        self.assertFalse(valid)
+        self.assertEqual([141, 142], validation["validation_failed_pair"])
+
+    def test_actual_bundle_proposal_validates_all_143_views_with_bounded_residency(self):
+        # Six measured raycast views with denser captures between selected
+        # views. The same static observation may recur, but distinct viewpoints
+        # must still produce verified three-view feature tracks.
+        raw, poses, truth = [], [], []
+        for index in range(143):
+            rgb, depth, actual = self.scene[min(5, index * 6 // 143)]
+            drifted = actual.copy()
+            drifted[:3, 3] += [index * 0.05 / 142, 0, index * 0.015 / 142]
+            raw.append((rgb, depth))
+            poses.append((index, drifted))
+            truth.append(actual)
+        engine = SimpleNamespace(settings=ScanSettings(), poses=poses, raw_frames=raw,
+                                 frame_metadata=[{} for _ in raw])
+        with patch("scanner_server.bundle_adjustment.MAX_KEYFRAMES", 6):
+            proposals, report = propose_bundle_poses(engine)
+        self.assertIsNotNone(proposals, report)
+        self.assertEqual(143, len(proposals))
+        self.assertEqual(143, report["validation_views"])
+        self.assertLessEqual(report["validation_peak_cached_views"], VALIDATION_CACHE_VIEWS)
+        self.assertEqual("complete", report["stage"])
+        self.assertLess(max(np.linalg.norm(p[:3, 3] - t[:3, 3]) for (_, p), t in zip(proposals, truth)), 0.006)
+        np.testing.assert_array_equal(proposals[0][1], poses[0][1])
 
     def test_runtime_budget_exhausted_in_depth_validation_returns_no_proposal(self):
         from scanner_server import bundle_adjustment as bundle

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "session": "chest-8-scan-20261009-145-captures.zip",
+  "session_sha256": "bc568da7a417469bbc5cd240de4dd74e7bac66a14738c131bb861439173842ab",
+  "command": "python scripts/reconnect_session.py export/chest-8-scan-20261009-145-captures.zip --use-pose-seeds --bundle-adjustment --device cpu --save-session --output-dir benchmark-output/chest8-refinement/rebuilt-final",
+  "environment": {
+    "device": "CPU:0",
+    "open3d": "0.20.0",
+    "opencv": "5.0.0",
+    "numpy": "2.5.3",
+    "OMP_NUM_THREADS": "4",
+    "KINECT_NATIVE": "off",
+    "KINECT_CUDA_INPUT": "off",
+    "KINECT_CUDA_REGISTRATION": "cpu"
+  },
+  "module_ast_sha256": {
+    "scanner_server/refinement.py": "bfa9eaebc35dc497c30ee326e553d762b8ba457335bf861d617ecab9df1997d6",
+    "scanner_server/bundle_adjustment.py": "16b24d806ef7abbc05314fb73846247854a383a54ebe91ebad333e5c2400fbc8",
+    "scanner_server/pose_candidates.py": "076d2f1f27e9480f2e6f3675f00ee9c0be5433e203f0e15d52d228941d8dd998"
+  },
+  "finish": {
+    "success": true,
+    "stored": 145,
+    "accepted": 143,
+    "excluded_original_accepted_views": 0,
+    "recovered": 9,
+    "voxel_m": 0.005,
+    "fusion_blocks": 15926,
+    "largest_relative_rotation_deg": 38.51802866634011,
+    "jump_boundaries_rotation_deg": [23.489755324201063, 10.958230041685146],
+    "post_export_raw_boundaries_passed": 11,
+    "raw_images_preserved": 290,
+    "capture_timestamps_preserved": true,
+    "exported_zip_crc_valid": true
+  },
+  "refinement": {
+    "applied": false,
+    "reason": "Independent geometry improvement below the required 2%",
+    "keyframes": 64,
+    "candidate_budget": 40,
+    "accepted_loops": 22,
+    "surviving_loops": 22,
+    "fragment_support_loops": 9,
+    "appearance_loops": 8,
+    "geometry_loops": 5,
+    "protected_boundary_constraints": 11,
+    "accepted_end_start_pair_indices": [0, 140],
+    "validation_before_m2": 0.000803339241838256,
+    "validation_after_m2": 0.000787393090907004,
+    "validation_improvement_fraction": 0.01984983441710353,
+    "minimum_improvement_fraction": 0.02
+  },
+  "bundle_adjustment": {
+    "applied": false,
+    "reason": "Insufficient connected multi-view RGB-D tracks",
+    "accepted_views": 143,
+    "keyframes": 24,
+    "verified_pairs": 24,
+    "landmarks": 483,
+    "support_failure": "too_few_three_view_tracks",
+    "unsupported_keyframe_indices": [0, 6, 10, 38, 39, 53, 66, 76, 105, 118, 131, 142, 144],
+    "validation_cache_views": 8
+  },
+  "notes": [
+    "All indices are zero-based stored-capture indices.",
+    "Measured loop edges are found, but neither optional correction is applied in this final run.",
+    "Independent consistency checks do not provide ground-truth trajectory or surface accuracy.",
+    "The complete exported archive and diagnostics remain local; this summary records the final full CPU Finish."
+  ]
+}
