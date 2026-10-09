@@ -543,6 +543,12 @@
       "role": "Publishable scalar evidence from closed local field reports; stdlib only."
     },
     {
+      "legacy_path": "scripts/research/summarize_gpu_icp_device_loop.py",
+      "path": "scripts/research/summarize_gpu_icp_device_loop.py",
+      "group": "active",
+      "role": "Stdlib scalar publication of exact own-loop audits and setup-charged timing; no numerical authority"
+    },
+    {
       "legacy_path": "scripts/research/summarize_gpu_icp_microbatch.py",
       "path": "scripts/research/summarize_gpu_icp_microbatch.py",
       "group": "active",
@@ -601,6 +607,48 @@
       "path": "scripts/research/validate_resident_equation_fixture.py",
       "group": "active",
       "role": "Strict stdlib-only input guard for an observed Eigen micro-solve fixture."
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_workspace.py",
+      "path": "scripts/research/device_loop_workspace.py",
+      "group": "active",
+      "role": "Pristine compiled setup owner for full proposal experiments; private buffers and graphs per alignment"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_workspace_protocol.py",
+      "path": "scripts/research/device_loop_workspace_protocol.py",
+      "group": "active",
+      "role": "Registered actual-input timing authorization for the separately audited workspace method"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_driver.py",
+      "path": "scripts/research/microbatch_bridge_driver.py",
+      "group": "active",
+      "role": "Complete original proposal set, exhaustive CPU shadows and separate timing through unchanged gates"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_protocol.py",
+      "path": "scripts/research/microbatch_bridge_protocol.py",
+      "group": "active",
+      "role": "Fresh complete-bridge audit and exact ordered trajectory authority; no Finish scope"
+    },
+    {
+      "legacy_path": "scripts/research/microbatch_bridge_scope.py",
+      "path": "scripts/research/microbatch_bridge_scope.py",
+      "group": "active",
+      "role": "Private original verifier namespace, caches, gate observer and semantic comparisons"
+    },
+    {
+      "legacy_path": "scripts/research/summarize_gpu_icp_complete_bridge.py",
+      "path": "scripts/research/summarize_gpu_icp_complete_bridge.py",
+      "group": "active",
+      "role": "Publish path-free scalar quality coverage and matched performance receipts"
+    },
+    {
+      "legacy_path": "scripts/research/profile_complete_bridge.py",
+      "path": "scripts/research/profile_complete_bridge.py",
+      "group": "active",
+      "role": "Instrumented Python boundary attribution; no uninstrumented performance authority"
     }
   ]
 }

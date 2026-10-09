@@ -44,6 +44,16 @@ unchanged because measured earlier component proofs bind its exact bytes.
 | [gpu_icp_experiment_capture.py](gpu_icp_experiment_capture.py) | Rebuild genuine current field-pair proposals from raw calibrated views |
 | [gpu_icp_experiment_driver.py](gpu_icp_experiment_driver.py) | Audit original ICP results and all original proposal gates, then separately time two/four independent seeds |
 | [gpu_icp_experiment_loop_probe.py](gpu_icp_experiment_loop_probe.py) | Exhaustive actual-query audit of complete device iterations against CPU and CUDA graph execution |
+| [gpu_icp_device_loop_experiment.py](gpu_icp_device_loop_experiment.py) | Own current-input complete-device audit and separately authorized graph timing, including construction and target setup |
+| [summarize_gpu_icp_microbatch.py](summarize_gpu_icp_microbatch.py) | Publish bounded scalar samples and fresh original gate/query coverage from closed batch reports |
+| [summarize_gpu_icp_device_loop.py](summarize_gpu_icp_device_loop.py) | Publish current-input device-loop query audits and separately measured setup-charged graph timing |
+| [device_loop_workspace.py](device_loop_workspace.py) | Reuse pristine compiled execution setup while each complete proposal call owns fresh buffers, state and graph |
+| [microbatch_bridge_driver.py](microbatch_bridge_driver.py) | Exhaust all genuine proposals through original complete bridge gates, then separately time only its fresh audited dynamic trajectory |
+| [microbatch_bridge_protocol.py](microbatch_bridge_protocol.py) and [device_loop_workspace_protocol.py](device_loop_workspace_protocol.py) | Distinct complete-proposal timing authority, preserving actual unrounded inputs, query shadows, terminals and ambiguity |
+| [microbatch_bridge_scope.py](microbatch_bridge_scope.py) | Private unchanged original verifier namespaces and match caches; preserve actual return objects and ordered gate evidence |
+| [summarize_gpu_icp_complete_bridge.py](summarize_gpu_icp_complete_bridge.py) | Publish small scalar receipts from closed complete-proposal audit and matched timing runs |
+| [profile_complete_bridge.py](profile_complete_bridge.py) | Observational Python boundary attribution; profiling overhead prevents speed claims from those runs |
+| [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py) | Explicit changed-budget/epsilon pilot through original proposal gates; measured shortcuts failed pose/witness comparison |
 | [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Ordering, memory ownership and integration requirements for proposal batching and complete device iterations |
 
 These files have different jobs: runnable experiments, bounded adapters,

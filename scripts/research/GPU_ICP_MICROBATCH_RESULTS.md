@@ -85,6 +85,73 @@ declared support/scope and 0.5 mm / 0.1 degree comparison. They are retained
 as negative evidence, not a field speed setting. The device-loop experiments
 retain the original convergence and iteration budgets.
 
+## Complete device iteration timing
+
+The distinct v3 protocol audited all four session-6 proposals and two genuine
+proposals each from session-7 pairs 0/11 and 10/11. It checked 7,957,500 actual
+query rows. Ordinary steps and four-step graphs matched every audited query
+packet, terminal pose/correspondence bytes, metric and query/update count.
+Fresh original CPU shadows had identical canonical correspondence IDs and
+maximum pose-entry differences of 4.44e-16 and 8.74e-16 respectively.
+
+Separate three-round timing omitted query audits under a fresh device-loop
+permit and required exact agreement with those terminal references. Median
+per-trajectory host walls, including fresh construction, target setup, capture,
+execution, result validation and cleanup, were:
+
+| Selected inputs | Native CPU | Ordinary device steps | Four-step CUDA graph |
+|---|---:|---:|---:|
+| Session 6, four proposals | 34.85 ms | 45.28 ms | 41.11 ms |
+| Session 7, two pairs / four proposals | 34.69 ms | 47.42 ms | 44.50 ms |
+
+The graph reduces repeated iteration/control-copy work, but rebuilding the
+execution objects and target indexes absorbs that saving. Median construction
+and target-start costs were about 14.9 + 7.3 ms for session 6 and 14.6 + 10.4 ms
+for session 7. Median graph advance/control-sync walls were 14.7 and 13.9 ms;
+capture is included there. These nested figures cannot be subtracted to claim
+an unmeasured production speedup. Every trajectory constructs fresh arrays,
+indexes and a fresh graph; later repeats warm only process compiler/allocator
+caches. Result quality shadows are charged in the GPU all-in columns. Native
+controls precede each seed's GPU variants, with variant order reversing on
+alternate repeats. Process-level input/binary checks are outside these timers.
+Persistent execution setup was subsequently measured through complete original
+proposal verification, as described below.
+
+## Persistent setup through complete proposals
+
+The separate complete-bridge v1 experiment shares compiled execution setup and
+immutable train-cloud grids across every alignment in a prepared pair. Each
+alignment still owns fresh buffers, state and a four-step graph. All four genuine
+proposals are exhausted through the original forward, reverse, camera, witness,
+information and ambiguity checks; no proposal is padded or accepted early.
+
+Fresh session-6 and session-7 audits covered 84 and 112 alignments and 28,766,412
+and 39,011,598 actual nearest-neighbor rows respectively. Every canonical CPU
+correspondence set, native result shadow, complete original gate, support set
+and pair verdict passed. Both pairs accepted proposal zero with four verified
+proposals and no ambiguity. These are prepared-pair checks, without adaptive
+frontier, optimizer, fusion, mesh or whole-Finish authority.
+
+Three separate timing processes per pair omitted only observational shadows
+under their own fresh complete-bridge permit. Session 6's median native proposal
+wall was 2.889 s; GPU cold setup, proposals and final owner cleanup took 5.909 s.
+Session 7's corresponding medians were 4.296 s and 9.509 s.
+The research harness remains slower despite setup reuse. Its clocks include
+original gates, actual input/result checks, immutable-cache setup, graph capture,
+selected-stream completion, metadata and progress publication. Final producer
+closure and preflight are separately recorded. The
+[session-6 scalar receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-session6-summary.json)
+and [session-7 scalar receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-session7-summary.json)
+contain every matched sample and the declared timing limits.
+
+An explicitly instrumented Python-boundary run found 421 rereads of session 6's
+7.47 MB audit report, plus repeated decoding of the same ordered references.
+Those overlapping clocks are diagnostics, not speed measurements. A separately
+scoped read-only owned audit and cached-reference method is being prepared to
+measure this overhead without weakening exact input, terminal or gate checks.
+The old v1 reports and failed/aborted profiling attempts remain private and
+unchanged; profiling samples are excluded from performance publication.
+
 Private reports are in `benchmark-output/field-cuda-study/`, including
 `gpu-icp-pruned-nn-v1`, `gpu-icp-warp-nn-v1`,
 `gpu-icp-warp-pruned-nn-v1`, `gpu-icp-microbatch-v2`, and
@@ -100,6 +167,10 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
   [gpu_icp_experiment_protocol.py](gpu_icp_experiment_protocol.py): fresh
   independent-seed native/gate audits, exact registered timing scope and
   separately timed runs.
+- [gpu_icp_device_loop_experiment.py](gpu_icp_device_loop_experiment.py) and
+  [gpu_icp_device_loop_protocol.py](gpu_icp_device_loop_protocol.py): current
+  complete-device query/terminal audits and separately authorized setup-charged
+  graph timing; distinct from seed batching and whole-Finish authority.
 - [microbatch_icp.py](microbatch_icp.py): original mathematical operations with
   explicit independent streams, shared immutable pair buffers and bounded
   private lane state; retains the CPU solver boundary.
@@ -108,6 +179,15 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
 - [device_loop_icp.py](device_loop_icp.py) and
   [device_loop_control.cu](device_loop_control.cu): complete device iterations
   with explicit stream ownership, bounded buffers and blocked exception states.
+- [device_loop_workspace.py](device_loop_workspace.py),
+  [microbatch_bridge_driver.py](microbatch_bridge_driver.py) and
+  [microbatch_bridge_protocol.py](microbatch_bridge_protocol.py): separately
+  scoped persistent setup through all original proposal calls, with fresh
+  actual-input CPU/query audits before timing.
+- [summarize_gpu_icp_complete_bridge.py](summarize_gpu_icp_complete_bridge.py):
+  publish small scalar receipts from those closed audit and timing reports.
+- [profile_complete_bridge.py](profile_complete_bridge.py): observational Python
+  boundary attribution; its instrumented runs cannot establish a speed gain.
 - [benchmark_microbatch_pruned_nn.py](benchmark_microbatch_pruned_nn.py),
   [benchmark_microbatch_warp_nn.py](benchmark_microbatch_warp_nn.py), and
   [benchmark_microbatch_warp_pruned_nn.py](benchmark_microbatch_warp_pruned_nn.py):

@@ -50,8 +50,20 @@ The historical research baseline is commit
 must run from that baseline using the
 [measured-byte reproduction instructions](../scripts/research/MEASURED_SOURCE_REPRODUCIBILITY.md).
 The installed allocation change deliberately invalidates those old core checks.
-The next speed study is described in the
-[bounded proposal-batch and device-iteration design](../scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md).
+The [new GPU proposal/device experiments](../scripts/research/GPU_ICP_MICROBATCH_RESULTS.md)
+have now executed on current raw-derived session-6/7 inputs. Independent seeds
+with the CPU solver boundary were slower. Complete GPU iterations and CUDA
+graphs preserved audited correspondences and poses, but rebuilding execution
+setup and indexes absorbed the iteration saving. The
+[bounded design](../scripts/research/GPU_ICP_MICROBATCH_ARCHITECTURE.md) records
+ordering and ownership requirements for testing persistent setup through
+complete original proposal verification. These component experiments do not
+select a new production ICP backend.
+Persistent setup subsequently passed all original complete proposal checks on
+84 session-6 and 112 session-7 alignments. Its first research timing remained
+slower, with repeated audit-report I/O identified as a substantial harness cost.
+The linked experiment report preserves those negative timings and the scope of
+the next owned-report and exact neighbor-filter measurements.
 
 The new field archives make fragment verification the main speed target, but
 they also expose two quality/completion issues that a speed comparison must
