@@ -63,6 +63,14 @@ unchanged because measured earlier component proofs bind its exact bytes.
 | [summarize_near_seed_conformance.py](summarize_near_seed_conformance.py) | Recompute closed fixed-pair timing references and publish scalar receipts, including strict-v1 refusal; no production or whole-Finish authority |
 | [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py) | Explicit changed-budget/epsilon pilot through original proposal gates; measured shortcuts failed pose/witness comparison |
 | [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Ordering, memory ownership and integration requirements for proposal batching and complete device iterations |
+| [GPU_ICP_CURRENT_FINISH_RESULTS.md](GPU_ICP_CURRENT_FINISH_RESULTS.md) | Closed C5/C6 whole-Finish comparisons, C7 strict quality failures, negative thread/refinement pilots and stopped C8 checkpoint |
+| [monitor_gpu_icp_worker.py](monitor_gpu_icp_worker.py) | Windows process-generation, actual wait/exit, descendant cleanup and sampled overlap receipts; no all-GPU exclusivity claim |
+| [compare_gpu_icp_temporal_diagnostics.py](compare_gpu_icp_temporal_diagnostics.py) | Supplement a passed physical Final comparison with available temporal diagnostics; unavailable history remains uncollected |
+| [cpu_first_icp_routing.py](cpu_first_icp_routing.py) | Tested source-only routing policy for later costly exact directed pairs; no measured routing benefit or scanner integration |
+| [CACHED_TARGET_GEOMETRY_RESULTS.md](CACHED_TARGET_GEOMETRY_RESULTS.md) and [cached_target_geometry_native.md](cached_target_geometry_native.md) | Closed finite-fixture exact nearest-lookup parity, cache/setup clock boundaries and reproduction instructions |
+| [build_cached_target_geometry_native.py](build_cached_target_geometry_native.py) | Executed pinned MSVC helper build with explicit archives/toolchain, source verification and retained failure receipts |
+| [benchmark_cached_target_geometry.py](benchmark_cached_target_geometry.py) and [benchmark_cached_target_geometry_prepared.py](benchmark_cached_target_geometry_prepared.py) | Reproduce original scalar parity and separately scoped native/prepared lookup timing; no complete ICP or Finish gain |
+| [cached_target_geometry_native.cpp](cached_target_geometry_native.cpp), [cached_target_geometry_native.py](cached_target_geometry_native.py) and [cached_target_geometry_prepared.py](cached_target_geometry_prepared.py) | Bounded immutable target index, Python owner adapter and prepared lease used by the checked lookup pilots |
 
 These files have different jobs: runnable experiments, bounded adapters,
 independent validators, fault contracts and negative-result diagnostics. They
@@ -168,11 +176,15 @@ rotate multiple fresh native/GPU runs before reporting a speed gain. Audit
 and shadow walls include CPU validation and cannot establish GPU performance.
 Old strict failures and fixed-pair permits cannot authorize this new study.
 
-At source preparation, full-Finish candidate performance and physical Final
-quality on the current core remain unmeasured. See the
-[historical complete-Finish results](GPU_ICP_MICROBATCH_RESULTS.md#complete-finish-strict-audit-and-observer-overhead)
-for actual query/ICP evidence and the measured observer cost that motivated
-this separate experiment.
+The [closed current-core results](GPU_ICP_CURRENT_FINISH_RESULTS.md) record
+three matched C5/C6 repeats and C7's unresolved strict quality failures. C5
+improved modestly; C6 gave no useful gain. C7's faster timing cohort is not
+qualified because two comparisons fail. Production ICP remains unchanged.
+The original C8 replay is saved, with no Finish or GPU qualification yet.
+The [historical complete-Finish results](GPU_ICP_MICROBATCH_RESULTS.md#complete-finish-strict-audit-and-observer-overhead)
+retain the earlier query/ICP evidence and observer cost. Published metadata
+changes can invalidate old source-bound checkpoints and proof tokens; resume
+with fresh installed-source evidence or the exact frozen source checkout.
 
 ## Other active prototypes
 

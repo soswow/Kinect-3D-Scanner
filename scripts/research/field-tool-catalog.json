@@ -793,6 +793,78 @@
       "path": "scripts/research/compare_gpu_icp_candidate_finishes.py",
       "group": "active",
       "role": "Actual candidate method qualification and independent accepted-view, unrounded Final pose and fixed-coordinate surface comparison without exact historical trajectory claims"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_cached_target_geometry.py",
+      "path": "scripts/research/benchmark_cached_target_geometry.py",
+      "group": "active",
+      "role": "Fresh original scalar parity and separate native search/evaluation timing for cached immutable targets"
+    },
+    {
+      "legacy_path": "scripts/research/benchmark_cached_target_geometry_prepared.py",
+      "path": "scripts/research/benchmark_cached_target_geometry_prepared.py",
+      "group": "active",
+      "role": "Prepared-target parity, cold and inclusive timing pilot with explicit reuse and geometry limits"
+    },
+    {
+      "legacy_path": "scripts/research/cached_target_geometry_native.cpp",
+      "path": "scripts/research/cached_target_geometry_native.cpp",
+      "group": "active",
+      "role": "Research C ABI immutable target index and bounded threaded exact legacy nearest lookup"
+    },
+    {
+      "legacy_path": "scripts/research/cached_target_geometry_native.md",
+      "path": "scripts/research/cached_target_geometry_native.md",
+      "group": "active",
+      "role": "Native target-cache build, ownership and exact lookup reproduction notes"
+    },
+    {
+      "legacy_path": "scripts/research/cached_target_geometry_native.py",
+      "path": "scripts/research/cached_target_geometry_native.py",
+      "group": "active",
+      "role": "Source-bound build preparation and owned native target-cache adapter"
+    },
+    {
+      "legacy_path": "scripts/research/cached_target_geometry_prepared.py",
+      "path": "scripts/research/cached_target_geometry_prepared.py",
+      "group": "active",
+      "role": "Immutable prepared-target sibling with explicit native lease and query transport checks"
+    },
+    {
+      "legacy_path": "scripts/research/CACHED_TARGET_GEOMETRY_RESULTS.md",
+      "path": "scripts/research/CACHED_TARGET_GEOMETRY_RESULTS.md",
+      "group": "active",
+      "role": "Closed baseline and prepared target-cache pilot results, timer boundaries and evidence limits"
+    },
+    {
+      "legacy_path": "scripts/research/compare_gpu_icp_temporal_diagnostics.py",
+      "path": "scripts/research/compare_gpu_icp_temporal_diagnostics.py",
+      "group": "active",
+      "role": "Independent temporal diagnostic supplement after existing physical Final comparison"
+    },
+    {
+      "legacy_path": "scripts/research/cpu_first_icp_routing.py",
+      "path": "scripts/research/cpu_first_icp_routing.py",
+      "group": "active",
+      "role": "Source-only research CPU-first routing policy; no measured routing or production qualification"
+    },
+    {
+      "legacy_path": "scripts/research/GPU_ICP_CURRENT_FINISH_RESULTS.md",
+      "path": "scripts/research/GPU_ICP_CURRENT_FINISH_RESULTS.md",
+      "group": "active",
+      "role": "Closed C5/C6 Finish comparisons, C7 mixed-quality timings and strict membership failures, and negative thread/refinement pilots"
+    },
+    {
+      "legacy_path": "scripts/research/monitor_gpu_icp_worker.py",
+      "path": "scripts/research/monitor_gpu_icp_worker.py",
+      "group": "active",
+      "role": "Research subprocess generation, descendant, actual wait/exit and sampled overlap monitoring"
+    },
+    {
+      "legacy_path": "scripts/research/build_cached_target_geometry_native.py",
+      "group": "active",
+      "path": "scripts/research/build_cached_target_geometry_native.py",
+      "role": "Explicit source-bound MSVC build of the cached immutable target helper with pinned headers and failed compiler receipts"
     }
   ]
 }

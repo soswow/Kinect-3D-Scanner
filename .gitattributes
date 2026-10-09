@@ -210,3 +210,24 @@ scripts/research/compare_gpu_icp_candidate_finishes.py text eol=lf
 tests/test_gpu_icp_finish_candidate.py text eol=lf
 tests/test_gpu_icp_finish_candidate_profile.py text eol=lf
 tests/test_gpu_icp_candidate_finish_quality.py text eol=lf
+
+# Validated October research checkpoint helpers and results.
+scripts/research/benchmark_cached_target_geometry.py text eol=lf
+scripts/research/benchmark_cached_target_geometry_prepared.py text eol=lf
+scripts/research/cached_target_geometry_native.cpp text eol=lf
+scripts/research/cached_target_geometry_native.md text eol=lf
+scripts/research/cached_target_geometry_native.py text eol=lf
+scripts/research/cached_target_geometry_prepared.py text eol=lf
+scripts/research/CACHED_TARGET_GEOMETRY_RESULTS.md text eol=lf
+scripts/research/compare_gpu_icp_temporal_diagnostics.py text eol=lf
+scripts/research/cpu_first_icp_routing.py text eol=lf
+scripts/research/GPU_ICP_CURRENT_FINISH_RESULTS.md text eol=lf
+scripts/research/monitor_gpu_icp_worker.py text eol=lf
+tests/test_cached_target_geometry_benchmark.py text eol=lf
+tests/test_cached_target_geometry_native.py text eol=lf
+tests/test_cached_target_geometry_prepared.py text eol=lf
+tests/test_cpu_first_icp_routing.py text eol=lf
+tests/test_gpu_icp_temporal_diagnostics.py text eol=lf
+tests/test_gpu_icp_worker_monitor.py text eol=lf
+scripts/research/build_cached_target_geometry_native.py text eol=lf
+tests/test_build_cached_target_geometry_native.py text eol=lf
