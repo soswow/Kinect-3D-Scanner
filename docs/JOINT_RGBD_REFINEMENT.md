@@ -18,16 +18,34 @@ landmarks constrain camera positions; they never replace recorded depth, fill
 holes, or become synthetic fusion observations.
 
 Every proposed camera position, including positions interpolated between
-selected cameras, must improve independent measured-depth agreement. Validation
+selected cameras, must pass independent measured-depth validation. Its mean
+loss must improve by 2%, with no comparison worsening by more than the existing
+10% plus saturated-loss allowance. Validation
 samples avoid every extracted feature's depth patch, use symmetric nearest-point
 checks, count lost overlap with saturated distance, and reject worsening pairs.
 Only then does the server allocate a fresh volume within the configured final
 block budget and re-fuse recorded observations. A failure preserves poses and
 geometry; a successful fusion commits them together.
 
-The bounds are 24 selected cameras, 800 landmarks, 96 matching pairs, 128 accepted
-views, 60 solver evaluations, and a 45-second proposal budget including depth
-validation. Camera corrections are limited to 25 cm and 20 degrees. Timed RGB-D
+The solver bounds are 24 selected cameras, 800 landmarks, 96 matching pairs,
+60 solver evaluations, and a 45-second proposal budget including depth
+validation. There is no total accepted-view cutoff. Validation loads at most
+eight sampled clouds into its cache, with at most 2,000 points per cloud, and
+processes all adjacent camera pairs plus verified keyframe pairs. Full depth
+images are prepared on demand rather than retained for every view. Losing a
+late view's depth, exceeding the budget, or failing any validation gate rejects
+the entire proposal; validation is never truncated to fit a recording limit.
+The report records coverage, peak cache residency, stage, and failed pairs.
+
+Keyframe selection reserves temporal coverage and includes exact camera pairs
+from committed fragment bridges when capacity permits. These are retrieval
+hints; saved transforms never become camera/landmark constraints. Every feature
+identity is remeasured. Unsupported cameras are reported by both keyframe
+position and stored capture index, with track-count, spatial-support, or
+connectivity failure distinguished. Later corrections must also preserve fresh
+raw visual and held-out checks of retained temporal/storage boundaries.
+
+Camera corrections are limited to 25 cm and 20 degrees. Timed RGB-D
 pairs must satisfy the existing 20 ms assistance limit; legacy recordings with
 missing timing metadata retain the existing compatibility convention. Missing
 or insufficient evidence produces a reported refusal.
