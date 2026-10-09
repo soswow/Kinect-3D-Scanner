@@ -133,15 +133,47 @@ must consume a new source/runtime/domain/ownership proof. It must also close
 its actual decisions and Final graph/pose/surface quality; an old component or
 failed exact-history token cannot authorize the new path.
 
-## Smallest useful next measurement
+## Executed measurements and remaining integration
 
-Use one already selected immutable fragment pair and two/four independent seeds.
-Compare the existing device path with the batch path, preserving per-seed CPU
-shadows and ordered original gate consumption. Then compare a short device
-iteration chunk with the same batch and math. Report cold setup separately,
-total charged wall, unused speculative work, queries, iterations, active-lane
-counts, flagged rows, host copies, synchronizations, and peak owned memory.
+Independent two/four-seed batching, complete device iterations, short graph
+chunks, persistent setup and owned immutable proof references have all been
+implemented and physically measured. The [executed results](GPU_ICP_MICROBATCH_RESULTS.md)
+retain each distinct source, fresh actual-input CPU/query/gate audit and
+separate charged timing scope. The first easy complete-pair cases were close
+to CPU performance. The same complete GPU method reduced time by 38.9% on the
+expensive accepted session-7 pair 10,11, by 26.0% on rejected pair 0,3, and by
+24.9% on rejected pair 0,6. Their fresh audits covered all 442 GPU calls and
+266,311,538 nearest rows, with unchanged original query/result/gate checks.
+Independent CPU near-seed reuse reduced the nine-pair complete phase by 7.0%.
+These results establish useful component behaviour, not a production backend.
 
-Proceed to a separately declared whole-Finish study only after a material
-component gain and complete quality closure. Implementation and hardware testing
-of this design remain future work; the note does not enable a runtime path.
+The smallest whole-Finish study can keep the original frontier, proposal order,
+ambiguity and other stages unchanged while routing only calls in the original
+bridge-verification subtree through the complete GPU method. Enter after a
+verified current raw-Live checkpoint. Retain one pristine workspace across
+Finish and one immutable aggregate/camera cache across all competing proposals
+for the same directed fragment pair. Complete every selected stream, lane and
+lease before replacing the pair cache. Non-bridge calls remain original CPU.
+
+A new scoped dispatcher and ContextVar bypass can preserve imported original
+`_match` aliases. Capture the original verifier and use a wrapper only to
+establish pair context, returning its original tuple/object unchanged. CPU
+shadows call the captured original implementation under bypass. Original
+ownership guards reject these new wrappers, so this requires a separately
+reviewed explicit wrapper guard rather than disabling an old check.
+
+The new experiment must bind the current core, archive, settings, checkpoint,
+loaded native libraries, thread policy, method sources and complete actual
+trajectory. Audit every actual query and result, then compare an independent
+original Finish from the same checkpoint using all graph/witness/pose/surface
+criteria above. Include preparation, exact hashing, per-call capture, copying,
+validation and cleanup inside Finish wall time. Keep the 256 MiB pair cache,
+512 MiB retrieval/lane ceiling and 4,096-job workspace limit explicit, while
+observing native fusion allocation separately.
+
+Existing pair permits and older checkpoint/component authorities cannot unlock
+this whole-Finish route. CPU information reductions and graph optimization may
+still change later seed bytes between its own audit and timing. Preserve a
+timing refusal even if Final quality passes; the fixed-pair CPU near-seed
+comparison does not authorize changed clouds or an entire GPU Finish history.
+Production integration remains unmeasured.

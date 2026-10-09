@@ -1,0 +1,104 @@
+{
+  "kind": "gpu-icp-complete-bridge-owned-proof-scalar-summary-v2",
+  "status": "passed",
+  "created_utc": "2026-10-09T02:28:27.835881+00:00",
+  "performance_authority_token_created": false,
+  "whole_finish_authority": false,
+  "fixed_resource_bytes_rehashed_by_summary": false,
+  "os_child_exit_independently_verified": false,
+  "timer_scope": "Cold setup+proposals is a subtotal. Adding final GPU owner cleanup gives the declared numerator of the native wall ratio; preflight, proof validation and final producer closure remain separate. Proposal timers include original gates, per-call graph/state/copies/completion, validation and progress publication. Nested timers are not subtracted for a speed claim.",
+  "limitations": [
+    "One prepared original-ranked pair; no Live, frontier, optimizer, fusion, mesh or whole-Finish speed authority.",
+    "Only recorded before/after private resource receipts and current source bytes are checked here. Root-owned execution metadata establishes actual process exit."
+  ],
+  "case": {
+    "status": "passed",
+    "source_sha256": "07a948e81127dc742a330ec6bc24c85ceb7a9996128703c2a1cb7f9d0593741c",
+    "binding_sha256": "018b668147ab781c03254fceefe57beba65555b667f8fbb07b888f92a2b60974",
+    "source_family_sha256": "ac40ea7e2df2a2ba56be15ee774cfb87baf9ed7640f2f0b21745eceae60f5c27",
+    "pair_binding_sha256": "3b7a5a14bb4c9fa79df30f1e9f29806b33f96101aa3711810735916741c924ac",
+    "proposal_count": 3,
+    "actual_gpu_calls": 195,
+    "native_calls": 195,
+    "original_gate_events": 645,
+    "audit_coverage": {
+      "queries": 9876,
+      "query_rows": 110103284,
+      "updates": 9291,
+      "audited_hits": 44518041,
+      "audited_misses": 65585243,
+      "cpu_ambiguity_rows": 0
+    },
+    "original_native_result_shadow_maxima": {
+      "transform_max_abs_delta": 1.9984014443252818e-15,
+      "fitness_abs_delta": 0.0,
+      "rmse_abs_delta": 1.43982048506075e-16
+    },
+    "canonical_correspondence_ids_equal_every_call": true,
+    "original_complete_gate_witness_and_ambiguity_evidence_passed": true,
+    "timing_repeated_exact_audited_inputs_terminals_and_gate_evidence": true,
+    "whole_finish_authority": false,
+    "owned_proof_receipt": {
+      "policy": "windows-owned-readonly-proof-immutable-ordered-bridge-v2",
+      "closed": true,
+      "audit_sha256": "57781c0da17835fb2cc7b5ed7d91bc14fb019d213e37a0abf0b1134912348c6a",
+      "held_handle_reads": 2,
+      "share_read_only": true,
+      "decoded_immutable": true,
+      "old_token_consumed": false
+    }
+  },
+  "timing_samples": [
+    {
+      "sample_index": 0,
+      "native_proposals_wall_s": 10.880603800003882,
+      "gpu_cold_setup_wall_s": 0.28109350000158884,
+      "gpu_proposals_wall_s": 6.478103200002806,
+      "gpu_setup_and_proposals_subtotal_s": 6.759196700004395,
+      "gpu_final_owner_cleanup_s": 0.039232700000866316,
+      "gpu_subtotal_plus_cleanup_s": 6.798429400005261,
+      "gpu_subtotal_plus_cleanup_to_native_wall_ratio": 0.6248209681160191,
+      "producer_closure_s": 0.4892619000020204,
+      "producer_wall_s_before_final_publication": 21.730528900006902
+    },
+    {
+      "sample_index": 1,
+      "native_proposals_wall_s": 11.057120500001474,
+      "gpu_cold_setup_wall_s": 0.26759889999812003,
+      "gpu_proposals_wall_s": 6.45385879999958,
+      "gpu_setup_and_proposals_subtotal_s": 6.7214576999977,
+      "gpu_final_owner_cleanup_s": 0.03829549999500159,
+      "gpu_subtotal_plus_cleanup_s": 6.759753199992701,
+      "gpu_subtotal_plus_cleanup_to_native_wall_ratio": 0.6113484247541483,
+      "producer_closure_s": 0.49812079999537673,
+      "producer_wall_s_before_final_publication": 21.864122899991344
+    },
+    {
+      "sample_index": 2,
+      "native_proposals_wall_s": 11.27074089999951,
+      "gpu_cold_setup_wall_s": 0.27393329999176785,
+      "gpu_proposals_wall_s": 6.395101700007217,
+      "gpu_setup_and_proposals_subtotal_s": 6.669034999998985,
+      "gpu_final_owner_cleanup_s": 0.03805360000114888,
+      "gpu_subtotal_plus_cleanup_s": 6.707088600000134,
+      "gpu_subtotal_plus_cleanup_to_native_wall_ratio": 0.5950885269663528,
+      "producer_closure_s": 0.4807537000015145,
+      "producer_wall_s_before_final_publication": 21.993972000011127
+    }
+  ],
+  "timing_group": {
+    "samples": 3,
+    "median_native_proposals_wall_s": 11.057120500001474,
+    "median_gpu_subtotal_plus_cleanup_s": 6.759753199992701,
+    "median_matched_gpu_to_native_wall_ratio": 0.6113484247541483
+  },
+  "report_sha256": {
+    "audit": "57781c0da17835fb2cc7b5ed7d91bc14fb019d213e37a0abf0b1134912348c6a",
+    "timing": [
+      "4c09d6ce6d6884080a85dc2e22143ddd7974c2fa1a8d6fda770cc96cbea954c2",
+      "2fb40d5ef36794e66f23583ed0c4f84a6a5f114c84cf47c782b80b41946fee29",
+      "70b571ef176c4821836278e7c2f57f75fe8748550d78ae9200db00c7045edef1"
+    ]
+  },
+  "publisher_source_family_sha256": "74ef5dc5508c84ffcf9b4a4d69583295b312c5e23575b44353cd149d381b8f02"
+}

@@ -71,6 +71,13 @@ speedup, source-only test or partial native surface reference never enables an
 unaudited whole-scanner path. Private captures, checkpoint arrays and compiled
 libraries stay under ignored output folders and must be rebuilt locally.
 
+The [executed complete-pair results](GPU_ICP_MICROBATCH_RESULTS.md#complete-gpu-verification-on-expensive-pairs)
+now distinguish the earlier easy cases from expensive accepted and rejected
+pairs. Complete GPU iterations improved the latter by 25–39% in the finished
+cases, with fresh original-CPU query/result/gate audits and cold setup/cleanup
+included. This is a stronger component result, still requiring whole-Finish
+quality and timing before production integration.
+
 ## Device-resident nearest queries and ICP
 
 An earlier fixed-component experiment measured **8.339 seconds first / 7.450

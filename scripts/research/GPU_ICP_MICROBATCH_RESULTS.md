@@ -166,6 +166,56 @@ per session, without whole-Finish or production backend authority. Old v1 report
 and failed/aborted profiling attempts remain private and unchanged; instrumented
 samples are excluded from performance publication.
 
+### Complete GPU verification on expensive pairs
+
+The earlier v2 measurements cover session-6 pair 0,2 and session-7 pair 0,11.
+The identical frozen owned-proof method has now also executed a fresh audit
+and three independently timed processes for session-7 pair 10,11. All three
+genuine proposals were retained, with 195 actual ICP calls. The audit checked
+110,103,284 nearest-neighbour rows against fresh original CPU queries; every
+canonical correspondence ID, result comparison and original complete gate,
+witness, support and ambiguity check passed.
+
+| Session-7 pair | Genuine proposals | Calls | Median CPU (s) | Median GPU with setup/cleanup (s) | Median matched GPU / CPU |
+|---|---:|---:|---:|---:|---:|
+| 10,11 | 3 | 195 | 11.057 | 6.760 | 0.6113 |
+| 0,3 | 4 | 117 | 11.171 | 8.285 | 0.7400 |
+| 0,6 | 4 | 130 | 9.107 | 6.841 | 0.7511 |
+
+This expensive accepted pair takes **38.9% less wall time**, or about 1.64x
+the CPU throughput, under the declared complete-pair clock. The
+[pair 10,11 scalar receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-owned-session7-pair10-11-summary.json)
+records all three matched samples and closed owned-proof receipts. Setup,
+original CPU gate consumers, per-call graph/state/copies/completion, validation
+and final GPU owner cleanup are included. Preflight, proof loading and final
+producer closure remain separate. This still excludes the whole Finish
+frontier, optimizer, fusion and mesh; it does not enable production GPU ICP.
+
+The expensive rejected pair 0,3 also passed a new full audit and three fresh
+timings with all four genuine proposals. Its audit covered 81,802,828 original
+CPU-shadowed nearest rows. It takes **26.0% less complete-pair wall time** while
+preserving the original rejection, witnesses and ambiguity outcome. The
+[pair 0,3 scalar receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-owned-session7-pair0-3-summary.json)
+keeps its distinct input and proof binding. Results from different pairs are
+not combined into one timing authority.
+
+Rejected pair 0,6 completed the same full audit and three independent timing
+processes with four genuine proposals and 130 calls. Its audit checked
+74,405,426 nearest rows; canonical IDs, original native result shadows and all
+complete proposal/witness/ambiguity outcomes passed. The median matched ratio
+is 0.7511: **24.9% less complete-pair time**. The
+[pair 0,6 scalar receipt](../../docs/benchmarks/field-study-gpu-icp-v1/complete-bridge-owned-session7-pair0-6-summary.json)
+records the independent samples. Across the three expensive cases, the fresh
+audits checked 266,311,538 nearest rows and all 442 actual GPU calls. These are
+the same frozen GPU method as the earlier easy cases; the workload, not a new
+relaxed accuracy policy, explains the different observed performance.
+
+The complete GPU loop is therefore more promising for long alignments than
+for short calls. A whole-Finish experiment must still measure the actual mix,
+retain the original frontier and compare Final graph, poses and surfaces.
+The independent near-seed reuse gain is not added to GPU gains: a combined
+method has not been executed or qualified.
+
 ## Conservative float neighbor screening
 
 A separate two-pass raw lookup keeps the original dyadic cell candidate set,
