@@ -358,6 +358,60 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
 `gpu-icp-warp-pruned-nn-v1`, `gpu-icp-microbatch-v2`, and
 `gpu-icp-device-loop-v1`. Their source hashes and runtime scopes remain distinct.
 
+## Complete Finish: strict audit and observer overhead
+
+On 9 October 2026, the original-math device loop ran inside complete Finish
+on fresh raw-Live checkpoints for sessions 5 and 6. These measurements used
+the production core at `c12235c`, before the subsequent automatic fusion
+memory changes. Archived poses were not used. The GPU replaced ICP only
+within the original fragment bridge verifier; the original proposal search,
+acceptance checks, Bundle, Final fusion and mesh remained in charge.
+
+| Session | Raw / Live accepted / Final accepted | Actual GPU ICP calls | CPU-audited query rows | Observed CPU Finish (s) | GPU audit Finish (s) |
+|---|---:|---:|---:|---:|---:|
+| 5 | 27 / 21 / 7 | 89 | 49,538,392 | 21.213 | 201.110 |
+| 6 | 38 / 33 / 38 | 84 | 28,766,412 | 29.208 | 148.096 |
+
+The audit walls include exhaustive CPU checks of actual GPU nearest-neighbour
+queries and complete original CPU ICP shadows. **They do not measure GPU
+speed.** All 173 actual calls passed their same-input CPU result and canonical
+correspondence checks, and all 78,304,804 query rows were checked, including
+hits and misses. Maximum actual ICP transform differences were below
+`2.8e-15`; fitness was identical. Final accepted views and retained graph
+endpoints/components agreed. Final translation differences were at most
+`1.4e-15` metres.
+
+The independent strict whole-Finish comparison nevertheless failed in both
+sessions. Session 5 differed in an original global proposal. Two separate
+original CPU Finish repeats also produced different proposal outputs and
+some subsequent gate paths, while preserving identical Final poses and
+accepted views. Exact recomputed coarse/feature arrays were not recorded,
+so this does not isolate intrinsic RANSAC nondeterminism. Session 6 differed
+in original information matrix values by up to `0.02331`, exceeding the
+declared comparison bound. The discrete retained graph remained the same,
+but the strict full graph-value comparison failed. These failures are
+preserved. Physical surface comparisons were not dispatched after these
+failures, and no GPU timing permit was issued.
+
+A separate session-5 control called original `ScanEngine.build_mesh` directly
+from the same Live checkpoint, without registration or gate observers. Its
+Finish took **11.029 seconds**, versus 21.213 and 21.197 seconds with observers.
+Both controls were physically completed with exclusive hardware and closed
+source/resource checks. The direct control charges original build, selected
+device completion and Final allocation validation. It deliberately does not
+claim collected registration or gate history. This exposes substantial
+observer overhead in the strict harness; subtracting that overhead would
+not establish a GPU scanner speed gain.
+
+The [scalar whole-Finish receipt](../../docs/benchmarks/field-study-gpu-icp-v1/whole-finish-strict-summary.json)
+contains independently recomputed counts, checks, numerical maxima, report
+digests and root-observed process exits. The twelve source/test files used
+for these runs remain unchanged. Session 7 and qualified no-shadow complete
+Finish timings have not been measured with this family. Production ICP
+remains CPU. The next implementation uses a distinct, lower-overhead
+candidate study with fresh current-core captures and actual Final pose and
+surface comparisons; these historical proofs cannot authorize it.
+
 ## Reusable entry points
 
 - [gpu_icp_experiment_capture.py](gpu_icp_experiment_capture.py): derive genuine
@@ -416,6 +470,19 @@ Private reports are in `benchmark-output/field-cuda-study/`, including
 - [summarize_near_seed_conformance.py](summarize_near_seed_conformance.py):
   publish fixed-pair scalar receipts after independently replaying all recorded
   actual-input comparisons; preserves the strict-v1 counterexample.
+- [profile_gpu_icp_finish.py](profile_gpu_icp_finish.py),
+  [gpu_icp_finish_scope.py](gpu_icp_finish_scope.py),
+  [device_loop_finish_workspace.py](device_loop_finish_workspace.py), and
+  [gpu_icp_finish_protocol.py](gpu_icp_finish_protocol.py): frozen strict
+  whole-Finish audit family for the measured `c12235c` core. Fresh raw Live,
+  complete query and CPU result shadows, original ordered gate/graph records,
+  bounded workspace, exact timing authorization and resource closure.
+- [compare_gpu_icp_finishes.py](compare_gpu_icp_finishes.py): independent
+  original gate/graph/Final pose checks and conditional physical surface
+  comparison. The two measured strict failures issue no timing authority.
+- [profile_gpu_icp_finish_control.py](profile_gpu_icp_finish_control.py):
+  same-checkpoint direct original Finish with explicit uncollected gate and
+  registration history, to quantify instrumentation costs on that core.
 - [benchmark_microbatch_pruned_nn.py](benchmark_microbatch_pruned_nn.py),
   [benchmark_microbatch_warp_nn.py](benchmark_microbatch_warp_nn.py), and
   [benchmark_microbatch_warp_pruned_nn.py](benchmark_microbatch_warp_pruned_nn.py):

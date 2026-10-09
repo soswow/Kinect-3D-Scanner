@@ -739,6 +739,42 @@
       "path": "scripts/research/summarize_near_seed_conformance.py",
       "group": "active",
       "role": "Recompute all recorded fixed-pair reuse comparisons and publish scalar timing and strict refusal receipts without production authority"
+    },
+    {
+      "legacy_path": "scripts/research/profile_gpu_icp_finish.py",
+      "path": "scripts/research/profile_gpu_icp_finish.py",
+      "group": "active",
+      "role": "Frozen c12235c raw-Live and exact-checkpoint whole-Finish strict native/query audit family; preserved quality failures issue no timing authority"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_finish_scope.py",
+      "path": "scripts/research/gpu_icp_finish_scope.py",
+      "group": "active",
+      "role": "Bridge-only device-loop injection within original complete Finish with ordered gates, graph, Bundle constraints and fault-safe owner restoration"
+    },
+    {
+      "legacy_path": "scripts/research/device_loop_finish_workspace.py",
+      "path": "scripts/research/device_loop_finish_workspace.py",
+      "group": "active",
+      "role": "One bounded original numerical workspace across Finish with globally ordered fresh-proof authorization"
+    },
+    {
+      "legacy_path": "scripts/research/gpu_icp_finish_protocol.py",
+      "path": "scripts/research/gpu_icp_finish_protocol.py",
+      "group": "active",
+      "role": "Distinct whole-Finish audit and native quality validation with retained read-only proof handles and immutable global references"
+    },
+    {
+      "legacy_path": "scripts/research/compare_gpu_icp_finishes.py",
+      "path": "scripts/research/compare_gpu_icp_finishes.py",
+      "group": "active",
+      "role": "Frozen c12235c independent gate, graph and unrounded Final pose comparison with conditional physical surfaces and preserved strict failures"
+    },
+    {
+      "legacy_path": "scripts/research/profile_gpu_icp_finish_control.py",
+      "path": "scripts/research/profile_gpu_icp_finish_control.py",
+      "group": "active",
+      "role": "Frozen c12235c same-checkpoint direct original Finish with uncollected registration/gate history; measures observer overhead and exports original Final"
     }
   ]
 }
