@@ -11,7 +11,7 @@ from unittest.mock import patch
 import numpy as np
 from PyQt6.QtCore import QEvent, QPointF, Qt
 from PyQt6.QtGui import QMouseEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QPushButton
 
 from kinect_scanner.gui.live_view import LiveView
 from shared.settings import CameraCalibration
@@ -37,16 +37,17 @@ class LiveViewTests(unittest.TestCase):
             **extra,
         })
 
-    def test_translation_rotation_and_perspective_match_camera_pixels(self):
+    def test_follow_backs_up_along_rotated_camera_axis_with_perspective(self):
         # A 90-degree turn plus translation makes a wrong transform direction
-        # unmistakable. Near/far points on the same ray must project together.
+        # unmistakable. The backward offset widens the view without rotating it;
+        # perspective changes with distance from the new viewpoint.
         pose = np.array([[0, 0, 1, 1], [0, 1, 0, 2], [-1, 0, 0, 3], [0, 0, 0, 1.]])
         camera_points = np.array([[0, 0, 1], [0.21, 0.11, 1], [0.42, 0.22, 2]])
         world_points = camera_points @ pose[:3, :3].T + pose[:3, 3]
         self.snapshot(world_points, pose)
         xy, depth, indices = self.view._project_points(640, 480)
-        np.testing.assert_array_equal(xy, [[320, 240], [430, 297], [430, 297]])
-        np.testing.assert_array_equal(depth, [1, 1, 2])
+        np.testing.assert_array_equal(xy, [[320, 240], [393, 278], [408, 286]])
+        np.testing.assert_array_equal(depth, [1.5, 1.5, 2.5])
         np.testing.assert_array_equal(indices, [0, 1, 2])
         self.snapshot(world_points, np.eye(4))
         self.assertFalse(np.array_equal(xy, self.view._project_points(640, 480)[0]))
@@ -56,16 +57,17 @@ class LiveViewTests(unittest.TestCase):
         self.snapshot([[0, 0, 2], [0.2, 0.2, 2]], camera=camera)
         # 1000x480 leaves 180 pixels of horizontal padding on each side.
         xy, _, _ = self.view._project_points(1000, 480)
-        np.testing.assert_array_equal(xy, [[480, 220], [540, 275]])
+        np.testing.assert_array_equal(xy, [[480, 220], [528, 264]])
         xy, _, _ = self.view._project_points(320, 240)
-        np.testing.assert_array_equal(xy, [[150, 110], [180, 138]])
+        np.testing.assert_array_equal(xy, [[150, 110], [174, 132]])
 
-    def test_clips_points_behind_camera_and_outside_sensor_field_of_view(self):
-        self.snapshot([[0, 0, -1], [0, 0, 0], [2, 0, 1], [0, 2, 1], [0, 0, 1]])
+    def test_clips_at_backed_up_viewpoint_and_retains_newly_visible_surface(self):
+        self.snapshot([[0, 0, -1], [0, 0, -0.5], [2, 0, 1], [0, 2, 1],
+                       [0, 0, 1], [0.7, 0, 1], [0, 0, -0.25]])
         xy, depth, indices = self.view._project_points(1000, 480)
-        np.testing.assert_array_equal(indices, [4])
-        np.testing.assert_array_equal(xy, [[500, 240]])
-        np.testing.assert_array_equal(depth, [1])
+        np.testing.assert_array_equal(indices, [4, 5, 6])
+        np.testing.assert_array_equal(xy, [[500, 240], [744, 240], [500, 240]])
+        np.testing.assert_array_equal(depth, [1.5, 1.5, 0.25])
 
     def test_disconnected_guidance_survives_updates_until_feedback_returns(self):
         self.snapshot([[0, 0, 1]], guidance="Move around the subject")
@@ -82,7 +84,6 @@ class LiveViewTests(unittest.TestCase):
         self.snapshot([[0, 0, 1]], surface_description=text)
         self.assertTrue(self.view.surface_label.isHidden())
         self.assertEqual(text, self.view.title_label.toolTip())
-        self.assertTrue(self.view.details_label.isHidden())
 
     def test_render_nearest_splat_and_empty_camera_view(self):
         self.snapshot([[0, 0, 2], [0, 0, 1]], colors=[[1, 0, 0], [0, 1, 0]])
@@ -93,7 +94,6 @@ class LiveViewTests(unittest.TestCase):
         for sample_x, sample_y in [(x, y), (x - 1, y - 1), (x + 1, y + 1)]:
             self.assertEqual((0, 255, 0), image.pixelColor(sample_x, sample_y).getRgb()[:3])
         self.snapshot([[0, 0, -1]])
-        self.view.colored = False
         self.assertEqual((21, 32, 43), self.view.grab().toImage().pixelColor(int(x), int(y)).getRgb()[:3])
 
     def test_orbit_toggle_returns_to_latest_pose_and_reset_follows(self):
@@ -106,7 +106,7 @@ class LiveViewTests(unittest.TestCase):
         self.snapshot([[0, 0, 1], [0.2, 0, 1]], pose, result={"success": False})
         np.testing.assert_array_equal(orbit_xy, self.view._project_points(640, 480)[0])
         self.view.follow_cb.setChecked(True)
-        np.testing.assert_array_equal(self.view._project_points(640, 480)[0], [[267, 240], [372, 240]])
+        np.testing.assert_array_equal(self.view._project_points(640, 480)[0], [[284, 240], [354, 240]])
         self.view.follow_cb.setChecked(False)
         self.view.reset()
         self.assertTrue(self.view.follow_cb.isChecked())
@@ -116,8 +116,9 @@ class LiveViewTests(unittest.TestCase):
         self.view.resize(300, 240)
         self.view.show()
         self.app.processEvents()
-        controls = [self.view.follow_button, self.view.orbit_button,
-                    self.view.color_button, self.view.shape_button, self.view.fit_button]
+        controls = [self.view.follow_button, self.view.orbit_button, self.view.fit_button]
+        self.assertEqual(self.view.panel.findChildren(QPushButton), controls)
+        self.assertEqual(len({button.y() for button in controls}), 1)
         for button in controls:
             self.assertTrue(button.isVisible())
             self.assertTrue(button.accessibleName())
@@ -129,13 +130,6 @@ class LiveViewTests(unittest.TestCase):
         self.assertFalse(self.view.follow_cb.isChecked())
         self.view.follow_button.click()
         self.assertTrue(self.view.follow_cb.isChecked())
-        self.view.shape_button.click()
-        self.assertFalse(self.view.colored)
-        self.view.color_button.click()
-        self.assertTrue(self.view.colored)
-        self.assertFalse(self.view.details_label.isVisible())
-        self.view.details_button.click()
-        self.assertTrue(self.view.details_label.isVisible())
 
     def test_fit_recalculates_bounds_after_cloud_grows_and_resets_orbit(self):
         self.snapshot([[0, 0, 1], [0.2, 0, 1]])
@@ -227,24 +221,28 @@ class LiveViewTests(unittest.TestCase):
         np.testing.assert_array_equal(self.view.center, [10, 0, 1])
         self.assertEqual(self.view.radius, 10)
 
-    def test_expanded_details_reserve_uncovered_drawing_viewport(self):
+    def test_diagnostics_on_hover_reserve_uncovered_drawing_viewport(self):
         self.view.resize(300, 300)
         self.snapshot([[0, 0, 2], [0, 0, 1]], colors=[[1, 0, 0], [0, 1, 0]],
                       guidance="Move slowly and keep overlap", result={"success": True})
         self.view.show()
         self.app.processEvents()
-        collapsed = self.view.drawing_rect
-        self.view.details_button.click()
-        self.app.processEvents()
         viewport = self.view.drawing_rect
         self.assertGreater(viewport.height(), 20)
-        self.assertLess(viewport.height(), collapsed.height())
+        self.assertIn("tracking accepted", self.view.status_label.toolTip())
+        self.assertIn("displayed: 2 points", self.view.status_label.toolTip())
         self.assertEqual(viewport.top(), self.view.panel.geometry().bottom() + 1)
         xy, _, _ = self.view._project_points(viewport.width(), viewport.height())
         x, y = xy[0] + [viewport.x(), viewport.y()]
         image = self.view.grab().toImage()
         self.assertEqual((0, 255, 0), image.pixelColor(int(x), int(y)).getRgb()[:3])
         self.assertGreaterEqual(y, viewport.top())
+        self.app.sendEvent(self.view, QMouseEvent(
+            QEvent.Type.MouseButtonDblClick, QPointF(x, y), QPointF(x, y),
+            Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        ))
+        self.assertEqual((0, 255, 0), self.view.grab().toImage().pixelColor(int(x), int(y)).getRgb()[:3])
         with patch.object(self.view, "_layout_panel", wraps=self.view._layout_panel) as layout:
             self.view.grab()
             layout.assert_not_called()
