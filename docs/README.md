@@ -4,6 +4,12 @@ Start with the [scanner setup and workflow](../README.md). Run tools from the
 repository root in the scanner environment; the [script index](../scripts/README.md)
 separates maintained commands, component benchmarks and source-bound research.
 
+Local investigation reports and agent review ledgers belong in ignored
+`docs/investigations/<YYYY-MM-DD>-<topic>/` (create it as needed). Find prior
+reports with `rg --files --no-ignore docs/investigations`. They stay in the local
+checkout; promote durable findings into the relevant maintained guide so they
+are available to other contributors and fresh clones.
+
 ## Using the scanner
 
 | Need | Guide |

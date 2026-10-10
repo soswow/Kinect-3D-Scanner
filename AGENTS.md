@@ -5,8 +5,14 @@
 - Start with `docs/README.md` and `scripts/README.md`; read the linked material
   for the task rather than ingesting every report. Code and tests establish
   current behavior; dated measurements describe only their recorded revision.
-- Keep scratch notes, agent handoffs, review ledgers, logs, captures, fixtures,
-  generated profiles, downloaded dependencies and build products in ignored
+- Save investigation reports, scratch notes, agent handoffs and review ledgers
+  in ignored `docs/investigations/<YYYY-MM-DD>-<topic>/`; create it as needed.
+  Include a short result, source revision, evidence paths, method, limitations,
+  failed approaches and open questions. Before investigating, look for relevant
+  local reports with `rg --files --no-ignore docs/investigations` if it exists.
+  These reports stay in the local checkout and are not included in clones.
+- Keep logs, captures, fixtures, generated profiles, downloaded dependencies
+  and build products in ignored
   `benchmark-output/<investigation>/` or outside the checkout. Add an ignore rule
   before using a new scratch directory. Do not commit them as documentation.
 - Before retaining a document, identify its reader, concrete future use and
@@ -16,9 +22,11 @@
   length limit, but a long reference needs a short summary and section navigation.
 - Close an investigation by preserving the result, its scope, evidence source,
   failure/negative result and remaining uncertainty in the relevant existing
-  guide or research protocol. Omit the work diary. Consolidate superseded reports
+  guide or research protocol. Omit the work diary from committed documentation.
+  Consolidate superseded reports
   once their unique findings are preserved; use a commit/path link for older
-  detail that has no current consumer. Do not add a new dated report by default.
+  detail that has no current consumer. Do not add a new committed dated report
+  by default; keep the detailed write-up in `docs/investigations/`.
 - Publish benchmark evidence selectively: bounded scalar summaries and useful
   charts, with input/source/environment provenance and limitations. Full run
   matrices, per-frame/query traces and duplicate snapshots stay local. Inspect

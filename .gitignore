@@ -38,3 +38,6 @@ datasets/
 recordings/
 capture-queue/
 benchmark-output/
+
+# Local investigation write-ups and agent review ledgers
+/docs/investigations/
