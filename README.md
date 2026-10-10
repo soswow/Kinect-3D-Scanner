@@ -18,6 +18,9 @@
 
 ## Start the Client and Server Separately
 
+The [documentation index](docs/README.md) and [script workflows](scripts/README.md)
+provide focused guides, diagnostics and historical evidence.
+
 The client and server have independent entry points and lifetimes. Closing the
 client does not stop the server. Current launch support is a macOS desktop client
 and a manually started server on macOS or Windows. They can run on separate LAN
@@ -552,10 +555,11 @@ It builds features shared by at least three saved views, then jointly refines
 camera positions and 3D feature positions using color and measured depth.
 Disjoint depth samples from every output view must improve before a bounded
 fresh reconstruction replaces the previous volume. Calibration and the first
-camera stay fixed. Current limits are 24 keyframes, 800 features, 128 accepted
-views and a 45-second proposal budget. Install the updated server requirements
+camera stay fixed. Current solver limits are 24 keyframes, 800 features,
+96 candidate pairs, an eight-view depth cache and a 45-second proposal budget.
+Install the updated server requirements
 for SciPy. See [joint refinement](docs/JOINT_RGBD_REFINEMENT.md) and
-[candidates, statistical interpretation and evaluation](docs/RGBD_IMPROVEMENT_PLAN.md).
+[completed decisions and evaluation evidence](docs/DEVELOPMENT_HISTORY.md).
 
 Optional **Lost tracking recovery**, **sensor confidence weighting**, and
 **finer final fusion** now have explicit controls. Final fusion uses a separate,
@@ -564,8 +568,8 @@ for backlog. Texture exports preserve detail with connected photo regions and
 optional narrow boundary softening, and can independently match photo brightness.
 Experimental reconstruction quality options remain off until measured scans justify them.
 
-See [tested milestone checkpoints and next evidence](docs/IMPLEMENTATION_MILESTONES.md),
-[operation, validation, limits, and remaining implementation work](docs/LIVE_RECONSTRUCTION.md)
+See [tested development checkpoints](docs/DEVELOPMENT_HISTORY.md),
+[operation, validation and limits](docs/LIVE_RECONSTRUCTION.md),
 [capture performance measurements and reproduction](docs/CAPTURE_PERFORMANCE.md),
 and [papers and open-source integration roadmap](docs/RESEARCH_ROADMAP.md).
 

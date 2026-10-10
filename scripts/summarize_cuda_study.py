@@ -1,18 +1,22 @@
-"""Build a compact, shareable summary and chart from recorded CUDA profiles."""
+"""Reproduce the October 2026 fusion study from local closed CUDA profiles.
+
+Contains the original study's fixed hardware/date and implementation labels.
+For new studies, adapt that metadata before publishing selected evidence.
+Generated summaries and charts stay under benchmark-output by default.
+"""
 
 import argparse
 import hashlib
 import json
 from pathlib import Path
 
-import numpy as np
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=Path("benchmark-output/cuda-study"))
-    parser.add_argument("--summary", type=Path, default=Path("docs/benchmarks/cuda-session-performance.json"))
+    parser.add_argument("--summary", type=Path, default=Path("benchmark-output/cuda-session-performance.json"))
     args = parser.parse_args()
+    import numpy as np
+
     aggregate = json.loads((args.directory / "backends.json").read_text())
     reports = [(run, json.loads(Path(run["report"]).read_text())) for run in aggregate["runs"]]
     rows = []
@@ -110,7 +114,7 @@ def main():
     text += ["", "## Implementation and use", "",
              "The new fused confidence-weighted CUDA update borrows Open3D GPU buffers directly and processes bounded batches. Recorded fusion improved from a median 104.7 ms to 33.5 ms versus existing CUDA, with unchanged confidence equations and depth gates. CPU execution retains its existing implementation.", "",
              "Install the optional CUDA 12 dependency with `python -m pip install -r requirements-cuda-fusion.txt`. `KINECT_CUDA_FUSION=auto` uses it when available, `fused` requires it, and `tensor` selects the previous GPU implementation. Final validation passed 47 tests, including GPU parity, volume growth, rounding, compiler fallback and update-failure handling.", "",
-             "The local server was restarted from this worktree on port 8000 with CUDA tensor tracking, native CPU preparation and fused confidence integration. A six-frame HTTP scan built and exported a PLY successfully; initial scan settings were restored and the server is ready for a new scan."]
+             "The original study recorded a six-frame HTTP scan, PLY export and restoration of the test server settings. This formatter does not check a running server; these historical observations do not describe current server readiness."]
     (args.directory / "REPORT.md").write_text("\n".join(text) + "\n", encoding="utf-8")
 
 

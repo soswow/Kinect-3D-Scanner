@@ -889,6 +889,12 @@
       "path": "scripts/benchmarks/audit_depth_visibility.py",
       "group": "benchmarks",
       "role": "All-view empty-space validation of offline depth trajectories"
+    },
+    {
+      "legacy_path": "scripts/benchmarks/replay_normal_capture.py",
+      "path": "scripts/benchmarks/replay_normal_capture.py",
+      "group": "benchmarks",
+      "role": "Offline replay through ordinary client capture selection and payload behavior"
     }
   ]
 }

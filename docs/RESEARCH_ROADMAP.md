@@ -14,11 +14,16 @@ this project; paper results are not measurements of this implementation.
 
 ## Implementation checkpoint, October 2026
 
+This roadmap preserves the original research assessment. Completed work and
+later experiments are indexed in [docs/README.md](README.md); priorities here
+are engineering judgments, not promises that these integrations exist.
+
 The six ordered software milestones below are implemented in separate commits.
-[IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) records commands,
+[development history](DEVELOPMENT_HISTORY.md) records completed checkpoints,
 acceptance checks and limitations. Hardware-dependent acceptance remains open:
 measured per-device calibration, repeated physical accuracy/completeness tests,
-and matched NVIDIA runs. Appearance loops, confidence fusion, exposure matching
+and broader matched hardware runs. Later [CUDA](CUDA_EXPERIMENTS.md) and
+[field](FIELD_CUDA_RESEARCH.md) studies provide NVIDIA evidence. Appearance loops, confidence fusion, exposure matching
 and finer final fusion are available experiments, not established quality gains
 for arbitrary Kinect subjects. The difficult desk sequence still lacks a trusted
 loop. Turntable capture and patch seam optimization remain subsequent work.
@@ -41,6 +46,17 @@ loop. Turntable capture and patch seam optimization remain subsequent work.
 The current implementation uses Open3D algorithms and independently implemented
 bounded validation/projection logic. No code from a noncommercial research
 release has been copied into the project.
+
+Additional candidates from the later RGB-D plan remain useful comparisons:
+[DVO](https://jsturm.de/publications/data/kerl13icra.pdf) for robust dense CPU
+alignment, [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) for keyframe/local
+bundle/map reuse (native dependencies, vocabulary and GPLv3), and
+[DROID-SLAM](https://github.com/princeton-vl/DROID-SLAM) or
+[DPVO](https://github.com/princeton-vl/DPVO) for later learned CUDA experiments.
+They are not imported scanner backends; model/operator requirements and Kinect
+RGB-D adaptation need separate evaluation. Current joint sparse refinement and
+confidence semantics are in [joint refinement](JOINT_RGBD_REFINEMENT.md) and
+[depth confidence](STATISTICAL_DEPTH_FUSION.md).
 
 ## Open-source integration candidates
 

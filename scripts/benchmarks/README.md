@@ -16,6 +16,13 @@ against local exported data or an explicitly prepared fixture.
 | [benchmark_sift_distance_options.py](benchmark_sift_distance_options.py) | SIFT distance arithmetic/precision alternatives |
 | [benchmark_visual_refinement.py](benchmark_visual_refinement.py) | Visual refinement cost and original decision/pose agreement |
 | [profile_fragment_verification.py](profile_fragment_verification.py) | Original camera/union verification branches, native calls and target reuse |
+| [benchmark_offline_geometry.py](benchmark_offline_geometry.py) | Depth-only registration qualification across distinct local recordings |
+| [audit_depth_visibility.py](audit_depth_visibility.py) | All-view depth visibility/consistency at measured poses |
+| [render_depth_graph.py](render_depth_graph.py) | Render depth geometry and camera paths without RGB |
+| [replay_normal_capture.py](replay_normal_capture.py) | Offline replay through ordinary client selection/payload behavior |
+
+Find these CLIs and their supporting source without importing numerical packages:
+`python scripts/list_tools.py --group benchmarks --json`.
 
 Start with the CLI's `--help`; output and input options differ. For a full
 workflow comparison use [profile_cuda_pipeline.py](../profile_cuda_pipeline.py),

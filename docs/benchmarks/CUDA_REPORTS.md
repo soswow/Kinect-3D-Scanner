@@ -1,9 +1,13 @@
-# Saved CUDA results
+# Historical CUDA results
 
-The [current pipeline report](cuda-pipeline/REPORT.md) contains the final CPU/CUDA
+The [pipeline report](cuda-pipeline/REPORT.md) contains the recorded CPU/CUDA
 archive comparisons and charts. The [initial fusion report](cuda-study/REPORT.md)
 is historical. [CUDA_EXPERIMENTS.md](../CUDA_EXPERIMENTS.md) explains the field
 configuration, rejected approaches, remaining research and reproduction commands.
+Start with the [evidence index](README.md) for scope and non-CUDA measurements.
+Names such as "current release" inside snapshots refer to the measured revision;
+read them as historical evidence. Server readiness statements describe the
+original test run and do not establish the state of a running service today.
 
 The October field study adds a
 [research summary](field-study-v1/research-summary.json) and

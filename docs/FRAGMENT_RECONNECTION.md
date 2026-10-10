@@ -360,7 +360,7 @@ gaps or steps over 10 cm / 8°. Slow regular adaptive capture does not create a
 separate fragment for every image. A confident match to the accumulated model
 cannot by itself authorize those transitions.
 
-## Validation
+## Historical legacy validation checkpoint
 
 Actual raycast RGB-D tests separate two overlapping camera runs with a capture
 gap and a motion jump that live tracking rejects. Depth-only fragment matching
@@ -370,8 +370,9 @@ cover planar ambiguity, repeated stationary captures, conflicting proposals,
 pruned bridges, search caps, cache invalidation, native fusion failure rollback,
 raw ZIP replay, server counts/progress/snapshot refresh, and GUI preference
 restoration. The saved Kinect session repair below was verified on CPU.
-Updated live tracking guards have not yet been exercised in a new physical
-Kinect capture. CUDA reconnection remains unverified.
+At this early checkpoint, updated live guards and CUDA reconnection were
+unverified. Later [CUDA](CUDA_EXPERIMENTS.md) and [field](FIELD_CUDA_RESEARCH.md)
+studies record hardware execution; original test totals below are historical.
 
 The regression suite includes synthetic HTTP/WebSocket and Qt scan workflows
 through capture, Finish, rebuilding, and exports. New raycast tests exercise

@@ -417,11 +417,12 @@ Send a compact versioned `metadata.accelerometer` summary with the selected
 pair: validity/reason, acceleration, calibrated gravity direction if available,
 read interval, sample age, connection identity, and calibration identity.
 [`shared/protocol.py`](../shared/protocol.py) already carries JSON metadata but
-limits it to **4096 bytes**, including visual tracking and exposure fields.
+currently limits it to **1 MiB**, including visual tracking and exposure fields.
 Do not attach an unbounded sample history. For statistical experiments, retain
 the full bounded-rate sample sequence in a recording sidecar, with an explicit
-clock epoch and links from frames. Current recordings preserve selected-frame
-metadata, not all intermediate camera observations or acceleration samples.
+clock epoch and links from frames. The earlier selected-frame implementation
+did not preserve intermediate observations. Current compact motion transport
+and the complete acceleration journal are described at the top of this guide.
 Missing acceleration remains compatible with older recordings.
 
 Before enabling polling by default, compare image rates, pairing deltas, frame

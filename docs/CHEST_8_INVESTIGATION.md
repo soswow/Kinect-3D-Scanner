@@ -1,281 +1,91 @@
-# Chest 8: final reconstruction introduces a half-turn
+# Chest 8: false half-turn and measured boundary protection
 
-Investigated on 2026-10-09 against source commit `db0db2d`.
-Source archive: `chest-8-scan-20261009-145-captures.zip` (145 captures).
-The source ZIP was read without modification. No running server was contacted.
+Historical audit: 9 October 2026, `db0db2d`, unchanged
+`chest-8-scan-20261009-145-captures.zip` (145 captures). No running server was
+contacted. Capture numbers below are one-based; JSON indices are zero-based.
 
-The saved final trajectory contains two large jumps introduced by fragment
-reconnection. They bracket a middle section whose original accepted poses were
-rotated approximately 174–177 degrees. Raw RGB-D measurements contradict that
-placement. This is a reconstruction error, rather than an image-display rotation
-or a camera-pose convention problem.
+## Failure mechanism
 
-## Exact boundaries
-
-Capture numbers below are **one-based**. JSON frame indices are zero-based.
-Angles are computed from the relative rotation matrices, rather than Euler
-angles, so these are actual changes of orientation rather than angle wrapping.
-
-| Captures | JSON indices | Final rotation | Final displacement | Capture interval |
-| --- | --- | ---: | ---: | ---: |
-| 57 → 58 | 56 → 57 | 155.366° | 2.069 m | 4.016 s |
-| 128 → 129 | 127 → 128 | 175.280° | 2.079 m | 3.919 s |
-
-The first boundary is between fragments 8 and 9; the second is between fragments
-15 and 16. Connected views in captures 58–128 belong to fragments 9, 10, 11, 13,
-14 and 15. Their original accepted poses received approximately 174–177° world
-corrections. Some captures within this interval remain excluded.
-Fragment 8 received only 2.56–3.46° corrections; fragment 16 received 0.23–6.79°.
-
-There is no original accepted pose for capture 58. Comparing the last accepted
-capture 57 to capture 60 instead gives 16.622° / 0.296 m in the original live
-trajectory, versus 161.654° / 2.096 m in the final trajectory.
-At captures 128 → 129, original live motion was 10.915° / 0.107 m.
-
-All 145 image-orientation records specify 0°. The final matrices have valid
-proper rotations (maximum orthogonality error about 1.14e-14). Every final pose
-equals `fragment_to_world @ camera_to_fragment` exactly in this archive. The
-jumps therefore exist in reconstruction data, before rendering.
-
-## Which graph decisions caused the placement
-
-The archive records 103 original accepted poses and 134 final accepted poses:
-35 recovered views, 97 corrected poses and four formerly accepted views excluded.
-Fragment reconnection was applied. Final refinement was not applied because no
-trustworthy loop constraints were found. Bundle adjustment was not applied
-because 134 views exceeded its 128-view limit. Fresh final fusion then integrated
-the reconnection poses. Neither subsequent refinement stage created these flips.
-
-The important graph conflict is visible in `fragment_reconnection.verified_bridges`:
-
-* **1 → 14:** a geometric-only bridge remains `connected_to_scan: true`. Its
-  supporting zero-based camera pairs are `[18, 116]` and `[20, 106]`. It anchors
-  fragment 14 in the half-turned placement. Bridge 9 → 14 and the other retained
-  connections propagate this placement through the middle section.
-* **15 → 16:** a bridge validated with visual features and held-out depth has
-  five supporting pairs, including `[123, 128]` and `[127, 129]`. It ends with
-  `connected_to_scan: false`. The final placement disagrees with this measured
-  bridge by **179.889° / 0.833 m** in fragment-transform coordinates.
-* **0 → 16** and **1 → 16:** retained geometric connections place the last
-  section near its original orientation, creating the second discontinuity.
-
-The archive reports `optimization_fallback: Revalidated measured bridge poses`
-and `rejected_optimized_bridges: [[1, 2]]`. The fallback uses the previously
-constructed spanning-tree placement and retains bridges that validate there.
-This preserves the contradictory geometry-only placement and discards the
-visual bridge across fragments 15 and 16. The archive has no global ambiguity
-flag: `ambiguous_pairs` is empty.
-
-## Fresh checks against raw observations
-
-An isolated CPU audit decoded nine selected RGB-D observations and used their
-saved native-depth calibration, current SIFT extraction, alternating held-out
-point samples, and the production `_heldout` / `_visual_witness` checks. It also
-re-estimated two local connections with `_local_match`. Saved live transforms
-were seeds for those local fits; their acceptance still required raw evidence.
-No volume was constructed and no server state was changed.
-
-| Pair, one-based captures | Pose evaluated | Forward / reverse overlap | Forward / reverse RMSE | Visual witness |
-| --- | --- | --- | --- | --- |
-| 57 → 58 | Final saved pose | 0.205 / 0.189 | 16.80 / 16.92 mm | Fail |
-| 57 → 60 | Final saved pose | 0.234 / 0.236 | 16.38 / 16.28 mm | Fail |
-| 57 → 60 | Fresh local ICP/visual fit | 0.706 / 0.729 | 11.98 / 11.96 mm | Pass: 97 / 119 feature inliers |
-| 128 → 129 | Final saved pose | 0.102 / 0.103 | 16.27 / 17.53 mm | Fail |
-| 128 → 129 | Fresh measured local fit | 0.699 / 0.769 | 12.16 / 14.73 mm | Pass: 163 / 175 feature inliers |
-| 19 → 117 | Final geometric bridge support | 0.671 / 0.712 | 11.49 / 11.36 mm | Fail |
-| 21 → 107 | Final geometric bridge support | 0.556 / 0.564 | 13.13 / 12.97 mm | Fail |
-
-The fresh measured local fit across captures 128 → 129 gives **10.958° / 0.111 m**.
-The fresh local fit across captures 57 → 60 gives **16.622° / 0.296 m**.
-Both pass the existing raw visual and held-out geometric checks.
-The original, unrefitted 128 → 129 live pose narrowly fails held-out RMSE
-(15.30 mm reverse), so treating all original poses as unquestioned truth would
-also be inappropriate. The measured local fit resolves this small discrepancy.
-
-The bad 1 → 14 bridge demonstrates why geometric verification alone is
-insufficient here: its supporting depth surfaces meet the overlap and RMSE
-thresholds in the incorrect placement, while visual identity does not verify it.
-The box/chest and surrounding planar surfaces offer similar geometry from
-different directions. This symmetry explanation is an inference from the raw
-images and the reproduced geometric/visual disagreement; a complete ground-truth
-trajectory was not measured.
-
-The continuous client visual tracker also reports the same segment across both
-boundaries. Its estimated rotations are 22.804° at captures 57 → 58 and 11.931°
-at captures 128 → 129. These are corroborating measurements, not pose authority:
-some unrefined client transforms fail the held-out depth thresholds.
-
-## Relevant implementation and recommended correction
-
-In `scanner_server/fragments.py`:
-
-* `_verify_bridge` and `_verify_partial_bridge` can accept purely geometric
-  witnesses without requiring visual identity. Multiple cameras and held-out
-  depth can still validate a repeated shape at a false global orientation.
-* Local fragment construction retains the first successful recent reference.
-  A useful additional connection across an existing fragment boundary can be
-  lost: the audit verified captures 57 → 60 directly even though captures 58
-  and 59 had started fragment 9.
-* Spanning-tree initialization establishes one world placement before graph
-  optimization. Fallback then revalidates against that same placement and can
-  reject a contradictory measured visual edge while preserving false geometry.
-* Output validation checks surviving bridges; it does not independently
-  revalidate all available short-range raw connections across output boundaries.
-
-A correction should retain independently verified short-range RGB-D ties across
-fragments, use them to detect and reject conflicting geometric loop matches,
-and validate proposed output boundary motion against those measurements before
-fusion. The graph fallback should not resolve a half-turn conflict merely by
-keeping whichever spanning-tree placement was initialized first. Unresolved
-components should remain excluded rather than be fused at the ambiguous pose.
-
-Switching local refinement to measured RGB-D can recover the second boundary in
-this audit. That isolated result does **not** establish that the setting alone
-repairs the entire reconstruction. No production behavior was changed, no full
-alternative Finish run was performed, and no repaired session is claimed.
-
-## Local evidence and provenance
-
-The ignored directory `benchmark-output/chest8-investigation/` contains
-`audit.py`, `audit.json`, `audit.log`, `boundary-captures.jpg`, `plot.py` and
-`pose-jumps.png`. Images and pose arrays were not added to Git.
-
-Run the audit with the scanner's existing Python environment; it uses four
-OpenMP/OpenCV threads. The tested environment was Open3D 0.20.0, OpenCV 5.0.0,
-NumPy 2.5.3. `raw_local` uses the default ICP/visual path;
-`raw_measured` uses `measured_first=True`. The archived Finish used
-`final_local_refinement: icp` and `final_visual_first: off`.
-
-Exact SHA256 fingerprints:
-
-* `manifest.json`: `32027b8146332962632379a01cd675c2465c9e32a5dc8cf29718fb94c7208cb5`
-* `reconstruction.json`: `90a2165ef7f4003b90dd0f943775db6f51b696e29f8a88af2afe923fe3445729`
-* Local `audit.py`: `6d58b67b9ae484f6a6087e264e08760c2ad1e37f46bdd07a22e864eed26547a1`
-
-This investigation documents an observed failure and targeted raw-data checks.
-It does not certify the remaining poses or the resulting mesh as correct.
-
-## Algorithm correction and rebuilt session
-
-The subsequent production correction retains verified short-range camera ties
-across fragment boundaries, constructs the spanning forest in temporal/visual
-evidence order before anchoring it, and checks all measured output boundaries
-even when optimization prunes their original edges. If fallback still violates
-those measurements, Finish fails before fusion and preserves the previous
-volume and diagnostic evidence. See [the algorithm guide](FRAGMENT_RECONNECTION.md).
-
-Eight additional temporal bridges are found in chest 8, including the direct
-zero-based `[56, 59]` and `[127, 128]` RGB-D connections reproduced above. Three
-existing storage-boundary bridges remain. The resulting graph tests seven
-global pairs rather than the archive's 88. Early completion follows the existing
-connected-plus-redundant-cycle rule after these measurements establish coverage.
-This comparison describes graph work; the archived CUDA timing and the fresh CPU
-timing are not interchangeable performance benchmarks.
-
-The corrected algorithm was checked in two isolated replays:
-
-1. Original live poses as seeds: reconnects 143 of 145 observations.
-2. Already-flipped final poses as seeds: full Finish succeeds with 143 accepted
-   observations, fresh 5 mm fusion, mesh extraction and session export. None of
-   the original 134 accepted observations is excluded. Nine additional views
-   are recovered and 82 previously accepted poses are corrected. Raw indices
-   25 and 42 remain unconnected.
-
-| Captures, one-based | Archived final rotation / displacement | Rebuilt final rotation / displacement |
+| Boundary | Archived final rotation / displacement | Original live comparison |
 | --- | --- | --- |
-| 57 → 58 | 155.366° / 2.069 m | 23.490° / 0.435 m |
-| 128 → 129 | 175.280° / 2.079 m | 10.958° / 0.111 m |
+| 57 → 58 | 155.366° / 2.069 m | 57 → 60: 16.622° / 0.296 m (58 lacked a live pose) |
+| 128 → 129 | 175.280° / 2.079 m | 10.915° / 0.107 m |
 
-The largest relative rotation between retained output captures is now 38.518°;
-that transition spans a missing capture. All eleven retained temporal/storage
-boundaries pass a fresh calibrated raw visual/held-out check with the current
-source after export. The optional later pose-refinement and bundle-adjustment
-stages did not apply, so the repaired trajectory is the reconnection result.
-Final fusion activates 15,926 blocks at 5 mm with automatic capacity allocation.
+Middle fragments 9-15 acquired roughly 174-177° corrections. All image
+orientations were 0°, matrices were proper rotations and final poses equalled
+`fragment_to_world @ camera_to_fragment`: reconstruction introduced the jumps.
+Reconnection retained 134 versus 103 live views. Refinement found no loops and
+the old bundle pass refused over 128 views; neither created the flip.
 
-The new archive is
-`export/chest-8-scan-20261009-145-captures-temporal-fixed.zip`. It contains the
-rebuilt mesh and all 145 raw RGB/depth captures. Every image retains the original
-CRC and uncompressed size, and the entire new ZIP passes CRC verification.
-The original archive remains intact. Local evidence is in the ignored
-`benchmark-output/chest8-improved/` directory, including `boundary-validation.json`,
-the complete rebuilt report, logs, mesh, and `pose-jumps-fixed.png`.
+Geometric-only bridge 1→14 (support `[18,116]`, `[20,106]`) anchored the false
+orientation. Visual/depth bridge 15→16 had five witnesses but was disconnected;
+final placement disagreed by 179.889°/0.833 m. Geometric 0→16/1→16 put the last
+section near its old orientation. Fallback retained the initial spanning tree,
+discarded the conflicting visual edge and reported no ambiguity. Multiple depth
+witnesses could still match repeated box/floor geometry at a false orientation.
 
-To reproduce a full isolated rebuild from the already-flipped estimates:
+Saved 57→58 overlap was 0.205/0.189 and 128→129 0.102/0.103, both failing visual
+witnesses. Fresh local 57→60 passed overlap 0.706/0.729, residual 11.98/11.96 mm
+and 97/119 visual inliers. Fresh 128→129 passed 0.699/0.769, 12.16/14.73 mm and
+163/175 inliers at 10.958°/0.111 m. The wrong bridge's depth passed but visual
+identity failed. The old live 128→129 transform narrowly failed reverse RMSE
+(15.30 mm): archived poses were not authority either. Symmetry is a supported
+failure explanation, not an independent ground-truth trajectory measurement.
+
+## Correction and checked reconstruction
+
+Legacy fragments now preserve short-range RGB-D ties across boundaries, build
+the forest in temporal/visual evidence order and check output boundaries even
+after pruning their edges. Conflicting fallback fails before fusion, preserving
+prior state/diagnostics. [Final registration](FRAGMENT_RECONNECTION.md) describes
+these rules and the separate experimental depth mode.
+
+Eight added temporal bridges included `[56,59]`/`[127,128]`, alongside three
+storage bridges. Seven global pairs were tested versus 88 archived; fresh CPU
+and archived CUDA timing cannot establish a kernel speedup. Replays from original
+and already-flipped seeds both retained 143/145 (indices 25/42 unconnected).
+Already-flipped rebuild recovered nine, corrected 82, excluded none of the
+original 134 and required 15,926 blocks at 5 mm.
+
+Rebuilt boundaries were **23.490°/0.435 m** and **10.958°/0.111 m**. All 11
+retained temporal/storage boundaries passed post-export visual/depth checks.
+Largest rotation was 38.518° across a missing capture. All 290 image CRCs/sizes
+and timestamps matched; the new ZIP passed full CRC checks. This repairs the
+observed half-turn without certifying every pose or surface.
+
+## Loops found versus corrections applied
+
+[Camera refinement](POSE_REFINEMENT.md) selected 64 keyframes/22 loops: nine
+fragment supports, eight appearance, five geometry; `[0,140]` passed. All 11
+boundaries were protected. Independent loss improved 1.984983%
+(`0.000803339241838256` → `0.000787393090907004` m²), below the unchanged 2%
+minimum, so refinement was refused. Earlier interpolation failures motivated
+all-output validation and anchored world-frame correction interpolation.
+
+[Bundle adjustment](JOINT_RGBD_REFINEMENT.md) removed the total-view cutoff while
+bounding the solver at 24 cameras/800 landmarks/96 pairs and depth cache at eight
+views. It found 24 pairs/483 three-view landmarks, but 13 selected cameras,
+including the anchor, lacked 24 observations; no correction applied. Finish
+still retained 143/145 and the boundary repair.
+
+## Provenance
+
+[Compact loop evidence](benchmarks/chest8-loop-refinement.json) is public.
+Ignored `benchmark-output/chest8-investigation`, `chest8-improved` and
+`chest8-refinement` retain audits, checks, logs and plots; `temporal-fixed` and
+`refinement-checked` session ZIPs remain local exports. Environment:
+Open3D 0.20.0/OpenCV 5.0.0/NumPy 2.5.3, four threads. The marker-insertion adapter
+was rebound as policy v2; old v1 proofs were unchanged and do not authorize it.
 
 ```powershell
 $env:OMP_NUM_THREADS = '4'
 $env:KINECT_NATIVE = 'off'
 $env:KINECT_CUDA_INPUT = 'off'
 $env:KINECT_CUDA_REGISTRATION = 'cpu'
-python scripts/reconnect_session.py export/chest-8-scan-20261009-145-captures.zip `
-  --use-pose-seeds --device cpu --save-session `
-  --output-dir benchmark-output/chest8-rebuild
+python scripts/reconnect_session.py /path/to/original.zip --use-pose-seeds --device cpu --save-session --output-dir benchmark-output/chest8-rebuild
 ```
 
-The numerical environment was the same Open3D 0.20.0 / OpenCV 5.0.0 / NumPy
-2.5.3 server environment used in the investigation, with four OpenMP/OpenCV
-threads. A separate chest-6 replay retains all 38 captures, excludes none, and
-has a largest relative rotation of 13.968°. Regression coverage includes 24
-fragment tests, 31 additional appearance/fusion/feature checks, and 40 research
-contracts; one optional client check is skipped. New regressions exercise raw
-temporal recovery, conflicting measurements, timestamp pauses, unsynchronized
-RGB-D, false geometric loop ordering, and failure before fusion with diagnostics
-preserved.
+No available saved trajectory is independent ground truth.
 
-The offline marker-insertion research adapter is explicitly rebound as policy
-v2 to the changed production function. Its exact-source and insertion-removal
-checks still pass. Historical v1 reports are unchanged and do not establish
-numerical or timing authority for this new algorithm.
-
-These results address the observed half-turn failure. They do not provide a
-ground-truth trajectory or certify every surface in the rebuilt mesh.
-
-## Camera-level loops and the bundle view limit
-
-The follow-up implements [camera-level loop diagnostics and denser sampling](POSE_REFINEMENT.md)
-and removes the bundle pass's hard 128-view refusal. Bundle validation now
-streams all output views through an eight-cloud cache; solver work remains
-bounded independently at 24 selected cameras, 800 landmarks and 96 pairs.
-
-In the final full CPU Finish from the original archive, 64 selected keyframes
-produce 22 measured loop constraints, and the optimizer retains all 22. Nine
-come from exact camera support pairs in the committed fragment report, eight
-from appearance retrieval, and five from geometric retrieval. All eleven
-temporal/storage boundaries are remeasured as protected constraints. The
-end/start camera pair at zero-based indices `[0, 140]` passes the loop gates.
-Candidates now report specific rejection gates and measured statistics.
-
-Independent keyframe loss falls from `0.000803339241838256` to
-`0.000787393090907004` square metres: a **1.984983%** improvement. The existing
-minimum is 2%, so this camera-level proposal is deliberately refused before
-fusion. Finding loop edges therefore does not imply an applied drift correction.
-An earlier full replay passed keyframe validation but exposed a problem in
-interpolated cameras, motivating mandatory all-output depth checks and anchored
-correction interpolation. A pre-existing partial-overlap pair uses the same
-five-percentage-point loss tolerance as other existing-trajectory pairs; it
-cannot evade per-pair error, mean improvement, or boundary checks.
-
-Bundle adjustment actually examines the 143 accepted views rather than refusing
-their count. It finds 24 verified pairs and 483 three-view landmarks, but 13 of
-24 selected cameras have fewer than the required 24 track observations. Those
-cameras, including the anchored first view, are reported by stored capture
-index. No joint camera/landmark correction is applied. Increasing the recording
-limit alone does not supply missing connected feature identities.
-
-Finish still succeeds with 143/145 observations, fresh 5 mm fusion, mesh and ZIP
-export. The half-turn repair remains: the two original jump boundaries retain
-23.490° and 10.958° relative rotations. A separate post-export raw check passes
-all eleven retained boundaries. All 290 image CRCs and sizes and all capture
-timestamps match the original; the new archive passes full CRC verification.
-
-The checked archive is
-`export/chest-8-scan-20261009-145-captures-refinement-checked.zip`. Detailed local
-reports are in `benchmark-output/chest8-refinement/`, and a compact reproducible
-summary is committed at [chest8-loop-refinement.json](benchmarks/chest8-loop-refinement.json).
-The final checks cover 55 geometry/integration/benchmark tests, 24 fragment
-tests and 72 research contracts; the CPU run skips one CUDA-only test and the
-optional Qt client test. A genuine camera/landmark solve on a 143-view synthetic
-recording validates every output view with bounded cache residency. That fixture
-contains six distinct measured raycast viewpoints with denser repeated captures;
-it establishes bounded coverage, not evidence of absolute accuracy on chest 8.
+[Full historical record](https://github.com/soswow/Kinect-3D-Scanner/blob/762a6dac3b5a48b5865d382bbf18cd1746c37999/docs/CHEST_8_INVESTIGATION.md) preserves the complete tables, old
+thresholds, exact fingerprints and validation chronology.

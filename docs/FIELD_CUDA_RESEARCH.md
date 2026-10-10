@@ -1,5 +1,11 @@
 # Field CUDA research: chest-5, chest-6 and chest-7
 
+This reference preserves source-bound historical field experiments and their
+positive/negative results. "Installed" describes the measured checkpoint, not
+an installation verified on a reader's machine. Use the
+[script index](../scripts/README.md) for current commands. Original sessions and
+full proof artifacts remain local; public bounded summaries are linked below.
+
 The field option ready to try is `scripts/start_cuda_server.ps1 -Recipe adaptive
 -CudaInput auto -LiveRecovery deferred`. On these three raw selected-view
 replays, deferred recovery reduced Live processing by 46.5–78.3% and total

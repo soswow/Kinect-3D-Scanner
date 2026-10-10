@@ -1,16 +1,24 @@
 # Live reconstruction, compute backends, textures, and final refinement
 
+Current use: new UI scans start with live reconstruction **off** and experimental
+depth/color/motion Finish registration selected. Saved preferences and projects
+retain their settings. See [final registration](FRAGMENT_RECONNECTION.md) and
+[offline buffering](OFFLINE_CAPTURE_UPLOADS.md). Measurements and test totals
+below describe their historical checkpoints.
+
 These additions build on the tracking and recording changes in
 [SCAN_QUALITY.md](SCAN_QUALITY.md). They add working CPU paths and an explicitly
-selected CUDA path. NVIDIA hardware was not available for validation. The
+selected CUDA path. NVIDIA hardware was unavailable at that initial checkpoint;
+later [CUDA studies](CUDA_EXPERIMENTS.md) and [field results](FIELD_CUDA_RESEARCH.md)
+provide hardware measurements. The
 subsequent capture/shutdown repair was checked with a connected Kinect v1:
 258 RGB/registered-depth pairs in 9.3 seconds, at most 23.6 ms pairing offset,
 and Qt window shutdown in 0.32 seconds. This validates acquisition and closure,
 not the reconstruction accuracy of that physical scene.
 
 The next six software milestones are now implemented. See
-[IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) for current commands,
-validation and remaining hardware acceptance. Earlier benchmark results below
+[development history](DEVELOPMENT_HISTORY.md) for completed checkpoints and the
+[script index](../scripts/README.md) for commands. Earlier benchmark results below
 remain historical evidence rather than predictions for a new device.
 
 ## Compute selection
@@ -55,7 +63,7 @@ Accelerating fusion alone would therefore leave most of that run's cost intact.
 
 ## Continuous feedback
 
-The GUI enables **Live fused point cloud feedback** for new scans. API clients use
+Enable **Show live reconstruction** for live fused feedback. API clients use
 `{"live_reconstruction": true}` in reset settings; omission retains the previous
 on-demand processing workflow.
 
@@ -177,7 +185,7 @@ Datasets, captures, exports, and detailed replay artifacts remain ignored by Git
 Enable **Final pose refinement**, reset with `refine_poses: true`, or pass
 `--refine-poses` to replay. It remains off by default. The current implementation:
 
-- Uses at most 32 accepted keyframes and 40 loop candidates, up to half proposed
+- Uses at most 64 accepted keyframes and 40 loop candidates, up to half proposed
   by mutual ORB/measured-depth PnP outside the estimated position radius, and a
   fixed first-camera anchor.
 - Requires reciprocal robust ICP, sufficient overlap, low residual, normal
@@ -188,6 +196,10 @@ Enable **Final pose refinement**, reset with `refine_poses: true`, or pass
 - Interpolates bounded keyframe corrections into all accepted poses and fuses
   raw frames into a **fresh** TSDF. The old volume/poses remain intact if native
   reintegration fails. Unchanged sessions do not repeat refinement.
+
+For current sampling, protected-boundary and all-output validation rules, see
+[camera loop refinement](POSE_REFINEMENT.md). Experimental depth registration
+skips this optional legacy stage.
 
 Appearance proposals can discover distant loops, but many scenes lack enough
 trustworthy RGB/depth correspondences. It cannot recover already discarded frames
@@ -236,7 +248,8 @@ OMP_NUM_THREADS=4 python scripts/replay_scan.py --dataset tum \
 ```
 
 The corresponding software tools are implemented; physical calibration, matched
-live scans, NVIDIA profiling and broader scene comparisons remain to be run.
+live scans and broader scene comparisons remain evidence requirements. Later
+NVIDIA profiling is linked above.
 Patch seam leveling and turntable capture require subsequent work. See the
 research roadmap and milestone log for current status.
 

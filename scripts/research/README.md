@@ -1,230 +1,94 @@
-# Active performance research
+# Scanner research
 
-These experiments are separate from the released scanner. They are retained
-because they provide a concrete next validation step or a useful dispatcher and
-architecture prototype. Run commands from the repository root. The
-[catalog](../tool-catalog.json) records every relocated path; the
-[archive index](archive/README.md) explains retained dependencies and earlier
-negative results.
+Offline experiments, retained prototypes and their evidence live here. Start
+with the family below that answers your question; the catalogs list individual
+tools. These experiments do not select a released scanner backend.
 
-## Current field study
+- [Field study](../../docs/FIELD_CUDA_RESEARCH.md): raw chest-5/6/7 controls,
+  recovery tradeoffs and quality limits.
+- [Current Finish results](GPU_ICP_CURRENT_FINISH_RESULTS.md): C5 improved
+  modestly, C6 showed no useful gain, and C7 has unresolved strict quality
+  failures. C8 has a saved raw replay but no Finish qualification.
+- [Published report index](../../docs/benchmarks/CUDA_REPORTS.md) and
+  [experiment record](../../docs/CUDA_EXPERIMENTS.md): measured history.
+- [Field tool catalog](field-tool-catalog.json): current tools, protocols and
+  supporting modules; [original catalog](../tool-catalog.json): relocated paths.
+- [Archive](archive/README.md): earlier negative results and imported foundations.
 
-The chest-5/6/7 findings and field tradeoffs are in
-[Field CUDA research](../../docs/FIELD_CUDA_RESEARCH.md). The existing deferred
-recovery workflow reduced selected-view Live work by 47–78% with matching Final
-coverage and passing physical surface comparisons, while producing a sparser
-Live preview. It is available through the launcher `-LiveRecovery deferred`;
-the default stays `full`. The client still shows `legacy` because production ICP
-and geometric verification remain on CPU.
+Production ICP and geometric verification remain on CPU. The existing
+`-LiveRecovery deferred` launcher option reduced selected-view Live work by
+47–78% in the field study with matching Final coverage and passing physical
+surface comparisons, at the cost of a sparser Live preview; `full` is the default.
 
-The [additive field-tool inventory](field-tool-catalog.json) lists the new
-protocols and their supporting modules. The original relocation catalog stays
-unchanged because measured earlier component proofs bind its exact bytes.
+## Find an experiment
 
-| Entry point or protocol | Future use |
-|---|---|
-| [analyze_field_sessions.py](analyze_field_sessions.py) | Inspect raw ZIP metadata/settings/coverage without initializing numerical libraries |
-| [benchmark_field_sessions.py](benchmark_field_sessions.py) | Historical matched CPU/CUDA raw selected-view baseline producer |
-| [benchmark_field_policy.py](benchmark_field_policy.py) | Compare existing full/deferred CUDA recovery with owned Windows worker cleanup and complete settings/backend closure |
-| [summarize_field_latency.py](summarize_field_latency.py) | Recompute latency quantiles from closed raw profiles without importing CUDA |
-| [compare_field_experiment.py](compare_field_experiment.py) | Fixed-coordinate observable mesh comparison; no backend or graph authority |
-| [CHECKPOINT_RESIDENT_FINISH_RESEARCH.md](CHECKPOINT_RESIDENT_FINISH_RESEARCH.md) | Same measured Live checkpoint and strict ordered-history experiments; failed field comparisons remain evidence |
-| [FIELD_FINISH_CONFORMANCE.md](FIELD_FINISH_CONFORMANCE.md) | Distinct actual-input CPU shadows, original graph/witness decisions and physical Final quality protocol |
-| [BULK_LEGACY_NN_AUDIT.md](BULK_LEGACY_NN_AUDIT.md) | Full legacy CPU nearest auditing through a separately proven native bulk interface |
-| [COMBINED_SYNC_RESEARCH.md](COMBINED_SYNC_RESEARCH.md) | Audited one-copy ICP orchestration and separate contemporary three-way timing; does not select a production backend |
-| [DEVICE_LDLT_RESEARCH.md](DEVICE_LDLT_RESEARCH.md) | Captured original systems and CUDA solver numerical/micro-scope tests; isolated GPU solve was slower |
-| [CANONICAL_FPFH_RESEARCH.md](CANONICAL_FPFH_RESEARCH.md) | Diagnose and test proposal-input stability without changing original training/verification points |
-| [MARKER_PROPOSAL_RESEARCH.md](MARKER_PROPOSAL_RESEARCH.md) | Exact native marker lookup and proposal experiments; appending more seeds did not help whole Finish |
-| [FINAL_HEADROOM_RESEARCH.md](FINAL_HEADROOM_RESEARCH.md) | Reproduce Open3D repeated-key reserve growth and distinguish logical limits from actual allocation |
-| [benchmark_missing_activation.py](benchmark_missing_activation.py) | Compare original and missing-key activation with per-key CPU/tensor/fused voxel-bit checks |
-| [benchmark_production_missing_activation.py](benchmark_production_missing_activation.py) | Check installed weighted Final allocation with native capacity and per-key voxel-bit comparisons |
-| [probe_final_budget.py](probe_final_budget.py) | Verify an insufficient Final budget using a fresh current-source raw replay; allocation only |
-| [summarize_production_allocation.py](summarize_production_allocation.py) | Publish bounded scalar production validation from closed local reports |
-| [GPU_ICP_MICROBATCH_RESULTS.md](GPU_ICP_MICROBATCH_RESULTS.md) | Executed proposal batching, complete GPU iterations, CUDA graphs and exact-neighbour variants; correctness and timing scopes |
-| [gpu_icp_experiment_capture.py](gpu_icp_experiment_capture.py) | Rebuild genuine current field-pair proposals from raw calibrated views |
-| [gpu_icp_experiment_driver.py](gpu_icp_experiment_driver.py) | Audit original ICP results and all original proposal gates, then separately time two/four independent seeds |
-| [gpu_icp_experiment_loop_probe.py](gpu_icp_experiment_loop_probe.py) | Exhaustive actual-query audit of complete device iterations against CPU and CUDA graph execution |
-| [gpu_icp_device_loop_experiment.py](gpu_icp_device_loop_experiment.py) | Own current-input complete-device audit and separately authorized graph timing, including construction and target setup |
-| [summarize_gpu_icp_microbatch.py](summarize_gpu_icp_microbatch.py) | Publish bounded scalar samples and fresh original gate/query coverage from closed batch reports |
-| [summarize_gpu_icp_device_loop.py](summarize_gpu_icp_device_loop.py) | Publish current-input device-loop query audits and separately measured setup-charged graph timing |
-| [device_loop_workspace.py](device_loop_workspace.py) | Reuse pristine compiled execution setup while each complete proposal call owns fresh buffers, state and graph |
-| [microbatch_bridge_driver.py](microbatch_bridge_driver.py) | Exhaust all genuine proposals through original complete bridge gates, then separately time only its fresh audited dynamic trajectory |
-| [microbatch_bridge_protocol.py](microbatch_bridge_protocol.py) and [device_loop_workspace_protocol.py](device_loop_workspace_protocol.py) | Distinct complete-proposal timing authority, preserving actual unrounded inputs, query shadows, terminals and ambiguity |
-| [microbatch_bridge_scope.py](microbatch_bridge_scope.py) | Private unchanged original verifier namespaces and match caches; preserve actual return objects and ordered gate evidence |
-| [summarize_gpu_icp_complete_bridge.py](summarize_gpu_icp_complete_bridge.py) | Publish small scalar receipts from closed complete-proposal audit and matched timing runs |
-| [profile_complete_bridge.py](profile_complete_bridge.py) | Observational Python boundary attribution; profiling overhead prevents speed claims from those runs |
-| [device_loop_owned_workspace.py](device_loop_owned_workspace.py), [microbatch_bridge_owned_driver.py](microbatch_bridge_owned_driver.py) and [microbatch_bridge_owned_protocol.py](microbatch_bridge_owned_protocol.py) | Fresh complete-proposal audit with owned read-only proof handles and immutable indexed references; removes measured harness I/O overhead |
-| [summarize_gpu_icp_owned_bridge.py](summarize_gpu_icp_owned_bridge.py) | Publish matched complete-proposal timings after closed owned-proof receipts |
-| [benchmark_warp_flat_grid_filtered_nn.py](benchmark_warp_flat_grid_filtered_nn.py) and [research_warp_flat_grid_filtered_nn.cu](research_warp_flat_grid_filtered_nn.cu) | Conservative warp float screening with exact original double outputs; measured 12.6% raw lookup wall reduction, without scanner speed authority |
-| [benchmark_icp_seed_reuse_census.py](benchmark_icp_seed_reuse_census.py) | Observe exact-cloud and near-seed repetition while executing every original CPU alignment and proposal check |
-| [summarize_icp_seed_reuse_census.py](summarize_icp_seed_reuse_census.py) | Publish closed census counts and result differences without private clouds, seeds or performance claims |
-| [near_seed_icp.py](near_seed_icp.py) and [benchmark_near_seed_reuse.py](benchmark_near_seed_reuse.py) | Bounded changed-method CPU result reuse with fresh actual-hit CPU audits; preserves the failed strict timing attempt |
-| [benchmark_near_seed_conformance.py](benchmark_near_seed_conformance.py) | Independent actual-input numerical conformance and all original controls/gates; measured 7.0% median matched cold-phase reduction across nine fixed pairs |
-| [summarize_near_seed_conformance.py](summarize_near_seed_conformance.py) | Recompute closed fixed-pair timing references and publish scalar receipts, including strict-v1 refusal; no production or whole-Finish authority |
-| [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py) | Explicit changed-budget/epsilon pilot through original proposal gates; measured shortcuts failed pose/witness comparison |
-| [GPU_ICP_MICROBATCH_ARCHITECTURE.md](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Ordering, memory ownership and integration requirements for proposal batching and complete device iterations |
-| [GPU_ICP_CURRENT_FINISH_RESULTS.md](GPU_ICP_CURRENT_FINISH_RESULTS.md) | Closed C5/C6 whole-Finish comparisons, C7 strict quality failures, negative thread/refinement pilots and stopped C8 checkpoint |
-| [monitor_gpu_icp_worker.py](monitor_gpu_icp_worker.py) | Windows process-generation, actual wait/exit, descendant cleanup and sampled overlap receipts; no all-GPU exclusivity claim |
-| [compare_gpu_icp_temporal_diagnostics.py](compare_gpu_icp_temporal_diagnostics.py) | Supplement a passed physical Final comparison with available temporal diagnostics; unavailable history remains uncollected |
-| [cpu_first_icp_routing.py](cpu_first_icp_routing.py) | Tested source-only routing policy for later costly exact directed pairs; no measured routing benefit or scanner integration |
-| [CACHED_TARGET_GEOMETRY_RESULTS.md](CACHED_TARGET_GEOMETRY_RESULTS.md) and [cached_target_geometry_native.md](cached_target_geometry_native.md) | Closed finite-fixture exact nearest-lookup parity, cache/setup clock boundaries and reproduction instructions |
-| [build_cached_target_geometry_native.py](build_cached_target_geometry_native.py) | Executed pinned MSVC helper build with explicit archives/toolchain, source verification and retained failure receipts |
-| [benchmark_cached_target_geometry.py](benchmark_cached_target_geometry.py) and [benchmark_cached_target_geometry_prepared.py](benchmark_cached_target_geometry_prepared.py) | Reproduce original scalar parity and separately scoped native/prepared lookup timing; no complete ICP or Finish gain |
-| [cached_target_geometry_native.cpp](cached_target_geometry_native.cpp), [cached_target_geometry_native.py](cached_target_geometry_native.py) and [cached_target_geometry_prepared.py](cached_target_geometry_prepared.py) | Bounded immutable target index, Python owner adapter and prepared lease used by the checked lookup pilots |
+| Family | Start here | Scope or status |
+|---|---|---|
+| Raw field sessions and recovery | [Field study](../../docs/FIELD_CUDA_RESEARCH.md), [analyze_field_sessions.py](analyze_field_sessions.py), [benchmark_field_policy.py](benchmark_field_policy.py), [summarize_field_latency.py](summarize_field_latency.py) | Read ZIP metadata without numerical imports; compare policies and recompute closed-profile latency |
+| Current whole-Finish candidate | [Current results](GPU_ICP_CURRENT_FINISH_RESULTS.md), [profile_gpu_icp_finish_candidate.py](profile_gpu_icp_finish_candidate.py) | Fresh current-core capture/native/audit/shadow/measure modes; no production qualification |
+| Checkpoint and field conformance | [Checkpoint study](CHECKPOINT_RESIDENT_FINISH_RESEARCH.md), [field conformance](FIELD_FINISH_CONFORMANCE.md), [analyze_finish_trace_differences.py](analyze_finish_trace_differences.py) | Preserve failed strict histories, actual-input shadows and independent Final quality |
+| Exact device nearest queries | [Device-flat notes](DEVICE_FLAT_GRID_RESEARCH.md), [benchmark_device_grid_resident.py](benchmark_device_grid_resident.py) | Fixed-component proofs; active adapters inherit archived grid and resident code |
+| CPU bulk shadows | [Bulk audit](BULK_LEGACY_NN_AUDIT.md) | Complete original nearest-query audit; auditor throughput is separate from scanning speed |
+| One-copy orchestration and source checks | [Combined synchronization](COMBINED_SYNC_RESEARCH.md), [source-guard experiment](COMBINED_SOURCE_GUARD.md) | Separate audit/timing authorities; retained regression and causal component result |
+| Device solver | [LDLT study](DEVICE_LDLT_RESEARCH.md) | Captured original systems; isolated GPU solve was slower |
+| Proposal batching, graphs and bridge ownership | [Microbatch results](GPU_ICP_MICROBATCH_RESULTS.md), [architecture](GPU_ICP_MICROBATCH_ARCHITECTURE.md) | Complete iterations, exact neighbours, setup reuse and owned proof handles |
+| Seed reuse and convergence | [Current results](GPU_ICP_CURRENT_FINISH_RESULTS.md), [benchmark_icp_seed_reuse_census.py](benchmark_icp_seed_reuse_census.py), [benchmark_near_seed_conformance.py](benchmark_near_seed_conformance.py), [benchmark_icp_convergence_tradeoff.py](benchmark_icp_convergence_tradeoff.py) | Census, bounded changed-method reuse and failed pose/witness shortcuts |
+| Canonical features and markers | [FPFH proposal notes](CANONICAL_FPFH_RESEARCH.md), [marker proposal notes](MARKER_PROPOSAL_RESEARCH.md), [current results](GPU_ICP_CURRENT_FINISH_RESULTS.md) | Separate proposal policies; additional marker seeds did not improve whole Finish |
+| Final allocation | [Headroom investigation](FINAL_HEADROOM_RESEARCH.md), [installed allocation validation](PRODUCTION_ALLOCATION_VALIDATION.md) | Preserve failed reserve experiment; missing-key production validation is a distinct study |
+| Cached native target geometry | [Closed results](CACHED_TARGET_GEOMETRY_RESULTS.md), [source/build contract](cached_target_geometry_native.md) | Exact finite-fixture lookup parity; no complete ICP or Finish gain |
+| Routing and parallel/model prototypes | [cpu_first_icp_routing.py](cpu_first_icp_routing.py), [benchmark_parallel_fragments.py](benchmark_parallel_fragments.py), [benchmark_anchored_gpu_model.py](benchmark_anchored_gpu_model.py), [benchmark_dense_model.py](benchmark_dense_model.py), [plot_gpu_model_experiments.py](plot_gpu_model_experiments.py) | Source-only routing, modest dispatcher gains and synthetic model architecture; fixed saved-report plotter |
 
-These files have different jobs: runnable experiments, bounded adapters,
-independent validators, fault contracts and negative-result diagnostics. They
-are retained to reproduce a result or test a concrete next change. A component
-speedup, source-only test or partial native surface reference never enables an
-unaudited whole-scanner path. Private captures, checkpoint arrays and compiled
-libraries stay under ignored output folders and must be rebuilt locally.
+Protocol documents may preserve their original preparation status. Read the
+linked closed results and report index for later execution outcomes. Keep failed
+and unexecuted experiments distinguishable from successful component results.
 
-The [executed complete-pair results](GPU_ICP_MICROBATCH_RESULTS.md#complete-gpu-verification-on-expensive-pairs)
-now distinguish the earlier easy cases from expensive accepted and rejected
-pairs. Complete GPU iterations improved the latter by 25–39% in the finished
-cases, with fresh original-CPU query/result/gate audits and cold setup/cleanup
-included. This is a stronger component result, still requiring whole-Finish
-quality and timing before production integration.
+## Reproduce safely
 
-## Device-resident nearest queries and ICP
+Run commands from the repository root in the scanner/native environment.
+Hardware paths require CUDA-enabled Open3D and CuPy; plotting needs Matplotlib.
+Private raw ZIPs, checkpoints, fixture arrays, SDK downloads and compiled DLLs
+are ignored local inputs and must be obtained or rebuilt locally. A public
+scalar summary cannot reproduce unavailable private numerical inputs.
 
-An earlier fixed-component experiment measured **8.339 seconds first / 7.450
-seconds warm**, against **11.209 seconds native CPU**: approximately **1.34× /
-1.50× faster**. Fresh CPU audits checked 104,123,989 nearest queries with zero
-changed IDs or false misses, and all nine original proposal/witness/pose gates
-passed. These are two-pair component results, not complete-session Finish or
-mesh measurements. The production registration path is unchanged.
+CPU/native audits and timing run separately in an exclusively allocated hardware
+slot, outside active scanning. Stop the field server only after the scan is safe.
+Use fresh output paths, check every command's exit and preserve failed reports.
+An exit of zero can still accompany a failed comparison; inspect the report's
+explicit quality/pass fields before treating an experiment as accepted.
+Older OptiX producers can overwrite outputs and may record `passed` during an
+interrupt; reject interrupted runs regardless of that field. Preserve their
+frozen source and use a fresh path rather than rerunning over evidence.
+Follow the selected protocol's exact input, thread, device, cache and runtime
+requirements; CLI help alone is not evidence that a run is qualified.
 
-Read the [device-flat research notes](DEVICE_FLAT_GRID_RESEARCH.md),
-[published compact result](../../docs/benchmarks/cuda-pipeline/uniform-grid-nearest/device-resident-v1/research-summary.json)
-and [full experiment report](../../docs/CUDA_EXPERIMENTS.md#true-device-flat-grid-with-resident-icp).
+Historical source-bound experiments use baseline
+`fb9069d33cd12efb3b305054934fea28ffbc1959` in a separate checkout. Read
+[measured-byte restoration](MEASURED_SOURCE_REPRODUCIBILITY.md): Git newline
+conversion can change authority even when normalized code is unchanged. Later
+production allocation changes correctly invalidate historical core guards.
+Current-source tools bind the source they actually measure.
 
-| File | Role |
-|---|---|
-| [benchmark_device_grid_resident.py](benchmark_device_grid_resident.py) | Fresh synthetic tests and original nine-proposal trajectory with CPU hit/miss shadows |
-| [benchmark_device_grid_resident_timing.py](benchmark_device_grid_resident_timing.py) | Separate native/first/warm timing after distinct proofs validate |
-| [cuda_device_flat_grid_registration.py](cuda_device_flat_grid_registration.py) | Bounded original XYZ/index ownership and device query/result transport |
-| [research_device_flat_grid_nn.cu](research_device_flat_grid_nn.cu) | Exact ambiguity classification, flagged-row packing and correction scatter |
-| [research_device_grid_resident_icp.py](research_device_grid_resident_icp.py) | Resource/provenance wrapper around the inherited resident math |
-| [device_flat_grid_synthetic.py](device_flat_grid_synthetic.py) | Focused classifier, transport, failure and cache-lifetime tests |
-| [validate_device_flat_grid_proof.py](validate_device_flat_grid_proof.py) | Distinct immutable authority for a freshly audited resident trajectory |
-| [check_device_flat_proof_contract.py](check_device_flat_proof_contract.py) | Artificial stdlib contract/fault tests; no numerical authority |
-| [summarize_device_grid_resident_research.py](summarize_device_grid_resident_research.py) | Closed-report provenance, execution and disjoint host-wall summary |
+The resident method needs the pinned Eigen CPU bridge, built locally with
+Visual Studio using [research_resident_icp.py](archive/research_resident_icp.py).
+Active modules also import archived adapters, shaders, producers and validators.
+Archive placement does not make a dependency disposable.
 
-Current field-pair experiments above have separate fresh proofs and measured
-setup costs. A controlled complete-session experiment must
-retain original raw/live tracking inputs, all final acceptance gates and mesh
-comparison. Only complete quality, memory and latency evidence could support a
-future opt-in production integration. No automatic promotion follows from the
-component result.
+Source, catalog, document, line-ending, platform, binary and resource-policy
+changes can invalidate measured proofs and checkpoints. The original catalog
+is byte-preserved because older proofs bind it. Do not replace saved hashes,
+rewrite old reports or bypass a guard to run a new layout. Rebuild required
+artifacts and generate fresh synthetic plus actual-trajectory evidence, or use
+the exact frozen baseline.
 
-## Current-core whole-Finish GPU candidate
+### Current-core whole-Finish GPU candidate
 
-[profile_gpu_icp_finish_candidate.py](profile_gpu_icp_finish_candidate.py) is
-the lower-overhead successor to the frozen strict Finish study. It creates
-its own fresh raw-Live checkpoint on the actual current production core,
-including automatic fusion allocation. The original fragment verifier and
-all reconstruction checks still run. One bounded GPU workspace persists
-across Finish; immutable cloud buffers persist across competing proposals
-for a directed pair. Detailed gate observers are omitted, and source/runtime
-inventory checks run at cold boundaries. This is a research prototype;
-production ICP selection is unchanged.
-
-The modes make their evidence and cost explicit:
-
-- `capture` replays all raw views without archived pose seeds and stores a
-  source-bound logical Live checkpoint.
-- `native` calls original Finish directly and exports its actual Final poses
-  and geometry. Internal registration, gate and optimizer traces are
-  explicitly uncollected.
-- `audit` checks every actual GPU nearest query and complete registration
-  against the original CPU on the same inputs.
-- `shadow` calls original CPU ICP before every GPU call on identical clouds
-  and the unrounded seed, then compares returned results. It does not claim
-  an exhaustive nearest-query audit.
-- `measure` requires a fresh positive exhaustive audit of these actual
-  source/runtime/configuration bytes. Each subsequent call binds its own
-  newly consumed inputs; it does not claim to replay an old RANSAC history
-  or prove a general input domain. CPU shadows and exhaustive query checks
-  are omitted. Setup, hashing, original build, selected-device completion,
-  allocation validation and cleanup remain charged inside Finish.
-
-Run only with exclusive hardware and the field server stopped after the scan
-is safe. From the main Windows checkout, use the CUDA environment and a fresh
-private directory; never overwrite previous measurements:
-
-```powershell
-$cudaStudyPython = '.venv/Scripts/python.exe'
-$cudaStudyRunner = 'scripts/research/profile_gpu_icp_finish_candidate.py'
-$rawStudySession = 'export/chest-5-scan-session.zip'
-$cudaStudyDirectory = 'benchmark-output/field-cuda-study/gpu-icp-candidate-v1/chest-5'
-& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode capture --checkpoint-directory "$cudaStudyDirectory/live" --output "$cudaStudyDirectory/capture.json" --run-allocated
-& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode native --checkpoint "$cudaStudyDirectory/live/checkpoint.json" --output "$cudaStudyDirectory/native.json" --run-allocated
-& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode audit --checkpoint "$cudaStudyDirectory/live/checkpoint.json" --output "$cudaStudyDirectory/audit.json" --run-allocated
-& $cudaStudyPython -s -u scripts/research/compare_gpu_icp_candidate_finishes.py "$cudaStudyDirectory/native.json" "$cudaStudyDirectory/audit.json" --output "$cudaStudyDirectory/audit-quality.json" --run-allocated
-& $cudaStudyPython -s -u $cudaStudyRunner $rawStudySession --mode measure --checkpoint "$cudaStudyDirectory/live/checkpoint.json" --candidate-proof "$cudaStudyDirectory/audit.json" --output "$cudaStudyDirectory/measure-0.json" --run-allocated
-& $cudaStudyPython -s -u scripts/research/compare_gpu_icp_candidate_finishes.py "$cudaStudyDirectory/native.json" "$cudaStudyDirectory/measure-0.json" --output "$cudaStudyDirectory/measure-0-quality.json" --run-allocated
-```
-
-Check each command's exit before continuing. The independent comparator uses
-actual accepted views, unrounded Final poses within 0.5 mm / 0.1 degrees, and
-30,000-point physical surfaces in the original coordinates, with p95 at most
-0.5 mm and precision/completeness at least .999 within 5 mm. Published bridge
-and witness memberships are compared separately from unavailable optimizer
-traces. Compare every measured Finish against an independent native control;
-rotate multiple fresh native/GPU runs before reporting a speed gain. Audit
-and shadow walls include CPU validation and cannot establish GPU performance.
-Old strict failures and fixed-pair permits cannot authorize this new study.
-
-The [closed current-core results](GPU_ICP_CURRENT_FINISH_RESULTS.md) record
-three matched C5/C6 repeats and C7's unresolved strict quality failures. C5
-improved modestly; C6 gave no useful gain. C7's faster timing cohort is not
-qualified because two comparisons fail. Production ICP remains unchanged.
-The original C8 replay is saved, with no Finish or GPU qualification yet.
-The [historical complete-Finish results](GPU_ICP_MICROBATCH_RESULTS.md#complete-finish-strict-audit-and-observer-overhead)
-retain the earlier query/ICP evidence and observer cost. Published metadata
-changes can invalidate old source-bound checkpoints and proof tokens; resume
-with fresh installed-source evidence or the exact frozen source checkout.
-
-## Other active prototypes
-
-| Entry point | Status and next evidence |
-|---|---|
-| [benchmark_parallel_fragments.py](benchmark_parallel_fragments.py) | Bounded CPU worker/proposal dispatcher and local fixture builder. Measured gains were modest; it remains research-only and must preserve ordered authoritative acceptance. |
-| [benchmark_anchored_gpu_model.py](benchmark_anchored_gpu_model.py) | Checked anchors and periodic local-map rebuilds under synthetic known motion. Needs continuous real-camera inputs and quality validation. |
-| [benchmark_dense_model.py](benchmark_dense_model.py) | Dense GPU preview/odometry architecture measurements. Synthetic capacity is not end-to-end scanning FPS. |
-| [plot_gpu_model_experiments.py](plot_gpu_model_experiments.py) | Plot saved synthetic model experiments; requires Matplotlib and existing reports. |
-
-## Running a new experiment
-
-Historical source-bound experiments use research baseline commit
-`fb9069d33cd12efb3b305054934fea28ffbc1959` and the
-[measured-byte restoration instructions](MEASURED_SOURCE_REPRODUCIBILITY.md).
-Their old core checks correctly reject the subsequent production allocation
-change. Current-source raw workflow and installed allocation tools explicitly
-check the source they actually measure.
-
-Use the scanner/native environment plus CUDA-enabled Open3D and CuPy. The
-resident method also needs the exact pinned Eigen CPU bridge, built locally
-with Visual Studio using
-[research_resident_icp.py](archive/research_resident_icp.py). Derive fixtures
-locally from the original raw views and measured fragment reports; private
-arrays and DLLs are not shipped with these scripts. CPU audits and timing must
-run separately, in an exclusive hardware slot outside active scanning.
-
-Archived baselines remain executable dependencies: the active adapter inherits
-the [flat adapter](archive/cuda_flat_grid_registration.py),
-[uniform-grid foundation](archive/cuda_uniform_grid_registration.py) and
-[flat shader](archive/research_flat_grid_nn.cu); the resident wrapper inherits
-the [original resident math/Eigen bridge](archive/research_resident_icp.py).
-Archived producer, evidence and validator helpers are also imported by the
-active proof pipeline. Moving them to `archive/` does not make them unused.
-
-Historical proof reports and published snapshots preserve their measured paths
-and hashes. Relocation, source bytes, line endings, platform, library binaries
-and resource policy can invalidate that authority. Generate fresh synthetic
-and real-trajectory proofs for the current helpers and raw fixture, rebuild the
-pinned DLL as needed, and preserve the new reports. Historical measured-source
-guards may require a separately reviewed experiment update before a new layout
-can execute; a guard rejection is not permission to replace old hashes or skip
-an audit. Published compact summaries cannot unlock unaudited timing.
+For the current whole-Finish candidate, the order is fresh `capture`, independent
+`native`, exhaustive `audit`, independent physical comparison, then `measure`
+with the fresh positive audit and comparison against the native control.
+`shadow` compares complete ICP results but is not an exhaustive nearest audit.
+Audit/shadow wall time includes CPU validation and cannot establish GPU speed.
+Compare every measured Finish; rotate fresh native/GPU runs before reporting a
+gain. The original-coordinate criteria include 0.5 mm / 0.1 degree Final poses,
+30,000 surface samples, p95 at most 0.5 mm, and precision/completeness at least
+.999 within 5 mm. Old fixed-pair permits and strict failures cannot authorize
+this current-source study.

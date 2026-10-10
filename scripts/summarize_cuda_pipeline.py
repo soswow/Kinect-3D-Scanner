@@ -1,13 +1,15 @@
-"""Summarize complete CUDA experiments without hiding coverage or quality costs."""
+"""Reproduce the October 2026 CUDA pipeline report from local closed profiles.
+
+Contains the original study's fixed hardware/date labels and mode matrix. For
+new studies, adapt that metadata before publishing. Full matrices stay under
+benchmark-output; publish only selected summaries/charts after review.
+"""
 
 import argparse
 import hashlib
 import json
 import math
 from pathlib import Path
-
-import numpy as np
-
 
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
@@ -126,6 +128,8 @@ def fragment_summary(report):
 
 
 def compact(run):
+    import numpy as np
+
     report_path = Path(run["report"])
     report_bytes = report_path.read_bytes()
     report_sha256 = hashlib.sha256(report_bytes).hexdigest()
@@ -199,6 +203,8 @@ def compact(run):
 
 
 def aggregate(rows, baseline_mode="baseline"):
+    import numpy as np
+
     aggregated = []
     for session in sorted({row["session"] for row in rows}):
         baseline = [row for row in rows if row["session"] == session and row["mode"] == baseline_mode]
@@ -258,8 +264,10 @@ def aggregate(rows, baseline_mode="baseline"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=Path("benchmark-output/cuda-pipeline"))
-    parser.add_argument("--summary", type=Path, default=Path("docs/benchmarks/cuda-pipeline-experiments.json"))
+    parser.add_argument("--summary", type=Path, default=Path("benchmark-output/cuda-pipeline-experiments.json"))
     args = parser.parse_args()
+    import numpy as np
+
     groups = {}
     for subdir in ("controlled-live", "finish", "phase2-pilot", "phase2-live", "phase2-finish",
                    "phase3-finish", "phase4-finish", "legacy-before-restart", "legacy-finish", "legacy-repeat", "legacy-sift", "adaptive-preview", "adaptive-repeat", "adaptive-fine", "cpu-adaptive-fine", "production-control", "preview-repeat", "cpu-control", "validated-live", "gpu-input-integration", "gpu-confidence-integration", "current-release-control"):

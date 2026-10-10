@@ -1,5 +1,26 @@
 # CUDA pipeline experiments
 
+This specialist reference preserves frozen 8 October studies, including negative
+results and exact source/query proofs. Its "current release" is the measured
+`9331dee7…` snapshot, not every later checkout. Start with the
+[script index](../scripts/README.md) for operational commands and
+[field study](FIELD_CUDA_RESEARCH.md) for later captures/allocation work.
+
+## Reference navigation
+
+- [Frozen release and complete processing](#current-release-and-expected-scanning-performance)
+- [Matched-source controls](#earlier-matched-source-matrix)
+- [Rejected production replacements](#experiments-that-did-not-justify-a-production-replacement)
+- [Continuous tracking/local-map opportunities](#where-substantially-higher-frame-rates-can-come-from)
+- [Exact GPU input](#additional-exact-gpu-input-preparation) and [options/reproduction](#controls-and-reproduction)
+- [Original bridge cost](#where-unchanged-bridge-verification-spends-time)
+- [RTX retrieval](#rtx-nearest-neighbour-research), [resident FP64 ICP](#gpu-resident-fp64-icp-research)
+  and [zero-reuse result-cache observation](#exact-native-icp-result-cache-observation)
+- [Grid experiments](#original-double-dyadic-uniform-grid-retrieval),
+  [bounded lookup ablation](#bounded-real-query-grid-lookup-ablation),
+  [complete flat host bridge](#complete-flat-full-radius-host-bridge) and
+  [true-device component result](#true-device-flat-grid-with-resident-icp)
+
 Follow-up to [the initial fusion study](CUDA_PERFORMANCE.md), measured on
 8 October 2026 with the same RTX 3080 Ti 12 GB, i7-12700F, 64 GB RAM, Windows,
 CUDA-enabled Open3D 0.20, eight OpenMP threads for native kernels, and the
@@ -103,7 +124,9 @@ and meshing. Final comparisons use triangle surfaces in the original coordinates
 without pose/scale fitting; the CPU reconstruction is a reference, not ground truth.
 
 Generated results are in
-[cuda-pipeline-experiments.json](benchmarks/cuda-pipeline-experiments.json).
+[full historical run matrix](https://github.com/soswow/Kinect-3D-Scanner/blob/762a6dac3b5a48b5865d382bbf18cd1746c37999/docs/benchmarks/cuda-pipeline-experiments.json).
+The full matrix is retained in Git history; new generated matrices belong in
+ignored benchmark output. Published bounded summaries and provenance stay here.
 The detailed local report, chart, per-view diagnostics and geometry stay under
 the ignored `benchmark-output/cuda-pipeline/` directory.
 

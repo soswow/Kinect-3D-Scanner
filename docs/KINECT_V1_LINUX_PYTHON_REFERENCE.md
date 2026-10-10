@@ -1,4 +1,12 @@
-# Xbox 360 Kinect (Kinect v1) on Linux with Python - Complete Technical Reference
+# Kinect v1 Linux/Python educational reference
+
+This standalone API/tutorial reference is not the maintained application or a
+validated installation recipe. Examples omit production pairing, bounded USB
+shutdown, independent pose verification and transactional fusion. Hardware
+ranges and upstream package/build instructions are historical reference values;
+use the [scanner README](../README.md) for supported setup and the
+[documentation index](README.md) for current guides. Do not run this code beside
+an active scanner that owns the Kinect.
 
 The standalone examples below explain the underlying APIs. The production
 scanner uses isolated asynchronous acquisition with bounded shutdown; Kinect v1
@@ -16,7 +24,7 @@ calibration workflow, native depth geometry and RGB projection, see
 7. [Depth to 3D Point Cloud Conversion](#7-depth-to-3d-point-cloud-conversion)
 8. [Point Cloud Accumulation for 3D Scanning](#8-point-cloud-accumulation-for-3d-scanning)
 9. [Mesh Reconstruction and Export](#9-mesh-reconstruction-and-export)
-10. [Complete 3D Scanning Pipeline](#10-complete-3d-scanning-pipeline)
+10. [Production pipeline and the old standalone example](#10-production-pipeline-and-the-old-standalone-example)
 11. [Sources and References](#11-sources-and-references)
 
 ---
@@ -232,7 +240,7 @@ freenect.RESOLUTION_HIGH       # SXGA (1280x1024) - RGB only
 #### Core Functions
 
 ```python
-# --- Synchronous API (simplest, recommended for scanning) ---
+# --- Synchronous API (simple standalone examples) ---
 
 # Get a single depth frame (blocking)
 # Returns: (numpy_array, timestamp)
@@ -552,8 +560,9 @@ def disparity_to_meters_array(raw_depth_array):
     return depth_m
 ```
 
-**Recommendation**: Use `DEPTH_MM` or `DEPTH_REGISTERED` format instead, which gives you
-millimeter values directly, using libfreenect's internal calibration (more accurate).
+`DEPTH_MM` and `DEPTH_REGISTERED` provide driver-converted millimetres for these
+examples. Production retains raw disparity and applies complete measured
+calibration. The Burrus coefficients are not a per-device accuracy guarantee.
 
 ### 6.4 Custom Calibration with OpenCV
 
@@ -821,7 +830,7 @@ def turntable_scan(num_captures=12, pause_seconds=5.0,
     """
     intrinsic = o3d.camera.PinholeCameraIntrinsic(
         width=640, height=480,
-        fx=594.21, fy=591.04, cx=339.31, cy=242.74
+        fx=525.0, fy=525.0, cx=319.5, cy=239.5  # Approximate registered RGB
     )
 
     point_clouds = []
@@ -1078,7 +1087,7 @@ def tsdf_scanning_session(num_frames=50, voxel_length=0.004, sdf_trunc=0.02):
     """
     intrinsic = o3d.camera.PinholeCameraIntrinsic(
         width=640, height=480,
-        fx=594.21, fy=591.04, cx=339.31, cy=242.74
+        fx=525.0, fy=525.0, cx=319.5, cy=239.5  # Approximate registered RGB
     )
 
     # Create TSDF volume
@@ -1130,8 +1139,8 @@ def tsdf_scanning_session(num_frames=50, voxel_length=0.004, sdf_trunc=0.02):
         )
 
         prev_pcd = curr_pcd
-        print(f"Frame {i+1}/{num_frames} integrated (fitness: "
-              f"{result.fitness:.3f if prev_pcd is not None and i > 0 else 'N/A'})")
+        fitness_text = f"{result.fitness:.3f}" if i > 0 else "N/A"
+        print(f"Frame {i+1}/{num_frames} integrated (fitness: {fitness_text})")
 
     freenect.sync_stop()
 
@@ -1250,7 +1259,8 @@ OBJ is a text-based format supported by virtually all 3D software.
 o3d.io.write_triangle_mesh("scan_mesh.obj", mesh)
 
 # Note: OBJ files can also have .mtl material files
-# Open3D will generate one if the mesh has vertex colors
+# Vertex colors alone do not define a UV texture/material bundle.
+# Use the scanner textured OBJ ZIP export when materials are required.
 ```
 
 ### 9.5 Export to Other Formats
@@ -1322,408 +1332,22 @@ In Blender:
 
 ---
 
-## 10. Complete 3D Scanning Pipeline
-
-Here is a complete, ready-to-use scanning application:
-
-```python
-#!/usr/bin/env python3
-"""
-Kinect v1 3D Scanner
-Complete pipeline: capture -> point cloud -> registration -> mesh -> export
-
-Requirements:
-    pip install numpy opencv-python open3d
-
-    Plus libfreenect with Python bindings (see installation section).
-"""
-
-import freenect
-import numpy as np
-import open3d as o3d
-import cv2
-import time
-import os
-from datetime import datetime
-
-
-# ============================================================
-# Configuration
-# ============================================================
-
-class KinectConfig:
-    # Depth camera intrinsics (Kinect v1 defaults)
-    FX = 594.21434211923247
-    FY = 591.04053696870778
-    CX = 339.30780975300314
-    CY = 242.73913761751615
-    WIDTH = 640
-    HEIGHT = 480
-
-    # Scanning parameters
-    DEPTH_SCALE = 1000.0        # mm to meters
-    DEPTH_TRUNC = 3.0           # max depth in meters
-    VOXEL_SIZE = 0.005          # 5mm downsampling
-    ICP_MAX_CORRESPONDENCE = 0.05  # 5cm ICP threshold
-
-    # TSDF parameters
-    TSDF_VOXEL_LENGTH = 0.004   # 4mm voxels
-    TSDF_SDF_TRUNC = 0.02       # 20mm truncation
-
-    # Mesh reconstruction
-    POISSON_DEPTH = 9
-    DENSITY_QUANTILE = 0.01
-
-    @classmethod
-    def get_intrinsic(cls):
-        return o3d.camera.PinholeCameraIntrinsic(
-            cls.WIDTH, cls.HEIGHT, cls.FX, cls.FY, cls.CX, cls.CY)
-
-
-# ============================================================
-# Kinect Capture
-# ============================================================
-
-class KinectCapture:
-    """Handles capturing frames from the Kinect."""
-
-    def __init__(self, device_index=0):
-        self.device_index = device_index
-
-    def get_rgbd(self):
-        """Capture a single RGBD frame pair."""
-        depth_mm, _ = freenect.sync_get_depth(
-            self.device_index, freenect.DEPTH_REGISTERED)
-        rgb, _ = freenect.sync_get_video(
-            self.device_index, freenect.VIDEO_RGB)
-        return rgb, depth_mm
-
-    def get_open3d_rgbd(self, depth_trunc=None):
-        """Capture and return as Open3D RGBDImage."""
-        if depth_trunc is None:
-            depth_trunc = KinectConfig.DEPTH_TRUNC
-
-        rgb, depth_mm = self.get_rgbd()
-
-        color_o3d = o3d.geometry.Image(rgb.astype(np.uint8))
-        depth_o3d = o3d.geometry.Image(depth_mm.astype(np.uint16))
-
-        rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            color_o3d, depth_o3d,
-            depth_scale=KinectConfig.DEPTH_SCALE,
-            depth_trunc=depth_trunc,
-            convert_rgb_to_intensity=False
-        )
-        return rgbd, rgb, depth_mm
-
-    def get_point_cloud(self, depth_trunc=None):
-        """Capture and return as Open3D PointCloud."""
-        rgbd, rgb, depth_mm = self.get_open3d_rgbd(depth_trunc)
-        intrinsic = KinectConfig.get_intrinsic()
-        pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsic)
-        return pcd, rgbd
-
-    def stop(self):
-        """Release the Kinect."""
-        freenect.sync_stop()
-
-
-# ============================================================
-# Point Cloud Processing
-# ============================================================
-
-class PointCloudProcessor:
-    """Utilities for point cloud cleaning and registration."""
-
-    @staticmethod
-    def clean(pcd, voxel_size=None, nb_neighbors=20, std_ratio=2.0):
-        """Downsample and remove outliers."""
-        if voxel_size is None:
-            voxel_size = KinectConfig.VOXEL_SIZE
-
-        pcd_down = pcd.voxel_down_sample(voxel_size)
-        pcd_clean, _ = pcd_down.remove_statistical_outlier(
-            nb_neighbors=nb_neighbors, std_ratio=std_ratio)
-        return pcd_clean
-
-    @staticmethod
-    def estimate_normals(pcd, radius=0.02, max_nn=30):
-        """Estimate and orient surface normals."""
-        pcd.estimate_normals(
-            search_param=o3d.geometry.KDTreeSearchParamHybrid(
-                radius=radius, max_nn=max_nn))
-        pcd.orient_normals_towards_camera_location(
-            camera_location=np.array([0.0, 0.0, 0.0]))
-        return pcd
-
-    @staticmethod
-    def register_icp(source, target, max_dist=None, init_transform=None):
-        """Align source to target using point-to-plane ICP."""
-        if max_dist is None:
-            max_dist = KinectConfig.ICP_MAX_CORRESPONDENCE
-        if init_transform is None:
-            init_transform = np.identity(4)
-
-        # Ensure normals
-        for pcd in [source, target]:
-            if not pcd.has_normals():
-                PointCloudProcessor.estimate_normals(pcd)
-
-        result = o3d.pipelines.registration.registration_icp(
-            source, target, max_dist, init_transform,
-            o3d.pipelines.registration.TransformationEstimationPointToPlane(),
-            o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
-        )
-        return result.transformation, result.fitness, result.inlier_rmse
-
-    @staticmethod
-    def register_colored_icp(source, target, voxel_size=None):
-        """Multi-scale colored ICP registration."""
-        if voxel_size is None:
-            voxel_size = KinectConfig.VOXEL_SIZE
-
-        voxel_radius = [voxel_size * 4, voxel_size * 2, voxel_size]
-        max_iter = [50, 30, 14]
-        transform = np.identity(4)
-
-        for scale in range(3):
-            radius = voxel_radius[scale]
-            src_down = source.voxel_down_sample(radius)
-            tgt_down = target.voxel_down_sample(radius)
-
-            src_down.estimate_normals(
-                o3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
-            tgt_down.estimate_normals(
-                o3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
-
-            result = o3d.pipelines.registration.registration_colored_icp(
-                src_down, tgt_down, radius, transform,
-                o3d.pipelines.registration.TransformationEstimationForColoredICP(),
-                o3d.pipelines.registration.ICPConvergenceCriteria(
-                    relative_fitness=1e-6, relative_rmse=1e-6,
-                    max_iteration=max_iter[scale])
-            )
-            transform = result.transformation
-
-        return transform, result.fitness, result.inlier_rmse
-
-
-# ============================================================
-# 3D Scanner
-# ============================================================
-
-class KinectScanner:
-    """Complete 3D scanning pipeline."""
-
-    def __init__(self):
-        self.capture = KinectCapture()
-        self.processor = PointCloudProcessor()
-        self.frames = []        # List of (rgbd, pcd) tuples
-        self.transforms = []    # Camera pose for each frame
-        self.volume = None      # TSDF volume
-
-    def initialize_tsdf(self):
-        """Create a fresh TSDF volume."""
-        self.volume = o3d.pipelines.integration.ScalableTSDFVolume(
-            voxel_length=KinectConfig.TSDF_VOXEL_LENGTH,
-            sdf_trunc=KinectConfig.TSDF_SDF_TRUNC,
-            color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
-        )
-
-    def capture_frame(self):
-        """Capture a single frame and track pose."""
-        pcd, rgbd = self.capture.get_point_cloud()
-        pcd_clean = self.processor.clean(pcd)
-        self.processor.estimate_normals(pcd_clean)
-
-        if len(self.frames) == 0:
-            # First frame: identity pose
-            transform = np.identity(4)
-        else:
-            # Register against previous frame
-            prev_pcd = self.frames[-1][1]
-            transform, fitness, rmse = self.processor.register_colored_icp(
-                pcd_clean, prev_pcd)
-
-            if fitness < 0.3:
-                print(f"WARNING: Low registration fitness ({fitness:.3f}). "
-                      f"Frame may be poorly aligned.")
-
-            # Accumulate pose
-            transform = self.transforms[-1] @ transform
-
-        self.frames.append((rgbd, pcd_clean))
-        self.transforms.append(transform)
-
-        # Integrate into TSDF if available
-        if self.volume is not None:
-            intrinsic = KinectConfig.get_intrinsic()
-            self.volume.integrate(
-                rgbd, intrinsic, np.linalg.inv(transform))
-
-        return pcd_clean, transform
-
-    def get_merged_point_cloud(self):
-        """Merge all captured point clouds."""
-        merged = o3d.geometry.PointCloud()
-        for (rgbd, pcd), transform in zip(self.frames, self.transforms):
-            tmp = o3d.geometry.PointCloud(pcd)
-            tmp.transform(transform)
-            merged += tmp
-
-        merged = merged.voxel_down_sample(KinectConfig.VOXEL_SIZE)
-        self.processor.estimate_normals(merged)
-        return merged
-
-    def get_tsdf_mesh(self):
-        """Extract mesh from TSDF volume."""
-        if self.volume is None:
-            raise RuntimeError("TSDF volume not initialized. Call initialize_tsdf() first.")
-        mesh = self.volume.extract_triangle_mesh()
-        mesh.compute_vertex_normals()
-        return mesh
-
-    def get_poisson_mesh(self, pcd=None):
-        """Reconstruct mesh using Poisson surface reconstruction."""
-        if pcd is None:
-            pcd = self.get_merged_point_cloud()
-
-        mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
-            pcd, depth=KinectConfig.POISSON_DEPTH)
-
-        # Remove low-density vertices
-        densities = np.asarray(densities)
-        threshold = np.quantile(densities, KinectConfig.DENSITY_QUANTILE)
-        mesh.remove_vertices_by_mask(densities < threshold)
-        mesh.compute_vertex_normals()
-
-        return mesh
-
-    def export(self, filename, obj=None):
-        """
-        Export mesh or point cloud.
-
-        Parameters:
-            filename: output path (extension determines format: .ply, .obj, .stl, .glb)
-            obj: Open3D geometry to export (TriangleMesh or PointCloud).
-                 If None, exports TSDF mesh if available, else Poisson mesh.
-        """
-        if obj is None:
-            if self.volume is not None:
-                obj = self.get_tsdf_mesh()
-            else:
-                obj = self.get_poisson_mesh()
-
-        ext = os.path.splitext(filename)[1].lower()
-
-        if ext in ['.ply', '.obj', '.stl', '.glb', '.gltf', '.off']:
-            if isinstance(obj, o3d.geometry.PointCloud):
-                o3d.io.write_point_cloud(filename, obj)
-            else:
-                o3d.io.write_triangle_mesh(filename, obj)
-            print(f"Exported to {filename}")
-        else:
-            raise ValueError(f"Unsupported format: {ext}")
-
-    def cleanup(self):
-        """Release resources."""
-        self.capture.stop()
-
-
-# ============================================================
-# Interactive Scanner Application
-# ============================================================
-
-def run_interactive_scanner():
-    """Run an interactive 3D scanning session."""
-
-    scanner = KinectScanner()
-    scanner.initialize_tsdf()
-
-    print("=" * 60)
-    print("Kinect v1 3D Scanner")
-    print("=" * 60)
-    print("Commands:")
-    print("  SPACE  - Capture frame")
-    print("  v      - View current point cloud")
-    print("  m      - View current mesh (TSDF)")
-    print("  p      - View Poisson mesh")
-    print("  s      - Save/export")
-    print("  q/ESC  - Quit")
-    print("=" * 60)
-
-    frame_count = 0
-
-    try:
-        while True:
-            # Show live preview
-            rgb, depth_mm = scanner.capture.get_rgbd()
-            bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-
-            # Depth visualization
-            depth_vis = np.clip(depth_mm.astype(np.float32) / 4000.0, 0, 1)
-            depth_vis = (depth_vis * 255).astype(np.uint8)
-            depth_color = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
-
-            # Overlay frame count
-            cv2.putText(bgr, f"Frames: {frame_count}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-            cv2.imshow('RGB Preview', bgr)
-            cv2.imshow('Depth Preview', depth_color)
-
-            key = cv2.waitKey(30) & 0xFF
-
-            if key == ord(' '):
-                # Capture frame
-                pcd, transform = scanner.capture_frame()
-                frame_count += 1
-                print(f"Frame {frame_count}: {len(pcd.points)} points")
-
-            elif key == ord('v') and frame_count > 0:
-                # Visualize merged point cloud
-                merged = scanner.get_merged_point_cloud()
-                o3d.visualization.draw_geometries([merged],
-                    window_name="Merged Point Cloud")
-
-            elif key == ord('m') and frame_count > 0:
-                # Visualize TSDF mesh
-                mesh = scanner.get_tsdf_mesh()
-                o3d.visualization.draw_geometries([mesh],
-                    window_name="TSDF Mesh")
-
-            elif key == ord('p') and frame_count > 0:
-                # Visualize Poisson mesh
-                mesh = scanner.get_poisson_mesh()
-                o3d.visualization.draw_geometries([mesh],
-                    window_name="Poisson Mesh")
-
-            elif key == ord('s') and frame_count > 0:
-                # Export
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                # Export point cloud
-                pcd = scanner.get_merged_point_cloud()
-                scanner.export(f"scan_{timestamp}_cloud.ply", pcd)
-
-                # Export TSDF mesh
-                mesh = scanner.get_tsdf_mesh()
-                scanner.export(f"scan_{timestamp}_mesh.ply", mesh)
-                scanner.export(f"scan_{timestamp}_mesh.obj", mesh)
-
-                print(f"Saved scan_{timestamp}_*.ply and .obj")
-
-            elif key == ord('q') or key == 27:
-                break
-
-    finally:
-        scanner.cleanup()
-        cv2.destroyAllWindows()
-
-
-if __name__ == '__main__':
-    run_interactive_scanner()
-```
+## 10. Production pipeline and the old standalone example
+
+Use `python -m kinect_scanner` and the [scanner setup](../README.md) for this
+repository's application. The maintained acquisition owner is
+`kinect_scanner/capture_process.py`; calibrated depth preparation is in
+`shared/calibration.py`, reconstruction in `scanner_server/engine.py`, and
+Finish mode selection in [final registration](FRAGMENT_RECONNECTION.md).
+
+The old self-contained `KinectCapture`/`PointCloudProcessor`/`KinectScanner`
+application duplicated the capture, colored ICP and TSDF examples above. It
+combined registered depth with IR-camera example intrinsics, merely warned
+about poor registration before fusion, and had no timestamp pairing or
+bounded USB process. Its unconditional accumulation could produce a plausible
+but misplaced model. It is retired from this guide; the
+[complete historical example](https://github.com/soswow/Kinect-3D-Scanner/blob/762a6dac3b5a48b5865d382bbf18cd1746c37999/docs/KINECT_V1_LINUX_PYTHON_REFERENCE.md#10-complete-3d-scanning-pipeline)
+remains available for reference, not production use.
 
 ---
 

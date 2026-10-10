@@ -1,4 +1,7 @@
-# Continuous visual tracking trial
+# Continuous visual tracking
+
+This guide combines current behavior with historical trials. Current defaults
+and the separate offline mode are in [final registration](FRAGMENT_RECONNECTION.md).
 
 Enable **Live fused point cloud feedback** and **Color-assisted tracking**, then
 start a new scan. The camera worker now estimates motion on incoming camera
@@ -141,8 +144,8 @@ least 60 corners with stable measured depth. An unusable replacement reference
 is discarded while earlier references remain available.
 
 Maintaining an identity uses a stricter quality check than authorizing one
-short motion step: retained tracks must have pixel residual at most 0.5 pixels
-and paired 3D residual at most 20 mm. Tracks with weaker evidence are retired
+short motion step: retained tracks must have pixel residual at most 1.5 pixels
+and paired 3D residual at most 30 mm. Tracks with weaker evidence are retired
 and can be replaced. This limits accumulation of uncertain subpixel locations.
 These are engineering bounds, not a calibrated sensor uncertainty model. The
 existing motion acceptance, forward/backward, depth, and server verification

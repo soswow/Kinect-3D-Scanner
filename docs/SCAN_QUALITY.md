@@ -3,10 +3,12 @@
 The active client uses `scanner_server/engine.py`. The older local engine is
 retained as reference code and is not used by the GUI.
 
-See [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) for the newer
+See [development history](DEVELOPMENT_HISTORY.md) for the later completed
 ordered work: calibration tools, profiling, distant appearance matching,
 confidence fusion, texture correction and separate live/final budgets. The
-results below describe the preceding tracking baseline.
+results below describe the preceding tracking baseline. Use the [documentation
+index](README.md) and [final registration guide](FRAGMENT_RECONNECTION.md) for
+current behavior; this baseline's defaults and future-work list are historical.
 
 ## What changed
 

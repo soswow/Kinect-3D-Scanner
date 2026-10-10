@@ -39,7 +39,7 @@ prepared and 96 candidate pairs tested. No verified bridge connects the remainin
 views to the trusted first fragment, so no additional views are fused. The new
 partial mesh and session ZIP retain all 50 raw observations in
 `chest-session-analysis/fragment-reconnection/`. See the
-[full result and verification limits](FRAGMENT_RECONNECTION.md#chest-session-result-6-october-2026).
+[full result and verification limits](FRAGMENT_RECONNECTION.md#earlier-50-capture-session).
 
 ## Live recovery behavior
 

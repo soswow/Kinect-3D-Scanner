@@ -46,7 +46,6 @@ PUBLISHED_REPORTS = {
     "docs/benchmarks/cuda-pipeline/uniform-grid-nearest/summary.json": "b7eb0ccfa80f95884ccf94db667e0c9400d879a3fbe5ca22c6f17e550fa76578",
     "docs/benchmarks/cuda-pipeline/validation.json": "aa392f9b04725b9b3b49abb5c242c37d3f6f44d1f4f016bae8610016c1bc8a07",
     "docs/benchmarks/cuda-pipeline/verification-profile/chest-3-summary.json": "52ab76745b94ca10dc3a8e686fb103f3da3c001e40c72af9db0ae742b90d8b90",
-    "docs/benchmarks/cuda-pipeline-experiments.json": "eaaa64cb85fac3460f96f8a7249f244755d759029a73c72f814975b5fb20a151",
     "docs/benchmarks/cuda-session-performance.json": "fc1797b0b1f3bf680d12c7e03a2b6b77cb2edad4a68a8751bb7d167c190904d2",
     "docs/benchmarks/cuda-study/report-manifest.json": "bf4567c3dc7383c5908b484a38932de4c60a4b575e3f75a0438cb84e70ff3499",
     "docs/benchmarks/desk-supported-heldout-summary.json": "54a4ab264c6bd4a12e527eeb0fb3fe2ee5198306ef8f1bb895d5dd9ec06dd88d",
@@ -280,6 +279,57 @@ class ScriptLayoutTests(unittest.TestCase):
             with self.subTest(report=relative):
                 payload = (ROOT / relative).read_bytes().replace(b"\r\n", b"\n")
                 self.assertEqual(expected, hashlib.sha256(payload).hexdigest())
+
+    def test_full_historical_matrix_stays_out_of_generated_documentation(self):
+        # The full 4.2 MB matrix is available at the indexed historical commit.
+        # Bounded published evidence retains the immutable hashes above.
+        self.assertFalse((ROOT / "docs/benchmarks/cuda-pipeline-experiments.json").exists())
+        for name in ("summarize_cuda_pipeline.py", "summarize_cuda_study.py"):
+            tree = ast.parse((ROOT / "scripts" / name).read_text(encoding="utf-8"))
+            summary = next(node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"
+                and node.args and isinstance(node.args[0], ast.Constant)
+                and node.args[0].value == "--summary")
+            default = next(keyword.value for keyword in summary.keywords if keyword.arg == "default")
+            path = static_path(default, ROOT / "scripts" / name)
+            self.assertTrue(path.is_relative_to(Path("benchmark-output")))
+
+    def test_tool_finder_covers_sources_without_importing_or_running_them(self):
+        environment = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        environment.pop("PYTHONPATH", None)
+        finder = ROOT / "scripts/list_tools.py"
+        with tempfile.TemporaryDirectory(prefix="tool-finder-") as folder:
+            def query(*args):
+                result = subprocess.run([sys.executable, "-S", str(finder), "--json", *args],
+                    cwd=folder, env=environment, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=15, check=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual([], list(Path(folder).iterdir()))
+                return json.loads(result.stdout)
+
+            rows = query()
+            expected = {path.relative_to(ROOT).as_posix() for path in (ROOT / "scripts").rglob("*")
+                if path.is_file() and path.suffix in {".py", ".ps1", ".cu", ".cpp", ".md", ".json"}
+                and "__pycache__" not in path.parts and path.name not in {"__init__.py", "README.md"}}
+            self.assertEqual(expected, {row["path"] for row in rows})
+            by_path = {row["path"]: row for row in rows}
+            self.assertEqual("cli", by_path["scripts/check_cuda_backend.py"]["kind"])
+            self.assertEqual("helper", by_path["scripts/http_check_safety.py"]["kind"])
+            self.assertEqual("native", by_path["scripts/research/device_loop_control.cu"]["kind"])
+            session = query("--search", "SESSION", "--group", "workflow", "--kind", "cli")
+            self.assertTrue(session)
+            self.assertTrue(all(row["group"] == "workflow" and row["kind"] == "cli"
+                and "session" in (row["path"] + " " + row["purpose"]).lower() for row in session))
+
+    def test_report_formatter_help_needs_no_optional_packages_or_outputs(self):
+        with tempfile.TemporaryDirectory(prefix="formatter-help-") as folder:
+            for name in ("summarize_cuda_pipeline.py", "summarize_cuda_study.py", "list_tools.py"):
+                result = subprocess.run([sys.executable, "-S", str(ROOT / "scripts" / name), "--help"],
+                    cwd=folder, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=15, check=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("usage:", result.stdout.lower())
+                self.assertEqual([], list(Path(folder).iterdir()))
 
     def test_resource_resolver_maps_every_catalog_entry_from_other_cwd(self):
         helper = ROOT / "scripts/tool_paths.py"
