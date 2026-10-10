@@ -106,6 +106,26 @@ geometry fallback prepares the pending model before use. The recorded live
 comparison also changed duplicate rejection decisions, so it does not isolate
 this preparation saving or establish a whole-live speedup on unique tags.
 
+Live tracking does not maintain the shared world tag-corner map used at Finish.
+It fits current measured RGB-D tag corners against individual accepted views,
+using at most forty references and trying the five with the most shared tags.
+Tags observed across several different references are not pooled into one live
+pose fit. A fitted pose still needs at least 60% forward and 45% reverse raw-depth
+overlap within 22.5 mm, with RMSE at most 15 mm. During ordinary tracking it must
+also satisfy the configured motion limits; that motion gate is skipped once
+tracking is lost, but the tag and depth checks remain. Visible familiar tags
+can therefore fail live recovery even when Finish later places those captures.
+The last-good-view prompt describes the geometry fallback; verified tag or
+appearance recovery can also resume from another accepted view.
+
+For a loaded session, `/api/scan/export/session` preserves selected raw captures,
+settings, capture metadata and reconstruction diagnostics without needing a
+client project save. After Finish, `original_poses` identifies the previous live
+accepted views and recovered frames retain `message_before_reconnection`.
+A client project save additionally preserves its recorded continuous sensor
+streams when enabled; those pixels are needed to replay intermediate acquisition
+and camera-side tracking. Preserve the server export before resetting or exiting.
+
 For isolated cold Finish reproduction, run `scripts/profile_session.py` with an
 explicit session ZIP, `--finish --finish-only --device cuda`, and an output under
 `benchmark-output/`. The retained research tool
