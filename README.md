@@ -168,6 +168,13 @@ The checkbox starts off, with 36h11 selected by default; choices are remembered
 and saved with sessions. Color-assisted tracking works without tags, and tags
 can also be enabled independently of ordinary color features.
 
+During scanning, the live color preview outlines detected tags and shows their
+numeric IDs, without dictionary names. Green outlines mean the tag has usable
+measured corners; amber outlines mean it was detected but cannot currently
+provide tracking evidence. The preview uses the calibrated depth grid to align
+the outlines and also works with **Show tracking flow** switched off. Overlays
+are display-only: saved captures retain their original RGB pixels.
+
 Keep labels stationary and use a unique ID for each physical label within its
 dictionary. The same numeric ID in different dictionaries is supported. Repeated
 IDs in one image and ambiguous cross-dictionary decodes are excluded. Printed

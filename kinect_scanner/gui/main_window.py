@@ -53,6 +53,7 @@ from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .components import CameraPreview, CollapsibleSection
 from .apriltags import AprilTagDictionaries
+from .apriltag_preview import paint_apriltags
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
@@ -121,6 +122,7 @@ class MainWindow(QMainWindow):
         self._frame_sequence = 0
         self._last_frame_metadata = {}
         self._last_tracking_debug = None
+        self._last_apriltag_preview = None
         self._orientation = OrientationTracker()
         self._display_rotation = 0
         self._sensor_recording_path = None
@@ -299,7 +301,7 @@ class MainWindow(QMainWindow):
         self._camera_suspended = True
         self._start_when_camera_ready = False
         self._camera_ok = False
-        self._last_rgb = self._last_depth = self._last_tracking_debug = None
+        self._last_rgb = self._last_depth = self._last_tracking_debug = self._last_apriltag_preview = None
         self._last_frame_metadata = {}
         self._capture_selector.clear()
         self._fps_value = self._fps_counter = 0
@@ -754,6 +756,7 @@ class MainWindow(QMainWindow):
         self.apriltag_tracking_cb.setToolTip(
             "Detect all selected dictionaries in every camera frame and saved view. "
             "Static tags with valid measured depth provide extra camera-motion evidence. "
+            "The color preview shows outlines and IDs: green for usable tags, amber for other detections. "
             "Tags are optional; color-assisted tracking also works without them."
         )
         apriltags.content_layout.addWidget(self.apriltag_tracking_cb)
@@ -1229,6 +1232,7 @@ class MainWindow(QMainWindow):
         # Remove them before capture selection, upload, or local recording.
         debug = self._last_frame_metadata.pop("_tracking_debug", None)
         self._last_tracking_debug = debug if self.flow_debug_cb.isChecked() else None
+        self._last_apriltag_preview = self._last_frame_metadata.pop("_apriltag_preview", None)
         if self._last_frame_metadata.get("rgb_exposure_controls") is False:
             self.rgb_exposure_status_label.setText("Default auto exposure · manual controls unavailable in this driver")
         elif self._last_frame_metadata.get("rgb_exposure_mode") == "manual":
@@ -1276,12 +1280,18 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _show_rgb(self, rgb):
+        tags = self._last_apriltag_preview
         if self.flow_debug_cb.isChecked() and self._last_tracking_debug is not None:
             self.camera_title.setText("Live camera · Tracking RGB (depth grid)")
             image = flow_image(self._last_tracking_debug, show_windows=self.flow_windows_cb.isChecked())
+        elif tags is not None:
+            self.camera_title.setText("Live camera · AprilTags (depth grid)")
+            image = numpy_to_qimage(tags["image"])
         else:
             self.camera_title.setText("Live camera · Color")
             image = numpy_to_qimage(rgb)
+        if tags is not None:
+            image = paint_apriltags(image, tags["detections"])
         from PyQt6.QtGui import QTransform
         self._set_pixmap(image.transformed(QTransform().rotate(self._display_rotation)))
 
@@ -1569,6 +1579,7 @@ class MainWindow(QMainWindow):
                 return
             self._tracking_configuration = configuration
             self._last_tracking_debug = None
+            self._last_apriltag_preview = None
             self.worker.set_tracking_settings(settings)
 
     def _configure_sensor_recording(self):

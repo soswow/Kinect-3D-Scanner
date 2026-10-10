@@ -25,12 +25,18 @@ class TagFrame:
     detected: int = 0
     ambiguous: int = 0
     reason: str = ""
+    detections: list = field(default_factory=list, repr=False)
 
     def report(self):
         return {"detected": self.detected, "usable": len(self.tags),
                 "ambiguous": self.ambiguous, "reason": self.reason,
                 "identities": [{"dictionary": name, "id": identity}
                                for name, identity in sorted(self.tags)]}
+
+    def preview(self):
+        """Local display data, including detections rejected for tracking."""
+        return [{"id": key[1], "corners": pixels.copy(), "usable": key in self.tags}
+                for key, pixels in self.detections]
 
 
 class AprilTagDetector:
@@ -68,7 +74,7 @@ class AprilTagDetector:
                 if min(np.max(np.linalg.norm(a - np.roll(b, shift, axis=0), axis=1))
                        for shift in range(4)) < 5:
                     ambiguous.update((i, j))
-        result = TagFrame(detected=len(observations), ambiguous=len(ambiguous))
+        result = TagFrame(detected=len(observations), ambiguous=len(ambiguous), detections=observations)
         if not synchronized:
             result.reason = "RGB/depth timing exceeds 20 ms"
             return result

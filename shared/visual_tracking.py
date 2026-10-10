@@ -206,6 +206,7 @@ class VisualTracker:
         self._tag_history = deque(maxlen=5)
         self.steps = 0
         self.debug_snapshot = None
+        self.apriltag_snapshot = None
         self._match_debug = None
         self._matched_reference = None
         self._next_feature_id = 0
@@ -450,6 +451,7 @@ class VisualTracker:
     def update(self, rgb, raw_depth, metadata):
         # Snapshots are local preview data, never part of the pose report.
         self.debug_snapshot = None
+        self.apriltag_snapshot = None
         self._match_debug = None
         self._matched_reference = None
         started = time.monotonic()
@@ -465,6 +467,8 @@ class VisualTracker:
         rgb, depth = prepare_rgbd(rgb, raw_depth, self.settings)
         tags = (self._tag_detector.detect(rgb, depth, self.settings.camera, synchronized=synchronized)
                 if self._tag_detector is not None else None)
+        tag_preview = {"image": rgb.copy(), "detections": tags.preview()} if tags is not None else None
+        self.apriltag_snapshot = tag_preview
         if not synchronized:
             return {"valid": False, "reason": "RGB/depth timing exceeds 20 ms",
                     "segment": self.segment, "camera_to_local": self.pose.tolist(), "steps": self.steps,
@@ -474,6 +478,7 @@ class VisualTracker:
         last_stamp = max([r.stamp for r in self.history] + [r[0] for r in self._tag_history], default=None)
         if last_stamp is not None and not 0 < stamp - last_stamp <= self.MAX_GAP_S:
             self.reset()
+            self.apriltag_snapshot = tag_preview
         seed_reference = not (self.history or self._tag_history)
         stats, matched_stamp = {}, None
         valid = False

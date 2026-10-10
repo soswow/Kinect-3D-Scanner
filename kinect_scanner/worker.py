@@ -313,6 +313,8 @@ class KinectWorker(QThread):
                             try:
                                 tracker.debug_enabled = tracking_debug
                                 metadata["visual_tracking"] = tracker.update(rgb, depth, metadata)
+                                if tracker.apriltag_snapshot is not None:
+                                    metadata["_apriltag_preview"] = tracker.apriltag_snapshot
                                 if last_visual_error is not None and metadata["visual_tracking"].get("valid"):
                                     logger.info("Visual motion estimate recovered", extra={"ui_event": True, "ui_state_key": "visual-estimate"})
                                     last_visual_error = None
