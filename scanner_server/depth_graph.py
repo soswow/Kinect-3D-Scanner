@@ -51,7 +51,7 @@ def scene_visibility(views, poses, notify=None):
             "worst_pairs": sorted(conflicts, key=lambda e: -e["free_space_fraction"])[:30]}
 
 REG = o3d.pipelines.registration
-ALGORITHM_VERSION = "offline_depth_graph_v2"
+ALGORITHM_VERSION = "offline_depth_graph_v3"
 
 
 def geometric_revisits(distance, groups, *, pool_per_view=12, budget_per_view=3):
@@ -393,10 +393,31 @@ def reconnect_optimized_components(views, solved, active, motion, device="cpu", 
 def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), checkpoint=None, motion=None,
                         tag_frames=None, camera=None):
     count = len(views)
-    continuous_available = bool(motion and motion.visual and any(row.get("feature_observations")
-        for m in motion.metadata for row in m.get("motion_history", {}).get("visual", ())))
     if [v.index for v in views] != list(range(count)):
         raise ValueError("Depth graph requires capture-order view indices")
+    if tag_frames is not None and len(tag_frames) != count:
+        raise ValueError("AprilTag observations must match depth views")
+    tag_priority = {"attempted": False, "applied": False, "reason": "tags_unavailable"}
+    if tag_frames is not None:
+        from .apriltag_graph import recover_tag_graph
+        from shared.apriltag import without_repeated
+        tag_frames, _ = without_repeated(tag_frames)
+        result, tag_priority = recover_tag_graph(views, tag_frames, camera, motion, notify, device)
+        if result is not None:
+            solved, reports, active = result
+            return solved, {"algorithm": ALGORITHM_VERSION, "device": device, "pairs": reports,
+                "graph_rejected_edges": [], "apriltag_priority": tag_priority,
+                "search_policy": "shared_tag_map_then_measured_gap_recovery",
+                "per_frame_geometric_revisits_deferred": True, "ambiguous_camera_pairs": [],
+                "verified_bridges": [{k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in e.items()}
+                                     for e in active], "component_sizes": [count],
+                "validated_component_sizes": [count], "rejected_component_sizes": [],
+                "validation": "shared measured tag corners, measured gap recovery and complete raw depth audit",
+                "thresholds_are_calibrated_probabilities": False}
+        if tag_priority["attempted"] and notify:
+            notify("AprilTag map needs broader RGB/depth recovery; retaining tag pose initializers")
+    continuous_available = bool(motion and motion.visual and any(row.get("feature_observations")
+        for m in motion.metadata for row in m.get("motion_history", {}).get("visual", ())))
     cache = {(r["source"], r["target"], r["method"]): r for r in cached_pairs}
     reports, edges, tested, ambiguous = [], {}, set(), set()
     def say(message):
@@ -410,7 +431,10 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
         report = cache.get(key)
         pose_check = (lambda pose: motion.check(a, b, pose)) if motion else None
         reciprocal_refine = (lambda pose: motion.reciprocal_pose(a, b, pose)) if motion else None
-        extra_seeds = motion.seeds(a, b) if motion else ()
+        extra_seeds = motion.seeds(a, b) if motion and method != "apriltag" else ()
+        tag_seeds = getattr(motion, "tag_pose_seeds", {})
+        if method != "apriltag" and a in tag_seeds and b in tag_seeds:
+            initial = np.linalg.inv(tag_seeds[b]) @ tag_seeds[a]
         if extra_seeds:
             # Old candidate caches do not contain these measured initializers.
             report = None
@@ -622,6 +646,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
         component["validation"] = scene_visibility(views,component["poses"],say)
     solved.sort(key=lambda c: (not c["validation"]["accepted"], -len(c["frame_indices"]), c["frame_indices"][0]))
     return solved, {"algorithm": ALGORITHM_VERSION, "device": device,
+                    "apriltag_priority": tag_priority,
                     "pairs": reports, "graph_rejected_edges": rejected,
                     "search_policy": "continuous_measurements_then_corrected_map_geometry" if use_joint else "local_and_retrieved_frame_geometry",
                     "per_frame_geometric_revisits_deferred": use_joint,
@@ -654,9 +679,8 @@ def _propose_depth_poses(engine, progress_cb=None):
         if progress_cb:
             progress_cb(0, len(engine.raw_frames), {"stage": "fragment_reconnection", "message": message})
     views = []
-    appearance = []
     tracked = []
-    from .appearance import extract_features
+    from .appearance import extract_features, LazyFeatures
     from .motion_evidence import MotionEvidence, extract_tracks
     from shared.calibration import prepare_rgbd
     color = engine.settings.color_recovery or engine.settings.relocalize
@@ -665,11 +689,15 @@ def _propose_depth_poses(engine, progress_cb=None):
         views.append(prepare_view(i, raw, engine.settings))
         if color and abs(engine.frame_metadata[i].get("rgb_depth_delta_ms", 0)) <= 20:
             rgb, depth = prepare_rgbd(engine.raw_frames[i][0], raw, engine.settings)
-            appearance.append(extract_features(rgb, depth, engine.settings.camera, method="sift"))
             tracked.append(extract_tracks(engine.frame_metadata[i], depth, engine.settings.camera))
         else:
-            appearance.append(None)
             tracked.append(None)
+    def load_appearance(i):
+        if not color or abs(engine.frame_metadata[i].get("rgb_depth_delta_ms", 0)) > 20:
+            return None
+        rgb, depth = prepare_rgbd(*engine.raw_frames[i], engine.settings)
+        return extract_features(rgb, depth, engine.settings.camera, method="sift")
+    appearance = LazyFeatures(len(views), load_appearance)
     device = "cuda" if str(engine.device).startswith("CUDA") else "cpu"
     cached = getattr(engine, "_offline_depth_pair_cache", ())
     tag_options = {}
@@ -698,6 +726,7 @@ def _propose_depth_poses(engine, progress_cb=None):
     solved, report = recover_depth_graph(views, device=device, notify=notify, cached_pairs=cached, motion=motion,
                                          checkpoint=getattr(engine,"_offline_depth_checkpoint",None), **tag_options)
     report["motion_evidence"] = evidence_summary
+    report["ordinary_feature_views_extracted"] = sorted(appearance.cache)
     report["joint_refinements"] = [r for c in solved for r in c.get("joint_refinements", [c.get("joint_refinement")]) if r]
     report["cached_pairs_revalidated"] = len(cached)
     if not solved or not solved[0]["validation"]["accepted"]:

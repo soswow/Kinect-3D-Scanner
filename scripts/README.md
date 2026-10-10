@@ -50,7 +50,7 @@ outside active scanning.
 | [start_cuda_server.ps1](start_cuda_server.ps1) | Start a server with an explicit baseline, hybrid or adaptive recipe |
 | [replay_scan.py](replay_scan.py) | Replay public or recorded RGB-D data |
 | [profile_capture.py](profile_capture.py) | Measure the capture path |
-| [profile_session.py](profile_session.py) | Profile one raw session and its processing stages |
+| [profile_session.py](profile_session.py) | Profile raw sessions; `--finish --finish-only` measures cold depth Finish without archived pose seeds |
 | [profile_session_backends.py](profile_session_backends.py) | Compare complete session backend recipes |
 | [profile_cuda_pipeline.py](profile_cuda_pipeline.py) | Run controlled pipeline matrices and quality comparisons |
 | [compare_session_profiles.py](compare_session_profiles.py) | Compare completed reconstructions and triangle surfaces |

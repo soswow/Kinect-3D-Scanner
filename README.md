@@ -177,7 +177,8 @@ are display-only: saved captures retain their original RGB pixels.
 
 Keep labels stationary and use a unique ID for each physical label within its
 dictionary. The same numeric ID in different dictionaries is supported. Repeated
-IDs in one image and ambiguous cross-dictionary decodes are excluded. Printed
+IDs seen twice in any server image are quarantined across the session, including
+copies visible only in native RGB. Ambiguous cross-dictionary decodes are excluded. Printed
 size is not required: matched corners use measured depth at both ends, on the
 calibrated depth grid. Tags need clear corners, at least 20 pixels per side on
 that grid, valid depth within the selected range/crop, and RGB/depth timing
@@ -185,6 +186,13 @@ within 20 ms. Detection uses exact codes rather than bit-error correction.
 Tag motion must also pass independent depth-overlap checks; missing or rejected
 tags leave ordinary tracking available. Both final registration modes can use
 verified tag motion, including motion along otherwise ambiguous planes.
+Depth-mode Finish first fits a shared tag-corner map and refines it against depth.
+It extracts ordinary RGB features as needed to recover weak or missing tag views.
+Every retained camera must pass measured tag or RGB/depth checks, followed by the
+complete depth audit. Sparse, disconnected or conflicting tag evidence retains
+tag pose proposals and falls back to the broader recovery pipeline. Live fusion
+tries measured tags first and defers source normals and model registration
+levels until geometry needs them, while keeping the preview current.
 OpenCV 4.8 or newer with `cv2.aruco` is required when tags are enabled. Update
 and restart the reconstruction server as well as the client to use these settings.
 

@@ -190,6 +190,7 @@ class ScanEngine:
         self._apriltag_detector = AprilTagDetector(p.apriltag_dictionaries) if p.apriltag_tracking else None
         self._apriltag_observations = {}
         self._apriltag_clouds = {}
+        self._apriltag_repeated = set()
         self.backend["stage_devices"]["apriltag_detection"] = "CPU:0"
         self._sift_visual_cache = {}
         self._visual_target_pyramids = {}
@@ -1400,10 +1401,11 @@ class ScanEngine:
 
         with self._stage("depth_filter"):
             rgb, depth = self._prepare_input(rgb, depth, self.settings)
+        tag_frame = None
         if self.settings.apriltag_tracking:
             from .apriltag_tracking import observation
             with self._stage("apriltag_detection"):
-                observation(self, self._processed_count, rgb, depth)
+                tag_frame = observation(self, self._processed_count, rgb, depth)
         valid_fraction = np.count_nonzero(depth) / depth.size
         if np.count_nonzero(depth) < 1000:
             return {
@@ -1413,7 +1415,8 @@ class ScanEngine:
         # Legacy RGBD + registration point cloud (CPU)
         with self._stage("registration_cloud"):
             rgbd = self._make_rgbd(rgb, depth)
-            current_pcd = self._make_reg_pcd(rgbd, normals=self._needs_raw_normals())
+            current_pcd = self._make_reg_pcd(rgbd, normals=self._needs_raw_normals()
+                                          and not (tag_frame and tag_frame.tags))
 
         if len(current_pcd.points) < 100:
             return {
@@ -1507,7 +1510,8 @@ class ScanEngine:
         )
         if should_extract:
             with self._stage("model_refresh"):
-                if method == "keyframe+visual" and self.backend["model_preparation"] == "lazy":
+                if method == "keyframe+visual" and (self.backend["model_preparation"] == "lazy"
+                        or (self._visual_evidence or {}).get("kind") == "apriltag"):
                     self._refresh_live_points()
                 else:
                     self._extract_model_pcd()

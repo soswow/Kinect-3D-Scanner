@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import open3d as o3d
 
-from shared.apriltag import tag_motion
+from shared.apriltag import TagFrame, tag_motion
 from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 REG = o3d.pipelines.registration
@@ -17,15 +17,25 @@ def observation(engine, index, rgb=None, depth=None):
         return None
     cached = engine._apriltag_observations.get(index)
     if cached is not None:
-        return cached
-    if rgb is None:
-        rgb, depth = engine._prepare_input(*engine.raw_frames[index], engine.settings)
-    lag = engine.frame_metadata[index].get("rgb_depth_delta_ms")
-    result = engine._apriltag_detector.detect(rgb, depth, engine.settings.camera,
-        synchronized=lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS)
-    engine._apriltag_observations[index] = result
-    engine.frame_metadata[index]["apriltags_backend"] = result.report()
-    return result
+        result = cached
+    else:
+        if rgb is None:
+            rgb, depth = engine._prepare_input(*engine.raw_frames[index], engine.settings)
+        lag = engine.frame_metadata[index].get("rgb_depth_delta_ms")
+        result = engine._apriltag_detector.detect(rgb, depth, engine.settings.camera,
+            synchronized=lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS)
+        # Native RGB can reveal a second copy cropped/occluded on the depth
+        # grid. Decode identities only; native pixels never supply depth points.
+        raw_rgb = engine.raw_frames[index][0]
+        if raw_rgb.shape != rgb.shape:
+            result.repeated.update(engine._apriltag_detector.repeated_identities(raw_rgb))
+        engine._apriltag_observations[index] = result
+        engine._apriltag_repeated.update(result.repeated)
+    filtered = TagFrame({k: v for k, v in result.tags.items() if k not in engine._apriltag_repeated},
+                        result.detected, result.ambiguous, result.reason, result.detections,
+                        set(result.repeated))
+    engine.frame_metadata[index]["apriltags_backend"] = filtered.report()
+    return filtered
 
 
 def register(engine, source, rgbd):
