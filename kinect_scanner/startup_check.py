@@ -128,6 +128,7 @@ def run_check():
         finally:
             main_window.KinectWorker = original
         window.show()
+        check_texture_export_dialog(window)
         errors = []
         window.worker.error_occurred.connect(errors.append)
         log_checks = []
@@ -261,10 +262,33 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "offline_capture": "ok", "reconstruction_progress": "ok",
+              "offline_capture": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0
+
+
+def check_texture_export_dialog(window):
+    """Exercise installed texture choices without a server or preference writes."""
+    from .gui.dialogs import ExportDialog
+
+    dialog = ExportDialog(window)
+    dialog.show()
+    try:
+        if "connected surface region" not in dialog.texture_description.text():
+            raise RuntimeError("Texture export explanation is missing")
+        for correction in (False, True):
+            for sharp in (False, True):
+                dialog.texture_exposure_cb.setChecked(correction)
+                dialog.texture_best_cb.setChecked(sharp)
+                expected = {"exposure_correction": correction, "blend_mode": "best" if sharp else "blend"}
+                if dialog.texture_options != expected:
+                    raise RuntimeError("Texture export choices are not independent")
+        dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("ply"))
+        if dialog.texture_best_cb.isEnabled() or not dialog.texture_description.isHidden():
+            raise RuntimeError("Texture choices shown for an untextured format")
+    finally:
+        dialog.reject()
 
 
 def check_reconstruction_progress(window):
