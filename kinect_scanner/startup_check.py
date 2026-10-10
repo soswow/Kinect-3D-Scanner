@@ -16,7 +16,13 @@ def synthetic_capture(connection, stop_event, rgb_buffer, depth_buffer):
     np.frombuffer(rgb_buffer, np.uint8)[:] = 42
     np.frombuffer(depth_buffer, np.uint16)[:] = 750
     while not stop_event.is_set():
-        connection.send(("frame", {"rgb_depth_delta_ms": 0, "timestamp_s": time.time()}))
+        stamp = time.monotonic()
+        connection.send(("frame", {"rgb_depth_delta_ms": 0, "timestamp_s": time.time(),
+                                   "orientation_host_monotonic_s": stamp,
+                                   "accelerometer": {"valid": False, "reason": "Image-to-host timing uncertain"},
+                                   "orientation_accelerometer": {"valid": True, "capture_generation": "synthetic",
+                                                                "gravity": {"valid": True, "confidence": 1,
+                                                                            "up_camera": [-1, 0, 0]}}}))
         connection.recv()
         stop_event.wait(0.1)
 
@@ -58,6 +64,7 @@ def run_check():
         window.worker.error_occurred.connect(errors.append)
         log_checks = []
         reset_checks = []
+        orientation_checks = []
         phase = "capture"
         reset_frame = 0
         camera_fault = "Synthetic check: camera disconnected"
@@ -72,6 +79,16 @@ def run_check():
             nonlocal phase, reset_frame
             if window._frame_sequence:
                 if phase == "capture":
+                    # Verify installed Auto rotation despite rejected tracking
+                    # association, allowing the normal 0.3 s switch dwell.
+                    if window._display_rotation != 90:
+                        return
+                    window._switch_mode(main_window.MODE_RGB)
+                    image = window.view_label._image
+                    orientation_checks.append(image is not None and image.width() < image.height())
+                    orientation_checks.append(window.sensor_status_label.isVisible())
+                    orientation_checks.append(not window._last_frame_metadata["accelerometer"]["valid"])
+                    orientation_checks.append(window._last_depth.shape == (480, 640))
                     # The real spawned frame must re-arm this fault, while a
                     # second unchanged error must stay quiet in the Qt view.
                     window._on_error(camera_fault)
@@ -131,6 +148,8 @@ def run_check():
             raise RuntimeError(f"Log changes check failed: {log_checks}")
         if len(reset_checks) != 5 or not all(reset_checks):
             raise RuntimeError(f"Reset setup check failed: {reset_checks}")
+        if len(orientation_checks) != 4 or not all(orientation_checks):
+            raise RuntimeError(f"Auto portrait check failed: {orientation_checks}")
         if window.server_ip_edit.text() != "192.0.2.42":
             raise RuntimeError("Server preferences were not restored")
         mesh_path = str(Path(temporary) / "box.ply")
@@ -139,7 +158,7 @@ def run_check():
                                 capture_output=True, text=True, timeout=20, check=False)
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
-    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok",
+    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "auto_portrait": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0

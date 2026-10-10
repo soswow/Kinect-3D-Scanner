@@ -224,6 +224,13 @@ class AccelerometerPoller:
             self.reason = sample.get("reason", "Acceleration available")
         return sample
 
+    def for_orientation(self, now=None):
+        """Coarse presentation uses a recent host read, not exposure alignment."""
+        if not self.enabled:
+            return {"valid": False, "reason": self.reason}
+        return orientation_observation(self.samples[-1] if self.samples else None,
+                                       time.monotonic() if now is None else now, self.generation)
+
     def associate(self, image_time, mapping_uncertainty=0):
         if not math.isfinite(mapping_uncertainty) or not 0 <= mapping_uncertainty <= MAX_HOST_MAPPING_UNCERTAINTY_S:
             return {"valid": False, "reason": "Image-to-host timing uncertain"}
@@ -239,6 +246,29 @@ class AccelerometerPoller:
                 "sample_delta_ms": delta * 1000, "read_start_s": sample["read_start_s"],
                 "read_end_s": sample["read_end_s"], "acceleration_m_s2": sample.get("acceleration_m_s2"),
                 "gravity": gravity}
+
+
+def orientation_observation(sample, now, generation):
+    """Bound coarse orientation by host-read freshness and connection identity."""
+    if sample is None:
+        return {"valid": False, "reason": "Waiting for acceleration"}
+    try:
+        age = float(now) - float(sample["host_monotonic_s"])
+        if not math.isfinite(age) or not 0 <= age <= 0.25:
+            raise ValueError("Acceleration reading stale")
+        if not generation or sample.get("capture_generation") != generation:
+            raise ValueError("Waiting for acceleration after reconnect")
+        if not sample.get("valid"):
+            raise ValueError(sample.get("reason", "Acceleration unavailable"))
+        gravity = sample["gravity"]
+        if not gravity.get("valid"):
+            raise ValueError(gravity.get("reason", "Acceleration changing"))
+        return {"valid": True, "reason": "Recent gravity reading", "version": 1,
+                "capture_generation": generation, "sequence": sample["sequence"],
+                "sample_age_ms": age * 1000, "timing_reference": "host_read_interval",
+                "gravity": dict(gravity)}
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        return {"valid": False, "reason": str(exc)}
 
 
 class OrientationTracker:
@@ -258,7 +288,7 @@ class OrientationTracker:
             return {"rotation_cw_degrees": self.rotation, "mode": mode, "valid": True, "reason": "Manual orientation"}
         try:
             if not accelerometer.get("valid"):
-                raise ValueError("Holding orientation: acceleration unavailable")
+                raise ValueError("Holding orientation: " + accelerometer.get("reason", "acceleration unavailable"))
             gravity = accelerometer["gravity"]
             if not gravity.get("valid") or gravity.get("confidence", 0) < 0.4:
                 raise ValueError("Holding orientation: acceleration changing")

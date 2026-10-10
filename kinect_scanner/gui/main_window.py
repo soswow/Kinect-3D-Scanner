@@ -378,7 +378,7 @@ class MainWindow(QMainWindow):
         camera_layout.setContentsMargins(0, 0, 0, 0)
         self.camera_title = QLabel("Live camera · Color")
         camera_layout.addWidget(self.camera_title)
-        # Keep diagnostic values available to integrations; display them in tooltips/logs.
+        # The orientation status is placed beside its selector in scan settings.
         self.sensor_status_label = QLabel("Orientation: waiting for acceleration", self.camera_panel)
         self.sensor_status_label.setWordWrap(True)
         self.sensor_status_label.hide()
@@ -609,6 +609,8 @@ class MainWindow(QMainWindow):
         orientation_label.setBuddy(self.orientation_combo)
         vg.addWidget(orientation_label)
         vg.addWidget(self.orientation_combo)
+        vg.addWidget(self.sensor_status_label)
+        self.sensor_status_label.show()
         self.gravity_tracking_cb = QCheckBox("Use accelerometer to assist tracking")
         self.gravity_tracking_cb.setToolTip("Optional gravity assistance for the RGB-D motion prediction. Auto portrait orientation works independently of this setting.")
         vg.addWidget(self.gravity_tracking_cb)
@@ -1283,8 +1285,8 @@ class MainWindow(QMainWindow):
 
     def _update_orientation(self):
         metadata = self._last_frame_metadata
-        decision = self._orientation.update(metadata.get("accelerometer", {}),
-                                            metadata.get("depth_host_monotonic_s", metadata.get("captured_monotonic_s", time.monotonic())),
+        decision = self._orientation.update(metadata.get("orientation_accelerometer", metadata.get("accelerometer", {})),
+                                            metadata.get("orientation_host_monotonic_s", metadata.get("depth_host_monotonic_s", metadata.get("captured_monotonic_s", time.monotonic()))),
                                             self.orientation_combo.currentData())
         metadata["orientation"] = decision
         self._display_rotation = decision["rotation_cw_degrees"]
