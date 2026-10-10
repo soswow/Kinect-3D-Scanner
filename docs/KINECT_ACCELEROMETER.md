@@ -21,8 +21,10 @@ to **Auto** independently.
   return code, read start/end, host midpoint, wall time, and available tilt
   angle/status. Every failure is retained. The event log also records attempts
   before entering the native call, so an interrupted read is visible.
-- Missing APIs, implausible values, three consecutive failures, or a read over
-  50 ms disable acceleration without disabling RGB-D. An image timeout during
+- Missing APIs, three consecutive failures, or three consecutive reads over
+  50 ms disable acceleration without disabling RGB-D. An isolated delayed read
+  is rejected by the gravity timing check but allows later fast reads to recover.
+  Implausible vectors are retained as failed reads. An image timeout during
   a native sensor call causes a bounded child restart with acceleration disabled
   for the next connection. Sensor traffic cannot conceal a stalled image stream.
 - Gravity uses a short robust median and exponential filter. Norm deviation,

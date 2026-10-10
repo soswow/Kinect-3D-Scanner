@@ -176,7 +176,7 @@ class AccelerometerPoller:
         self.generation = generation or uuid.uuid4().hex
         self.estimator = GravityEstimator(calibration)
         self.samples = deque(maxlen=64)
-        self.sequence, self.errors, self.next_poll = 0, 0, 0
+        self.sequence, self.errors, self.slow_reads, self.next_poll = 0, 0, 0, 0
         self.enabled = enabled and all(hasattr(freenect, n) for n in
                                       ("update_tilt_state", "get_tilt_state", "get_mks_accel"))
         self.reason = "Waiting for acceleration" if self.enabled else "Accelerometer unavailable or disabled"
@@ -217,9 +217,11 @@ class AccelerometerPoller:
         sample["gravity"] = self.estimator.update(sample)
         self.samples.append(sample)
         self.next_poll = end + 0.05  # No catch-up bursts after a late control transfer.
-        if self.errors >= 3 or end - start > 0.05:
+        self.slow_reads = self.slow_reads + 1 if end - start > 0.05 else 0
+        if self.errors >= 3 or self.slow_reads >= 3:
             self.enabled = False
-            self.reason = "Accelerometer disabled after read errors or excessive latency"
+            self.reason = ("Accelerometer disabled after repeated USB read delays" if self.slow_reads >= 3
+                           else "Accelerometer disabled after repeated read errors")
         else:
             self.reason = sample.get("reason", "Acceleration available")
         return sample

@@ -249,6 +249,11 @@ class KinectWorker(QThread):
                             continue
                         if kind == "accelerometer":
                             acceleration_call = False
+                            latency = payload.get("read_end_s", 0) - payload.get("read_start_s", 0)
+                            if not payload.get("valid") or latency > .05:
+                                logger.warning("Accelerometer read sequence=%s valid=%s latency_ms=%.1f reason=%s",
+                                               payload.get("sequence"), payload.get("valid"), latency * 1000,
+                                               payload.get("reason", payload.get("gravity", {}).get("reason")))
                             self.accelerometer_ready.emit(payload)
                             continue
                         if kind == "sensor_status":

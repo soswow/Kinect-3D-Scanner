@@ -3,6 +3,7 @@
 import math
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -27,6 +28,36 @@ def metadata(up=(0, -1, 0), confidence=1, generation="connection", verified=True
 
 
 class InertialTests(unittest.TestCase):
+    def test_isolated_slow_read_recovers_but_repeated_slow_reads_disable_polling(self):
+        driver = SimpleNamespace(update_tilt_state=lambda _: 10,
+                                 get_tilt_state=lambda _: SimpleNamespace(accelerometer_x=819, accelerometer_y=0, accelerometer_z=0),
+                                 get_mks_accel=lambda _: (G, 0, 0))
+        poller = AccelerometerPoller(driver, None, generation="connection")
+        stamp = 1.0
+
+        def read(latency):
+            nonlocal stamp
+            poller.next_poll = 0
+            with patch("shared.inertial.time.monotonic", side_effect=[stamp, stamp + latency]):
+                observation = poller.poll(now=stamp)
+            stamp += latency + .05
+            return observation
+
+        delayed = read(.08)
+        self.assertTrue(poller.enabled)
+        self.assertFalse(delayed["gravity"]["valid"])
+        self.assertFalse(poller.associate(delayed["host_monotonic_s"])["valid"])
+        for _ in range(6):
+            recovered = read(.002)
+        self.assertEqual(poller.slow_reads, 0)
+        self.assertTrue(poller.for_orientation(recovered["read_end_s"])["valid"])
+        for _ in range(2):
+            read(.08)
+            self.assertTrue(poller.enabled)
+        read(.08)
+        self.assertFalse(poller.enabled)
+        self.assertIn("repeated", poller.reason)
+
     def test_display_orientation_does_not_need_exposure_clock_association(self):
         driver = SimpleNamespace(update_tilt_state=lambda _: 0, get_tilt_state=lambda _: None,
                                  get_mks_accel=lambda _: (0, G, 0))
