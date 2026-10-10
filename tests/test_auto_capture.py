@@ -141,18 +141,30 @@ class AutoCaptureTests(unittest.TestCase):
         self.window._on_reset_done({"session_id": "offline-no-motion", "settings": profile.to_dict()})
         self.assertIsNone(self.window.worker.tracking_settings[-1])
 
-    def test_offline_motion_warning_keeps_capturing_and_clears_on_recovery(self):
+    def test_offline_motion_warning_is_logged_without_moving_camera_views(self):
         profile = ScanSettings(color_recovery=True, live_reconstruction=False)
         self.window._on_reset_done({"session_id": "offline-warning", "settings": profile.to_dict()})
         self.window._progress_link_ok = True
-        self.receive(visual_tracking={"valid": False, "reason": "Visual motion unverified"})
-        self.assertIn("Camera motion unverified", self.window.scan_status_label.text())
-        self.assertFalse(self.window.guidance_label.isHidden())
-        self.assertFalse(self.window._paused)
-        self.assertTrue(self.window.auto_capture_cb.isChecked())
+        self.window.resize(1200, 800)
+        self.window.show()
         self.receive(visual_tracking={"valid": True})
-        self.assertNotIn("Camera motion unverified", self.window.scan_status_label.text())
-        self.assertTrue(self.window.guidance_label.isHidden())
+        self.app.processEvents()
+        views = (self.window.view_stack, self.window.view_label, self.window.scan_depth_view)
+        geometry = [view.geometry() for view in views]
+        state = self.window.scan_status_label.text()
+        for valid in (False, False, True, False, True):
+            self.receive(visual_tracking={"valid": valid, "reason": "Visual motion unverified"})
+            self.app.processEvents()
+            self.assertTrue(self.window.guidance_label.isHidden())
+            self.assertEqual(geometry, [view.geometry() for view in views])
+            self.assertEqual(state, self.window.scan_status_label.text())
+            self.assertFalse(self.window._paused)
+            self.assertTrue(self.window.auto_capture_cb.isChecked())
+        history = self.window.logs_panel.text.toPlainText()
+        self.assertEqual(2, history.count("Camera motion could not be verified"))
+        self.assertEqual(2, history.count("Camera motion warning cleared"))
+        self.receive(visual_tracking={"valid": True})
+        self.assertEqual(history, self.window.logs_panel.text.toPlainText())
 
     def test_interval_editor_caps_frequency_and_steps_whole_frames(self):
         spin = self.window.auto_capture_spin

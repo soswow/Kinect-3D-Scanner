@@ -57,6 +57,7 @@ def run_check():
         errors = []
         window.worker.error_occurred.connect(errors.append)
         log_checks = []
+        motion_layout_checks = []
         reset_checks = []
         phase = "capture"
         reset_frame = 0
@@ -81,6 +82,35 @@ def run_check():
                     log_checks.append(history.count(camera_fault) == 2)
                     log_checks.append("Live color and depth frames received" in history)
                     log_checks.append("Resources {" not in history)
+                    # Verify the installed Scan layout while offline camera
+                    # tracking alternates between verified and unverified.
+                    window.worker.blockSignals(True)
+                    window.server_client._connected = True
+                    window._session_settings = {"live_reconstruction": False, "color_recovery": True}
+                    window._scanning = True
+                    window._switch_mode(main_window.MODE_SCANNER)
+                    window._last_frame_metadata["visual_tracking"] = {"valid": True}
+                    window._refresh_status()
+                    app.processEvents()
+                    views = (window.view_stack, window.view_label, window.scan_depth_view)
+                    geometry = [view.geometry() for view in views]
+                    state = window.scan_status_label.text()
+                    for valid in (False, False, True, False, True):
+                        window._last_frame_metadata["visual_tracking"] = {"valid": valid}
+                        window._refresh_status()
+                        app.processEvents()
+                        motion_layout_checks.append(
+                            window.guidance_label.isHidden()
+                            and geometry == [view.geometry() for view in views]
+                            and state == window.scan_status_label.text()
+                        )
+                    motion_layout_checks.append(
+                        window.logs_panel.text.toPlainText().count("Camera motion could not be verified") == 2
+                    )
+                    window._scanning = False
+                    window._session_settings = None
+                    window.server_client._connected = False
+                    window.worker.blockSignals(False)
                     window._stop_camera_after_finish()
                     phase = "stopped"
                 elif phase == "stopped" and not window.worker.isRunning():
@@ -129,6 +159,8 @@ def run_check():
             raise RuntimeError(f"Capture/window check failed: frames={frames}, errors={errors}")
         if len(log_checks) != 5 or not all(log_checks):
             raise RuntimeError(f"Log changes check failed: {log_checks}")
+        if len(motion_layout_checks) != 6 or not all(motion_layout_checks):
+            raise RuntimeError(f"Camera motion layout check failed: {motion_layout_checks}")
         if len(reset_checks) != 5 or not all(reset_checks):
             raise RuntimeError(f"Reset setup check failed: {reset_checks}")
         if window.server_ip_edit.text() != "192.0.2.42":
@@ -139,7 +171,7 @@ def run_check():
                                 capture_output=True, text=True, timeout=20, check=False)
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
-    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok",
+    report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0

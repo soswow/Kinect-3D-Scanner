@@ -104,6 +104,7 @@ class MainWindow(QMainWindow):
         self._close_approved = False
         self._operation_error = ""
         self._progress_link_ok = True
+        self._camera_motion_unverified = False
         self._server_operation = None
         self._reconcile_on_status = False
         self._status_pending = False
@@ -911,6 +912,14 @@ class MainWindow(QMainWindow):
             and (self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
             and self._last_frame_metadata.get("visual_tracking", {}).get("valid") is False
         )
+        if camera_motion_unverified != self._camera_motion_unverified:
+            self.logs_panel.append(
+                "Camera motion could not be verified. Slow down and keep overlapping detail in view. "
+                "Captures are retained; reconstruction is checked at Finish."
+                if camera_motion_unverified else "Camera motion warning cleared.",
+                "Camera", key="camera_motion",
+            )
+            self._camera_motion_unverified = camera_motion_unverified
         if self._camera_suspended:
             self.interval_help.setText("Capture finished · stopping camera…" if self.worker.isRunning()
                                        else "Capture finished · camera and sensors are off.")
@@ -957,8 +966,6 @@ class MainWindow(QMainWindow):
             state = self._capture_waiting
         elif self._scanning and not self._camera_ready():
             state = "Waiting for fresh camera frames · scan retained"
-        elif camera_motion_unverified:
-            state = "Camera motion unverified · move slowly with overlapping views · reconstruction checked at Finish"
         elif self._scanning:
             state = "Capturing automatically" if self.auto_capture_cb.isChecked() else "Manual capture · ready"
             if offline:
@@ -974,14 +981,10 @@ class MainWindow(QMainWindow):
         if self.scan_status_label.text() != state:
             self.logs_panel.append(state, "Scan")
         self.scan_status_label.setText(state)
-        if camera_motion_unverified and not self.live_view.snapshot.get("fusion_paused") and self._progress_link_ok:
-            self.guidance_label.setText("Camera motion could not be verified. Slow down and keep overlapping detail in view. Captures are retained; reconstruction is checked at Finish.")
-            self.guidance_label.setStyleSheet("")
         self.guidance_label.setVisible(
             self._scanning and self.live_view.isHidden()
             and self.view_stack.currentWidget() is self.splitter
-            and (bool(self.live_view.snapshot.get("fusion_paused")) or not self._progress_link_ok
-                 or camera_motion_unverified)
+            and (bool(self.live_view.snapshot.get("fusion_paused")) or not self._progress_link_ok)
         )
 
     def _capture_mode_changed(self):
