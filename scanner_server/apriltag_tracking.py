@@ -47,10 +47,17 @@ def register(engine, source, rgbd):
         np.asarray(rgbd.color), np.rint(np.asarray(rgbd.depth) * 1000).astype(np.uint16))
     if not current.tags:
         return None
+    from .live_tag_map import register as register_map
+    mapped = register_map(engine, current, rgbd, observation)
+    if mapped is not None:
+        return mapped
     candidates = dict(engine.poses[:5] + engine.poses[::4][-27:] + engine.poses[-8:])
     engine._apriltag_clouds = {i: c for i, c in engine._apriltag_clouds.items() if i in candidates}
     ranked = sorted(candidates, key=lambda i: (-len(current.tags.keys() & observation(engine, i).tags.keys()), -i))
-    for index in ranked[:5]:
+    depth_checks = 0
+    for index in ranked:
+        if depth_checks >= 5:
+            break
         relative, support = tag_motion(current, observation(engine, index), engine.settings.camera)
         if relative is None:
             continue
@@ -60,6 +67,7 @@ def register(engine, source, rgbd):
             translation > engine.settings.max_translation_m or angle > engine.settings.max_rotation_deg
         ):
             continue
+        depth_checks += 1
         target = engine._apriltag_clouds.get(index)
         if target is None:
             rgb, depth = engine._prepare_input(*engine.raw_frames[index], engine.settings)

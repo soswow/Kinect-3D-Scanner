@@ -1,0 +1,79 @@
+{
+  "kind": "live-world-tag-map-summary-v1",
+  "input": {
+    "scope": "75 selected RGB-D captures from the 10 October live marker scan, exported from server without continuous camera pixels",
+    "sha256": "f128c1ba46761aa9154dc858874496ed2d32506e12db99d79a325f40acedbdeb",
+    "frames": 75,
+    "settings_sha256": "981c1dd29931f06ccc650d89c69140ec257f6613219f2e7d13720b6ef4d539e5",
+    "voxel_m": 0.01,
+    "depth_range_m": [
+      0.5,
+      3.0
+    ]
+  },
+  "source": {
+    "baseline_commit": "044e715ef9345111d3492efbdbd8ed5835567754",
+    "baseline_tree_sha256": "4c5374d6f2b82c08f957b2afd96e6ced0d2d27f90cf79d273e0407c1f9be6722",
+    "implementation_tree_sha256": "f10890e772c3368a64f93220b6940a0f6ff85772596f12974d94b8063a913b33",
+    "implementation_files_sha256": {
+      "scanner_server/live_tag_map.py": "ca9e9cbefd15da420a083442c3a99b1e981cd0510ee4edbe6d3279d587d5950c",
+      "scanner_server/apriltag_tracking.py": "9d198a1218d1d48daa8942be4b7421edc4aef04a228ef713d5925a3ae36cb96b",
+      "scanner_server/engine.py": "023ad7b3f21d691dc14d29b80a76c23f4e8100b64c16c47adf3686462d2b46ba"
+    }
+  },
+  "environment": {
+    "platform": "Windows",
+    "versions": {
+      "python": "3.12.7",
+      "open3d": "0.20.0",
+      "opencv": "5.0.0",
+      "numpy": "2.5.3"
+    },
+    "gpu": [
+      {
+        "name": "NVIDIA GeForce RTX 3080 Ti",
+        "driver": "610.88"
+      }
+    ],
+    "threads": "4",
+    "tracking": "tensor",
+    "fusion_device": "CUDA:0",
+    "native_extension_sha256": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313"
+  },
+  "measurement": {
+    "method": "Sequential isolated cold CUDA live replays of identical selected frames/settings, without archived pose seeds. Production server idle. Includes storage, preparation, tracking, fusion and scheduled preview; excludes imports, ZIP decoding, hashing and export.",
+    "baseline_live_s": 50.99805860000197,
+    "implementation_live_s": 31.611999599990668,
+    "baseline_accepted": 46,
+    "implementation_accepted": 64,
+    "baseline_rejected": 29,
+    "implementation_rejected": 11,
+    "map_registrations": 48,
+    "newly_accepted_count": 19,
+    "baseline_accepted_now_rejected_count": 1
+  },
+  "depth_audit": {
+    "method": "All ordered accepted-view pairs, spread depth-grid samples and the existing scene_visibility empty-space audit.",
+    "maximum_mean_free_space_fraction": 0.08,
+    "baseline_free_space_fraction": 0.040190948465427354,
+    "implementation_free_space_fraction": 0.03695997660871456,
+    "baseline_tested_projections": 7344390,
+    "implementation_tested_projections": 13748710,
+    "implementation_accepted": true
+  },
+  "validation": {
+    "tag_tests_passed": 35,
+    "lifecycle_api_tests_passed": 24,
+    "engine_recovery_speed_tests_passed": 8,
+    "existing_recovery_view_tests_passed": 2,
+    "pre_existing_failure": "RecoveryWorkflowTests.test_recovery_probes_wait_for_pending_check_even_without_adaptive_capture fails identically at the baseline commit. Client UI code is unchanged."
+  },
+  "limitations": [
+    "Single selected-frame recording; continuous client upload was incomplete during qualification.",
+    "11 captures remain rejected; one formerly accepted capture fails under the changed live trajectory.",
+    "Depth consistency and agreement with saved Finish poses are not ground-truth accuracy.",
+    "Legacy geometry paths can vary between CUDA replays; acceptance counts remained stable across the checked runs.",
+    "Markers must remain stationary and unique; unseen duplicates remain an identity risk.",
+    "Sparse/no-tag frames retain legacy tag/RGB/depth recovery checks; uninterrupted tracking is not promised."
+  ]
+}

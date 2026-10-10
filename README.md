@@ -186,8 +186,12 @@ size is not required: matched corners use measured depth at both ends, on the
 calibrated depth grid. Tags need clear corners, at least 20 pixels per side on
 that grid, valid depth within the selected range/crop, and RGB/depth timing
 within 20 ms. Detection uses exact codes rather than bit-error correction.
-Tag motion must also pass independent depth-overlap checks; missing or rejected
-tags leave ordinary tracking available. Both final registration modes can use
+Live fusion first fits a shared world map when at least three known tags provide
+distributed, consistent measured corners. Separate non-tag depth samples must
+support that pose. This can recover after a larger move or with less whole-image
+overlap, without returning to one previous frame. The map uses accepted views
+only. Sparse or rejected map evidence falls back to pairwise tag tracking and
+ordinary recovery, with their existing checks. Both final registration modes can use
 verified tag motion, including motion along otherwise ambiguous planes.
 Depth-mode Finish first fits a shared tag-corner map and refines it against depth.
 It extracts ordinary RGB features as needed to recover weak or missing tag views.

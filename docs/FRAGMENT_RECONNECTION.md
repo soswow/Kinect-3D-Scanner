@@ -106,17 +106,43 @@ geometry fallback prepares the pending model before use. The recorded live
 comparison also changed duplicate rejection decisions, so it does not isolate
 this preparation saving or establish a whole-live speedup on unique tags.
 
-Live tracking does not maintain the shared world tag-corner map used at Finish.
-It fits current measured RGB-D tag corners against individual accepted views,
-using at most forty references and trying the five with the most shared tags.
-Tags observed across several different references are not pooled into one live
-pose fit. A fitted pose still needs at least 60% forward and 45% reverse raw-depth
-overlap within 22.5 mm, with RMSE at most 15 mm. During ordinary tracking it must
-also satisfy the configured motion limits; that motion gate is skipped once
-tracking is lost, but the tag and depth checks remain. Visible familiar tags
-can therefore fail live recovery even when Finish later places those captures.
-The last-good-view prompt describes the geometry fallback; verified tag or
-appearance recovery can also resume from another accepted view.
+Live fusion first fits a bounded world map of tag corners from accepted cameras.
+It pools identities across references, rather than requiring all markers in one
+old image. At least three complete known tags must agree, cover sufficient image
+area, and pass fixed pixel and measured-depth checks. Repeated identities are
+removed from the map; repeated disagreement with accepted world observations
+also excludes an unstable identity. The map stores at most 256 identities and
+eight measurements per identity. Reset clears it; loading a project or changing
+poses at Finish/refinement rebuilds it from the accepted raw views.
+
+A map pose needs a separate depth witness before fusion. Spread depth samples
+exclude the fitted marker surfaces in both images and check up to five accepted
+references. At least 200 projections must be supported, at least 65% must agree
+with measured depth, and aggregate empty-space conflict must not exceed 8%.
+A reference with at least 500 samples and over 15% conflict also rejects it.
+These engineering bounds are not calibrated probabilities. Strong map evidence
+can authorize larger motion or less whole-scene overlap than the old pairwise
+path. Current/rejected frames never extend the map, and a failed fusion does not
+commit the proposed camera pose.
+
+Sparse or failed map evidence retains pairwise tag and ordinary recovery. The
+pairwise path searches at most forty references in shared-tag order, skipping
+failed tag fits before spending at most five reciprocal depth checks. It still
+requires 60% forward and 45% reverse raw-depth overlap within
+22.5 mm, RMSE at most 15 mm, and the configured motion limits while tracking.
+The last-good-view prompt describes the geometry fallback; verified map, tag or
+appearance recovery can resume without returning to that particular image.
+Per-capture `metadata.apriltag_live_map` records map support and rejection reasons.
+
+The 75-capture October 10 recording was qualified by matched cold CUDA live
+replays without archived pose seeds: accepted views increased from 46 to 64,
+and processing fell from 51.0 to 31.6 seconds. The complete accepted-view depth
+audit measured 3.70% empty-space conflict versus 4.02% for the baseline, below
+the existing 8% bound. Eleven captures still failed live checks, and one formerly
+accepted view was rejected under the changed trajectory. This is one recording's
+consistency result, not physical accuracy or a sparse-tag guarantee. Timing
+excludes imports, archive decoding, hashing and export. Source/input/environment
+provenance and limits are in [the bounded result](benchmarks/live-world-tag-map.json).
 
 For a loaded session, `/api/scan/export/session` preserves selected raw captures,
 settings, capture metadata and reconstruction diagnostics without needing a

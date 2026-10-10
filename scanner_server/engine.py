@@ -191,6 +191,7 @@ class ScanEngine:
         self._apriltag_observations = {}
         self._apriltag_clouds = {}
         self._apriltag_repeated = set()
+        self._live_tag_map = None
         self.backend["stage_devices"]["apriltag_detection"] = "CPU:0"
         self._sift_visual_cache = {}
         self._visual_target_pyramids = {}
@@ -1511,7 +1512,7 @@ class ScanEngine:
         if should_extract:
             with self._stage("model_refresh"):
                 if method == "keyframe+visual" and (self.backend["model_preparation"] == "lazy"
-                        or (self._visual_evidence or {}).get("kind") == "apriltag"):
+                        or (self._visual_evidence or {}).get("kind") in ("apriltag", "apriltag_map")):
                     self._refresh_live_points()
                 else:
                     self._extract_model_pcd()
@@ -1661,6 +1662,7 @@ class ScanEngine:
                              "_integrations_since_preview", "_pending_model_cloud", "_pending_model_frame_count"):
                     setattr(self, name, getattr(candidate, name))
                 self.poses, self.diagnostics = proposals, diagnostics
+                self._live_tag_map = None
                 self._processed_count = self.stored_count
                 self._pose_seeds_only = False
                 self.frame_count = len(proposals)
@@ -1766,6 +1768,7 @@ class ScanEngine:
                 self.poses = proposals
                 self.cumulative_T = cumulative
                 self.diagnostics = diagnostics
+                self._live_tag_map = None
                 self._bundle_count = None
             self.refinement = report
         except Exception as exc:
@@ -1838,6 +1841,7 @@ class ScanEngine:
                 if self.original_poses is None:
                     self.original_poses = originals
                 self.poses, self.diagnostics = proposals, diagnostics
+                self._live_tag_map = None
                 self.cumulative_T = last_pose.copy()
                 self._last_rgbd = last_rgbd
                 self._last_reg_pcd = None
