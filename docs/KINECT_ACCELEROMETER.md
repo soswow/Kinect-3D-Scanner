@@ -156,14 +156,16 @@ checks sustained linear drift and differences between three interval averages
 separately from individual scatter. It accepts scatter up to 0.35 m/s² and peaks
 up to 0.8 m/s², while rejecting drift or interval shifts above 0.2 m/s². These
 are practical capture-quality limits, not proof of motion or physical accuracy;
-the fitter's 0.25 m/s² and 2° residual limits still apply. Unstable-read messages
+the fitter's separate residual limits below still apply. Unstable-read messages
 identify motion, vibration, and sensor noise as possible causes. Accepted
 observations retain scatter, peak, drift, and interval-shift diagnostics.
 
 Move and securely support the **whole Kinect**, preserving the head/base
 relationship throughout. Do not force the tilt joint. Align the actual camera
 axes using a level/square or an independently measured fixture; a level base
-does not guarantee horizontal lenses when the head is tilted. The positions are:
+does not guarantee horizontal lenses when the head is tilted. For approximate
+mode, follow the directions as closely as practical without measured alignment.
+The positions are:
 
 | Position | Camera-up vector in native depth-camera axes |
 | --- | --- |
@@ -181,7 +183,16 @@ Move away and independently realign each validation position; fitting samples
 are never reused. The accelerometer can detect changing readings, but cannot
 independently establish physical pose accuracy. At the start, the guide asks
 whether every reference alignment will be independently checked. Answering no
-keeps the output **unverified**, even if numerical fit and validation pass.
+selects **approximate mode**, which always keeps the output **unverified**.
+This mode permits up to 1 m/s² vector disagreement and 6° direction disagreement
+against the nominal poses in both fitting and fresh checks. These are practical
+trial limits, not independent accuracy measurements. They allow ordinary
+approximate placement without a measured fixture, while retaining the checks
+for adequate pose diversity, plausible bias/scale, and a proper axis rotation.
+They do not prove improved tracking or alignment accuracy. Confirmed independent
+references keep the strict 0.25 m/s² and 2° limits for verification. The report
+records the mode and limits used. Loading an approximate profile retains the
+scanner's reduced assistance weight for unverified calibration.
 
 The guide saves every completed attempt's raw readings, rejected attempts,
 accepted means, and reports in `measured-accelerometer.measurements.json`,
@@ -190,7 +201,12 @@ Ctrl-C to stop. If the fit fails, re-record a numbered position or the complete
 set. Existing output files are preserved; choose a new filename for a new run.
 The guide does not automatically resume an interrupted run. A completed
 measurement file can also be refitted with the file-mode command below; an
-unconfirmed reference remains unverified on refit.
+unconfirmed reference automatically uses approximate mode and remains unverified
+on refit. There is no need to repeat completed captures solely to change mode:
+
+```bash
+python scripts/calibrate_accelerometer.py ~/Documents/measured-accelerometer.measurements.json ~/Documents/measured-accelerometer-approximate.json
+```
 
 After success, use **Load Accelerometer Calibration…** to select
 `measured-accelerometer.json` (the profile, not the measurements file) before
@@ -203,8 +219,9 @@ sensor-to-camera rotation from at least six stationary orientations spanning all
 axes. Each input supplies the measured `acceleration_m_s2` vector and an
 **independently known** unit `up_camera` vector. Use a levelled fixture or separate
 reference; deriving the reference from this same accelerometer would be circular.
-The fitter rejects poorly conditioned orientations or residuals above 0.25 m/s²
-or 2°. At least three held-out reference poses passing these checks are required
+For independently checked references, the fitter rejects poorly conditioned
+orientations or residuals above 0.25 m/s² or 2°. At least three held-out reference
+poses passing these checks are required
 to mark the profile verified. Without them it remains unverified.
 
 ```json

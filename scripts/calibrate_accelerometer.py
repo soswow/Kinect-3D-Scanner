@@ -10,10 +10,10 @@ Input JSON: {"observations": [{"acceleration_m_s2": [x,y,z],
                              "up_camera": [x,y,z]}, ...],
              "validation": [... three or more independent held-out poses ...]}
 
-Use six or more orientations spanning all axes. Camera up must be independently
-known from a levelled fixture/reference, not inferred from the same accelerometer.
-Verification requires independently checked references and successful held-out
-checks. In file mode, collect measurements separately. Do not force the tilt joint.
+Use six or more orientations spanning all axes. Answering N in the guide selects
+approximate positioning and an unverified profile. Verification requires
+independently checked camera-up directions and successful held-out checks.
+In file mode, collect measurements separately. Do not force the tilt joint.
 """
 
 import argparse
@@ -30,7 +30,8 @@ from shared.inertial import fit_calibration
 
 
 def fitted_profile(data, identity=None):
-    profile = fit_calibration(data["observations"], data.get("validation"), identity or data.get("calibration_id"))
+    profile = fit_calibration(data["observations"], data.get("validation"), identity or data.get("calibration_id"),
+                              reference_checked=data.get("reference_checked", True))
     # Residuals alone cannot establish an independently measured reference.
     if "reference_checked" in data:
         checked = data["reference_checked"] is True
@@ -86,7 +87,8 @@ def guided_calibration(output, *, identity=None, device_index=0, seconds=3.0,
     print_fn("Support it securely; keep hands off while recording. Do not force the motor joint.")
     print_fn("Keep the head/base relationship fixed throughout, and use that same tilt when scanning.")
     print_fn("Directions describe the native camera image, before any automatic preview rotation.")
-    print_fn("Use a level/square or a measured fixture to align the actual camera axes within 2 degrees.")
+    print_fn("You can use approximate positioning for an UNVERIFIED trial profile.")
+    print_fn("Verified mode requires independently measured alignment using a level/square or fixture.")
     print_fn("A level base alone does not prove the lenses are horizontal if the head is tilted.")
     print_fn("The sensor can check steadiness, but cannot independently check your physical alignment.")
     print_fn("Press Enter when each position is ready. Type q or press Ctrl-C to stop.")
@@ -99,7 +101,11 @@ def guided_calibration(output, *, identity=None, device_index=0, seconds=3.0,
         data["reference"] = ("Operator confirmed independently levelled camera axes for each prescribed pose"
                              if data["reference_checked"] else "Approximate prescribed camera directions; independent alignment not confirmed")
         if not data["reference_checked"]:
-            print_fn("The profile will remain UNVERIFIED. Residual checks still apply; approximate placement may fail them.")
+            print_fn("Approximate mode: follow the positions as closely as practical; no measured alignment is required.")
+            print_fn("Fit and fresh checks must agree with those nominal positions within 1 m/s² and 6 degrees.")
+            print_fn("The profile remains UNVERIFIED, even if it passes. These checks do not establish physical accuracy.")
+        else:
+            print_fn("Verified mode: independently align the actual camera axes within 2 degrees for every pose.")
         if identity is None:
             label = ask("Calibration name (Enter for an automatic name): ", input_fn)
             identity = label or "kinect-fixed-tilt-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -175,8 +181,9 @@ def guided_calibration(output, *, identity=None, device_index=0, seconds=3.0,
             checkpoint(measurements, data)
         print_fn(f"\nCalibration saved: {output}")
         print_fn(f"Verification: {'VERIFIED' if profile['verified'] else 'UNVERIFIED'}")
-        for name, report in profile["evidence"]["report"].items():
-            if isinstance(report, dict):
+        for name in ("fit", "validation"):
+            report = profile["evidence"]["report"].get(name)
+            if report is not None:
                 print_fn(f"{name.capitalize()}: maximum error {report['max_m_s2']:.3f} m/s², {report['max_angle_deg']:.2f} degrees")
         print_fn("Open the scanner → experimental scan settings → Load Accelerometer Calibration…")
         print_fn(f"Select {output.name}, before starting a scan. Keep the same device and head tilt.")

@@ -173,3 +173,26 @@ class InertialTests(unittest.TestCase):
             fit_calibration(rows, wrong)
         with self.assertRaisesRegex(ValueError, "span"):
             fit_calibration([rows[0]] * 6)
+
+    def test_approximate_calibration_checks_nominal_directions_without_verification(self):
+        rotation = np.asarray(calibration_profile()["sensor_to_camera"])
+        rows = [{"acceleration_m_s2": (rotation.T @ (G * up)).tolist(), "up_camera": up.tolist()}
+                for up in np.concatenate((np.eye(3), -np.eye(3)))]
+        angle = math.radians(4)
+        validation = [dict(row) for row in rows[:3]]
+        validation[0] = {"acceleration_m_s2": (rotation.T @ (G * np.array([math.cos(angle), math.sin(angle), 0]))).tolist(),
+                         "up_camera": [1, 0, 0]}
+        with self.assertRaisesRegex(ValueError, "Held-out"):
+            fit_calibration(rows, validation)
+        approximate = fit_calibration(rows, validation, reference_checked=False)
+        self.assertFalse(approximate["verified"])
+        report = approximate["evidence"]["report"]
+        self.assertEqual(report["reference_mode"], "approximate")
+        self.assertEqual(report["acceptance_limits"], {"max_m_s2": 1.0, "max_angle_deg": 6})
+        self.assertAlmostEqual(report["validation"]["max_angle_deg"], 4)
+        angle = math.radians(15)
+        validation[0]["acceleration_m_s2"] = (rotation.T @ (G * np.array([math.cos(angle), math.sin(angle), 0]))).tolist()
+        with self.assertRaisesRegex(ValueError, "Held-out"):
+            fit_calibration(rows, validation, reference_checked=False)
+        with self.assertRaisesRegex(ValueError, "boolean"):
+            fit_calibration(rows, reference_checked="no")

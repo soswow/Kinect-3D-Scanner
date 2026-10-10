@@ -52,8 +52,14 @@ def calibration_profile(value=None):
     return profile
 
 
-def fit_calibration(observations, validation=None, identity=None):
-    """Fit bias/scale/alignment to independently known stationary camera-up vectors."""
+def fit_calibration(observations, validation=None, identity=None, *, reference_checked=True):
+    """Fit stationary poses; approximate references always remain unverified."""
+    if type(reference_checked) is not bool:
+        raise ValueError("Reference confirmation must be a boolean")
+    # Approximate nominal poses have no independent physical accuracy claim.
+    # Bound their disagreement for a trial profile rather than applying the
+    # independently measured reference criteria to eyeballed directions.
+    max_distance, max_angle = (0.25, 2) if reference_checked else (1.0, 6)
     def arrays(rows, minimum):
         if len(rows) < minimum:
             raise ValueError(f"Require at least {minimum} independent stationary orientations")
@@ -89,17 +95,21 @@ def fit_calibration(observations, validation=None, identity=None):
                 "max_m_s2": float(distances.max()),
                 "max_angle_deg": float(np.degrees(np.arccos(np.clip(directions, -1, 1))).max())}
 
-    report = {"algorithm": "stationary-affine-polar-v1", "fit": errors(measured, target)}
-    if report["fit"]["max_m_s2"] > .25 or report["fit"]["max_angle_deg"] > 2:
-        raise ValueError("Stationary calibration residuals exceed 0.25 m/s² or 2°; check references and motion")
+    report = {"algorithm": "stationary-affine-polar-v1", "fit": errors(measured, target),
+              "reference_mode": "independent" if reference_checked else "approximate",
+              "acceptance_limits": {"max_m_s2": max_distance, "max_angle_deg": max_angle}}
+    if report["fit"]["max_m_s2"] > max_distance or report["fit"]["max_angle_deg"] > max_angle:
+        raise ValueError(f"{'Stationary' if reference_checked else 'Approximate'} calibration residuals exceed "
+                         f"{max_distance:g} m/s² or {max_angle}°; check the requested positions and head tilt")
     if validation is not None:
         a, b = arrays(validation, 3)
         report["validation"] = errors(a, b)
-        if report["validation"]["max_m_s2"] > .25 or report["validation"]["max_angle_deg"] > 2:
-            raise ValueError("Held-out accelerometer calibration failed")
-        profile["verified"] = True
+        if report["validation"]["max_m_s2"] > max_distance or report["validation"]["max_angle_deg"] > max_angle:
+            raise ValueError(f"Held-out accelerometer calibration exceeds {max_distance:g} m/s² or {max_angle}°")
+        profile["verified"] = reference_checked
     profile["evidence"] = {"observations": observations, "validation": validation, "report": report,
-                           "reference": "Independent stationary camera-up vectors supplied by operator"}
+                           "reference": ("Independent stationary camera-up vectors supplied by operator" if reference_checked
+                                         else "Approximate nominal pose directions; physical camera alignment unverified")}
     return calibration_profile(profile)
 
 

@@ -76,9 +76,9 @@ def stalled_capture(connection, stop_event, device_index):
 
 
 class GuidedCalibrationTests(unittest.TestCase):
-    def run_guide(self, root, *, checked="y", noisy=False, abort=False):
+    def run_guide(self, root, *, checked="y", noisy=False, abort=False, bad_validation=False):
         output = root / "calibration.json"
-        capture = FakeCapture(noisy_first=noisy, abort=abort)
+        capture = FakeCapture(noisy_first=noisy, abort=abort, bad_validation=bad_validation)
         answers = iter([checked, "my-kinect"] + [""] * 10)
         profile = guided_calibration(output, capture_factory=lambda _: capture,
                                      input_fn=lambda _: next(answers), print_fn=lambda _: None)
@@ -111,6 +111,17 @@ class GuidedCalibrationTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main([str(root / "calibration.measurements.json"), str(root / "refitted.json")]), 0)
             self.assertFalse(json.loads((root / "refitted.json").read_text())["verified"])
+
+    def test_guide_allows_approximate_placement_without_promoting_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile, data, capture = self.run_guide(Path(directory), checked="n", bad_validation=True)
+            self.assertEqual(capture.calls, 9)
+            self.assertFalse(profile["verified"])
+            report = profile["evidence"]["report"]
+            self.assertEqual(report["reference_mode"], "approximate")
+            self.assertGreater(report["validation"]["max_m_s2"], 0.25)
+            self.assertLess(report["validation"]["max_m_s2"], 1.0)
+            self.assertFalse(fitted_profile(data)["verified"])
 
     def test_motion_retries_and_retains_rejected_measurements(self):
         with tempfile.TemporaryDirectory() as directory:
