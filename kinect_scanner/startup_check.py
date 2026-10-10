@@ -129,6 +129,7 @@ def run_check():
             main_window.KinectWorker = original
         window.show()
         check_texture_export_dialog(window)
+        check_live_view(window)
         errors = []
         window.worker.error_occurred.connect(errors.append)
         log_checks = []
@@ -262,10 +263,49 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "offline_capture": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok",
+              "offline_capture": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0
+
+
+def check_live_view(window):
+    """Verify the installed Follow projection, control row and captured colors."""
+    import numpy as np
+    from PyQt6.QtWidgets import QApplication, QPushButton
+
+    view = window.live_view
+    pose = np.array([[0, 0, 1, 1], [0, 1, 0, 2], [-1, 0, 0, 3], [0, 0, 0, 1.]])
+    points = np.array([[0, 0, 1], [0.3, 0, 1]]) @ pose[:3, :3].T + pose[:3, 3]
+    try:
+        view.show()
+        view.set_snapshot({"points": points, "colors": [[0, 1, 0], [1, 0, 0]],
+                           "camera_to_world": pose, "result": {"success": True}})
+        QApplication.processEvents()
+        controls = view.panel.findChildren(QPushButton)
+        if ([button.text() for button in controls] != ["Follow", "Orbit", "Fit View"]
+                or not all(button.isVisible() for button in controls)
+                or len({button.y() for button in controls}) != 1):
+            raise RuntimeError("Live view must have one navigation row")
+        xy, depth, indices = view._project_points(640, 480)
+        np.testing.assert_array_equal(xy, [[320, 240], [424, 240]])
+        np.testing.assert_array_equal(depth, [1.5, 1.5])
+        np.testing.assert_array_equal(indices, [0, 1])
+        np.testing.assert_array_equal(view.camera_to_world, pose)
+        viewport = view.drawing_rect
+        xy, _, _ = view._project_points(viewport.width(), viewport.height())
+        x, y = xy[0] + [viewport.x(), viewport.y()]
+        if view.grab().toImage().pixelColor(int(x), int(y)).getRgb()[:3] != (0, 255, 0):
+            raise RuntimeError("Live view must display captured colors")
+        view.orbit_button.click()
+        if view.follow_cb.isChecked():
+            raise RuntimeError("Orbit did not release Follow")
+        view.follow_button.click()
+        if not view.follow_cb.isChecked():
+            raise RuntimeError("Follow did not resume")
+    finally:
+        view.reset()
+        view.hide()
 
 
 def check_texture_export_dialog(window):

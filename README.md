@@ -228,11 +228,12 @@ capture stays off until you click **Start Scan**.
 finished mesh after a build. Final inspection downloads the actual final mesh,
 including any enabled final refinement, rather than an earlier preview.
 
-The point cloud offers visible **Follow**, **Orbit**, **Color**, **Shape**, and
-**Fit View** controls. In Orbit, left drag to rotate and scroll to zoom. Pan with
+The point cloud always displays captured colors and offers **Follow**, **Orbit**,
+and **Fit View** controls. Follow looks in the scanner's direction from 50 cm
+behind its latest tracked position. In Orbit, left drag to rotate and scroll to zoom. Pan with
 right drag (secondary-click and drag on a trackpad), middle drag, or Shift+left
-drag. **Fit View** resets rotation, zoom, and pan. **Details**
-shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
+drag. **Fit View** resets rotation, zoom, and pan. Hover over the reconstruction
+counts for diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
 crop. **Capture interval** sets the ordinary automatic cadence. Offline depth
 scans retain extra overlapping views when camera movement grows or tracking

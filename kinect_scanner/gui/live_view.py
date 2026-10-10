@@ -22,6 +22,9 @@ from shared.settings import CameraCalibration
 from .tracking_overview import TrackingOverview
 
 
+FOLLOW_DISTANCE_M = 0.5
+
+
 class LiveView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -36,33 +39,21 @@ class LiveView(QWidget):
         self.follow_cb.hide()  # Retained for integrations using the original API.
         self.follow_button = QPushButton("Follow", self)
         self.orbit_button = QPushButton("Orbit", self)
-        self.color_button = QPushButton("Color", self)
-        self.shape_button = QPushButton("Shape", self)
         self.fit_button = QPushButton("Fit View", self)
-        self.details_button = QPushButton("Details", self)
-        self.details_button.setCheckable(True)
-        for names in (("follow_button", "orbit_button"), ("color_button", "shape_button")):
-            group = QButtonGroup(self)
-            for name in names:
-                button = getattr(self, name)
-                button.setCheckable(True)
-                group.addButton(button)
-        for button, label in ((self.follow_button, "Follow last tracked scanner view"),
+        group = QButtonGroup(self)
+        for button in (self.follow_button, self.orbit_button):
+            button.setCheckable(True)
+            group.addButton(button)
+        for button, label in ((self.follow_button, "Follow from 50 cm behind the scanner"),
                               (self.orbit_button, "Orbit the fused point cloud"),
-                              (self.color_button, "Display captured colors"),
-                              (self.shape_button, "Display shape shading"),
-                              (self.fit_button, "Fit entire current point cloud"),
-                              (self.details_button, "Show reconstruction diagnostics")):
+                              (self.fit_button, "Fit entire current point cloud")):
             button.setAccessibleName(label)
             button.setToolTip(label)
         self.orbit_button.setToolTip(navigation_help)
         self.follow_button.clicked.connect(lambda: self.follow_cb.setChecked(True))
         self.orbit_button.clicked.connect(lambda: self.follow_cb.setChecked(False))
         self.follow_cb.toggled.connect(self._sync_view_mode)
-        self.color_button.clicked.connect(lambda: self._set_colored(True))
-        self.shape_button.clicked.connect(lambda: self._set_colored(False))
         self.fit_button.clicked.connect(self.fit_view)
-        self.details_button.toggled.connect(self._show_details)
         self.panel = QWidget(self)
         self.panel.setStyleSheet(
             "QWidget { color: #e1eaf0; background: #15202b; }"
@@ -82,13 +73,11 @@ class LiveView(QWidget):
         self.recovery_label.hide()
         self.title_label = QLabel("Fused point cloud", self.panel)
         layout.addWidget(self.title_label)
-        for buttons in ((self.follow_button, self.orbit_button, self.fit_button),
-                        (self.color_button, self.shape_button, self.details_button)):
-            row = QHBoxLayout()
-            row.setSpacing(4)
-            for button in buttons:
-                row.addWidget(button)
-            layout.addLayout(row)
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        for button in (self.follow_button, self.orbit_button, self.fit_button):
+            row.addWidget(button)
+        layout.addLayout(row)
         self.guidance_label = QLabel(self.panel)
         self.guidance_label.setWordWrap(True)
         self.guidance_label.setAccessibleName("Scanning guidance")
@@ -114,11 +103,6 @@ class LiveView(QWidget):
         )
         layout.addWidget(self.color_warning_label)
         self.color_warning_label.hide()
-        self.details_label = QLabel(self.panel)
-        self.details_label.setWordWrap(True)
-        self.details_label.setAccessibleName("Reconstruction diagnostics")
-        self.details_label.hide()
-        layout.addWidget(self.details_label)
         self.overview = TrackingOverview(self)
         self.overview.hide()
         self._timer = QTimer(self)
@@ -141,7 +125,6 @@ class LiveView(QWidget):
         self.yaw = self.pitch = 0
         self.zoom = 1
         self.pan = np.zeros(2)
-        self._set_colored(True)
         self._drag = None
         self._drag_button = None
         self._drag_mode = None
@@ -178,12 +161,6 @@ class LiveView(QWidget):
         self.orbit_button.setChecked(not follow)
         self.update()
 
-    def _set_colored(self, colored):
-        self.colored = colored
-        self.color_button.setChecked(colored)
-        self.shape_button.setChecked(not colored)
-        self.update()
-
     def fit_view(self):
         """Reframe all current finite points, including points omitted for rendering."""
         points = np.asarray(self.snapshot.get("points", []), dtype=float).reshape(-1, 3)
@@ -197,11 +174,6 @@ class LiveView(QWidget):
         self.pan = np.zeros(2)
         self._drag = self._drag_button = self._drag_mode = None
         self.follow_cb.setChecked(False)
-        self.update()
-
-    def _show_details(self, visible):
-        self.details_label.setVisible(visible)
-        self._layout_panel()
         self.update()
 
     @property
@@ -263,7 +235,7 @@ class LiveView(QWidget):
             )
         state = ("tracking accepted" if result.get("success") else "tracking skipped") if result else "waiting"
         age = "waiting for frames" if self._received is None else f"last update {time.monotonic() - self._received:.1f}s ago"
-        self.details_label.setText(
+        self.status_label.setToolTip(
             f"{state} · {age}\n"
             f"Processing: {result.get('elapsed_ms', 0):.0f} ms/frame · displayed: {len(self.points):,} points\n"
             f"Skipped: {s.get('skipped_count', 0)} · queue age: {s.get('pending_age_s', 0):.1f}s · geometry frames: {s.get('geometry_frame_count', 0)}"
@@ -278,6 +250,9 @@ class LiveView(QWidget):
             # projection. Camera coordinates are +X right, +Y down, +Z forward.
             pose = self.camera_to_world
             points = (self.points - pose[:3, 3]) @ pose[:3, :3]
+            # Back the viewpoint along the scanner's local viewing axis,
+            # preserving its orientation and calibrated field of view.
+            points[:, 2] += FOLLOW_DISTANCE_M
             indices = np.flatnonzero(np.isfinite(points).all(axis=1) & (points[:, 2] > 1e-4))
             points = points[indices]
             c = self.camera
@@ -316,7 +291,7 @@ class LiveView(QWidget):
             xy, depth, indices = self._project_points(width, height)
             order = np.argsort(depth)[::-1]
             pixels = np.full((height, width, 3), [21, 32, 43], dtype=np.uint8)
-            if self.colored and len(self.colors) == len(self.points):
+            if len(self.colors) == len(self.points):
                 colors = np.clip(self.colors[indices] * 255, 0, 255).astype(np.uint8)
             else:
                 shade = (depth - (depth.min() if len(depth) else 0)) / max(
@@ -383,6 +358,3 @@ class LiveView(QWidget):
         if not self.follow_cb.isChecked():
             self.zoom = np.clip(self.zoom * np.exp(event.angleDelta().y() / 1200), 0.1, 20)
             self.update()
-
-    def mouseDoubleClickEvent(self, event):
-        self._set_colored(not self.colored)
