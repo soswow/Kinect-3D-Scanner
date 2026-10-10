@@ -3,6 +3,12 @@
   "scope": "October 2026 field research. Current paths only; original tool-catalog.json stays byte-preserved for earlier measured protocols. Experimental and negative-result dependencies remain useful; this inventory grants no numerical authority.",
   "entries": [
     {
+      "legacy_path": "scripts/research/analyze_apriltag_session.py",
+      "path": "scripts/research/analyze_apriltag_session.py",
+      "group": "active",
+      "role": "Read-only selected-frame tag pair timing and compact tag/depth research with complete depth validation"
+    },
+    {
       "legacy_path": "scripts/research/BULK_LEGACY_NN_AUDIT.md",
       "path": "scripts/research/BULK_LEGACY_NN_AUDIT.md",
       "group": "active",
