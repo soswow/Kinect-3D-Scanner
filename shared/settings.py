@@ -9,6 +9,21 @@ from .capture import validate_rgb_exposure
 if TYPE_CHECKING:
     from .sensor_calibration import SensorCalibration
 
+APRILTAG_DICTIONARIES = (
+    "DICT_APRILTAG_16h5", "DICT_APRILTAG_25h9",
+    "DICT_APRILTAG_36h10", "DICT_APRILTAG_36h11",
+)
+
+
+def validate_apriltag_dictionaries(value):
+    if not isinstance(value, (list, tuple)) or any(
+        not isinstance(name, str) or name not in APRILTAG_DICTIONARIES for name in value
+    ):
+        raise ValueError("Select known OpenCV AprilTag dictionaries")
+    if len(set(value)) != len(value):
+        raise ValueError("AprilTag dictionaries must not contain duplicates")
+    return tuple(value)
+
 
 @dataclass(frozen=True)
 class CameraCalibration:
@@ -80,6 +95,8 @@ class ScanSettings:
     roi: tuple[int, int, int, int] | None = None
     filter_depth: bool = True
     color_recovery: bool = False
+    apriltag_tracking: bool = False
+    apriltag_dictionaries: tuple[str, ...] = ("DICT_APRILTAG_36h11",)
     live_reconstruction: bool = False
     refine_poses: bool = False
     bundle_adjustment: bool = False
@@ -108,6 +125,12 @@ class ScanSettings:
     def __post_init__(self):
         if not isinstance(self.camera, CameraCalibration):
             raise TypeError("Invalid camera calibration")
+        if type(self.apriltag_tracking) is not bool:
+            raise ValueError("AprilTag tracking must be a boolean")
+        object.__setattr__(self, "apriltag_dictionaries",
+                           validate_apriltag_dictionaries(self.apriltag_dictionaries))
+        if self.apriltag_tracking and not self.apriltag_dictionaries:
+            raise ValueError("Add at least one dictionary for AprilTag tracking")
         if self.offline_registration not in ("fragments", "depth"):
             raise ValueError("Offline registration must be fragments or depth")
         if self.rgb_mode not in ("rgb_high_res", "rgb_low_res"):

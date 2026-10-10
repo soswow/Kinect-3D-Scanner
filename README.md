@@ -156,6 +156,31 @@ with selected captures. Those seeds help later registration; they do not prove
 alignment. Enable live reconstruction for immediate reconstruction-loss alerts.
 Without live reconstruction, an unverified camera-motion notice still prompts
 slower movement and overlapping views; it does not stop capture.
+
+Open **AprilTag tracking** in scan settings and check **Use AprilTags to assist
+tracking** to add optional tag evidence. Select a dictionary and click **Add**;
+use **Remove selected** to remove it. All listed dictionaries are detected
+together in every camera frame during capture and every saved view processed by
+the server, including Finish Scan. The choices are OpenCV's `DICT_APRILTAG_16h5`,
+`DICT_APRILTAG_25h9`, `DICT_APRILTAG_36h10`, and `DICT_APRILTAG_36h11` ([OpenCV
+dictionary documentation](https://docs.opencv.org/4.8.0/de/d67/group__objdetect__aruco.html)).
+The checkbox starts off, with 36h11 selected by default; choices are remembered
+and saved with sessions. Color-assisted tracking works without tags, and tags
+can also be enabled independently of ordinary color features.
+
+Keep labels stationary and use a unique ID for each physical label within its
+dictionary. The same numeric ID in different dictionaries is supported. Repeated
+IDs in one image and ambiguous cross-dictionary decodes are excluded. Printed
+size is not required: matched corners use measured depth at both ends, on the
+calibrated depth grid. Tags need clear corners, at least 20 pixels per side on
+that grid, valid depth within the selected range/crop, and RGB/depth timing
+within 20 ms. Detection uses exact codes rather than bit-error correction.
+Tag motion must also pass independent depth-overlap checks; missing or rejected
+tags leave ordinary tracking available. Both final registration modes can use
+verified tag motion, including motion along otherwise ambiguous planes.
+OpenCV 4.8 or newer with `cv2.aruco` is required when tags are enabled. Update
+and restart the reconstruction server as well as the client to use these settings.
+
 Selected captures are buffered losslessly on local disk and uploaded in the
 background, so an upload backlog does not change the requested capture cadence.
 The capture counter includes buffered frames and shows how many await upload.
@@ -407,6 +432,16 @@ a vertex-color extension whose support varies between readers; it has no UV
 texture. PLY preserves vertex colors. Textured exports use a separately simplified
 mesh, defaulting to 50,000 triangles, a 1024-pixel atlas, and up to 24 RGB views.
 They preserve the full final mesh for PLY/plain OBJ export.
+Both texture modes choose photos over connected surface regions, with a
+depth-tested fallback where the region's photo cannot observe a texel. The
+default softens compatible photo boundaries in a three-texel strip and keeps
+the interior detail from one photo. **Keep photo boundaries sharp** disables
+that strip. **Match photo brightness when reliable** independently estimates
+bounded RGB gains from shared observations; it can leave photos unchanged when
+held-out overlap does not improve consistently. The OBJ bundle's
+`texture-report.json` records that decision, source selection, and seam coverage;
+GLB embeds the same report in mesh metadata. The client Logs also say whether
+brightness matching was applied or left the photos unchanged.
 
 **Save Project** packages lossless selected images, calibration, settings,
 estimated poses, diagnostics, the finished mesh when available, and the client's continuous accelerometer log,
@@ -475,6 +510,8 @@ The mode permits single-pair bridges when measurements support them,
 checks all available component views for contradictory empty space, and retains
 unconnected components with their own camera poses. Read the
 [depth-only registration checks and experiments](docs/FRAGMENT_RECONNECTION.md#experimental-depth-only-final-registration).
+The [10 October fast-room replay](docs/FULL_ROOM_SCAN_20261010.md) documents the
+ordinary-upload result and remaining runtime, coverage and validation limits.
 
 In existing fragment mode, **Reconnect separated views at Finish** is enabled
 for new GUI scans. Finish
@@ -512,8 +549,9 @@ for SciPy. See [joint refinement](docs/JOINT_RGBD_REFINEMENT.md) and
 Optional **Lost tracking recovery**, **sensor confidence weighting**, and
 **finer final fusion** now have explicit controls. Final fusion uses a separate,
 bounded volume; live feedback reports queue age and can pause automatic capture
-for backlog. Texture exports can match exposures or select one best view per
-texel. Experimental quality options remain off until measured scans justify them.
+for backlog. Texture exports preserve detail with connected photo regions and
+optional narrow boundary softening, and can independently match photo brightness.
+Experimental reconstruction quality options remain off until measured scans justify them.
 
 See [tested milestone checkpoints and next evidence](docs/IMPLEMENTATION_MILESTONES.md),
 [operation, validation, limits, and remaining implementation work](docs/LIVE_RECONSTRUCTION.md)

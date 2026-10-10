@@ -71,6 +71,18 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(40, response.json()["reads"])
         self.assertEqual(40, len(source.motion_journal["segments"][0]["samples"]))
 
+    async def test_texture_export_reports_brightness_decision_in_both_formats(self):
+        from tests.test_features import texture_scene
+        server.engine = texture_scene()
+        for fmt in ("glb", "obj.zip"):
+            response = await self.http.get(
+                f"/api/scan/export/{fmt}",
+                params={"size": 256, "exposure_correction": True, "blend_mode": "blend"},
+            )
+            self.assertEqual(200, response.status_code, response.text[:100])
+            self.assertIn("Unchanged:", response.headers["x-texture-brightness"])
+            self.assertGreater(len(response.content), 100)
+
     async def test_invalid_project_preserves_active_scan(self):
         before = server.engine
         volume = before.vbg

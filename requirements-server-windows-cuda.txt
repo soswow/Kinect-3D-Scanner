@@ -2,7 +2,7 @@
 # Install this instead of requirements-server.txt (which installs CPU Open3D).
 numpy
 scipy
-opencv-python
+opencv-python>=4.8
 trimesh
 pillow
 psutil

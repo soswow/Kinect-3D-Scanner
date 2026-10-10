@@ -64,3 +64,5 @@ non-Manhattan measured planes, map coordinate changes and moving-object versus
 camera-displacement rejection. Two existing capture-performance tests failed
 also on unchanged master: CPU/tensor fusion parity and mocked stage timing.
 No claim is made that the entire repository suite passes on this Windows host.
+After integration with the current marker-tracking and texture-export changes,
+307 focused tests passed in 57.78 seconds.

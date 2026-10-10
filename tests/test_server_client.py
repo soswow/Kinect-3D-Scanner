@@ -277,6 +277,24 @@ class ServerClientTests(unittest.TestCase):
             self.assertFalse(client.request_export("ply", str(destination)))
             self.assertEqual(destination.read_bytes(), b"previous")
 
+    def test_texture_options_and_brightness_decision_reach_client_logs(self):
+        client = ServerClient()
+        client._http = Mock()
+        reply = response(content=b"textured model")
+        reply.headers["x-texture-brightness"] = "Unchanged: No trustworthy photometric overlap"
+        client._http.stream.return_value.__enter__ = Mock(return_value=reply)
+        client._http.stream.return_value.__exit__ = Mock(return_value=False)
+        with tempfile.TemporaryDirectory() as directory:
+            for correction in (False, True):
+                for mode in ("blend", "best"):
+                    options = {"exposure_correction": correction, "blend_mode": mode}
+                    with self.assertLogs("kinect_scanner.server_client", level="INFO") as logged:
+                        self.assertTrue(client.request_export("glb", str(Path(directory) / "model.glb"), options))
+                    self.assertEqual(options, client._http.stream.call_args.kwargs["params"])
+                    decision = next(record for record in logged.records if record.msg.startswith("Texture brightness"))
+                    self.assertTrue(decision.ui_event)
+                    self.assertIn("No trustworthy photometric overlap", decision.getMessage())
+
     def test_interrupted_and_truncated_downloads_preserve_existing_project(self):
         for interrupted in (False, True):
             client = ServerClient()

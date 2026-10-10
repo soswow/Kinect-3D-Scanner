@@ -64,6 +64,67 @@ class GuiPreferencesTests(unittest.TestCase):
         document["raw_depth_to_mm"]["scale"] = 1.01
         return SensorCalibration.from_dict(document)
 
+    def test_apriltag_families_add_remove_and_persist_independently_of_rgb_tracking(self):
+        window = self.window()
+        self.assertFalse(window.apriltag_tracking_cb.isChecked())
+        editor = window.apriltag_dictionaries
+        editor.combo.setCurrentIndex(editor.combo.findData("DICT_APRILTAG_16h5"))
+        editor.add_button.click()
+        self.assertFalse(editor.add_button.isEnabled())
+        window.apriltag_tracking_cb.setChecked(True)
+        second = self.window()
+        self.assertTrue(second.apriltag_tracking_cb.isChecked())
+        self.assertFalse(second.color_tracking_cb.isChecked())
+        self.assertEqual(("DICT_APRILTAG_36h11", "DICT_APRILTAG_16h5"), second.apriltag_dictionaries.dictionaries())
+        second.apriltag_dictionaries.list.setCurrentRow(0)
+        second.apriltag_dictionaries.remove_button.click()
+        third = self.window()
+        self.assertEqual(("DICT_APRILTAG_16h5",), third.apriltag_dictionaries.dictionaries())
+
+    def test_apriltag_session_restore_does_not_replace_user_defaults(self):
+        window = self.window()
+        window.apriltag_tracking_cb.setChecked(True)
+        window._apply_session_settings(ScanSettings(apriltag_dictionaries=("DICT_APRILTAG_25h9",)).to_dict())
+        self.assertFalse(window.apriltag_tracking_cb.isChecked())
+        self.assertEqual(("DICT_APRILTAG_25h9",), window.apriltag_dictionaries.dictionaries())
+        second = self.window()
+        self.assertTrue(second.apriltag_tracking_cb.isChecked())
+        self.assertEqual(("DICT_APRILTAG_36h11",), second.apriltag_dictionaries.dictionaries())
+        window._apply_session_settings({})
+        window._apply_session_settings(ScanSettings().to_dict())
+        self.assertFalse(window.apriltag_tracking_cb.isChecked())
+
+    def test_invalid_saved_apriltag_families_restore_safe_defaults(self):
+        self.store.write("scan/apriltag_dictionaries", ["invalid", "DICT_APRILTAG_16h5"])
+        window = self.window()
+        self.assertEqual(("DICT_APRILTAG_36h11",), window.apriltag_dictionaries.dictionaries())
+
+    def test_new_scan_sends_multiple_apriltag_families_and_configures_camera(self):
+        window = self.window()
+        window.server_client._connected = True
+        window.apriltag_tracking_cb.setChecked(True)
+        window.apriltag_dictionaries.combo.setCurrentIndex(window.apriltag_dictionaries.combo.findData("DICT_APRILTAG_16h5"))
+        window.apriltag_dictionaries.add_button.click()
+        window._on_frame(np.zeros((480, 640, 3), np.uint8), np.full((480, 640), 512, np.uint16))
+        window._start_scan(protected=True)
+        settings = window.task_worker.tasks[-1].kwargs["settings"]
+        self.assertTrue(settings["apriltag_tracking"])
+        self.assertEqual(("DICT_APRILTAG_36h11", "DICT_APRILTAG_16h5"), settings["apriltag_dictionaries"])
+        window._session_settings, window._scanning = settings, True
+        window._configure_camera_tracking()
+        self.assertTrue(window.worker.tracking_settings[-1].apriltag_tracking)
+
+    def test_empty_apriltag_list_prevents_enabled_scan_with_clear_error(self):
+        window = self.window()
+        window.server_client._connected = True
+        window.apriltag_tracking_cb.setChecked(True)
+        window.apriltag_dictionaries.list.setCurrentRow(0)
+        window.apriltag_dictionaries.remove_button.click()
+        window._on_frame(np.zeros((480, 640, 3), np.uint8), np.full((480, 640), 512, np.uint16))
+        window._start_scan(protected=True)
+        self.assertIn("Add at least one dictionary", window.scan_status_label.text())
+        self.assertFalse(window._reset_pending)
+
     def test_motion_defaults_keep_auto_orientation_independent_of_tracking_assistance(self):
         from tests.test_inertial import metadata
         window = self.window()

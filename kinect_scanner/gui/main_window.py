@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -51,6 +52,7 @@ from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .components import CameraPreview, CollapsibleSection
+from .apriltags import AprilTagDictionaries
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
@@ -211,6 +213,7 @@ class MainWindow(QMainWindow):
                 (self.weight_spin, "scan/final_weight"),
                 (self.live_cb, "scan/live_reconstruction"),
                 (self.color_tracking_cb, "scan/color_tracking"),
+                (self.apriltag_tracking_cb, "scan/apriltag_tracking"),
                 (self.refine_cb, "scan/refine_poses"),
                 (self.bundle_cb, "scan/bundle_adjustment"),
                 (self.reconnect_fragments_cb, "scan/reconnect_fragments"),
@@ -224,6 +227,13 @@ class MainWindow(QMainWindow):
                 (self.flow_windows_cb, "debug/tracking_windows"),
             ):
                 preferences.bind(widget, key)
+            try:
+                self.apriltag_dictionaries.set_dictionaries(preferences.read(
+                    "scan/apriltag_dictionaries", ["DICT_APRILTAG_36h11"]))
+            except ValueError:
+                pass
+            self.apriltag_dictionaries.changed.connect(lambda: preferences.write(
+                "scan/apriltag_dictionaries", self.apriltag_dictionaries.dictionaries()))
             preferences.bind(self.server_ip_edit, "connection/host",
                              restore="KINECT_SERVER_HOST" not in os.environ)
             preferences.bind(self.server_port_spin, "connection/port",
@@ -544,6 +554,10 @@ class MainWindow(QMainWindow):
         output_row.addWidget(self.btn_export_session)
         layout.addWidget(self.btn_open_project)
         layout.addLayout(output_row)
+        self.progress_status_label = QLabel()
+        self.progress_status_label.setWordWrap(True)
+        self.progress_status_label.hide()
+        layout.addWidget(self.progress_status_label)
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
@@ -735,6 +749,24 @@ class MainWindow(QMainWindow):
             control.setToolTip(help_text)
             ev.addWidget(control)
         vg.addWidget(experimental)
+        apriltags = CollapsibleSection("AprilTag tracking")
+        self.apriltag_tracking_cb = QCheckBox("Use AprilTags to assist tracking")
+        self.apriltag_tracking_cb.setToolTip(
+            "Detect all selected dictionaries in every camera frame and saved view. "
+            "Static tags with valid measured depth provide extra camera-motion evidence. "
+            "Tags are optional; color-assisted tracking also works without them."
+        )
+        apriltags.content_layout.addWidget(self.apriltag_tracking_cb)
+        self.apriltag_dictionaries = AprilTagDictionaries()
+        apriltags.content_layout.addWidget(self.apriltag_dictionaries)
+        tag_help = QLabel(
+            "Add every dictionary used by your printed labels. Different families can "
+            "share an ID; each ID within one family must identify a single static label. "
+            "No printed size is needed. Use clear tags with valid depth, at least 20 pixels per side."
+        )
+        tag_help.setWordWrap(True)
+        apriltags.content_layout.addWidget(tag_help)
+        vg.addWidget(apriltags)
         self.offline_registration_combo.currentIndexChanged.connect(self._update_offline_registration_controls)
         self._update_offline_registration_controls()
         motion_calibration_btn = QPushButton("Load Accelerometer Calibration…")
@@ -919,7 +951,8 @@ class MainWindow(QMainWindow):
             )
         camera_motion_unverified = (
             self._scanning and not self._paused and offline
-            and (self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
+            and ((self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
+                 or (self._session_settings or {}).get("apriltag_tracking", self.apriltag_tracking_cb.isChecked()))
             and self._last_frame_metadata.get("visual_tracking", {}).get("valid") is False
         )
         if camera_motion_unverified != self._camera_motion_unverified:
@@ -1430,6 +1463,8 @@ class MainWindow(QMainWindow):
                 truncation_m=min(0.2, max(0.04, voxel * 8)),
                 final_weight=self.weight_spin.value(),
                 color_recovery=self.color_tracking_cb.isChecked(),
+                apriltag_tracking=self.apriltag_tracking_cb.isChecked(),
+                apriltag_dictionaries=self.apriltag_dictionaries.dictionaries(),
                 live_reconstruction=self.live_cb.isChecked(),
                 refine_poses=self.refine_cb.isChecked() and self.offline_registration_combo.currentData() != "depth",
                 bundle_adjustment=self.bundle_cb.isChecked() and self.offline_registration_combo.currentData() != "depth",
@@ -1514,7 +1549,7 @@ class MainWindow(QMainWindow):
         self.guidance_label.hide()
         self.auto_capture_cb.setChecked(self._scanning and self.capture_mode_combo.currentData() == "automatic")
         self.frame_count_label.setText("Captured: 0 · Added to model: 0")
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._refresh_controls()
         self._show_message("Scan reset · press Start Scan when ready" if reset_to_setup else (
             "Scan cancelled · ready for a new scan" if cancelled else "Scan started"
@@ -1527,7 +1562,7 @@ class MainWindow(QMainWindow):
                 settings = ScanSettings.from_dict(self._session_settings) if self._session_settings else None
             except (TypeError, ValueError):
                 settings = None
-            if settings is not None and not (self._scanning and settings.color_recovery):
+            if settings is not None and not (self._scanning and (settings.color_recovery or settings.apriltag_tracking)):
                 settings = None
             configuration = (self.worker, self._session_id, settings)
             if getattr(self, "_tracking_configuration", None) == configuration:
@@ -1578,7 +1613,7 @@ class MainWindow(QMainWindow):
         self._capture_waiting = ""
         self._reset_auto_capture_cadence()
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         queued = self.task_worker.submit(ServerTask(
             ServerTaskType.RESET, {"settings": self._session_settings, "record": False}
         ))
@@ -1731,7 +1766,7 @@ class MainWindow(QMainWindow):
         stored = self._server_stored
         self.scan_status_label.setText(f"Processing {stored} frames on server...")
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
-        self.progress_bar.setVisible(True)
+        self._set_progress_visible(True)
 
         options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None,
                    "offline_registration": self.offline_registration_combo.currentData()}
@@ -1768,7 +1803,7 @@ class MainWindow(QMainWindow):
         self.btn_preview_scan.setEnabled(False)
         self.scan_status_label.setText("Generating preview on server...")
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.setVisible(True)
+        self._set_progress_visible(True)
 
         self.task_worker.submit(ServerTask(ServerTaskType.PREVIEW))
         self._refresh_controls()
@@ -1846,7 +1881,7 @@ class MainWindow(QMainWindow):
         self._export_pending = None
         self._pending_action = None
         self._project_to_open = None
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._sensor_recording_path = None
         self._sensor_counts_seen = {}
         self._build_failed = False
@@ -1865,7 +1900,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 100 if total else 0)
         self.progress_bar.setValue(int(done / total * 100) if total else 0)
         self.progress_bar.setFormat(f"{phase}: %p%")
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         detail = f"{phase}: {done / 1024**2:.1f}"
         detail += f" / {total / 1024**2:.1f} MB" if total else " MB"
         self._show_message(detail)
@@ -1880,7 +1915,7 @@ class MainWindow(QMainWindow):
         self._configure_sensor_recording()
         self._operation_error = ""
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         if not self.task_worker.submit(task):
             self._on_export_done(False, path)
             return False
@@ -2024,7 +2059,7 @@ class MainWindow(QMainWindow):
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
                     self.orientation_combo, self.gravity_tracking_cb, self.full_camera_recording_cb,
-                    self.color_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb,
+                    self.color_tracking_cb, self.apriltag_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb,
                     self.offline_registration_combo, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
@@ -2047,6 +2082,8 @@ class MainWindow(QMainWindow):
             self.rgb_gain_combo.setCurrentIndex(self.rgb_gain_combo.findData(profile.rgb_gain))
             self.live_cb.setChecked(profile.live_reconstruction)
             self.color_tracking_cb.setChecked(profile.color_recovery)
+            self.apriltag_tracking_cb.setChecked(profile.apriltag_tracking)
+            self.apriltag_dictionaries.set_dictionaries(profile.apriltag_dictionaries)
             self.refine_cb.setChecked(profile.refine_poses)
             self.bundle_cb.setChecked(profile.bundle_adjustment)
             self.reconnect_fragments_cb.setChecked(profile.reconnect_fragments)
@@ -2139,18 +2176,48 @@ class MainWindow(QMainWindow):
                 {"processed_count": result["index"] + 1, "result": result},
                 time.monotonic(), learn_completion=False,
             )
-        self.progress_bar.setRange(0, total)
+        message = result.get("message", "")
+        is_activity = bool(result.get("stage") or (message and "index" not in result))
+        progress_format = "Processing frames: %v / %m"
+        if is_activity:
+            progress_format = "Reconstruction: %v / %m"
+            # Older servers send depth-graph counters only in their messages,
+            # with current=0 and total=the capture count for every phase.
+            for pattern, label in (
+                (r"Depth registration: revisit .*; candidate (\d+)/(\d+)$", "Revisit candidates"),
+                (r"Depth registration: local evidence (\d+)/(\d+)$", "Local depth pairs"),
+                (r"Preparing depth view (\d+)/(\d+)$", "Preparing depth views"),
+                (r"Searching accumulated depth components (\d+)/(\d+)$", "Component candidates"),
+                (r"Checking complete depth component: view (\d+)/(\d+)$", "Checking depth views"),
+            ):
+                match = re.fullmatch(pattern, message)
+                if match:
+                    current, total = map(int, match.groups())
+                    progress_format = f"{label}: %v / %m"
+                    break
+        self.progress_bar.setRange(0, max(0, total))
         self.progress_bar.setValue(current)
-        self.progress_bar.setVisible(self._build_pending or self._preview_pending)
-        self.progress_bar.setFormat("Processing frames: %v / %m")
-        if current == total and self._build_pending:
+        self.progress_bar.setFormat(progress_format)
+        if total <= 0 or (is_activity and current == 0):
             self.progress_bar.setRange(0, 0)
+        elif not is_activity and current == total and self._build_pending:
+            self.progress_bar.setRange(0, 0)
+            message = "Preparing the reconstructed model…"
+        self._set_progress_visible(self._build_pending or self._preview_pending,
+                                   message if is_activity or current == total else "")
         self._server_integrated = result.get("frame_count", self._server_integrated)
         self.frame_count_label.setText(
             f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
         self.logs_panel.append(result.get("message", "Processing captured frames"), "Reconstruction")
         self._refresh_status()
+
+    def _set_progress_visible(self, visible: bool, message: str = ""):
+        # Native macOS busy bars do not draw format text, so keep the activity
+        # in a separate label and clear it when another operation takes over.
+        self.progress_status_label.setText(message)
+        self.progress_status_label.setVisible(visible and bool(message))
+        self.progress_bar.setVisible(visible)
 
     def _on_build_mesh_done(self, success: bool, detail: str):
         logger.info("Build finished session=%s success=%s detail=%s", self._session_id, success, detail)
@@ -2160,7 +2227,7 @@ class MainWindow(QMainWindow):
         self._scanning = False
         self._paused = True
         self._configure_camera_tracking()
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._operation_error = "" if success else detail
         self._show_message(detail, 8000)
         self._refresh_controls()
@@ -2175,7 +2242,7 @@ class MainWindow(QMainWindow):
         self._last_preview_path = None
         self._operation_error = ""
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         self.task_worker.submit(ServerTask(ServerTaskType.FINAL_PREVIEW))
         self._refresh_controls()
 
@@ -2184,7 +2251,7 @@ class MainWindow(QMainWindow):
             return
         self._final_preview_pending = False
         self._last_preview_path = path
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._refresh_controls()
         if path and not self._pending_action:
             launch_viewer_subprocess(path)
@@ -2202,7 +2269,7 @@ class MainWindow(QMainWindow):
         if self._closing or self._preview_session != self._session_id:
             return
         self._resume_capture()
-        self.progress_bar.setVisible(False)
+        self._set_progress_visible(False)
         if self._scanning:
             self.btn_preview_scan.setEnabled(True)
 
@@ -2223,7 +2290,7 @@ class MainWindow(QMainWindow):
         if pending and pending["path"] != path:
             return
         self._export_pending = None
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         action, self._pending_action = self._pending_action, None
         if success:
             if pending and pending["kind"] == "session":
@@ -2261,7 +2328,7 @@ class MainWindow(QMainWindow):
         self._show_message(msg)
         if self._export_pending:
             self.progress_bar.setRange(0, 0)
-            self.progress_bar.show()
+            self._set_progress_visible(True)
 
     def _on_task_error(self, msg: str):
         logger.error("Operation error session=%s %s", self._session_id, msg, extra={"ui_log": False})
@@ -2275,7 +2342,7 @@ class MainWindow(QMainWindow):
 
     def _on_task_failed(self, task_type, message):
         logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message, extra={"ui_log": False})
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._operation_error = f"{message} · current scan retained"
         if task_type == "CONNECT":
             self._connect_pending = False

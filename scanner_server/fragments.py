@@ -37,6 +37,7 @@ class View:
     features: Features
     pose: np.ndarray = field(default_factory=lambda: np.eye(4))
     match_cache: dict = field(default_factory=dict, repr=False, compare=False)
+    tags: object = None
 
 
 @dataclass
@@ -111,6 +112,8 @@ def _view(engine, index):
     rgb, depth = (prepare_rgbd(*engine.raw_frames[index], engine.settings)
                   if prepare is None else prepare(*engine.raw_frames[index],
                       engine.settings, cpu_prepare=prepare_rgbd))
+    from .apriltag_tracking import observation
+    tags = observation(engine, index, rgb, depth)
     if np.count_nonzero(depth) < 1000:
         return None
     cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
@@ -127,7 +130,7 @@ def _view(engine, index):
     features = (extract_features(rgb, depth, engine.settings.camera, method="sift")
                 if lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS
                 else Features(np.empty((0, 2)), np.empty((0, 3)), None))
-    return View(index, train, heldout, features)
+    return View(index, train, heldout, features, tags=tags)
 
 
 def _matches(source, target):
@@ -176,6 +179,15 @@ def _prepare_matches(engine, sources, targets):
 
 
 def _local_match(source, target, camera, settings, initial=None, *, measured_first=False):
+    if source.tags is not None and target.tags is not None:
+        from shared.apriltag import tag_motion
+        relative, _ = tag_motion(source.tags, target.tags, camera)
+        if relative is not None:
+            translation, angle = motion(relative)
+            steps = max(1, min(3, source.index - target.index))
+            if (translation <= settings.max_translation_m * steps and angle <= settings.max_rotation_deg * steps
+                    and _heldout(source.heldout, target.heldout, relative, .4)[0]):
+                return relative
     matches = _matches(source, target)
     proposal = propose_transform(source.features, target.features, camera, matches)
     if measured_first and proposal is not None:
@@ -211,6 +223,12 @@ def _local_match(source, target, camera, settings, initial=None, *, measured_fir
 
 
 def _visual_witness(source, target, pose, camera, matches=None):
+    if source.tags is not None and target.tags is not None and _rigid(pose):
+        from shared.apriltag import tag_agreement
+        valid, tags = tag_agreement(source.tags, target.tags, pose, camera)
+        if valid:
+            valid, geometry = _heldout(source.heldout, target.heldout, pose, .45)
+            return valid, {"apriltags": tags, **geometry}
     matches = _matches(source, target) if matches is None else matches
     if len(matches) < 40 or not _rigid(pose):
         return False, {}
@@ -690,6 +708,12 @@ def propose_fragment_poses(engine, progress_cb=None):
             _prepare_matches(engine, source.keys, target.keys)
             for a in source.keys:
                 for b in target.keys:
+                    if a.tags is not None and b.tags is not None:
+                        from shared.apriltag import tag_motion
+                        tag_pose, tag_support = tag_motion(a.tags, b.tags, engine.settings.camera)
+                        if tag_pose is not None:
+                            proposals.append((1200 + tag_support["inliers"],
+                                b.pose @ tag_pose @ np.linalg.inv(a.pose)))
                     matches = _matches(a, b)
                     proposal = propose_transform(a.features, b.features, engine.settings.camera, matches)
                     if proposal is not None:
@@ -734,7 +758,7 @@ def propose_fragment_poses(engine, progress_cb=None):
                 continue
             unique.append(proposal)
             bridge = (_verify_bridge(source, target, proposal, engine.settings.camera, visual_first=True)
-                      if engine.backend.get("final_visual_first") == "on"
+                      if engine.backend.get("final_visual_first") == "on" or engine.settings.apriltag_tracking
                       else _verify_bridge(source, target, proposal, engine.settings.camera))
             if bridge is not None:
                 verified.append(bridge)

@@ -38,9 +38,13 @@ class PhotometricTests(unittest.TestCase):
         rgb, depth = engine.raw_frames[0]
         rgb[:, :, 2] = 128
         engine.raw_frames.append(
-            ((rgb.astype(float) * 0.8).astype(np.uint8), depth.copy())
+            ((rgb.astype(float) * 0.8).astype(np.uint8), depth.copy() - 20)
         )
-        engine.poses.append((1, np.eye(4)))
+        # The darker view is closer, so source selection prefers it. Exposure
+        # correction must still have an independent, observable effect.
+        closer = np.eye(4)
+        closer[2, 3] = 0.02
+        engine.poses.append((1, closer))
         engine.frame_metadata.append({})
         plain, _ = make_textured_mesh(engine, size=256)
         corrected, report = make_textured_mesh(
@@ -65,7 +69,9 @@ class PhotometricTests(unittest.TestCase):
             return float(np.mean(np.abs(colors[front, :3] - expected)))
 
         self.assertLess(front_colors(corrected), front_colors(plain) * 0.4)
-        self.assertLess(front_colors(best), 4)
+        self.assertGreater(front_colors(plain), 10)
+        self.assertLess(front_colors(corrected), 4)
+        self.assertAlmostEqual(front_colors(best), front_colors(plain), delta=2)
         self.assertEqual("best", best_report["blend_mode"])
         engine.raw_frames = [(r, np.full_like(d, 900)) for r, d in engine.raw_frames]
         _, occluded = make_textured_mesh(

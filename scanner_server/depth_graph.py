@@ -1,7 +1,8 @@
 """Offline camera estimation from every retained depth view.
 
 Camera-side motion proposes poses. Reliable gravity and measured RGB-D features
-constrain them when available; depth alone remains supported without metadata.
+constrain them when available; optional AprilTag corner identities add measured
+constraints. Depth alone remains supported without metadata.
 Disconnected components retain their own coordinate systems in the report.
 Only the largest measured component is offered to the single-volume engine.
 """
@@ -250,7 +251,7 @@ def aggregate_bridge(views, left, right, edges, device, motion=None, *, poses=No
     return best, report
 
 
-def solve_graph(views, edges, notify=None, motion=None, *, joint=False):
+def solve_graph(views, edges, notify=None, motion=None, *, joint=False, tag_frames=None, camera=None):
     """Optimize then recheck depth; reject contradictions without forced fusion.
 
     A tree bridge can stand on one pair when that pair is geometrically
@@ -304,8 +305,12 @@ def solve_graph(views, edges, notify=None, motion=None, *, joint=False):
                 observed = set((joint_report or {}).get("globally_observed_cameras", ()))
                 determined = a in observed and b in observed
                 motion_report = motion.check(a, b, predicted, require_distributed=not determined) if determined else motion.check(a, b, predicted) if motion else {"accepted": True}
-                condition = 0. if determined or motion_report.get("appearance", {}).get("accepted") else 1e-4
+                condition = 0. if determined or e.get("apriltag_constraint") or motion_report.get("appearance", {}).get("accepted") else 1e-4
                 evidence = {"accepted": True} if e.get("aggregate_evidence") else evaluate(views[a], views[b], predicted,minimum_condition=condition)
+                if e.get("apriltag_constraint"):
+                    from shared.apriltag import tag_agreement
+                    if tag_frames is None or not tag_agreement(tag_frames[a], tag_frames[b], predicted, camera)[0]:
+                        evidence = {"accepted": False}
                 # A pruned graph edge is still a measured contradiction. It
                 # cannot be ignored simply because the optimizer disliked it.
                 supported_motion = motion_report["accepted"]
@@ -313,7 +318,7 @@ def solve_graph(views, edges, notify=None, motion=None, *, joint=False):
                 # Fixed feature identities and raw depth decide whether its
                 # refined pose remains supported. Textureless edges still need
                 # the separate cycle bound against anonymous plane sliding.
-                cycle_conflict = (deviation[0] > .06 or deviation[1] > 6) and condition != 0.
+                cycle_conflict = (deviation[0] > .06 or deviation[1] > 6) and (condition != 0. or e.get("apriltag_constraint"))
                 if determined and (deviation[0] > .06 or deviation[1] > 6) and evidence["accepted"] and supported_motion:
                     # A six-dimensional pair estimate cannot add independent
                     # authority when shared raw measurements determine both
@@ -385,7 +390,8 @@ def reconnect_optimized_components(views, solved, active, motion, device="cpu", 
     return solved, active, reports
 
 
-def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), checkpoint=None, motion=None):
+def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), checkpoint=None, motion=None,
+                        tag_frames=None, camera=None):
     count = len(views)
     continuous_available = bool(motion and motion.visual and any(row.get("feature_observations")
         for m in motion.metadata for row in m.get("motion_history", {}).get("visual", ())))
@@ -411,7 +417,18 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
         if method in ("gicp","multiscale","ppf","projective") and min(full_pose_condition(views[a]),full_pose_condition(views[b])) < 1e-4 and not any(name == "measured_rgbd_features" for name,_ in extra_seeds):
             report = {"source":a,"target":b,"method":method,"accepted":False,"elapsed_s":0.,
                       "reason":"weak_depth_search_deferred_without_feature_support","candidates":[]}
-        if report is None:
+        if method == "apriltag":
+            from shared.apriltag import tag_motion
+            pose, support = tag_motion(tag_frames[a], tag_frames[b], camera)
+            if pose is None:
+                return None
+            # Tags supplement independently checked depth and are rechecked
+            # against their fixed identities after graph optimization.
+            evidence = evaluate(views[a], views[b], pose, minimum_condition=0)
+            report = {"source": a, "target": b, "method": method, **evidence,
+                      "apriltag_support": support, "transform": pose.tolist(),
+                      "candidates": [{"method": "apriltag", "pose": pose.tolist()}]}
+        elif report is None:
             _, report = register_pair(views[a], views[b], method=method, device=device, initial=initial,
                                       extra_seeds=extra_seeds, pose_check=pose_check,
                                       ppf_gravity=motion.gravity_pair(a,b) if motion else None,
@@ -445,14 +462,28 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                 if not component_evidence["accepted"]:
                     return None
             edges[a, b] = edge if old is None or edge["score"] > old["score"] else old
+            if method == "apriltag" or old is not None and old.get("apriltag_constraint"):
+                edges[a, b]["apriltag_constraint"] = True
         return edge
+    if tag_frames is not None:
+        # Search a bounded bank of every shared family/ID, including revisits.
+        bank = {}
+        tag_pairs = set()
+        for a, frame in enumerate(tag_frames):
+            for identity in frame.tags:
+                previous = bank.setdefault(identity, [])
+                tag_pairs.update((a, b) for b in set(previous[:5] + previous[::4][-27:] + previous[-8:]))
+                previous.append(a)
+        for a, b in sorted(tag_pairs):
+            match(a, b, "apriltag")
+        say(f"AprilTag registration: checked {len(tag_pairs)} shared-label pairs")
     pairs = [(i, i-step) for i in range(count) for step in (1, 2, 3) if i >= step]
     for n, (a, b) in enumerate(pairs):
         match(a, b, "local")
         if n % 20 == 0:
             say(f"Depth registration: local evidence {n+1}/{len(pairs)}")
     say("Optimizing local depth maps before testing their global placement")
-    local_solved, local_active, local_rejected = solve_graph(views,list(edges.values()),say,motion)
+    local_solved, local_active, local_rejected = solve_graph(views,list(edges.values()),say,motion,tag_frames=tag_frames,camera=camera)
     local_world = {i:p for c in local_solved for i,p in c["poses"].items()}
     edges = {(e["source"],e["target"]):e for e in local_active}
     for e in edges.values():
@@ -470,7 +501,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
             match(a,b,"appearance_revisit")
         if revisits and not continuous_available:
             say("Optimizing measured color loops before checking map connections")
-            loop_solved,loop_active,loop_rejected = solve_graph(views,list(edges.values()),say,motion)
+            loop_solved,loop_active,loop_rejected = solve_graph(views,list(edges.values()),say,motion,tag_frames=tag_frames,camera=camera)
             local_rejected += loop_rejected
             loop_world = {i:p for c in loop_solved for i,p in c["poses"].items()}
             edges = {(e["source"],e["target"]):e for e in loop_active}
@@ -557,7 +588,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                 if checkpoint:
                     checkpoint(reports)
     say("Optimizing and checking all measured depth constraints")
-    solved, active, rejected = solve_graph(views, list(edges.values()), say,motion,joint=use_joint)
+    solved, active, rejected = solve_graph(views, list(edges.values()), say,motion,joint=use_joint,tag_frames=tag_frames,camera=camera)
     rejected = local_rejected + rejected
     edges = {(e["source"],e["target"]):e for e in active}
     # Camera order offers a hypothesis after global geometry has established
@@ -581,7 +612,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                 if edge is not None:
                     active.append(edge)
         if any(r["method"] == "interpolated_depth" and r["accepted"] for r in reports):
-            solved, active, extra_rejected = solve_graph(views,active,say,motion,joint=use_joint)
+            solved, active, extra_rejected = solve_graph(views,active,say,motion,joint=use_joint,tag_frames=tag_frames,camera=camera)
             rejected += extra_rejected
     if use_joint:
         say("Checking accumulated room context after joint camera refinement")
@@ -599,7 +630,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                     "component_sizes": [len(c["frame_indices"]) for c in solved],
                     "validated_component_sizes": [len(c["frame_indices"]) for c in solved if c["validation"]["accepted"]],
                     "rejected_component_sizes": [len(c["frame_indices"]) for c in solved if not c["validation"]["accepted"]],
-                    "validation": "sampled depth, visibility, six-direction conditioning, competing poses, reciprocal fit, optional measured RGB-D/gravity constraints and graph revalidation",
+                    "validation": "sampled depth, visibility, six-direction conditioning, competing poses, reciprocal fit, optional measured AprilTags/RGB-D/gravity constraints and graph revalidation",
                     "thresholds_are_calibrated_probabilities": False}
 
 
@@ -641,6 +672,11 @@ def _propose_depth_poses(engine, progress_cb=None):
             tracked.append(None)
     device = "cuda" if str(engine.device).startswith("CUDA") else "cpu"
     cached = getattr(engine, "_offline_depth_pair_cache", ())
+    tag_options = {}
+    if engine.settings.apriltag_tracking:
+        from .apriltag_tracking import observation
+        tag_options = {"tag_frames": [observation(engine, i) for i in range(len(views))],
+                       "camera": engine.settings.camera}
     motion = MotionEvidence(engine.frame_metadata, engine.settings.camera, appearance,
                             gravity=engine.settings.gravity_assistance, visual=color,
                             journal=getattr(engine,"motion_journal",None), tracked=tracked)
@@ -660,7 +696,7 @@ def _propose_depth_poses(engine, progress_cb=None):
                             journal_complete=bool(journal.get("segments")) and all(s["status"].get("complete",False) for s in journal.get("segments",())))
     notify(f"Using {evidence_summary['accelerometer_reads']} acceleration reads and {evidence_summary['visual_observations']} intermediate visual observations")
     solved, report = recover_depth_graph(views, device=device, notify=notify, cached_pairs=cached, motion=motion,
-                                         checkpoint=getattr(engine,"_offline_depth_checkpoint",None))
+                                         checkpoint=getattr(engine,"_offline_depth_checkpoint",None), **tag_options)
     report["motion_evidence"] = evidence_summary
     report["joint_refinements"] = [r for c in solved for r in c.get("joint_refinements", [c.get("joint_refinement")]) if r]
     report["cached_pairs_revalidated"] = len(cached)
