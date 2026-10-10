@@ -740,7 +740,7 @@ async def export_textured(
     try:
         async with _build_lock:
             try:
-                await _engine_call(
+                report = await _engine_call(
                     export_texture,
                     engine,
                     path,
@@ -756,10 +756,15 @@ async def export_textured(
                 logger.warning("Texture export %s rejected: %s", fmt, exc)
                 raise HTTPException(422, str(exc)) from exc
         data = await asyncio.to_thread(Path(path).read_bytes)
+        exposure = report["exposure_correction"]
+        brightness = (
+            "Applied: " if exposure["applied"] else "Unchanged: "
+        ) + exposure["reason"]
         return Response(
             content=data,
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f"attachment; filename=scan.{fmt}"},
+            headers={"Content-Disposition": f"attachment; filename=scan.{fmt}",
+                     "X-Texture-Brightness": brightness},
         )
     finally:
         os.unlink(path)

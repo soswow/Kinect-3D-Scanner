@@ -95,6 +95,58 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertEqual(1, text.count("No fresh depth frames"))
         self.assertEqual(1, text.count("Live color and depth frames received"))
 
+    def test_reconstruction_progress_switches_between_phase_counts_and_busy_steps(self):
+        self.retain_scan()
+        self.window._build_pending = True
+        self.window._on_process_progress(130, 130, {"index": 129, "message": "Frame accepted"})
+        self.assertEqual(0, self.window.progress_bar.maximum())
+        self.assertIn("Preparing", self.window.progress_status_label.text())
+        self.window._on_process_progress(0, 130, {
+            "stage": "fragment_reconnection",
+            "message": "Optimizing local depth maps before testing their global placement",
+        })
+        self.assertEqual(0, self.window.progress_bar.maximum())
+        self.assertIn("Optimizing local depth maps", self.window.progress_status_label.text())
+        for count in (47, 48, 307):
+            self.window.server_client._handle_ws_message({
+                "type": "progress", "current": 0, "total": 130,
+                "result": {"stage": "fragment_reconnection",
+                           "message": f"Depth registration: revisit 117 <-> 34; candidate {count}/307"},
+            })
+            self.assertEqual(307, self.window.progress_bar.maximum())
+            self.assertEqual(count, self.window.progress_bar.value())
+            self.assertEqual(f"Revisit candidates: {count} / 307", self.window.progress_bar.text())
+        self.window._on_process_progress(0, 130, {
+            "stage": "fragment_reconnection", "message": "Searching accumulated depth components 1/28",
+        })
+        self.assertEqual("Component candidates: 1 / 28", self.window.progress_bar.text())
+        self.window._on_process_progress(1, 130, {"index": 0, "message": "Frame accepted"})
+        self.assertEqual("Processing frames: 1 / 130", self.window.progress_bar.text())
+        self.assertTrue(self.window.progress_status_label.isHidden())
+        self.window._on_build_mesh_done(False, "Synthetic failure")
+        self.assertTrue(self.window.progress_bar.isHidden())
+        self.assertTrue(self.window.progress_status_label.isHidden())
+
+    def test_reconstruction_phase_counts_keep_other_units_and_ignore_stale_sessions(self):
+        self.retain_scan()
+        self.window._preview_pending = True
+        cases = (
+            ("Preparing depth view 3/130", "Preparing depth views: 3 / 130"),
+            ("Depth registration: local evidence 21/384", "Local depth pairs: 21 / 384"),
+            ("Checking complete depth component: view 2/79", "Checking depth views: 2 / 79"),
+        )
+        for message, text in cases:
+            self.window._on_process_progress(0, 130, {"stage": "fragment_reconnection", "message": message})
+            self.assertEqual(text, self.window.progress_bar.text())
+        self.window._on_process_progress(9, 10, {"stage": "bundle_adjustment", "message": "Verifying multi-view feature identities"})
+        self.assertEqual("Reconstruction: 9 / 10", self.window.progress_bar.text())
+        self.window._on_process_progress(0, 130, {"session_id": "old", "stage": "fragment_reconnection",
+                                                "message": "Preparing depth view 1/130"})
+        self.assertEqual("Reconstruction: 9 / 10", self.window.progress_bar.text())
+        self.window._export_pending = {"path": "/tmp/synthetic-project.zip", "kind": "session"}
+        self.window._on_transfer_progress("Downloading", 5, 10)
+        self.assertTrue(self.window.progress_status_label.isHidden())
+
     def test_empty_camera_has_one_error_and_stale_image_retains_warning(self):
         self.window._last_rgb = None
         self.window.view_label._image = None

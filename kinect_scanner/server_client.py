@@ -375,6 +375,10 @@ class ServerClient(QObject):
             os.replace(temporary, destination)
             logger.info("Export %s: disk completion %.2f s, total %.2f s: %s", fmt,
                         time.monotonic() - finishing, time.monotonic() - started, destination)
+            brightness = resp.headers.get("x-texture-brightness")
+            if fmt in ("glb", "obj.zip") and brightness:
+                logger.info("Texture brightness matching: %s", brightness,
+                            extra={"ui_event": True})
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
