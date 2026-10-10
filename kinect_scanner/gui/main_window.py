@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -541,6 +542,10 @@ class MainWindow(QMainWindow):
         output_row.addWidget(self.btn_export_session)
         layout.addWidget(self.btn_open_project)
         layout.addLayout(output_row)
+        self.progress_status_label = QLabel()
+        self.progress_status_label.setWordWrap(True)
+        self.progress_status_label.hide()
+        layout.addWidget(self.progress_status_label)
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
@@ -1506,7 +1511,7 @@ class MainWindow(QMainWindow):
         self.guidance_label.hide()
         self.auto_capture_cb.setChecked(self._scanning and self.capture_mode_combo.currentData() == "automatic")
         self.frame_count_label.setText("Captured: 0 · Added to model: 0")
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._refresh_controls()
         self._show_message("Scan reset · press Start Scan when ready" if reset_to_setup else (
             "Scan cancelled · ready for a new scan" if cancelled else "Scan started"
@@ -1570,7 +1575,7 @@ class MainWindow(QMainWindow):
         self._capture_waiting = ""
         self._reset_auto_capture_cadence()
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         queued = self.task_worker.submit(ServerTask(
             ServerTaskType.RESET, {"settings": self._session_settings, "record": False}
         ))
@@ -1718,7 +1723,7 @@ class MainWindow(QMainWindow):
         stored = self._server_stored
         self.scan_status_label.setText(f"Processing {stored} frames on server...")
         self.progress_bar.setRange(0, 0)  # indeterminate until progress arrives
-        self.progress_bar.setVisible(True)
+        self._set_progress_visible(True)
 
         options = {"final_voxel_m": self.final_voxel_spin.value() / 1000 or None,
                    "offline_registration": self.offline_registration_combo.currentData()}
@@ -1752,7 +1757,7 @@ class MainWindow(QMainWindow):
         self.btn_preview_scan.setEnabled(False)
         self.scan_status_label.setText("Generating preview on server...")
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.setVisible(True)
+        self._set_progress_visible(True)
 
         self.task_worker.submit(ServerTask(ServerTaskType.PREVIEW))
         self._refresh_controls()
@@ -1830,7 +1835,7 @@ class MainWindow(QMainWindow):
         self._export_pending = None
         self._pending_action = None
         self._project_to_open = None
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._sensor_recording_path = None
         self._sensor_counts_seen = {}
         self._build_failed = False
@@ -1849,7 +1854,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 100 if total else 0)
         self.progress_bar.setValue(int(done / total * 100) if total else 0)
         self.progress_bar.setFormat(f"{phase}: %p%")
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         detail = f"{phase}: {done / 1024**2:.1f}"
         detail += f" / {total / 1024**2:.1f} MB" if total else " MB"
         self._show_message(detail)
@@ -1864,7 +1869,7 @@ class MainWindow(QMainWindow):
         self._configure_sensor_recording()
         self._operation_error = ""
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         if not self.task_worker.submit(task):
             self._on_export_done(False, path)
             return False
@@ -2123,18 +2128,48 @@ class MainWindow(QMainWindow):
                 {"processed_count": result["index"] + 1, "result": result},
                 time.monotonic(), learn_completion=False,
             )
-        self.progress_bar.setRange(0, total)
+        message = result.get("message", "")
+        is_activity = bool(result.get("stage") or (message and "index" not in result))
+        progress_format = "Processing frames: %v / %m"
+        if is_activity:
+            progress_format = "Reconstruction: %v / %m"
+            # Older servers send depth-graph counters only in their messages,
+            # with current=0 and total=the capture count for every phase.
+            for pattern, label in (
+                (r"Depth registration: revisit .*; candidate (\d+)/(\d+)$", "Revisit candidates"),
+                (r"Depth registration: local evidence (\d+)/(\d+)$", "Local depth pairs"),
+                (r"Preparing depth view (\d+)/(\d+)$", "Preparing depth views"),
+                (r"Searching accumulated depth components (\d+)/(\d+)$", "Component candidates"),
+                (r"Checking complete depth component: view (\d+)/(\d+)$", "Checking depth views"),
+            ):
+                match = re.fullmatch(pattern, message)
+                if match:
+                    current, total = map(int, match.groups())
+                    progress_format = f"{label}: %v / %m"
+                    break
+        self.progress_bar.setRange(0, max(0, total))
         self.progress_bar.setValue(current)
-        self.progress_bar.setVisible(self._build_pending or self._preview_pending)
-        self.progress_bar.setFormat("Processing frames: %v / %m")
-        if current == total and self._build_pending:
+        self.progress_bar.setFormat(progress_format)
+        if total <= 0 or (is_activity and current == 0):
             self.progress_bar.setRange(0, 0)
+        elif not is_activity and current == total and self._build_pending:
+            self.progress_bar.setRange(0, 0)
+            message = "Preparing the reconstructed model…"
+        self._set_progress_visible(self._build_pending or self._preview_pending,
+                                   message if is_activity or current == total else "")
         self._server_integrated = result.get("frame_count", self._server_integrated)
         self.frame_count_label.setText(
             f"Captured: {self._server_stored} · Added to model: {self._server_integrated}"
         )
         self.logs_panel.append(result.get("message", "Processing captured frames"), "Reconstruction")
         self._refresh_status()
+
+    def _set_progress_visible(self, visible: bool, message: str = ""):
+        # Native macOS busy bars do not draw format text, so keep the activity
+        # in a separate label and clear it when another operation takes over.
+        self.progress_status_label.setText(message)
+        self.progress_status_label.setVisible(visible and bool(message))
+        self.progress_bar.setVisible(visible)
 
     def _on_build_mesh_done(self, success: bool, detail: str):
         logger.info("Build finished session=%s success=%s detail=%s", self._session_id, success, detail)
@@ -2144,7 +2179,7 @@ class MainWindow(QMainWindow):
         self._scanning = False
         self._paused = True
         self._configure_camera_tracking()
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._operation_error = "" if success else detail
         self._show_message(detail, 8000)
         self._refresh_controls()
@@ -2159,7 +2194,7 @@ class MainWindow(QMainWindow):
         self._last_preview_path = None
         self._operation_error = ""
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
+        self._set_progress_visible(True)
         self.task_worker.submit(ServerTask(ServerTaskType.FINAL_PREVIEW))
         self._refresh_controls()
 
@@ -2168,7 +2203,7 @@ class MainWindow(QMainWindow):
             return
         self._final_preview_pending = False
         self._last_preview_path = path
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._refresh_controls()
         if path and not self._pending_action:
             launch_viewer_subprocess(path)
@@ -2186,7 +2221,7 @@ class MainWindow(QMainWindow):
         if self._closing or self._preview_session != self._session_id:
             return
         self._resume_capture()
-        self.progress_bar.setVisible(False)
+        self._set_progress_visible(False)
         if self._scanning:
             self.btn_preview_scan.setEnabled(True)
 
@@ -2207,7 +2242,7 @@ class MainWindow(QMainWindow):
         if pending and pending["path"] != path:
             return
         self._export_pending = None
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         action, self._pending_action = self._pending_action, None
         if success:
             if pending and pending["kind"] == "session":
@@ -2245,7 +2280,7 @@ class MainWindow(QMainWindow):
         self._show_message(msg)
         if self._export_pending:
             self.progress_bar.setRange(0, 0)
-            self.progress_bar.show()
+            self._set_progress_visible(True)
 
     def _on_task_error(self, msg: str):
         logger.error("Operation error session=%s %s", self._session_id, msg, extra={"ui_log": False})
@@ -2259,7 +2294,7 @@ class MainWindow(QMainWindow):
 
     def _on_task_failed(self, task_type, message):
         logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message, extra={"ui_log": False})
-        self.progress_bar.hide()
+        self._set_progress_visible(False)
         self._operation_error = f"{message} · current scan retained"
         if task_type == "CONNECT":
             self._connect_pending = False

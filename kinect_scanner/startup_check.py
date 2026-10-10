@@ -193,6 +193,7 @@ def run_check():
                         window.logs_panel.text.toPlainText().count("Camera motion could not be verified") == 2
                     )
                     check_offline_capture(window, temporary)
+                    check_reconstruction_progress(window)
                     window._scanning = False
                     window._session_settings = None
                     window.server_client._connected = False
@@ -260,6 +261,38 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "offline_capture": "ok", "data": str(data_root()), "exports": str(export_root())}
+              "offline_capture": "ok", "reconstruction_progress": "ok",
+              "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0
+
+
+def check_reconstruction_progress(window):
+    """Verify phase changes using the installed WebSocket-to-widget path."""
+    window._build_pending = True
+    checks = []
+    try:
+        for number in (47, 48):
+            window.server_client._handle_ws_message({
+                "type": "progress", "current": 0, "total": 130,
+                "result": {"stage": "fragment_reconnection",
+                           "message": f"Depth registration: revisit 117 <-> 34; candidate {number}/307"},
+            })
+            checks.append(window.progress_bar.maximum() == 307
+                          and window.progress_bar.value() == number
+                          and window.progress_bar.text() == f"Revisit candidates: {number} / 307"
+                          and window.progress_status_label.isVisible())
+        window._on_process_progress(0, 130, {"stage": "fragment_reconnection",
+                                             "message": "Optimizing and checking all measured depth constraints"})
+        checks.append(window.progress_bar.maximum() == 0
+                      and window.progress_status_label.isVisible()
+                      and window.progress_status_label.text().startswith("Optimizing"))
+        window._on_process_progress(1, 28, {"stage": "final_reintegration", "message": "Planning verified fusion"})
+        checks.append(window.progress_bar.maximum() == 28 and window.progress_bar.value() == 1)
+    finally:
+        window._build_pending = False
+        window._set_progress_visible(False)
+        window._refresh_controls()
+    checks.append(window.progress_bar.isHidden() and window.progress_status_label.isHidden())
+    if not all(checks):
+        raise RuntimeError(f"Reconstruction progress check failed: {checks}")
