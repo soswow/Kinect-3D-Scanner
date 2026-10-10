@@ -16,6 +16,8 @@ from PIL import Image
 from shared.settings import ScanSettings
 
 logger = logging.getLogger(__name__)
+PROJECT_ARCHIVE_LIMIT_BYTES = 64 * 1024**3
+PROJECT_JSON_LIMIT_BYTES = 256 * 1024**2
 
 
 def _member(archive, name, limit):
@@ -43,7 +45,7 @@ def export_session(engine, path):
         raise ValueError("Save to a temporary path before replacing the opened project")
     with ExitStack() as stack:
         source = stack.enter_context(zipfile.ZipFile(source_path)) if source_path else None
-        previous = json.loads(_member(source, "manifest.json", 16 * 1024**2)) if source else {}
+        previous = json.loads(_member(source, "manifest.json", PROJECT_JSON_LIMIT_BYTES)) if source else {}
         archive = stack.enter_context(zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED))
         for index, ((rgb, depth), metadata) in enumerate(zip(engine.raw_frames, engine.frame_metadata)):
             paths = {"rgb": f"rgb/{index:06d}.png", "depth": f"depth/{index:06d}.png"}
@@ -90,7 +92,11 @@ def export_session(engine, path):
                     raise OSError("Could not save project mesh")
                 manifest["mesh"] = "mesh.ply"
                 archive.write(mesh_path, "mesh.ply")
-        archive.writestr("manifest.json", json.dumps(manifest, indent=2, allow_nan=False))
+        journal = getattr(engine,"motion_journal",{})
+        if journal.get("segments"):
+            manifest["motion_journal"] = "motion.json"
+            archive.writestr("motion.json",json.dumps(journal,allow_nan=False,separators=(",",":")))
+        archive.writestr("manifest.json", json.dumps(manifest, separators=(",", ":"), allow_nan=False))
         archive.writestr("reconstruction.json", json.dumps(engine.reconstruction_report(), indent=2, allow_nan=False))
     logger.info("Project encoding: %d captures, %.1f MiB, %.2f s", len(manifest["frames"]),
                 Path(path).stat().st_size / 1024**2, time.monotonic() - started)
@@ -105,9 +111,9 @@ def load_session(engine, path):
     from .fragments import _rigid
 
     with zipfile.ZipFile(path) as archive:
-        if len(archive.infolist()) > 100000 or sum(i.file_size for i in archive.infolist()) > 8 * 1024**3:
+        if len(archive.infolist()) > 100000 or sum(i.file_size for i in archive.infolist()) > PROJECT_ARCHIVE_LIMIT_BYTES:
             raise ValueError("Project archive exceeds the supported size")
-        manifest = json.loads(_member(archive, "manifest.json", 16 * 1024**2))
+        manifest = json.loads(_member(archive, "manifest.json", PROJECT_JSON_LIMIT_BYTES))
         if not isinstance(manifest, dict):
             raise ValueError("Project manifest must be an object")
         if manifest.get("version") not in (1, 2, 3):
@@ -117,6 +123,9 @@ def load_session(engine, path):
         if not isinstance(captures, list) or len(captures) > engine.MAX_FRAMES:
             raise ValueError(f"Project must contain at most {engine.MAX_FRAMES} captures")
         engine.reset(settings=settings)
+        if manifest.get("motion_journal"):
+            from shared.motion_journal import MAX_JOURNAL_BYTES
+            engine.store_motion_journal(json.loads(_member(archive,manifest["motion_journal"],MAX_JOURNAL_BYTES)))
         for index, frame in enumerate(captures):
             if not isinstance(frame, dict):
                 raise ValueError("Invalid project capture")
@@ -139,7 +148,7 @@ def load_session(engine, path):
                 raise ValueError(f"Cannot load capture {index + 1}: {result['message']}")
         report = {}
         if manifest.get("reconstruction"):
-            report = json.loads(_member(archive, manifest["reconstruction"], 32 * 1024**2))
+            report = json.loads(_member(archive, manifest["reconstruction"], PROJECT_JSON_LIMIT_BYTES))
         if not isinstance(report, dict):
             raise ValueError("Project reconstruction must be an object")
         poses = []

@@ -19,6 +19,7 @@ _V4_MAGIC = b"RGB4"
 PREDICTED_FRAME_ENCODING = "rgbd-sub-zlib-v1"
 _MAX_BATCH = 100
 _MAX_FRAME_BYTES = 6_000_000
+MAX_METADATA_BYTES = 1024 * 1024
 
 
 def validate_arrays(rgb, depth):
@@ -50,7 +51,7 @@ def pack_frame(rgb, depth, metadata=None, *, compression_level=1, spatial_predic
         if high_res or spatial_prediction:
             metadata["rgb_shape"] = list(rgb.shape)
         header = json.dumps(metadata, allow_nan=False, separators=(",", ":")).encode()
-        if len(header) > 4096:
+        if len(header) > MAX_METADATA_BYTES:
             raise ValueError("Frame metadata too large")
         payload = (
             (_V4_MAGIC if spatial_prediction else _V3_MAGIC if high_res else _V2_MAGIC)
@@ -78,7 +79,7 @@ def unpack_frame_with_metadata(data):
     version3 = data[:4] in (_V3_MAGIC, _V4_MAGIC)
     if data[:4] in (_V2_MAGIC, _V3_MAGIC, _V4_MAGIC):
         length = _HEADER.unpack_from(data, 4)[0]
-        if length > 4096 or 8 + length + 4 > len(data):
+        if length > MAX_METADATA_BYTES or 8 + length + 4 > len(data):
             raise ValueError("Invalid metadata length")
         metadata = json.loads(data[8 : 8 + length])
         if not isinstance(metadata, dict):

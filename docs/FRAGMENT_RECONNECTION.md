@@ -2,12 +2,24 @@
 
 ## Experimental depth-only final registration
 
-The new **Final registration** selector provides **Depth geometry (experimental)**
+The **Final registration** selector provides **Depth, color and motion (experimental)**
 alongside the existing fragment algorithm described below. Live reconstruction
 is a separate option. New UI scans start with live reconstruction off; saved
 preferences and old session settings retain their choices. Depth registration
-does not depend on accepted live poses, RGB features, or continuous visual
-tracking. It prepares every retained raw capture and runs at Finish.
+does not depend on accepted live poses. It prepares every retained raw capture
+and runs at Finish. With color recovery/relocalization enabled, fixed measured
+RGB-D correspondences constrain poses and retrieve loops both within a map and
+between maps. Continuous camera-side poses propose initial alignments; reliable
+gravity optionally weights and constrains orientation. These inputs are
+uncertain evidence. Depth-only operation remains supported without them.
+Ordinary updated clients also send bounded intermediate feature identities,
+pixels and axial depths. These permit a sparse joint camera/landmark fit without
+uploading intermediate images. Selected depth surfaces and measured shared planes
+add partial surface constraints; gravity adds roll/pitch evidence. The first
+camera fixes the coordinate gauge. None of these supplies ground-truth poses.
+With this continuous evidence, internal drift is corrected before accumulated
+maps are rigidly aligned, avoiding the earlier per-frame geometric revisit
+search. Maps without that evidence retain the geometric fallback search.
 An opened project can switch final registration before Finish without resetting
 its captures. Switching modes invalidates the previous registration cache;
 calibration and capture settings remain fixed. Depth mode also skips legacy
@@ -38,7 +50,7 @@ count, fixed timestamp-gap rejection, or 30 cm/30 degree pose rejection in this
 mode. Search still uses computational budgets: nearby captures and selected
 descriptor candidates. Unsearched or ambiguous connections remain unresolved.
 
-All existing views on both sides must remain compatible with a bridge. Final
+All existing views on both sides contribute to bridge validation. Final
 components are checked against every other depth view, including pairs that
 were never graph edges. A pose graph can have mutually consistent edges yet
 place a desk in space another view measured as empty. Such a candidate must not
@@ -46,6 +58,10 @@ be promoted merely because it includes more frames. The selected validated
 component is fused; separate components and their independent camera poses
 remain in the report/session. Their relative placement is unknown. Rigid poses,
 metric calibration, real overlap and available memory remain necessary.
+The final audit allows isolated moving surfaces: its mean measured empty-space
+conflict limit is 8%, while severe individual view-pair conflicts remain in the
+report. A single changed object cannot veto an otherwise supported room. This
+engineering policy does not certify absolute accuracy or explain every conflict.
 
 CUDA is used for dense depth odometry, optional CuPy descriptor matching and
 TSDF fusion on a CUDA engine. FPFH computation, RANSAC, point-pair voting,
@@ -62,7 +78,7 @@ method's pair-match count is not evidence of a correct complete reconstruction.
 | The first accepted fragment fixes the model | Largest component that passes the final checks is selected | Each independent component needs a coordinate gauge; its relative placement remains unknown |
 | Motion above 30 cm / 30 degrees or long capture gaps is unacceptable | Removed as an acceptance rule | Motion and time may order guesses; measured depth determines whether a guess works |
 | Up to 32 fragments and 16 views represent the session | Removed | All frames participate; descriptor retrieval still limits proposal search and can miss a connection |
-| RGB supplies necessary disambiguation | Removed from this pipeline | Depth-only registration can remain ambiguous on repeated or featureless geometry |
+| RGB supplies necessary disambiguation | Optional measured RGB-D constraints supplement depth | Textured planes can be determined by distributed color identities; untextured planes remain ambiguous |
 | More connected frames or agreeing graph edges imply a better model | Rejected | Optimize local maps before placement and check non-edge depth observations for contradictions |
 | ICP refinement necessarily improves a good seed | Rejected | Test multiple initial poses; a coarse refinement can drift along a plane |
 | Diverse surface normals determine the camera pose | Replaced with a centered six-direction Jacobian check | A sphere has diverse normals but ambiguous rotation; noisy planes can create false apparent information |
@@ -75,6 +91,14 @@ mirrors, calibration errors, repeated room structure and genuinely missing
 overlap can still defeat these checks. Component-wide verification can reject a
 bad connection without identifying the correct replacement; retained captures
 remain available to later methods.
+
+The October 10 update uses `offline_depth_graph_v2`. It retains fixed color
+identities in the reverse fit rather than letting anonymous depth ICP erase
+them. Batched point-pair votes cache oriented pairs, count pose bins together,
+and discard gross gravity conflicts before ranking. Loop counts report actual
+non-tree constraints in the selected map. Saved v1 registration results are
+invalidated when Finish is requested. The benchmark results below describe
+the earlier depth-only implementation unless explicitly stated otherwise.
 
 ```sh
 python scripts/reconnect_session.py export/your-session.zip \

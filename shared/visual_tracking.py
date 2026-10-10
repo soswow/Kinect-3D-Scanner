@@ -17,6 +17,12 @@ from .calibration import camera_matrix, prepare_rgbd
 from .capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 
+def paired_depth_scale(source, target):
+    """Range-dependent engineering axial scale, not per-device calibration."""
+    a, b = (.002 + .002*points[:, 2]**2 for points in (source, target))
+    return np.sqrt(a*a+b*b)
+
+
 def _feature_support(source_points, target_points, target_pixels, pose, camera):
     moved = source_points @ pose[:3, :3].T + pose[:3, 3]
     z = np.maximum(moved[:, 2], 1e-6)
@@ -24,11 +30,11 @@ def _feature_support(source_points, target_points, target_pixels, pose, camera):
     projected += [camera.cx, camera.cy]
     pixels = np.linalg.norm(projected - target_pixels, axis=1)
     distances = np.linalg.norm(moved - target_points, axis=1)
-    good = (moved[:, 2] > 0) & (pixels <= 3) & (distances <= 0.03)
+    good = (moved[:, 2] > 0) & (pixels <= 3) & (distances <= np.maximum(.03, 3*paired_depth_scale(source_points, target_points)))
     return good, pixels, distances
 
 
-def feature_agreement(source_points, target_points, target_pixels, pose, camera):
+def feature_agreement(source_points, target_points, target_pixels, pose, camera, *, require_distributed=True):
     """Keep measured color correspondences as a constraint after geometric ICP."""
     good, pixels, distances = _feature_support(source_points, target_points, target_pixels, pose, camera)
     count = int(good.sum())
@@ -44,7 +50,7 @@ def feature_agreement(source_points, target_points, target_pixels, pose, camera)
         covered = bool(np.prod(extent) >= 0.04 and
                        eigenvalues[1] / max(eigenvalues.sum(), 1e-9) > 0.002)
     report["distributed"] = covered
-    return bool(count >= 35 and report["support_fraction"] >= 0.65 and covered), report
+    return bool(count >= 35 and report["support_fraction"] >= 0.65 and (covered or not require_distributed)), report
 
 
 def sampled_points(depth, pixels, camera):
@@ -78,7 +84,7 @@ def measured_rigid_motion(source, target, seed):
     pose = seed.copy()
     for _ in range(4):
         residual = np.linalg.norm(source @ pose[:3, :3].T + pose[:3, 3] - target, axis=1)
-        selected = residual < 0.025
+        selected = residual < np.maximum(.025, 3*paired_depth_scale(source, target))
         if selected.sum() < 35:
             return None
         a, b = source[selected], target[selected]
@@ -102,7 +108,7 @@ def refine_measured_motion(source, target, pixels, pose, camera):
             return None
         projected = moved[:, :2] / z[:, None] * [camera.fx, camera.fy] + [camera.cx, camera.cy]
         supported = (np.linalg.norm(projected - pixels, axis=1) < 3) & (
-            np.linalg.norm(moved - target, axis=1) < 0.025)
+            np.linalg.norm(moved - target, axis=1) < np.maximum(.025, 3*paired_depth_scale(source, target)))
         if supported.sum() < 35:
             return None
         # Small left SE(3) update: d(Rp+t)/d(angle,translation).
@@ -115,9 +121,12 @@ def refine_measured_motion(source, target, pixels, pose, camera):
         projection = np.zeros((len(source), 2, 3))
         projection[:, 0, 0], projection[:, 0, 2] = camera.fx / z, -camera.fx * x / z**2
         projection[:, 1, 1], projection[:, 1, 2] = camera.fy / z, -camera.fy * y / z**2
-        # Engineering residual scales (1 pixel, 3 mm); not device uncertainty.
-        residual = np.column_stack((projected - pixels, (z - target[:, 2]) / 0.003))
-        j = np.concatenate((projection @ jacobian, jacobian[:, 2:3, :] / 0.003), axis=1)
+        # Pixels retain fixed identities. Farther structured-light depth must
+        # not overpower them with the same millimetre weight as close depth.
+        # These are engineering scales, not calibrated sensor uncertainty.
+        depth_scale = np.maximum(.003, paired_depth_scale(source, target))
+        residual = np.column_stack((projected - pixels, (z - target[:, 2]) / depth_scale))
+        j = np.concatenate((projection @ jacobian, jacobian[:, 2:3, :] / depth_scale[:, None, None]), axis=1)
         r, j = residual[supported].reshape(-1), j[supported].reshape(-1, 6)
         weight = np.sqrt(np.minimum(1, 1.5 / np.maximum(np.abs(r), 1e-9)))
         step = np.linalg.lstsq(j * weight[:, None], -r * weight, rcond=None)[0]
@@ -155,8 +164,12 @@ class VisualTracker:
     MIN_CELL_TRACKS = 3
     MIN_REPLENISH_INTERVAL_S = 0.2
     # A track may support this short step yet be too uncertain to keep alive.
-    MAX_RETENTION_PIXEL_ERROR = 0.5
-    MAX_RETENTION_DEPTH_ERROR_M = 0.02
+    # Native depth quantization and color/depth delivery lag can move an
+    # otherwise verified feature by more than half a pixel. Keep a tighter
+    # subset of the existing 3 px / 30 mm accepted measurements, rather than
+    # destroying their identities between ordinary selected captures.
+    MAX_RETENTION_PIXEL_ERROR = 1.5
+    MAX_RETENTION_DEPTH_ERROR_M = 0.03
     DEBUG_TRAIL_FRAMES = 20
 
     # Debug classifications follow the existing rejection gates, in order.
@@ -321,6 +334,21 @@ class VisualTracker:
                 "occupied_cells": int(np.count_nonzero((counts > 0) & eligible)),
                 "eligible_cells": int(eligible.sum()), "replenishment": reason}
 
+    def measured_tracks(self, stamp):
+        """Export current observed identities; the server samples its own depth.
+
+        Failed frames must never inherit the last reference's observations.
+        IDs are meaningful only within this tracker segment and generation.
+        """
+        if not self.history or self.history[-1].stamp != stamp:
+            return None
+        reference = self.history[-1]
+        return {"version": 1, "image_size": [self.settings.camera.width, self.settings.camera.height],
+                "ids": reference.ids.tolist(),
+                "pixels": np.round(reference.corners.reshape(-1, 2), 3).tolist(),
+                "depths_m": np.round(reference.points[:, 2], 6).tolist(),
+                "observations": reference.observations.tolist()}
+
     def _match_reference(self, reference, gray, depth, stamp):
         old_gray, _, old_corners, old_stamp, old_pose, points_a = reference[:6]
         if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
@@ -393,7 +421,7 @@ class VisualTracker:
             return None, stats
         agreed, pixel_errors, depth_errors = _feature_support(pa, pb, pixels, delta, self.settings.camera)
         reliable = (agreed & (pixel_errors <= self.MAX_RETENTION_PIXEL_ERROR)
-                    & (depth_errors <= self.MAX_RETENTION_DEPTH_ERROR_M))
+                    & (depth_errors <= np.maximum(self.MAX_RETENTION_DEPTH_ERROR_M, 2*paired_depth_scale(pa, pb))))
         indices = np.flatnonzero(supported)[reliable]
         stats["retention_rejected"] = int(agreed.sum() - reliable.sum())
         pose = old_pose @ np.linalg.inv(delta)
@@ -419,7 +447,7 @@ class VisualTracker:
         self._match_debug = None
         self._matched_reference = None
         started = time.monotonic()
-        stamp = metadata.get("timestamp_s", started)
+        stamp = metadata.get("depth_device_timestamp_unwrapped_s", metadata.get("timestamp_s", started))
         if self.debug_enabled:
             # Count camera observations, including timing/flow failures.
             self._trail_frames.append(None)
@@ -474,6 +502,7 @@ class VisualTracker:
                 **trails,
             }
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
+                "measured_tracks": self.measured_tracks(stamp),
                 "steps": self.steps, "elapsed_ms": (time.monotonic() - started) * 1000,
                 "reason": "Measured RGB-D motion" if valid else
                     "Visual motion unverified; retaining recent references" if self.history else

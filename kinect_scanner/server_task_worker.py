@@ -301,6 +301,13 @@ class ServerTaskWorker(QThread):
 
         elif tt == ServerTaskType.BUILD_MESH:
             self._require_uploaded_captures()
+            recorder = task.kwargs.get("sensor_recorder")
+            if recorder is not None:
+                from shared.motion_journal import acceleration_journal
+                snapshot = recorder.completed_sensor_snapshot(task.kwargs.get("sensor_path"))
+                if snapshot is not None:
+                    self._client.task_started.emit("Uploading complete acceleration journal…")
+                    self._client.send_motion_journal(acceleration_journal(snapshot))
             self._client.task_started.emit("Building mesh on server...")
             options = task.kwargs.get("options")
             result = self._client.request_build(options) if options else self._client.request_build()

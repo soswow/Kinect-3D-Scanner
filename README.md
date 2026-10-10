@@ -188,8 +188,9 @@ right drag (secondary-click and drag on a trackpad), middle drag, or Shift+left
 drag. **Fit View** resets rotation, zoom, and pan. **Details**
 shows diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
-crop. **Minimum capture interval** sets the fastest automatic cadence. Live
-capture slows to match recent processing and upload/feedback times, with the
+crop. **Capture interval** sets the ordinary automatic cadence. Offline depth
+scans retain extra overlapping views when camera movement grows or tracking
+weakens. Live capture slows to match recent processing and upload/feedback times, with the
 adjusted pace available by hovering over the interval. It allows one processing frame and one
 waiting capture, including uploads, and waits if live feedback disconnects.
 Move more slowly at longer intervals to preserve overlap between views.
@@ -411,7 +412,11 @@ They preserve the full final mesh for PLY/plain OBJ export.
 estimated poses, diagnostics, the finished mesh when available, and the client's continuous accelerometer log,
 including failed reads. Camera images are saved only for selected captures by
 default. Live visual tracking can process intermediate images without retaining
-them all on disk. Normal archive size depends on the selected captures; the motion
+them all on disk. Each capture sends the intervening acceleration reads and
+compact visual observations. Finish automatically uploads the complete small
+acceleration journal, including pauses and failed reads, before reconstruction;
+the optional full image archive is unnecessary for that transport.
+Normal archive size depends on the selected captures; the motion
 log adds a small amount of text data. Opening restores saved poses by fresh fusion and keeps capture paused; a saved final mesh is immediately available for export. Independent sensor observations remain in the project when it is saved again.
 
 Saving reports preparation, download progress in MB, disk completion and sensor merging.
@@ -457,11 +462,16 @@ Follow the nine physical positioning prompts, then select the output JSON with
 independent camera-axis alignment checks are required for a verified profile.
 Hardware orientation/performance and tracking gains
 still need validation; see the [implementation and calibration guide](docs/KINECT_ACCELEROMETER.md).
-**Final registration** offers an experimental depth-only camera pose graph and
+**Final registration** offers **Depth, color and motion (experimental)** and
 the existing fragment registration. New GUI scans start with live fusion off;
 **Show live reconstruction** remains available and saved preferences are kept.
-Depth mode estimates poses from every raw depth capture independently of live
-tracking and RGB. It permits single-pair bridges when geometry supports them,
+Depth mode considers every raw depth capture independently of accepted live
+poses. Measured RGB-D matches can constrain textured planes and identify loop
+closures; camera-side visual history proposes initial poses. When enabled,
+reliable accelerometer gravity supplies a broad orientation constraint and a
+soft search weight. It supplies neither yaw nor integrated position. Depth-only
+reconstruction remains supported with color and gravity assistance disabled.
+The mode permits single-pair bridges when measurements support them,
 checks all available component views for contradictory empty space, and retains
 unconnected components with their own camera poses. Read the
 [depth-only registration checks and experiments](docs/FRAGMENT_RECONNECTION.md#experimental-depth-only-final-registration).
@@ -816,6 +826,12 @@ reset/preview/build command barriers. Frames prepend `RGB3` for high-resolution
 RGB or `RGB2` for VGA, a 4-byte JSON metadata length, and metadata before the
 single-frame payload. Depth bytes are little-endian uint16 raw disparity for
 Kinect sessions; explicit public dataset replay settings use millimetres.
+
+Metadata is bounded to 1 MiB per capture. `/api/health` advertises motion
+protocol support; the client retains queued captures and asks for a server
+update if the old server cannot receive it. `/api/scan/motion` receives a
+session-bound acceleration journal up to 32 MiB. Project uploads support up to
+64 GiB, with separate limits for manifests, images, meshes and sensor journals.
 
 ---
 

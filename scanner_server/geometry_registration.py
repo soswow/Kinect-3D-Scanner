@@ -13,6 +13,7 @@ import time
 import numpy as np
 import open3d as o3d
 from scipy.spatial import cKDTree
+from scipy.spatial.transform import Rotation
 
 from shared.calibration import prepare_metric_depth, pinhole_rays
 
@@ -88,6 +89,12 @@ def observability(points, normals):
     jacobian = np.column_stack((np.cross(centered, normals) / radius, normals))
     values = np.linalg.eigvalsh(jacobian.T @ jacobian / len(points))
     return values, float(max(0, values[0]) / max(values[-1], 1e-12))
+
+
+def full_pose_condition(view):
+    if "full_pose_condition" not in view.features:
+        view.features["full_pose_condition"] = observability(np.asarray(view.heldout.points), np.asarray(view.heldout.normals))[1]
+    return view.features["full_pose_condition"]
 
 
 def _visibility(source, target, pose):
@@ -269,7 +276,7 @@ def global_seeds(source, target, method="multiscale", device="cpu"):
     return output
 
 
-def ppf_seeds(source, target, limit=12):
+def ppf_seeds(source, target, limit=12, gravity=None):
     """Bounded oriented-pair hash votes, without a learned model or CAD mesh.
 
     This deliberately samples a bounded number of pairs instead of an N² table.
@@ -277,49 +284,70 @@ def ppf_seeds(source, target, limit=12):
     evaluation decides whether any voted transformation is usable.
     """
     def pairs(view):
+        if "ppf_pairs" in view.features:
+            return view.features["ppf_pairs"]
         points, normals = np.asarray(view.cloud.points), np.asarray(view.cloud.normals)
         ids = np.linspace(0, len(points) - 1, min(180, len(points)), dtype=int)
         points, normals = points[ids], normals[ids]
-        output = []
-        for i in range(len(points)):
-            for j in range(i + 1, len(points), 7):
-                d = points[j] - points[i]
-                length = np.linalg.norm(d)
-                if not .08 < length < 1.5:
-                    continue
-                direction = d / length
-                angles = np.arccos(np.clip([normals[i] @ direction, normals[j] @ direction, normals[i] @ normals[j]], -1, 1))
-                axis = normals[i] - direction * (normals[i] @ direction)
-                if np.linalg.norm(axis) < .15:
-                    continue
-                axis /= np.linalg.norm(axis)
-                frame = np.column_stack((direction, axis, np.cross(direction, axis)))
-                feature = np.r_[length / .04, angles / np.radians(12)]
-                output.append((tuple(np.rint(feature).astype(int)), points[i], frame))
+        ij = np.asarray([(i,j) for i in range(len(points)) for j in range(i+1,len(points),7)], int).reshape(-1,2)
+        i,j = ij.T
+        d = points[j] - points[i]
+        lengths = np.linalg.norm(d, axis=1)
+        valid = (lengths > .08) & (lengths < 1.5)
+        i,j,d,lengths = i[valid],j[valid],d[valid],lengths[valid]
+        directions = d / lengths[:,None]
+        projections = np.sum(normals[i] * directions, axis=1)
+        axes = normals[i] - directions * projections[:,None]
+        sizes = np.linalg.norm(axes, axis=1)
+        valid = sizes >= .15
+        i,j,directions,lengths,axes,sizes = i[valid],j[valid],directions[valid],lengths[valid],axes[valid],sizes[valid]
+        axes /= sizes[:,None]
+        angles = np.arccos(np.clip(np.column_stack((np.sum(normals[i]*directions,axis=1),
+            np.sum(normals[j]*directions,axis=1),np.sum(normals[i]*normals[j],axis=1))),-1,1))
+        keys = np.rint(np.column_stack((lengths/.04,angles/np.radians(12)))).astype(int)
+        frames = np.stack((directions,axes,np.cross(directions,axes)),axis=2)
+        output = (keys, points[i], frames)
+        view.features["ppf_pairs"] = output
         return output
+    source_keys,source_points,source_frames = pairs(source)
+    target_keys,target_points,target_frames = pairs(target)
     table = {}
-    for key, point, frame in pairs(target):
-        values = table.setdefault(key, [])
+    for index,key in enumerate(target_keys):
+        values = table.setdefault(tuple(key), [])
         if len(values) < 6:
-            values.append((point, frame))
-    votes = {}
-    for key, point, frame in pairs(source):
+            values.append(index)
+    source_ids,target_ids = [],[]
+    offsets = list(product((-1,0,1),repeat=4))
+    for index,key in enumerate(source_keys):
         # Full neighbouring bins, including angular quantization boundaries.
-        for offset in product((-1, 0, 1), repeat=4):
+        for offset in offsets:
             candidates = table.get(tuple(k + d for k, d in zip(key, offset)), ())
-            for target_point, target_frame in candidates:
-                rotation = target_frame @ frame.T
-                translation = target_point - rotation @ point
-                # Axis-angle avoids Euler ordering discontinuities.
-                import cv2
-                vector = cv2.Rodrigues(rotation)[0].reshape(3)
-                cell = tuple(np.rint(np.r_[translation / .08, vector / np.radians(12)]).astype(int))
-                if cell not in votes:
-                    pose = np.eye(4)
-                    pose[:3, :3], pose[:3, 3] = rotation, translation
-                    votes[cell] = [0, pose]
-                votes[cell][0] += 1
-    return [("ppf", value[1]) for value in sorted(votes.values(), key=lambda value: -value[0])[:limit]]
+            source_ids.extend([index]*len(candidates))
+            target_ids.extend(candidates)
+    if not source_ids:
+        return []
+    source_ids,target_ids = np.asarray(source_ids),np.asarray(target_ids)
+    rotations = target_frames[target_ids] @ source_frames[source_ids].transpose(0,2,1)
+    translations = target_points[target_ids] - np.einsum('nij,nj->ni',rotations,source_points[source_ids])
+    if gravity is not None:
+        source_up,target_up,limit_deg = gravity
+        aligned = np.einsum('nij,j->ni',rotations,source_up) @ target_up
+        keep = aligned >= np.cos(np.radians(limit_deg))
+        rotations,translations = rotations[keep],translations[keep]
+        if not len(rotations):
+            return []
+    # Batch axis-angle conversion and bin counting replaces one Python/OpenCV
+    # call per vote. First occurrence breaks equal-count ties deterministically.
+    vectors = Rotation.from_matrix(rotations).as_rotvec()
+    cells = np.rint(np.column_stack((translations/.08,vectors/np.radians(12)))).astype(int)
+    _,first,counts = np.unique(cells,axis=0,return_index=True,return_counts=True)
+    selected = first[np.lexsort((first,-counts))[:limit]]
+    output = []
+    for index in selected:
+        pose = np.eye(4)
+        pose[:3,:3],pose[:3,3] = rotations[index],translations[index]
+        output.append(("ppf",pose))
+    return output
 
 
 def pca_seeds(source, target):
@@ -341,7 +369,7 @@ def pca_seeds(source, target):
     return output
 
 
-def register_pair(source, target, *, method="local", device="cpu", initial=None):
+def register_pair(source, target, *, method="local", device="cpu", initial=None, extra_seeds=(), pose_check=None, ppf_gravity=None, reciprocal_refine=None):
     started = time.monotonic()
     if min(len(source.cloud.points), len(target.cloud.points)) < 100:
         return None, {"source": source.index, "target": target.index, "method": method,
@@ -349,6 +377,7 @@ def register_pair(source, target, *, method="local", device="cpu", initial=None)
     seeds = [("identity", np.eye(4))]
     if initial is not None:
         seeds.append(("geometry_prediction", initial))
+    seeds += list(extra_seeds)
     if method == "projective":
         seed = projective_seed(source, target, "CUDA:0" if device == "cuda" else "CPU:0")
         if seed is not None:
@@ -358,9 +387,13 @@ def register_pair(source, target, *, method="local", device="cpu", initial=None)
     if method == "pca":
         seeds += pca_seeds(source, target)
     if method == "ppf":
-        seeds += ppf_seeds(source, target)
+        seeds += ppf_seeds(source, target, gravity=ppf_gravity)
     candidates, unique = [], []
     for name, seed in seeds:
+        if name == "measured_rgbd_features":
+            # Fixed color/depth identities already supply a metric pose.
+            # A planar ICP fit must not erase the directions texture determines.
+            candidates.append({"method": name, "pose": seed})
         if any(max(pose_distance(seed, old)[0] / .02, pose_distance(seed, old)[1] / 2) < 1 for old in unique):
             continue
         unique.append(seed)
@@ -368,14 +401,28 @@ def register_pair(source, target, *, method="local", device="cpu", initial=None)
         if pose is None:
             continue
         candidates.append({"method": name, "pose": pose})
-    return verify_candidates(source,target,candidates,method=method,elapsed_s=time.monotonic()-started)
+    return verify_candidates(source,target,candidates,method=method,elapsed_s=time.monotonic()-started,
+                             pose_check=pose_check, reciprocal_refine=reciprocal_refine)
 
 
-def verify_candidates(source,target,candidates,*,method="local",elapsed_s=0.):
+def verify_candidates(source,target,candidates,*,method="local",elapsed_s=0.,pose_check=None,reciprocal_refine=None):
     """Reassess every saved hypothesis, including previously rejected ones."""
     started = time.monotonic()
-    candidates = [{"method":c["method"],"pose":np.asarray(c["pose"]),
-                   **evaluate(source,target,np.asarray(c["pose"]))} for c in candidates]
+    evaluated = []
+    for c in candidates:
+        additional = pose_check(np.asarray(c["pose"])) if pose_check else None
+        condition = 0. if additional and additional.get("appearance", {}).get("accepted") else 1e-4
+        evaluated.append({"method": c["method"], "pose": np.asarray(c["pose"]),
+                          **evaluate(source, target, np.asarray(c["pose"]), minimum_condition=condition),
+                          **({"motion_evidence": additional} if additional else {})})
+    candidates = evaluated
+    if pose_check:
+        for candidate in candidates:
+            additional = candidate["motion_evidence"]
+            candidate["motion_evidence"] = additional
+            if not additional["accepted"]:
+                candidate.update(accepted=False, reason=additional["reason"])
+            candidate["score"] = candidate.get("score", 0.) * additional.get("score_weight", 1.)
     accepted = sorted([c for c in candidates if c["accepted"]], key=lambda c: -c["score"])
     report = {"source": source.index, "target": target.index, "method": method,
               "elapsed_s": elapsed_s + time.monotonic() - started,
@@ -389,11 +436,19 @@ def verify_candidates(source,target,candidates,*,method="local",elapsed_s=0.):
     if competing:
         report.update(accepted=False, reason="competing_geometry")
         return None, report
-    reverse = refine(target, source, np.linalg.inv(best["pose"]), "gicp" if method == "gicp" else "icp")
+    measured = best.get("motion_evidence", {}).get("appearance", {}).get("accepted") and reciprocal_refine is not None
+    reverse = (reciprocal_refine(np.linalg.inv(best["pose"])) if measured else
+               refine(target, source, np.linalg.inv(best["pose"]), "gicp" if method == "gicp" else "icp"))
     cycle = pose_distance(np.eye(4), reverse @ best["pose"]) if reverse is not None else (1., 180.)
     good = cycle[0] <= .025 and cycle[1] <= 3
+    if good and pose_check:
+        good = pose_check(np.linalg.inv(reverse))["accepted"]
+    if good and measured:
+        good = evaluate(target, source, reverse, minimum_condition=0.)["accepted"]
     report.update(accepted=good, reason="accepted_depth_evidence" if good else "reciprocal_disagreement",
                   cycle_m=cycle[0], cycle_deg=cycle[1], score=best["score"], evidence={k: v for k, v in best.items() if k != "pose"})
+    report["reciprocal_method"] = "measured_rgbd" if measured else "depth_icp"
+    report["elapsed_s"] = elapsed_s + time.monotonic() - started
     if good:
         report["transform"] = best["pose"].tolist()
     return best["pose"] if good else None, report

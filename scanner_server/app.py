@@ -1,6 +1,7 @@
 """FastAPI application wrapping ScanEngine for remote 3D scanning."""
 
 import asyncio
+import json
 import logging
 import os
 import tempfile
@@ -271,8 +272,10 @@ async def cuda_input_error(request: Request, exc: CudaInputError):
 
 @app.get("/api/health")
 async def health():
+    from shared.protocol import MAX_METADATA_BYTES
     return {
         "status": "ok",
+        "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1},
         "backend": engine.backend,
         "session_id": engine.session_id,
         "stored_count": engine.stored_count,
@@ -368,6 +371,26 @@ async def scan_frame(request: Request):
                 len(body), (received - started) * 1000, (decoded - received) * 1000,
                 (locked - decoded) * 1000, (time.monotonic() - locked) * 1000)
     return result
+
+
+@app.post("/api/scan/motion")
+async def scan_motion(request: Request):
+    from shared.motion_journal import MAX_JOURNAL_BYTES
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_JOURNAL_BYTES:
+            raise HTTPException(413, "Acceleration journal exceeds 32 MiB")
+        body.extend(chunk)
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, dict):
+            raise ValueError("Acceleration journal must be a JSON object")
+        async with _build_lock:
+            if payload.get("session_id") != engine.session_id:
+                raise ValueError("Acceleration journal belongs to a different scan session")
+            return await _engine_call(engine.store_motion_journal, payload)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/api/scan/frames")
@@ -679,7 +702,7 @@ async def export_recording():
 async def open_project(request: Request):
     """Stage and fully validate a project before replacing the active scan."""
     global engine, _latest_live, _pending_live
-    from .session import load_session
+    from .session import load_session, PROJECT_ARCHIVE_LIMIT_BYTES
 
     fd, path = tempfile.mkstemp(suffix=".zip")
     candidate = None
@@ -689,8 +712,8 @@ async def open_project(request: Request):
         with os.fdopen(fd, "wb") as output:
             async for chunk in request.stream():
                 size += len(chunk)
-                if size > 8 * 1024**3:
-                    raise HTTPException(413, "Project upload exceeds 8 GiB")
+                if size > PROJECT_ARCHIVE_LIMIT_BYTES:
+                    raise HTTPException(413, "Project upload exceeds 64 GiB")
                 await asyncio.to_thread(output.write, chunk)
         async with _exclusive_operation("open"):
             def stage():

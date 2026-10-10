@@ -122,7 +122,11 @@ class FeatureDepthSupportTests(unittest.TestCase):
         ]
         camera = CameraCalibration()
         raw = [extract_features(rgb, d, camera, depth_support=False) for d in depths]
-        self.assertIsNone(propose_transform(*raw, camera))
+        # At room range, axial noise must not veto an otherwise exactly
+        # measured image alignment. Patch support still improves its depth.
+        raw_proposal = propose_transform(*raw, camera)
+        self.assertIsNotNone(raw_proposal)
+        np.testing.assert_allclose(raw_proposal, np.eye(4), atol=.005)
         supported = [extract_features(rgb, d, camera) for d in depths]
         proposal = propose_transform(*supported, camera)
         self.assertIsNotNone(proposal)

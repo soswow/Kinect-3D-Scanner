@@ -9,8 +9,8 @@ import numpy as np
 from shared.visual_tracking import measured_rigid_motion, refine_measured_motion
 
 
-def measured_pose(source, target, matches, initial, camera):
-    if len(matches) < 40:
+def measured_pose(source, target, matches, initial, camera, *, minimum_matches=40):
+    if len(matches) < minimum_matches:
         return None
     a, b = matches.T
     try:

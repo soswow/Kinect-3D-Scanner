@@ -59,6 +59,10 @@ class ServerClient(QObject):
         self._compression_level = 1
         self._spatial_prediction = True
         self._batch_unavailable = False
+        self._motion_history_supported = False
+        self._motion_journal_supported = False
+        self._visual_tracks_supported = False
+        self._feature_history_supported = False
 
     @property
     def is_connected(self) -> bool:
@@ -85,6 +89,10 @@ class ServerClient(QObject):
             resp = self._http.get("/api/health", timeout=5.0)
             resp.raise_for_status()
             health = resp.json()
+            self._motion_history_supported = health.get("capture_protocol", {}).get("motion_history") == 1
+            self._motion_journal_supported = health.get("capture_protocol", {}).get("motion_journal") == 1
+            self._visual_tracks_supported = health.get("capture_protocol", {}).get("visual_tracks") == 1
+            self._feature_history_supported = health.get("capture_protocol", {}).get("feature_history") == 1
             if health.get("status") != "ok":
                 raise RuntimeError(f"Server not ok: {health}")
             status = self.get_status()
@@ -223,6 +231,7 @@ class ServerClient(QObject):
     def send_frame(self, rgb, depth, metadata=None) -> dict:
         """Pack and upload a frame. Returns the server response dict."""
         started = time.monotonic()
+        self._check_motion_protocol(metadata)
         data = pack_frame(rgb, depth, metadata, compression_level=self._compression_level,
                           spatial_prediction=self._spatial_prediction)
         packed = time.monotonic()
@@ -246,6 +255,8 @@ class ServerClient(QObject):
     def send_frames_batch(self, frames: list[tuple]) -> dict:
         """Pack and upload multiple frames as a single batch."""
         started = time.monotonic()
+        for frame in frames:
+            self._check_motion_protocol(frame[2] if len(frame) > 2 else None)
         data = pack_frames(frames, compression_level=self._compression_level,
                            spatial_prediction=self._spatial_prediction)
         packed = time.monotonic()
@@ -272,6 +283,23 @@ class ServerClient(QObject):
             logger.info("Batch capture upload available again", extra={"ui_event": True, "ui_state_key": "batch-upload"})
             self._batch_unavailable = False
         return resp.json()
+
+    def _check_motion_protocol(self, metadata):
+        if metadata and "motion_history" in metadata and not self._motion_history_supported:
+            raise RuntimeError("Update and restart the reconstruction server to receive continuous motion history. Captures remain in the upload buffer.")
+        if metadata and metadata.get("visual_tracking", {}).get("measured_tracks") and not self._visual_tracks_supported:
+            raise RuntimeError("Update and restart the reconstruction server to receive observed feature tracks. Captures remain in the upload buffer.")
+        if metadata and any(row.get("feature_observations") for row in metadata.get("motion_history", {}).get("visual", ())) and not self._feature_history_supported:
+            raise RuntimeError("Update and restart the reconstruction server to receive intermediate feature observations. Captures remain in the upload buffer.")
+
+    def send_motion_journal(self, journal):
+        if not self._motion_journal_supported:
+            raise RuntimeError("Update and restart the reconstruction server to receive the acceleration journal. The local journal is preserved.")
+        response = self._http.post("/api/scan/motion",json={**journal,"session_id":self.session_id},timeout=60.)
+        response.raise_for_status()
+        result = response.json()
+        logger.info("Acceleration journal uploaded session=%s reads=%s complete=%s",self.session_id,result.get("reads"),result.get("complete"))
+        return result
 
     def reset_scan(self, settings=None) -> dict:
         resp = self._http.post("/api/scan/reset", json=settings or {})

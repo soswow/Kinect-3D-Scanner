@@ -24,6 +24,27 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
 
 
 class ServerClientTests(unittest.TestCase):
+    def test_motion_requires_advertised_capability_and_keeps_uploads_unsent_on_old_servers(self):
+        client = ServerClient()
+        client._http = Mock()
+        with self.assertRaisesRegex(RuntimeError, "restart"):
+            client.send_frame(None, None, {"motion_history": {}})
+        with self.assertRaisesRegex(RuntimeError, "restart"):
+            client.send_motion_journal({"version": 1, "segments": []})
+        with self.assertRaisesRegex(RuntimeError, "feature tracks"):
+            client.send_frame(None, None, {"visual_tracking": {"measured_tracks": {"version": 1}}})
+        client._motion_history_supported = True
+        with self.assertRaisesRegex(RuntimeError, "intermediate feature"):
+            client.send_frame(None, None, {"motion_history": {"visual": [{"feature_observations": {"version": 1}}]}})
+        client._http.post.assert_not_called()
+        http = Mock()
+        http.get.side_effect = [response({"status": "ok", "capture_protocol": {"motion_history": 1, "motion_journal": 1}}), response({"session_id": "scan"})]
+        http.post.return_value = response({"reads": 0, "complete": False})
+        with patch("kinect_scanner.server_client.httpx.Client", return_value=http), patch("kinect_scanner.server_client.threading.Thread"):
+            self.assertTrue(client.connect_to_server("localhost", 8000))
+            client.send_motion_journal({"version": 1, "segments": []})
+            self.assertEqual("scan", http.post.call_args.kwargs["json"]["session_id"])
+        client.disconnect()
     def test_remote_uploads_use_prediction_and_loopback_avoids_its_cpu_cost(self):
         for host, expected in (("192.168.1.10", True), ("scanner.local", True), ("localhost", False)):
             client = ServerClient()

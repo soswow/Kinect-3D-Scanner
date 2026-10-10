@@ -42,7 +42,8 @@ from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
 from ..capture_pacing import CapturePacer
-from ..capture_selection import CaptureSelector
+from ..capture_selection import CaptureSelector, MotionCapturePolicy
+from shared.motion_history import capture_interval
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..runtime import data_root, export_root
 from ..server_client import ServerClient
@@ -129,9 +130,11 @@ class MainWindow(QMainWindow):
             self._accelerometer_calibration = None
         self._last_frame_time = 0
         self._last_capture_id = None
+        self._last_motion_capture_at = None
         self._auto_frames_since_capture = 0
         self._capture_pacer = CapturePacer()
         self._capture_selector = CaptureSelector()
+        self._motion_capture_policy = MotionCapturePolicy()
         self._reset_pending = False
         self._cancel_pending = False
         self._reset_to_setup_pending = False
@@ -482,12 +485,12 @@ class MainWindow(QMainWindow):
         self.interval_row = QWidget()
         interval_layout = QHBoxLayout(self.interval_row)
         interval_layout.setContentsMargins(0, 0, 0, 0)
-        interval_label = QLabel("Minimum capture interval")
+        interval_label = QLabel("Capture interval")
         interval_label.setBuddy(self.auto_capture_spin)
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.auto_capture_spin)
         layout.addWidget(self.interval_row)
-        self.interval_help = QLabel("Selects a sharp recent frame; slows to match live reconstruction.", container)
+        self.interval_help = QLabel("Selects a sharp recent frame. Offline scans also retain extra overlapping views when movement grows or tracking weakens; live scans follow reconstruction speed.", container)
         self.interval_help.setWordWrap(True)
         self.interval_help.hide()
         interval_label.setToolTip(self.interval_help.text())
@@ -691,11 +694,11 @@ class MainWindow(QMainWindow):
         self.live_cb.setChecked(False)
         av.addWidget(self.live_cb)
         self.offline_registration_combo = QComboBox()
-        self.offline_registration_combo.addItem("Depth geometry (experimental)", "depth")
+        self.offline_registration_combo.addItem("Depth, color and motion (experimental)", "depth")
         self.offline_registration_combo.addItem("Existing fragment registration", "fragments")
         self.offline_registration_combo.setToolTip(
-            "Depth geometry estimates camera positions from all saved depth captures at Finish. "
-            "It does not require color or live tracking. Separate components are retained when their connection is unknown."
+            "Estimates camera positions from retained depth, measured color matches and available motion history at Finish. "
+            "Depth-only reconstruction remains available with color and gravity assistance disabled. Unconnected maps are retained."
         )
         final_registration_label = QLabel("Final registration")
         final_registration_label.setBuddy(self.offline_registration_combo)
@@ -1205,6 +1208,7 @@ class MainWindow(QMainWindow):
         self._last_frame_time = self._last_frame_metadata.get(
             "captured_monotonic_s", time.monotonic()
         )
+        self._last_frame_metadata.setdefault("captured_monotonic_s", self._last_frame_time)
         # GUI sequence remains unique if the USB device reconnects mid-session.
         self._last_frame_metadata["frame_id"] = f"{self._capture_run_id}:{self._frame_sequence}"
         self._last_frame_metadata.setdefault("timestamp_s", time.time())
@@ -1231,9 +1235,11 @@ class MainWindow(QMainWindow):
             and self.auto_capture_cb.isChecked()
         ):
             self._auto_frames_since_capture += 1
-            if (self._auto_frames_since_capture >= self.auto_capture_spin.value()
+            bridge = (not self.live_cb.isChecked() and self.offline_registration_combo.currentData() == "depth"
+                      and self._motion_capture_policy.needed(self._last_frame_metadata))
+            if (bridge or self._auto_frames_since_capture >= self.auto_capture_spin.value()
                     or self.live_view.snapshot.get("fusion_paused")):
-                self._auto_capture_tick()
+                self._auto_capture_tick(bridge=bridge)
         self._refresh_controls()
 
     def _show_rgb(self, rgb):
@@ -1481,6 +1487,8 @@ class MainWindow(QMainWindow):
             not cancelled and result.get("settings", {}).get("live_reconstruction", False)
         )
         self._last_capture_id = None
+        self._last_motion_capture_at = None
+        self._motion_capture_policy = MotionCapturePolicy()
         self._capture_pacer.reset()
         self._capture_selector.clear()
         self._reset_auto_capture_cadence()
@@ -1578,7 +1586,7 @@ class MainWindow(QMainWindow):
             self._on_task_failed("RESET", "Reset could not be queued" if reason == "reset_scan" else "Cancellation could not be queued")
         self._refresh_controls()
 
-    def _auto_capture_tick(self):
+    def _auto_capture_tick(self, *, bridge=False):
         if self._server_operation or self._reset_pending or self._export_pending or self._paused or self._connect_pending or self._restore_on_status:
             return
         snapshot = self.live_view.snapshot
@@ -1610,13 +1618,13 @@ class MainWindow(QMainWindow):
         self._capture_waiting = ""
         recovering = self.live_cb.isChecked() and bool(snapshot.get("fusion_paused"))
         if not self._capture_pacer.ready(
-            now, 0.1 if recovering else self.auto_capture_spin.interval_seconds,
+            now, 0.1 if recovering or bridge else self.auto_capture_spin.interval_seconds,
             RGB_MODE_FPS[self.rgb_mode_combo.currentData()],
             adaptive=self._adaptive_live_capture() and not recovering,
         ):
             self._refresh_status()
             return
-        self._capture_frame(select_best=True)
+        self._capture_frame(select_best=not bridge)
 
     def _adaptive_live_capture(self):
         return self.adaptive_capture_cb.isChecked() and self.live_cb.isChecked()
@@ -1664,6 +1672,9 @@ class MainWindow(QMainWindow):
         rgb, depth, metadata = selected if selected is not None else (
             self._last_rgb, self._last_depth, self._last_frame_metadata)
         frame_id = metadata.get("frame_id")
+        metadata = dict(metadata)
+        if "motion_history" in metadata:
+            metadata["motion_history"] = capture_interval(metadata["motion_history"], self._last_motion_capture_at)
         queued = self.task_worker.submit(
             ServerTask(ServerTaskType.SEND_FRAME, {
                 "rgb": rgb.copy(), "depth": depth.copy(), "metadata": metadata.copy(),
@@ -1675,6 +1686,8 @@ class MainWindow(QMainWindow):
             self._refresh_controls()
         else:
             self._last_capture_id = frame_id
+            self._last_motion_capture_at = metadata.get("captured_monotonic_s")
+            self._motion_capture_policy.captured(metadata)
             self._capture_pacer.captured(frame_id, time.monotonic(), live=self.live_cb.isChecked())
             self._capture_selector.clear()
             self._capture_revision += 1
@@ -1726,7 +1739,10 @@ class MainWindow(QMainWindow):
             self._session_settings = {**self._session_settings, **options}
         self._session_dirty = True
         self._capture_revision += 1
-        self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH, {"options": options}))
+        kwargs = {"options": options}
+        if self._sensor_recording_path is not None:
+            kwargs.update(sensor_recorder=self.worker, sensor_path=self._sensor_recording_path)
+        self.task_worker.submit(ServerTask(ServerTaskType.BUILD_MESH, kwargs))
         self._refresh_controls()
 
     def _preview_scan(self):

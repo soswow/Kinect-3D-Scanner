@@ -2,10 +2,28 @@
 
 With live reconstruction disabled, each selected frame is saved in a temporary
 lossless disk spool before capture is confirmed. Upload speed does not change
-the requested minimum interval. A single upload worker drains consecutive
+the ordinary capture interval. Offline depth scans also retain overlapping
+views after 10 cm or 8 degrees of accumulated visual movement, and at roughly
+5 Hz while the visual chain is unverified. These thresholds are capture policy,
+not limits on which camera motions the server may reconstruct.
+A single upload worker drains consecutive
 captures in batches of up to eight, keeping image memory bounded while the
 backlog remains on disk. Build, inspection and project-save commands retain
 their queue barriers; Finish uploads earlier captures before reconstruction.
+
+Each capture carries all available intervening acceleration reads, including
+failures, and compact intermediate visual observations. The bounded preview
+history explicitly reports gaps. Finish additionally checkpoints and sends the
+complete acceleration journal before requesting reconstruction, covering pauses
+and long intervals without sending intermediate camera images. The server
+exports this journal as `motion.json`; the optional full sensor archive remains
+a separate research aid. Motion capability negotiation prevents silent loss
+when a new client connects to an old server.
+Each intermediate observation retains up to 192 spatially distributed measured
+feature identities, pixels and depths; at most 80 feature-bearing observations
+remain in the rolling window. Bounds and incomplete intervals are explicit.
+The server jointly fits these observations with selected raw captures and then
+checks the resulting maps against all selected depth views before fusion.
 
 The client shows captured frames including the pending spool, plus a pending
 upload count. The offline capture sound confirms each local capture; server

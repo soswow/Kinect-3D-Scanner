@@ -184,9 +184,9 @@ class FeatureReplenishmentTests(unittest.TestCase):
         rgb, depth = frame()
         tracker.update(rgb, depth, {"timestamp_s": 0})
         y, x = np.indices(depth.shape, dtype=np.float32)
-        # Most motion is coherent, but some patches drift by up to 0.7 pixel.
+        # Most motion is coherent, but some patches drift by up to 2 pixels.
         # This can support a short step without establishing a precise lifetime.
-        warped = cv2.remap(rgb, x + 0.7 * np.sin(y / 20), y, cv2.INTER_LINEAR)
+        warped = cv2.remap(rgb, x + 2.0 * np.sin(y / 20), y, cv2.INTER_LINEAR)
         report = tracker.update(warped, depth, {"timestamp_s": 0.2})
         self.assertTrue(report["valid"], report)
         self.assertGreater(report["tracks"]["retired"], 0)

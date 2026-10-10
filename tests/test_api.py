@@ -31,6 +31,13 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         await self.http.aclose()
         server.engine = self.original
 
+    async def test_health_advertises_bounded_normal_motion_and_feature_transport(self):
+        from shared.protocol import MAX_METADATA_BYTES
+        result = (await self.http.get("/api/health")).json()["capture_protocol"]
+        for capability in ("motion_history", "motion_journal", "visual_tracks", "feature_history"):
+            self.assertEqual(1, result[capability])
+        self.assertEqual(MAX_METADATA_BYTES, result["metadata_max_bytes"])
+
     async def test_empty_reset_uses_complete_measured_kinect_default(self):
         response = await self.http.post("/api/scan/reset", json={})
         self.assertEqual(200, response.status_code)
@@ -41,6 +48,28 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             "A00363W00948202A", settings["sensor_calibration"]["camera_serial"]
         )
         self.assertEqual(1280, server.engine.settings.rgb_camera.width)
+
+    async def test_malformed_motion_journal_preserves_active_scan(self):
+        before = server.engine
+        journal = before.motion_journal
+        for payload in ([], None, {"session_id": "other-scan"}):
+            with self.subTest(payload=payload):
+                response = await self.http.post("/api/scan/motion", json=payload)
+                self.assertEqual(422, response.status_code)
+                self.assertIs(before, server.engine)
+                self.assertIs(journal, before.motion_journal)
+
+    async def test_motion_journal_is_received_by_the_active_session(self):
+        from scanner_server.engine import ScanEngine
+        from tests.test_motion_journal import journal
+        source = ScanEngine(device="cpu")
+        self.addCleanup(source.shutdown)
+        server.engine = source
+        payload = journal()
+        response = await self.http.post("/api/scan/motion", json={**payload, "session_id": source.session_id})
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual(40, response.json()["reads"])
+        self.assertEqual(40, len(source.motion_journal["segments"][0]["samples"]))
 
     async def test_invalid_project_preserves_active_scan(self):
         before = server.engine

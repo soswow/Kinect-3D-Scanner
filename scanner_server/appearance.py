@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from shared.calibration import camera_matrix
+from shared.visual_tracking import paired_depth_scale
 
 
 @dataclass
@@ -123,7 +124,8 @@ def propose_transform(source, target, camera, matches=None):
     moved = source.points[a[ids]] @ transform[:3, :3].T + transform[:3, 3]
     distance = np.linalg.norm(moved - target.points[b[ids]], axis=1)
     # RGB matches cannot authorize a loop on an occluder or wrong measured depth.
-    if np.mean(distance < 0.03) < 0.8 or np.median(distance) > 0.015:
+    scale = paired_depth_scale(source.points[a[ids]], target.points[b[ids]])
+    if np.mean(distance < np.maximum(.03, 3*scale)) < .8 or np.median(distance/np.maximum(.015, 1.5*scale)) > 1:
         return None
     return transform
 

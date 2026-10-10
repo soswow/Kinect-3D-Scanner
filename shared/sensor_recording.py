@@ -38,6 +38,7 @@ class SensorJournal:
         (self.path / "configuration.json").write_text(json.dumps({
             "version": 1, "capture_generation": self.generation, "recording_segment": generation, "settings": settings,
             "started_timestamp_s": time.time(), "started_monotonic_s": time.monotonic(),
+            "started_monotonic_ns": time.monotonic_ns(),
             "clock": {"image_device_hz": 60_000_000, "image_reference": "packet_end",
                       "accelerometer_reference": "host_read_interval", "host_clock": "monotonic"},
             "streams": {"rgb": {"units": "uint8 RGB", "encoding": "NPY, no pickle", "recorded": self.record_images},
@@ -178,8 +179,9 @@ def journal_snapshot(root, active=None):
             status = {**status, "complete": False, "error": status.get("error") or "Capture stopped before recording checkpoint"}
         configuration = json.loads((path / "configuration.json").read_text())
         segments.append({"generation": path.name, "status": status,
-                         "started_timestamp_s": configuration.get("started_timestamp_s", 0)})
-    segments.sort(key=lambda s: s["started_timestamp_s"])
+                         "started_timestamp_s": configuration.get("started_timestamp_s", 0),
+                         "started_monotonic_ns": configuration.get("started_monotonic_ns", 0)})
+    segments.sort(key=lambda s: (s["started_timestamp_s"],s["started_monotonic_ns"]))
     return {"version": 1, "root": str(root), "segments": segments,
             "complete": bool(segments) and all(s["status"].get("complete") for s in segments)}
 

@@ -181,6 +181,7 @@ class ScanEngine:
         self.poses = []
         self.diagnostics = []
         self.frame_metadata = []
+        self.motion_journal = {"version": 1, "segments": []}
         self._frame_ids = set()
         self._stored_monotonic = []
         self._appearance_cache = {}
@@ -300,7 +301,8 @@ class ScanEngine:
             excluded = len(self.fragment_reconnection.get("excluded_frames", []))
             guidance = f"Final model retains {self.frame_count} of {self.stored_count} captures."
             if excluded:
-                guidance += f" {excluded} previously fused views were removed because their positions could not be verified."
+                guidance += (f" {excluded} captures could not be placed in the selected map." if self.settings.offline_registration == "depth"
+                             else f" {excluded} previously fused views were removed because their positions could not be verified.")
             loops = len(self.fragment_reconnection.get("loop_closures", [])) + (self.refinement.get("loops", 0) if self.refinement.get("applied") else 0)
             guidance += f" {loops} verified loop constraint{'s' if loops != 1 else ''}."
             guidance += " Save Session preserves all captured views."
@@ -1543,10 +1545,23 @@ class ScanEngine:
             traceback.print_exc()
             return None, None, process_result
 
+    def store_motion_journal(self, payload):
+        from shared.motion_journal import validate_journal, merge_journals
+        incoming = validate_journal(payload, self.settings.accelerometer_calibration)
+        combined = merge_journals(self.motion_journal, incoming)
+        if combined != self.motion_journal:
+            self.motion_journal = combined
+            self._reconnection_count = None
+            self._final_vbg = None
+        return {"success": True, "reads": sum(len(s["samples"]) for s in combined["segments"]),
+                "complete": bool(combined["segments"]) and all(s["status"].get("complete",False) for s in combined["segments"])}
+
     def _reconnect_volume(self, progress_cb=None):
         """Commit connected raw fragments only after a complete fresh fusion."""
         if self._reconnection_count == self.stored_count:
-            return not self.fragment_reconnection.get("failed", False)
+            from .depth_graph import ALGORITHM_VERSION
+            if self.settings.offline_registration != "depth" or self.fragment_reconnection.get("algorithm") == ALGORITHM_VERSION:
+                return not self.fragment_reconnection.get("failed", False)
         if self.settings.offline_registration == "depth":
             from .depth_graph import propose_depth_poses as propose_fragment_poses
         else:

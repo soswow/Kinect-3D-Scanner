@@ -223,6 +223,18 @@ class AutoCaptureTests(unittest.TestCase):
         self.receive()
         self.assertEqual([2, 7], self.ids())
 
+    def test_offline_motion_adds_an_overlap_capture_before_the_nominal_cadence(self):
+        profile = ScanSettings(color_recovery=True, live_reconstruction=False, offline_registration="depth")
+        self.window._on_reset_done({"session_id": "overlap", "settings": profile.to_dict()})
+        self.window.auto_capture_spin.set_interval_seconds(1.)
+        self.window.auto_capture_cb.setChecked(True)
+        visual = {"valid": True, "segment": "camera", "camera_to_local": np.eye(4).tolist()}
+        self.receive(visual_tracking=visual)
+        self.window._capture_frame()
+        moved = np.eye(4); moved[0, 3] = .12
+        self.receive(3, visual_tracking={**visual, "camera_to_local": moved.tolist()})
+        self.assertEqual([1, 3], self.ids())
+
     def test_recovery_uses_next_arrival_without_waiting_for_normal_interval(self):
         self.window.live_cb.setChecked(True)
         self.window.auto_capture_spin.set_interval_seconds(2)

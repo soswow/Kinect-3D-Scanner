@@ -87,14 +87,21 @@ class DeviceClockMapper:
         self.last_tick = None
         self.elapsed_s = 0.0
         self.offsets = deque(maxlen=128)
+        self.stream_offsets = {}
 
-    def observe(self, tick, host_time):
+    def observe(self, tick, host_time, stream="images"):
         if self.last_tick is not None:
             self.elapsed_s += timestamp_delta_ms(tick, self.last_tick) / 1000
         self.last_tick = int(tick)
         self.offsets.append(host_time - self.elapsed_s)
+        receipts = self.stream_offsets.setdefault(stream, deque(maxlen=128))
+        receipts.append(host_time - self.elapsed_s)
         offset = min(self.offsets)
         return {"device_timestamp_unwrapped_s": self.elapsed_s,
                 "estimated_host_monotonic_s": self.elapsed_s + offset,
                 "host_receipt_monotonic_s": host_time,
-                "host_mapping_uncertainty_s": max(self.offsets) - offset}
+                # RGB's longer fixed delivery delay is not depth-clock jitter.
+                # Keep one device epoch and host offset for both image streams.
+                "host_mapping_uncertainty_s": max(receipts) - min(receipts),
+                "stream_delivery_delay_floor_s": max(0., min(receipts) - offset),
+                "host_mapping_uncertainty_reference": "within_stream_receipt_spread"}

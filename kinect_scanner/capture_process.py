@@ -124,7 +124,7 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             image_sequence[stream] += 1
             info = {"sequence": image_sequence[stream], "device_timestamp_ticks": int(stamp),
                     "capture_generation": generation, "timestamp_s": time.time(),
-                    **clock.observe(stamp, time.monotonic())}
+                    **clock.observe(stamp, time.monotonic(), stream)}
             image_info[stream][int(stamp)] = info
             if len(image_info[stream]) > 64:
                 del image_info[stream][next(iter(image_info[stream]))]
@@ -300,6 +300,7 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                         "capture_generation": generation,
                         "sensor_recording_segment": journal.path.name if journal is not None else None,
                         "depth_host_monotonic_s": depth_observation["estimated_host_monotonic_s"],
+                        "depth_device_timestamp_unwrapped_s": depth_observation["device_timestamp_unwrapped_s"],
                         "rgb_host_monotonic_s": rgb_observation["estimated_host_monotonic_s"],
                         "host_mapping_uncertainty_s": depth_observation["host_mapping_uncertainty_s"],
                         "sensor_frame_sequences": {"rgb": rgb_observation["sequence"], "depth": depth_observation["sequence"]},

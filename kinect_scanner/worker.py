@@ -14,6 +14,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from shared.capture import validate_rgb_exposure
 from shared.sensor_recording import journal_snapshot
 from shared.visual_tracking import VisualTracker
+from shared.motion_history import MotionHistory
 
 from .capture_process import DEPTH_SHAPE, RGB_SHAPE, capture_frames
 
@@ -150,6 +151,18 @@ class KinectWorker(QThread):
         with self._tracking_lock:
             self._tracking_request = (self._tracking_request[0] + 1, settings)
 
+    def completed_sensor_snapshot(self, path=None):
+        """Wait for the existing Finish checkpoint without racing a second flush."""
+        if self._finishing.is_set():
+            thread = getattr(self,"_finish_thread",None)
+            if thread is not None:
+                thread.join(timeout=8.)
+                if thread.is_alive():
+                    raise RuntimeError("Sensor Finish checkpoint is still running")
+            if self.isRunning() and not self.wait(2500):
+                raise RuntimeError("Camera has not completed sensor shutdown")
+        return self.flush_sensor_recording(path, stop=True)
+
     def set_tracking_debug(self, enabled):
         """Toggle preview diagnostics without restarting the motion chain."""
         with self._tracking_lock:
@@ -203,6 +216,7 @@ class KinectWorker(QThread):
         last_camera_error = last_visual_error = None
         while not self._stop_event.is_set():
             tracker, tracking_generation = None, -1
+            motion_history = MotionHistory()
             recording_generation = -1
             acceleration_call = False
             parent, child = context.Pipe()
@@ -249,6 +263,7 @@ class KinectWorker(QThread):
                             continue
                         if kind == "accelerometer":
                             acceleration_call = False
+                            motion_history.add_acceleration(payload)
                             latency = payload.get("read_end_s", 0) - payload.get("read_start_s", 0)
                             if not payload.get("valid") or latency > .05:
                                 logger.warning("Accelerometer read sequence=%s valid=%s latency_ms=%.1f reason=%s",
@@ -284,11 +299,13 @@ class KinectWorker(QThread):
                         parent.send("copied")
                         sequence += 1
                         metadata = dict(payload, frame_id=sequence)
+                        metadata.setdefault("captured_monotonic_s", time.monotonic())
                         with self._tracking_lock:
                             generation, settings = self._tracking_request
                             tracking_debug = self._tracking_debug
                         if generation != tracking_generation:
                             tracker = VisualTracker(settings) if settings is not None else None
+                            motion_history = MotionHistory()
                             tracking_generation = generation
                         if tracker is not None:
                             # The driver already owns the next shared buffer.
@@ -309,6 +326,9 @@ class KinectWorker(QThread):
                                 tracker.reset()
                                 metadata["visual_tracking"] = {
                                     "valid": False, "reason": "Visual estimate unavailable; chain reset"}
+                        motion_history.add_frame(metadata)
+                        if settings is not None or configuration is not None:
+                            metadata["motion_history"] = motion_history.snapshot(metadata["captured_monotonic_s"])
                         if not streaming:
                             logger.info(
                                 "Kinect %s RGB/raw-depth stream ready",

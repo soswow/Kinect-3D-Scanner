@@ -1,12 +1,45 @@
 # Kinect v1 accelerometer: acquisition, tracking, and portrait capture
 
-Implementation and research notes, 7 October 2026. Concurrent acceleration reads,
+## Update: continuous motion transport and offline constraints, 10 October 2026
+
+Kinect v1 exposes three accelerometer axes and a motor tilt encoder, **no
+gyroscope**. The camera-side visual pose is estimated from RGB-D between camera
+frames; it does not fuse acceleration into a visual-inertial trajectory.
+
+Normal captures now transmit the intervening raw acceleration read intervals
+and compact visual observations. Finish automatically uploads the complete
+acceleration journal before reconstruction, independently of **Record all
+camera frames**. Pauses, failed reads, reconnect generations, calibration,
+dropped observations and completeness remain explicit. The server preserves
+the received journal in normal project exports.
+
+Image timing keeps one shared packet-clock epoch and least-delayed host offset,
+but measures receipt spread separately for RGB and depth. Their different fixed
+delivery delays no longer masquerade as within-stream clock jitter. This does
+not establish exact exposure or accelerometer sample times.
+
+Offline depth registration uses reliable local gravity windows as a soft pose
+search weight and a broad veto against incompatible roll/pitch, with wider
+bounds for unverified calibration and uncertain association. Intermediate
+visual history supplies initial poses and a soft search weight. Fixed measured
+RGB-D identities constrain forward and reverse pose fits and graph checks.
+Spatially distributed intermediate feature pixels and depths also support a
+sparse joint camera/landmark fit with selected raw surfaces and shared planes.
+Neither acceleration double integration nor gyro preintegration is performed.
+These are engineering weights, not calibrated sensor-noise probabilities.
+Accelerometers cannot determine yaw, and fast dynamic acceleration reduces
+gravity reliability. Optional evidence never replaces measured depth checks.
+
+## Earlier implementation and research notes, 7 October 2026
+
+Concurrent acceleration reads,
 full sensor recording/replay, portrait presentation/export, and a conservative
 gravity-assisted initializer are implemented. Driver support and the installed
 Python API were checked; hardware enumeration still found no connected Kinect.
 No simultaneous USB capture rate, physical orientation accuracy, or tracking
-improvement has been measured on this device. The joint statistical solver
-discussed later remains a research proposal.
+improvement has been measured on this device. The inertial preintegration and
+calibrated statistical solver discussed later remain research proposals; the
+implemented RGB-D joint fit is described above.
 
 Normal recording keeps selected RGB-D captures and the continuous accelerometer
 log. **Record all camera frames (large files)** is off by default; the multi-GB/min
@@ -69,8 +102,9 @@ downloads the server's selected frames/report, and atomically adds the local
 sensor journal before replacing the destination. Ordinary saves resume recording
 in a new segment afterward. Failed saves preserve an existing destination.
 The journal remains locally available under `recordings/sensors-<session hash>/`;
-it is not deleted automatically. A server-only API export contains its selected
-frames, because the independent streams belong to the client.
+it is not deleted automatically. A server-only API export contains selected
+frames and the acceleration journal received at Finish. Optional full image
+streams still belong to the client.
 
 Selected lossless RGB-D images remain in the server's normal session archive.
 The default local journal retains every accelerometer read and orientation event

@@ -33,6 +33,12 @@ def load_session(engine, path):
         if not manifest["frames"] or len(manifest["frames"]) > engine.MAX_FRAMES:
             raise ValueError(f"Session must contain 1–{engine.MAX_FRAMES} frames")
         engine.reset(settings=replace(settings, reconnect_fragments=True))
+        if manifest.get("motion_journal"):
+            from shared.motion_journal import MAX_JOURNAL_BYTES
+            info = archive.getinfo(manifest["motion_journal"])
+            if info.file_size > MAX_JOURNAL_BYTES:
+                raise ValueError("Acceleration journal exceeds 32 MiB")
+            engine.store_motion_journal(json.loads(archive.read(info)))
         for index, frame in enumerate(manifest["frames"]):
             with archive.open(frame["rgb"]) as source, Image.open(source) as image:
                 rgb = np.array(image.convert("RGB"), dtype=np.uint8)
@@ -85,7 +91,7 @@ def main():
     parser.add_argument("--bundle-adjustment", action="store_true",
                         help="Attempt validated joint RGB-D camera/feature refinement after reconnection")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
-    parser.add_argument("--depth-geometry", action="store_true", help="Estimate poses from all depth captures independently of live tracking and RGB")
+    parser.add_argument("--depth-geometry", action="store_true", help="Estimate poses from all depth captures with optional measured color and motion constraints, independently of accepted live poses")
     parser.add_argument("--depth-pair-cache", type=Path, nargs="+",
                         help="Reuse pair hypotheses for matching raw observations; every pose is depth-revalidated")
     args = parser.parse_args()
