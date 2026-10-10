@@ -1,6 +1,7 @@
 """Offline camera estimation from every retained depth view.
 
-Live poses, RGB, timestamp gaps and fragment counts do not authorize edges.
+Live poses, timestamp gaps and fragment counts do not authorize edges. Optional
+AprilTag corner identities supplement independently verified depth evidence.
 Disconnected components retain their own coordinate systems in the report.
 Only the largest measured component is offered to the single-volume engine.
 """
@@ -207,7 +208,7 @@ def aggregate_bridge(views, left, right, edges, device):
     return best, report
 
 
-def solve_graph(views, edges, notify=None):
+def solve_graph(views, edges, notify=None, *, tag_frames=None, camera=None):
     """Optimize then recheck depth; reject contradictions without forced fusion.
 
     A tree bridge can stand on one pair when that pair is geometrically
@@ -241,7 +242,13 @@ def solve_graph(views, edges, notify=None):
                 a, b = e["source"], e["target"]
                 predicted = np.linalg.inv(optimized[b]) @ optimized[a]
                 deviation = pose_distance(e["transform"], predicted)
-                evidence = {"accepted": True} if e.get("aggregate_evidence") else evaluate(views[a], views[b], predicted)
+                evidence = ({"accepted": True} if e.get("aggregate_evidence") else
+                    evaluate(views[a], views[b], predicted,
+                             minimum_condition=0 if e.get("apriltag_constraint") else 1e-4))
+                if e.get("apriltag_constraint"):
+                    from shared.apriltag import tag_agreement
+                    if tag_frames is None or not tag_agreement(tag_frames[a], tag_frames[b], predicted, camera)[0]:
+                        evidence = {"accepted": False}
                 # A pruned graph edge is still a measured contradiction. It
                 # cannot be ignored simply because the optimizer disliked it.
                 if not evidence["accepted"] or deviation[0] > .06 or deviation[1] > 6:
@@ -259,7 +266,8 @@ def solve_graph(views, edges, notify=None):
             notify(f"Rechecking graph after excluding {len(conflicts)} contradictory links")
 
 
-def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), checkpoint=None):
+def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), checkpoint=None,
+                        tag_frames=None, camera=None):
     count = len(views)
     if [v.index for v in views] != list(range(count)):
         raise ValueError("Depth graph requires capture-order view indices")
@@ -274,7 +282,19 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
             return None
         tested.add(key)
         report = cache.get(key)
-        if report is None:
+        if method == "apriltag":
+            from shared.apriltag import tag_motion
+            pose, support = tag_motion(tag_frames[a], tag_frames[b], camera)
+            if pose is None:
+                return None
+            # Measured tag identities constrain the axes that a plane's depth
+            # normals cannot. Depth still independently checks overlap, range,
+            # reciprocal residuals and empty space; optimization rechecks tags.
+            evidence = evaluate(views[a], views[b], pose, minimum_condition=0)
+            report = {"source": a, "target": b, "method": method, **evidence,
+                      "apriltag_support": support, "transform": pose.tolist(),
+                      "candidates": [{"method": "apriltag", "pose": pose.tolist()}]}
+        elif report is None:
             _, report = register_pair(views[a], views[b], method=method, device=device, initial=initial)
         else:
             _, report = verify_candidates(views[a],views[b],report.get("candidates",()),method=method)
@@ -299,14 +319,29 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                 if not component_evidence["accepted"]:
                     return None
             edges[a, b] = edge if old is None or edge["score"] > old["score"] else old
+            if method == "apriltag" or old is not None and old.get("apriltag_constraint"):
+                edges[a, b]["apriltag_constraint"] = True
         return edge
+    if tag_frames is not None:
+        # Search a bounded bank of every shared family/ID, including revisits.
+        bank = {}
+        tag_pairs = set()
+        for a, frame in enumerate(tag_frames):
+            for identity in frame.tags:
+                previous = bank.setdefault(identity, [])
+                tag_pairs.update((a, b) for b in set(previous[:5] + previous[::4][-27:] + previous[-8:]))
+                previous.append(a)
+        for a, b in sorted(tag_pairs):
+            match(a, b, "apriltag")
+        say(f"AprilTag registration: checked {len(tag_pairs)} shared-label pairs")
     pairs = [(i, i-step) for i in range(count) for step in (1, 2, 3) if i >= step]
     for n, (a, b) in enumerate(pairs):
         match(a, b, "local")
         if n % 20 == 0:
             say(f"Depth registration: local evidence {n+1}/{len(pairs)}")
     say("Optimizing local depth maps before testing their global placement")
-    local_solved, local_active, local_rejected = solve_graph(views,list(edges.values()),say)
+    local_solved, local_active, local_rejected = solve_graph(views,list(edges.values()),say,
+        tag_frames=tag_frames, camera=camera)
     local_world = {i:p for c in local_solved for i,p in c["poses"].items()}
     edges = {(e["source"],e["target"]):e for e in local_active}
     for e in edges.values():
@@ -388,7 +423,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
             if checkpoint:
                 checkpoint(reports)
     say("Optimizing and checking all measured depth constraints")
-    solved, active, rejected = solve_graph(views, list(edges.values()), say)
+    solved, active, rejected = solve_graph(views, list(edges.values()), say, tag_frames=tag_frames, camera=camera)
     rejected = local_rejected + rejected
     edges = {(e["source"],e["target"]):e for e in active}
     # Camera order offers a hypothesis after global geometry has established
@@ -412,7 +447,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                 if edge is not None:
                     active.append(edge)
         if any(r["method"] == "interpolated_depth" and r["accepted"] for r in reports):
-            solved, active, extra_rejected = solve_graph(views,active,say)
+            solved, active, extra_rejected = solve_graph(views,active,say, tag_frames=tag_frames, camera=camera)
             rejected += extra_rejected
     for component in solved:
         component["validation"] = scene_visibility(views,component["poses"],say)
@@ -424,7 +459,7 @@ def recover_depth_graph(views, *, device="cpu", notify=None, cached_pairs=(), ch
                     "component_sizes": [len(c["frame_indices"]) for c in solved],
                     "validated_component_sizes": [len(c["frame_indices"]) for c in solved if c["validation"]["accepted"]],
                     "rejected_component_sizes": [len(c["frame_indices"]) for c in solved if not c["validation"]["accepted"]],
-                    "validation": "sampled depth, visibility, six-direction conditioning, competing poses, reciprocal fit and graph revalidation",
+                    "validation": "sampled depth, visibility, six-direction conditioning or measured AprilTags, competing poses, reciprocal fit and graph revalidation",
                     "thresholds_are_calibrated_probabilities": False}
 
 
@@ -453,7 +488,12 @@ def _propose_depth_poses(engine, progress_cb=None):
         views.append(prepare_view(i, raw, engine.settings))
     device = "cuda" if str(engine.device).startswith("CUDA") else "cpu"
     cached = getattr(engine, "_offline_depth_pair_cache", ())
-    solved, report = recover_depth_graph(views, device=device, notify=notify, cached_pairs=cached)
+    tag_options = {}
+    if engine.settings.apriltag_tracking:
+        from .apriltag_tracking import observation
+        tag_options = {"tag_frames": [observation(engine, i) for i in range(len(views))],
+                       "camera": engine.settings.camera}
+    solved, report = recover_depth_graph(views, device=device, notify=notify, cached_pairs=cached, **tag_options)
     report["cached_pairs_revalidated"] = len(cached)
     if not solved or not solved[0]["validation"]["accepted"]:
         report.update(applied=False, failed=True, reason="No connected, geometrically determined depth views")

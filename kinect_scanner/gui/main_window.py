@@ -50,6 +50,7 @@ from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
 from .components import CameraPreview, CollapsibleSection
+from .apriltags import AprilTagDictionaries
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
@@ -208,6 +209,7 @@ class MainWindow(QMainWindow):
                 (self.weight_spin, "scan/final_weight"),
                 (self.live_cb, "scan/live_reconstruction"),
                 (self.color_tracking_cb, "scan/color_tracking"),
+                (self.apriltag_tracking_cb, "scan/apriltag_tracking"),
                 (self.refine_cb, "scan/refine_poses"),
                 (self.bundle_cb, "scan/bundle_adjustment"),
                 (self.reconnect_fragments_cb, "scan/reconnect_fragments"),
@@ -221,6 +223,13 @@ class MainWindow(QMainWindow):
                 (self.flow_windows_cb, "debug/tracking_windows"),
             ):
                 preferences.bind(widget, key)
+            try:
+                self.apriltag_dictionaries.set_dictionaries(preferences.read(
+                    "scan/apriltag_dictionaries", ["DICT_APRILTAG_36h11"]))
+            except ValueError:
+                pass
+            self.apriltag_dictionaries.changed.connect(lambda: preferences.write(
+                "scan/apriltag_dictionaries", self.apriltag_dictionaries.dictionaries()))
             preferences.bind(self.server_ip_edit, "connection/host",
                              restore="KINECT_SERVER_HOST" not in os.environ)
             preferences.bind(self.server_port_spin, "connection/port",
@@ -732,6 +741,24 @@ class MainWindow(QMainWindow):
             control.setToolTip(help_text)
             ev.addWidget(control)
         vg.addWidget(experimental)
+        apriltags = CollapsibleSection("AprilTag tracking")
+        self.apriltag_tracking_cb = QCheckBox("Use AprilTags to assist tracking")
+        self.apriltag_tracking_cb.setToolTip(
+            "Detect all selected dictionaries in every camera frame and saved view. "
+            "Static tags with valid measured depth provide extra camera-motion evidence. "
+            "Tags are optional; color-assisted tracking also works without them."
+        )
+        apriltags.content_layout.addWidget(self.apriltag_tracking_cb)
+        self.apriltag_dictionaries = AprilTagDictionaries()
+        apriltags.content_layout.addWidget(self.apriltag_dictionaries)
+        tag_help = QLabel(
+            "Add every dictionary used by your printed labels. Different families can "
+            "share an ID; each ID within one family must identify a single static label. "
+            "No printed size is needed. Use clear tags with valid depth, at least 20 pixels per side."
+        )
+        tag_help.setWordWrap(True)
+        apriltags.content_layout.addWidget(tag_help)
+        vg.addWidget(apriltags)
         self.offline_registration_combo.currentIndexChanged.connect(self._update_offline_registration_controls)
         self._update_offline_registration_controls()
         motion_calibration_btn = QPushButton("Load Accelerometer Calibration…")
@@ -916,7 +943,8 @@ class MainWindow(QMainWindow):
             )
         camera_motion_unverified = (
             self._scanning and not self._paused and offline
-            and (self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
+            and ((self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
+                 or (self._session_settings or {}).get("apriltag_tracking", self.apriltag_tracking_cb.isChecked()))
             and self._last_frame_metadata.get("visual_tracking", {}).get("valid") is False
         )
         if camera_motion_unverified != self._camera_motion_unverified:
@@ -1424,6 +1452,8 @@ class MainWindow(QMainWindow):
                 truncation_m=min(0.2, max(0.04, voxel * 8)),
                 final_weight=self.weight_spin.value(),
                 color_recovery=self.color_tracking_cb.isChecked(),
+                apriltag_tracking=self.apriltag_tracking_cb.isChecked(),
+                apriltag_dictionaries=self.apriltag_dictionaries.dictionaries(),
                 live_reconstruction=self.live_cb.isChecked(),
                 refine_poses=self.refine_cb.isChecked() and self.offline_registration_combo.currentData() != "depth",
                 bundle_adjustment=self.bundle_cb.isChecked() and self.offline_registration_combo.currentData() != "depth",
@@ -1519,7 +1549,7 @@ class MainWindow(QMainWindow):
                 settings = ScanSettings.from_dict(self._session_settings) if self._session_settings else None
             except (TypeError, ValueError):
                 settings = None
-            if settings is not None and not (self._scanning and settings.color_recovery):
+            if settings is not None and not (self._scanning and (settings.color_recovery or settings.apriltag_tracking)):
                 settings = None
             configuration = (self.worker, self._session_id, settings)
             if getattr(self, "_tracking_configuration", None) == configuration:
@@ -2008,7 +2038,7 @@ class MainWindow(QMainWindow):
                     self.rgb_mode_combo, self.crop_cb, self.crop_spin, self.live_cb,
                     self.rgb_exposure_combo, self.rgb_shutter_spin, self.rgb_gain_combo,
                     self.orientation_combo, self.gravity_tracking_cb, self.full_camera_recording_cb,
-                    self.color_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb,
+                    self.color_tracking_cb, self.apriltag_tracking_cb, self.refine_cb, self.bundle_cb, self.reconnect_fragments_cb,
                     self.offline_registration_combo, self.relocalize_cb, self.confidence_cb)
         previous = [control.blockSignals(True) for control in controls]
         rgb_changed = self.rgb_mode_combo.currentData() != profile.rgb_mode
@@ -2031,6 +2061,8 @@ class MainWindow(QMainWindow):
             self.rgb_gain_combo.setCurrentIndex(self.rgb_gain_combo.findData(profile.rgb_gain))
             self.live_cb.setChecked(profile.live_reconstruction)
             self.color_tracking_cb.setChecked(profile.color_recovery)
+            self.apriltag_tracking_cb.setChecked(profile.apriltag_tracking)
+            self.apriltag_dictionaries.set_dictionaries(profile.apriltag_dictionaries)
             self.refine_cb.setChecked(profile.refine_poses)
             self.bundle_cb.setChecked(profile.bundle_adjustment)
             self.reconnect_fragments_cb.setChecked(profile.reconnect_fragments)

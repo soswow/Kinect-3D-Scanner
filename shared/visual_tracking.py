@@ -93,7 +93,7 @@ def measured_rigid_motion(source, target, seed):
     return pose
 
 
-def refine_measured_motion(source, target, pixels, pose, camera):
+def refine_measured_motion(source, target, pixels, pose, camera, *, minimum=35):
     """Joint pixel/depth refinement, with fixed measured feature identities."""
     for _ in range(6):
         moved = source @ pose[:3, :3].T + pose[:3, 3]
@@ -103,7 +103,7 @@ def refine_measured_motion(source, target, pixels, pose, camera):
         projected = moved[:, :2] / z[:, None] * [camera.fx, camera.fy] + [camera.cx, camera.cy]
         supported = (np.linalg.norm(projected - pixels, axis=1) < 3) & (
             np.linalg.norm(moved - target, axis=1) < 0.025)
-        if supported.sum() < 35:
+        if supported.sum() < minimum:
             return None
         # Small left SE(3) update: d(Rp+t)/d(angle,translation).
         jacobian = np.zeros((len(source), 3, 6))
@@ -164,6 +164,11 @@ class VisualTracker:
 
     def __init__(self, settings):
         self.settings = settings
+        if settings.apriltag_tracking:
+            from .apriltag import AprilTagDetector
+            self._tag_detector = AprilTagDetector(settings.apriltag_dictionaries)
+        else:
+            self._tag_detector = None
         self.debug_enabled = False
         self.reset()
 
@@ -185,6 +190,7 @@ class VisualTracker:
         self.pose = np.eye(4)
         self.previous = None
         self.history = deque(maxlen=5)
+        self._tag_history = deque(maxlen=5)
         self.steps = 0
         self.debug_snapshot = None
         self._match_debug = None
@@ -424,19 +430,58 @@ class VisualTracker:
             # Count camera observations, including timing/flow failures.
             self._trail_frames.append(None)
         lag = metadata.get("rgb_depth_delta_ms")
-        if lag is not None and abs(lag) > RGB_DEPTH_ASSISTANCE_LIMIT_MS:
+        synchronized = lag is None or abs(lag) <= RGB_DEPTH_ASSISTANCE_LIMIT_MS
+        if not synchronized and self._tag_detector is None:
             return {"valid": False, "reason": "RGB/depth timing exceeds 20 ms",
                     "segment": self.segment, "camera_to_local": self.pose.tolist(), "steps": self.steps}
         rgb, depth = prepare_rgbd(rgb, raw_depth, self.settings)
+        tags = (self._tag_detector.detect(rgb, depth, self.settings.camera, synchronized=synchronized)
+                if self._tag_detector is not None else None)
+        if not synchronized:
+            return {"valid": False, "reason": "RGB/depth timing exceeds 20 ms",
+                    "segment": self.segment, "camera_to_local": self.pose.tolist(), "steps": self.steps,
+                    "apriltags": tags.report()}
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        had_history = bool(self.history)
-        if self.history and not 0 < stamp - self.history[-1][3] <= self.MAX_GAP_S:
+        had_history = bool(self.history or self._tag_history)
+        last_stamp = max([r.stamp for r in self.history] + [r[0] for r in self._tag_history], default=None)
+        if last_stamp is not None and not 0 < stamp - last_stamp <= self.MAX_GAP_S:
             self.reset()
+        seed_reference = not (self.history or self._tag_history)
         stats, matched_stamp = {}, None
         valid = False
+        if tags is not None:
+            from .apriltag import tag_motion
+            for old_stamp, old_tags, old_pose in reversed(self._tag_history):
+                if not 0 < stamp - old_stamp <= self.MAX_GAP_S:
+                    continue
+                relative, evidence = tag_motion(tags, old_tags, self.settings.camera)
+                if relative is None:
+                    continue
+                angle = np.degrees(np.arccos(np.clip((np.trace(relative[:3, :3]) - 1) / 2, -1, 1)))
+                if (np.linalg.norm(relative[:3, 3]) > self.settings.max_translation_m
+                        or angle > self.settings.max_rotation_deg):
+                    continue
+                self.pose = old_pose @ relative
+                self.steps += 1
+                valid, matched_stamp = True, old_stamp
+                stats = {"apriltag_support": evidence}
+                break
         for reference in reversed(self.history):
-            pose, stats = self._match_reference(reference, gray, depth, stamp)
+            pose, flow_stats = self._match_reference(reference, gray, depth, stamp)
+            if not valid:
+                stats = flow_stats
             if pose is not None:
+                if valid:
+                    difference = np.linalg.inv(self.pose) @ pose
+                    angle = np.degrees(np.arccos(np.clip((np.trace(difference[:3, :3]) - 1) / 2, -1, 1)))
+                    if np.linalg.norm(difference[:3, 3]) > .03 or angle > 3:
+                        self._matched_reference = None
+                        continue
+                    # Keep the ordinary feature identities when their motion
+                    # agrees, while the measured tags determine this pose.
+                    self._matched_reference = self._matched_reference._replace(pose=self.pose.copy())
+                    stats.update(flow_stats)
+                    break
                 self.pose = pose
                 self.steps += 1
                 matched_stamp = reference.stamp
@@ -444,15 +489,18 @@ class VisualTracker:
                 break
         # A failed image never replaces the last trustworthy reference. An
         # expired chain starts a fresh origin, which is explicitly unverified.
-        retained = len(self._matched_reference.ids) if valid else 0
+        retained = len(self._matched_reference.ids) if self._matched_reference is not None else 0
         added, detected, replenishment = np.empty((0, 1, 2), np.float32), 0, "unverified"
-        if valid or not self.history:
+        if valid or seed_reference:
             current, added, detected, replenishment = self._replenish(gray, depth, self._matched_reference, stamp)
             if current is not None:
                 self.history.append(current)
                 valid = valid or not had_history
             else:
                 retained = 0
+        if tags is not None and tags.tags and (valid or seed_reference):
+            self._tag_history.append((stamp, tags, self.pose.copy()))
+            valid = valid or not had_history
         if self.history:
             self.previous = self.history[-1][:4]
         tracks = self._track_summary(self.history[-1] if self.history else None,
@@ -467,7 +515,8 @@ class VisualTracker:
                 "track_ages_s": self.history[-1].stamp - self.history[-1].born_s if self.history else np.empty(0),
                 "window_size": self.WINDOW_SIZE, "pyramid_level": self.PYRAMID_LEVEL,
                 "elapsed_ms": (time.monotonic() - started) * 1000,
-                "reason": "Seeded reference; no motion measured yet" if len(added) and matched_stamp is None else
+                "reason": "Measured AprilTag RGB-D motion" if "apriltag_support" in stats else
+                    "Seeded reference; no motion measured yet" if len(added) and matched_stamp is None else
                     "Visual motion unverified; retaining recent references" if self.history else
                     "Fewer than 60 measured corners; no reference seeded",
                 **(self._match_debug or {}),
@@ -475,7 +524,9 @@ class VisualTracker:
             }
         return {"valid": bool(valid), "segment": self.segment, "camera_to_local": self.pose.tolist(),
                 "steps": self.steps, "elapsed_ms": (time.monotonic() - started) * 1000,
-                "reason": "Measured RGB-D motion" if valid else
+                "reason": "Measured AprilTag RGB-D motion" if valid and "apriltag_support" in stats else
+                    "Measured RGB-D motion" if valid else
                     "Visual motion unverified; retaining recent references" if self.history else
                     "Visual chain lost; new local origin",
-                "reference_timestamp_s": matched_stamp, "tracks": tracks, **stats}
+                "reference_timestamp_s": matched_stamp, "tracks": tracks,
+                **({"apriltags": tags.report()} if tags is not None else {}), **stats}

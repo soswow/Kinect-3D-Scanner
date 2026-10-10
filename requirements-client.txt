@@ -1,5 +1,5 @@
 numpy
-opencv-python
+opencv-python>=4.8
 PyQt6
 httpx
 websocket-client

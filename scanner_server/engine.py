@@ -185,6 +185,11 @@ class ScanEngine:
         self._stored_monotonic = []
         self._appearance_cache = {}
         self._visual_cache = {}
+        from shared.apriltag import AprilTagDetector
+        self._apriltag_detector = AprilTagDetector(p.apriltag_dictionaries) if p.apriltag_tracking else None
+        self._apriltag_observations = {}
+        self._apriltag_clouds = {}
+        self.backend["stage_devices"]["apriltag_detection"] = "CPU:0"
         self._sift_visual_cache = {}
         self._visual_target_pyramids = {}
         self._visual_rgbd_cache = {}
@@ -343,7 +348,7 @@ class ScanEngine:
             "camera_to_world": self.cumulative_T.tolist(),
             **self.tracking_snapshot(),
             "camera": asdict(self.settings.camera),
-            "color_assistance_requested": self.settings.color_recovery or self.settings.relocalize,
+            "color_assistance_requested": self.settings.color_recovery or self.settings.apriltag_tracking or self.settings.relocalize,
             "surface_description": (
                 "Fused preview includes tentative surface. Inspect shows the final mesh."
                 if self.mesh is not None else
@@ -805,7 +810,7 @@ class ScanEngine:
         """Camera-side short-baseline motion is a seed, never fusion authority."""
         from .fragments import _rigid
 
-        if not self.settings.color_recovery or not self.poses:
+        if not (self.settings.color_recovery or self.settings.apriltag_tracking) or not self.poses:
             return None
         if not 0 <= self._processed_count < len(self.frame_metadata):
             return None
@@ -834,6 +839,11 @@ class ScanEngine:
             return None
 
     def _visual_register(self, source, rgbd):
+        if self.settings.apriltag_tracking:
+            from .apriltag_tracking import register
+            result = register(self, source, rgbd)
+            if result is not None:
+                return result
         if self.backend["visual_policy"] == "orb_then_sift":
             from .adaptive_visual import register
 
@@ -1388,6 +1398,10 @@ class ScanEngine:
 
         with self._stage("depth_filter"):
             rgb, depth = self._prepare_input(rgb, depth, self.settings)
+        if self.settings.apriltag_tracking:
+            from .apriltag_tracking import observation
+            with self._stage("apriltag_detection"):
+                observation(self, self._processed_count, rgb, depth)
         valid_fraction = np.count_nonzero(depth) / depth.size
         if np.count_nonzero(depth) < 1000:
             return {

@@ -156,6 +156,31 @@ with selected captures. Those seeds help later registration; they do not prove
 alignment. Enable live reconstruction for immediate reconstruction-loss alerts.
 Without live reconstruction, an unverified camera-motion notice still prompts
 slower movement and overlapping views; it does not stop capture.
+
+Open **AprilTag tracking** in scan settings and check **Use AprilTags to assist
+tracking** to add optional tag evidence. Select a dictionary and click **Add**;
+use **Remove selected** to remove it. All listed dictionaries are detected
+together in every camera frame during capture and every saved view processed by
+the server, including Finish Scan. The choices are OpenCV's `DICT_APRILTAG_16h5`,
+`DICT_APRILTAG_25h9`, `DICT_APRILTAG_36h10`, and `DICT_APRILTAG_36h11` ([OpenCV
+dictionary documentation](https://docs.opencv.org/4.8.0/de/d67/group__objdetect__aruco.html)).
+The checkbox starts off, with 36h11 selected by default; choices are remembered
+and saved with sessions. Color-assisted tracking works without tags, and tags
+can also be enabled independently of ordinary color features.
+
+Keep labels stationary and use a unique ID for each physical label within its
+dictionary. The same numeric ID in different dictionaries is supported. Repeated
+IDs in one image and ambiguous cross-dictionary decodes are excluded. Printed
+size is not required: matched corners use measured depth at both ends, on the
+calibrated depth grid. Tags need clear corners, at least 20 pixels per side on
+that grid, valid depth within the selected range/crop, and RGB/depth timing
+within 20 ms. Detection uses exact codes rather than bit-error correction.
+Tag motion must also pass independent depth-overlap checks; missing or rejected
+tags leave ordinary tracking available. Both final registration modes can use
+verified tag motion, including motion along otherwise ambiguous planes.
+OpenCV 4.8 or newer with `cv2.aruco` is required when tags are enabled. Update
+and restart the reconstruction server as well as the client to use these settings.
+
 Selected captures are buffered losslessly on local disk and uploaded in the
 background, so an upload backlog does not change the requested capture cadence.
 The capture counter includes buffered frames and shows how many await upload.
