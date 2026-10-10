@@ -84,6 +84,26 @@ class GuiPreferencesTests(unittest.TestCase):
         self.assertTrue(second.gravity_tracking_cb.isChecked())
         self.assertTrue(second.full_camera_recording_cb.isChecked())
 
+    def test_auto_portrait_uses_recent_gravity_when_frame_timing_is_uncertain(self):
+        from tests.test_inertial import metadata
+        window = self.window()
+        rgb = np.full((480, 640, 3), 42, np.uint8)
+        depth = np.full((480, 640), 512, np.uint16)
+        acceleration = metadata((-1, 0, 0))["accelerometer"]
+        with patch.object(window, "_set_pixmap") as render:
+            for stamp in (10, 10.4):
+                window._on_frame(rgb, depth, {"accelerometer": {"valid": False, "reason": "Image-to-host timing uncertain"},
+                                             "host_mapping_uncertainty_s": .075, "depth_host_monotonic_s": 3,
+                                             "orientation_accelerometer": acceleration, "orientation_host_monotonic_s": stamp})
+        self.assertEqual(window._display_rotation, 90)
+        self.assertFalse(window._last_frame_metadata["accelerometer"]["valid"])
+        self.assertTrue(window._last_frame_metadata["orientation"]["valid"])
+        image = render.call_args.args[0]
+        self.assertEqual((image.width(), image.height()), (480, 640))
+        self.assertEqual(window._last_rgb.shape, (480, 640, 3))
+        self.assertEqual(window._last_depth.shape, (480, 640))
+        self.assertFalse(window.sensor_status_label.isHidden())
+
     def test_new_scan_sends_explicit_recording_and_accelerometer_options(self):
         window = self.window()
         window.server_client._connected = True

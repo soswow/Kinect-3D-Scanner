@@ -165,3 +165,5 @@ class CaptureLoopTests(unittest.TestCase):
             np.testing.assert_array_equal(restored_depth, depth)
             self.assertEqual(restored_metadata["sensor_recording_segment"], segment.name)
             self.assertIn("accelerometer", restored_metadata)
+            self.assertIn("orientation_accelerometer", restored_metadata)
+            self.assertEqual(restored_metadata["orientation_host_monotonic_s"], restored_metadata["captured_monotonic_s"])

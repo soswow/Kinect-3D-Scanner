@@ -39,6 +39,13 @@ to **Auto** independently.
   A verified first gravity observation can supply overview up.
 - Auto orientation uses a 60° switch threshold, 0.3 s dwell, and holds the last
   quarter turn when gravity is unreliable or nearly along the optical axis.
+  It uses the latest reliable host-timed gravity read, at most 250 ms old, without
+  requiring exposure-clock association. Thus uncertain camera timing can disable
+  tracking assistance while allowing the preview to rotate. The orientation status
+  is visible below the Auto/lock selector. Recorded orientation and display copies
+  follow this coarse presentation decision; tracking retains its stricter timing
+  limits. Full sensor replay uses causal reads at camera host receipt time for
+  the same presentation decision.
   Manual landscape/left/right locks persist in preferences and are usable during
   scans. RGB, colorized depth, crop outlines, and recovery references rotate as
   presentation copies. Selected local/server exports include rotated PNGs at

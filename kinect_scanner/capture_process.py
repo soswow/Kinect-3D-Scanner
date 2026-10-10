@@ -279,11 +279,12 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
             delta = timestamp_delta_ms(rgb_stamp, depth_stamp)
             rgb_out[:] = rgb
             depth_out[:] = depth
+            published = time.monotonic()
             connection.send(
                 (
                     "frame",
                     {
-                        "captured_monotonic_s": time.monotonic(),
+                        "captured_monotonic_s": published,
                         "timestamp_s": time.time(),
                         "depth_timestamp_ticks": depth_stamp,
                         "rgb_timestamp_ticks": rgb_stamp,
@@ -304,6 +305,8 @@ def capture_frames(connection, stop_event, rgb_buffer, depth_buffer, high_res=Tr
                         "sensor_frame_sequences": {"rgb": rgb_observation["sequence"], "depth": depth_observation["sequence"]},
                         "accelerometer": acceleration.associate(depth_observation["estimated_host_monotonic_s"],
                                                                 depth_observation["host_mapping_uncertainty_s"]),
+                        "orientation_accelerometer": acceleration.for_orientation(published),
+                        "orientation_host_monotonic_s": published,
                         **exposure_metadata,
                     },
                 )

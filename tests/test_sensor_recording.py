@@ -169,6 +169,26 @@ class SensorRecordingTests(unittest.TestCase):
         self.assertFalse(frames[-1].metadata["accelerometer"]["valid"])
         self.assertEqual(frames[-1].metadata["orientation"]["rotation_cw_degrees"], 270)
 
+    def test_replay_rotates_sideways_frames_despite_uncertain_camera_clock(self):
+        journal = self.journal()
+        for index in range(5):
+            stamp = 1 + index / 10
+            journal.submit("rgb", frame_metadata(index, stamp), self.rgb)
+            journal.submit("depth", {**frame_metadata(index, stamp), "host_mapping_uncertainty_s": .075}, self.depth)
+        for index in range(15):
+            reading = acceleration(index, .8 + index * .05)
+            reading["acceleration_m_s2"] = [G, 0, 0]
+            journal.submit("accelerometer", reading)
+        path = self.server_zip()
+        augment_session_archive(path, journal_snapshot(journal.path.parent, checkpoint(journal)))
+        with zipfile.ZipFile(path) as archive:
+            archive.extractall(self.root / "replay")
+        frames = list(load_sensor_observations(self.root / "replay", ScanSettings()))
+        self.assertEqual(len(frames), 5)
+        self.assertTrue(all(not frame[2]["accelerometer"]["valid"] for frame in frames))
+        self.assertTrue(all(frame[2]["orientation_accelerometer"]["valid"] for frame in frames))
+        self.assertEqual(frames[-1][2]["orientation"]["rotation_cw_degrees"], 90)
+
     def test_overflow_and_disk_failure_are_explicit(self):
         journal = self.journal(capacity=1)
         entered, release = threading.Event(), threading.Event()

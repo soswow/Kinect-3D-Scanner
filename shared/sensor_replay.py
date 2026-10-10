@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from .capture import RGB_DEPTH_CAPTURE_LIMIT_MS
-from .inertial import GravityEstimator, OrientationTracker, MAX_HOST_MAPPING_UNCERTAINTY_S
+from .inertial import GravityEstimator, OrientationTracker, MAX_HOST_MAPPING_UNCERTAINTY_S, orientation_observation
 
 
 def _rows(directory, stream):
@@ -62,7 +62,9 @@ def load_sensor_observations(path, settings):
         mode = configuration["settings"].get("orientation_mode", "auto")
         for color, depth in sensor_pairs(colors, depths):
             stamp = depth["estimated_host_monotonic_s"]
-            while event_index < len(events) and events[event_index]["host_monotonic_s"] <= stamp:
+            display_stamp = max(color.get("host_receipt_monotonic_s", stamp),
+                                depth.get("host_receipt_monotonic_s", stamp))
+            while event_index < len(events) and events[event_index]["host_monotonic_s"] <= display_stamp:
                 event = events[event_index]
                 if event.get("type") == "orientation_mode":
                     mode = event["value"]
@@ -82,6 +84,11 @@ def load_sensor_observations(path, settings):
                                 "sequence": selected["sequence"], "sample_delta_ms": delta * 1000,
                                 "read_start_s": selected["read_start_s"], "read_end_s": selected["read_end_s"],
                                 "acceleration_m_s2": selected.get("acceleration_m_s2"), "gravity": selected["gravity"]}
+            # Replay coarse display decisions using only reads already received
+            # by the host, while retaining strict exposure association for tracking.
+            latest_index = int(np.searchsorted(sample_times, display_stamp, side="right")) - 1
+            display_acceleration = orientation_observation(samples[latest_index] if latest_index >= 0 else None,
+                                                           display_stamp, depth["capture_generation"])
             metadata = {"timestamp_s": depth["timestamp_s"], "captured_monotonic_s": stamp,
                         "depth_host_monotonic_s": stamp,
                         "rgb_host_monotonic_s": color["estimated_host_monotonic_s"],
@@ -93,7 +100,8 @@ def load_sensor_observations(path, settings):
                         "rgb_timestamp_ticks": color["device_timestamp_ticks"], "depth_timestamp_ticks": depth["device_timestamp_ticks"],
                         "device_timestamp_hz": 60_000_000, "device_timestamp_reference": "packet_end",
                         "depth_encoding": settings.depth_encoding, "accelerometer": acceleration,
-                        "orientation": orientation.update(acceleration, stamp, mode)}
+                        "orientation_accelerometer": display_acceleration, "orientation_host_monotonic_s": display_stamp,
+                        "orientation": orientation.update(display_acceleration, display_stamp, mode)}
             for field in ("rgb_exposure_mode", "rgb_exposure_us", "rgb_shutter_speed", "rgb_gain", "rgb_mode", "rgb_fps",
                           "exposure_phase", "settling_frames_remaining"):
                 if field in color:

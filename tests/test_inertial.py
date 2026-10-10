@@ -8,7 +8,7 @@ import numpy as np
 
 from shared.capture import DeviceClockMapper
 from shared.inertial import (G, AccelerometerPoller, GravityEstimator, OrientationTracker,
-                             calibration_profile, gravity_seed, rotate_display)
+                             calibration_profile, gravity_seed, rotate_display, orientation_observation)
 from shared.inertial import fit_calibration
 from shared.settings import ScanSettings
 
@@ -27,6 +27,22 @@ def metadata(up=(0, -1, 0), confidence=1, generation="connection", verified=True
 
 
 class InertialTests(unittest.TestCase):
+    def test_display_orientation_does_not_need_exposure_clock_association(self):
+        driver = SimpleNamespace(update_tilt_state=lambda _: 0, get_tilt_state=lambda _: None,
+                                 get_mks_accel=lambda _: (0, G, 0))
+        poller = AccelerometerPoller(driver, None, generation="connection")
+        gravity = metadata((-1, 0, 0))["accelerometer"]["gravity"]
+        reading = {**sample(1), "gravity": gravity, "sequence": 1, "capture_generation": "connection"}
+        poller.samples.append(reading)
+        self.assertFalse(poller.associate(1, 0.075)["valid"])
+        self.assertTrue(poller.for_orientation(1.1)["valid"])
+        self.assertFalse(poller.for_orientation(1.3)["valid"])
+        self.assertFalse(orientation_observation(reading, 1.1, "reconnected")["valid"])
+        self.assertFalse(orientation_observation(reading, .9, "connection")["valid"])
+        poller.samples.append({**reading, "valid": False, "reason": "USB read failed"})
+        self.assertFalse(poller.for_orientation(1.1)["valid"])
+        self.assertFalse(poller.associate(1, 0.075)["valid"])
+
     def test_gravity_static_and_linear_acceleration_contamination(self):
         estimator = GravityEstimator()
         for i in range(8):
