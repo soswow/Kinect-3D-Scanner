@@ -253,6 +253,28 @@ class AutoCaptureTests(unittest.TestCase):
         self.receive()
         self.assertEqual([21, 23], self.ids())
 
+    def test_offline_capture_keeps_half_second_cadence_with_upload_backlog(self):
+        self.window._session_id = "offline"
+        self.window.auto_capture_spin.set_interval_seconds(.5)
+        self.window.adaptive_capture_cb.setChecked(True)
+        self.window.auto_capture_cb.setChecked(True)
+        self.window.task_worker.queued_task_count = 120
+        with patch.object(self.window.capture_sound, "play") as cue:
+            self.receive(20)
+        self.assertEqual([5, 10, 15, 20], self.ids())
+        self.assertEqual(4, cue.call_count)
+        self.assertNotIn("waiting for uploads", self.window.scan_status_label.text())
+
+    def test_finish_includes_first_capture_currently_in_upload(self):
+        self.window._server_stored = 0
+        self.window.task_worker.pending_capture_count = 1
+        self.window.task_worker.queued_task_count = 0
+        self.window._refresh_controls()
+        self.assertTrue(self.window.btn_stop_build.isEnabled())
+        self.window._stop_and_build()
+        self.assertEqual(ServerTaskType.BUILD_MESH, self.window.task_worker.tasks[-1].task_type)
+        self.assertIn("Uploading remaining captures", self.window.scan_status_label.text())
+
     def test_slow_processing_changes_pace_without_changing_minimum(self):
         self.window.live_cb.setChecked(True)
         self.window._session_id = "paced"
@@ -349,7 +371,9 @@ class AutoCaptureTests(unittest.TestCase):
         self.window.task_worker.accept = False
         self.receive()
         self.assertIsNone(self.window._last_capture_id)
+        self.assertTrue(self.window._paused)
         self.window.task_worker.accept = True
+        self.window._paused = False  # User resumes after resolving the buffer failure.
         self.receive()
         self.assertEqual([6], self.ids())
 

@@ -156,6 +156,20 @@ with selected captures. Those seeds help later registration; they do not prove
 alignment. Enable live reconstruction for immediate reconstruction-loss alerts.
 Without live reconstruction, an unverified camera-motion notice still prompts
 slower movement and overlapping views; it does not stop capture.
+Selected captures are buffered losslessly on local disk and uploaded in the
+background, so an upload backlog does not change the requested capture cadence.
+The capture counter includes buffered frames and shows how many await upload.
+**Finish Scan** waits for all selected captures to reach the server before
+reconstruction. Insufficient disk space pauses capture; failed uploads retain
+their local buffer files and stop a build or project save from claiming an
+incomplete scan is complete. The buffer is separate from the optional permanent
+local recording and reserves 1 GiB of free disk space.
+
+Remote uploads use lossless spatial prediction before compression to reduce RGB
+and depth payloads. Update and restart the reconstruction server together with
+this client; there is no format negotiation. Client logs separate packing time,
+request time and payload size; server logs separate receive, decode and storage
+time. A localhost connection skips spatial prediction and compression work.
 
 Scan actions stay visible while setup settings scroll independently. **Pause**
 and **Resume Capture** retain the current scan; **Finish Scan** builds the final
@@ -275,10 +289,13 @@ With the scanner closed, test a manual shutter and gain directly:
 python scripts/check_camera.py --exposure manual --shutter-speed 250 --gain 2
 ```
 
-**Scan sounds** in the sidebar’s **Feedback** section plays a short confirmation when captured
-frames reach the server, in Automatic and Manual modes. Click it to mute; the
-preference is remembered. A batch of frames uses one cue, and rapid confirmations
-do not overlap. Skipped, rejected or failed uploads stay silent. Tracking loss
+**Scan sounds** in the sidebar’s **Feedback** section plays a short confirmation
+for each selected frame buffered on disk when live reconstruction is off. Upload
+acknowledgements then stay silent. With live reconstruction on, the confirmation
+plays when captured frames reach the server; a batch uses one cue. Both Automatic
+and Manual modes use these cues. Click it to mute; the preference is remembered.
+Rapid confirmations do not overlap. Skipped captures stay silent; live-mode
+rejected or failed uploads stay silent. Tracking loss
 plays a distinct descending double tone once per loss episode; verified recovery
 plays its rising reverse once. Both take priority over capture confirmations,
 which resume after the recovery tone finishes. Starting, cancelling, or restoring

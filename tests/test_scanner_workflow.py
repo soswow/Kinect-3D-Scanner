@@ -741,6 +741,7 @@ class ScannerWorkflowTests(unittest.TestCase):
 
     def test_capture_sound_confirms_successful_single_and_batch_uploads(self):
         self.retain_scan()
+        self.window.live_cb.setChecked(True)
         with patch.object(self.window.capture_sound, "play") as cue:
             self.window._on_frame_stored({"session_id": "retained", "success": True,
                                           "stored_count": 4, "index": 3})
@@ -750,6 +751,13 @@ class ScannerWorkflowTests(unittest.TestCase):
                                           "results": [{"success": True}, {"success": True}]})
             self.assertEqual(2, cue.call_count)
         self.assertEqual(6, self.window._server_stored)
+
+    def test_offline_upload_acknowledgements_do_not_repeat_local_capture_sound(self):
+        self.retain_scan()
+        self.window.live_cb.setChecked(False)
+        with patch.object(self.window.capture_sound, "play") as cue:
+            self.window._on_frame_stored({"session_id": "retained", "success": True, "stored_count": 4})
+        cue.assert_not_called()
 
     def test_rejected_stale_or_abandoned_captures_do_not_sound(self):
         self.retain_scan()

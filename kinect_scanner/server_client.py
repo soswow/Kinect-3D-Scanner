@@ -13,7 +13,7 @@ import httpx
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from shared.live import GEOMETRY_ENCODING, decode_live_geometry
-from shared.protocol import pack_frame, pack_frames
+from shared.protocol import PREDICTED_FRAME_ENCODING, pack_frame, pack_frames
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ class ServerClient(QObject):
         self.session_id = None
         self.last_status = {}
         self._compression_level = 1
+        self._spatial_prediction = True
         self._batch_unavailable = False
 
     @property
@@ -77,6 +78,7 @@ class ServerClient(QObject):
         # Level 0 retains the existing lossless zlib wire format. On loopback,
         # copying a few MB is much cheaper than compressing high-resolution RGB.
         self._compression_level = 0 if loopback else 1
+        self._spatial_prediction = not loopback
         self._ws_url = f"ws://{host}:{port}/ws/progress?geometry={GEOMETRY_ENCODING}"
         try:
             self._http = httpx.Client(base_url=self._base_url, timeout=30.0)
@@ -220,18 +222,33 @@ class ServerClient(QObject):
 
     def send_frame(self, rgb, depth, metadata=None) -> dict:
         """Pack and upload a frame. Returns the server response dict."""
-        data = pack_frame(rgb, depth, metadata, compression_level=self._compression_level)
+        started = time.monotonic()
+        data = pack_frame(rgb, depth, metadata, compression_level=self._compression_level,
+                          spatial_prediction=self._spatial_prediction)
+        packed = time.monotonic()
         resp = self._http.post(
             "/api/scan/frame",
             content=data,
             headers={"Content-Type": "application/octet-stream"},
         )
         resp.raise_for_status()
+        self._log_upload_timing(1, len(data), started, packed)
         return resp.json()
+
+    def _log_upload_timing(self, count, size, started, packed):
+        ended = time.monotonic()
+        logger.info("Capture transport session=%s frames=%s bytes=%s encoding=%s pack_ms=%.1f request_ms=%.1f MiB_s=%.2f",
+                    self.session_id, count, size,
+                    PREDICTED_FRAME_ENCODING if self._spatial_prediction else "zlib",
+                    (packed - started) * 1000, (ended - packed) * 1000,
+                    size / 1024**2 / max(ended - packed, 1e-6))
 
     def send_frames_batch(self, frames: list[tuple]) -> dict:
         """Pack and upload multiple frames as a single batch."""
-        data = pack_frames(frames, compression_level=self._compression_level)
+        started = time.monotonic()
+        data = pack_frames(frames, compression_level=self._compression_level,
+                           spatial_prediction=self._spatial_prediction)
+        packed = time.monotonic()
         resp = self._http.post(
             "/api/scan/frames",
             content=data,
@@ -250,6 +267,7 @@ class ServerClient(QObject):
                 "success": any(r.get("success") for r in results),
             }
         resp.raise_for_status()
+        self._log_upload_timing(len(frames), len(data), started, packed)
         if self._batch_unavailable:
             logger.info("Batch capture upload available again", extra={"ui_event": True, "ui_state_key": "batch-upload"})
             self._batch_unavailable = False

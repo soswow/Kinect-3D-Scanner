@@ -345,33 +345,44 @@ async def scan_reset(request: Request):
 @app.post("/api/scan/frame")
 async def scan_frame(request: Request):
     """Accept a compressed frame (binary body from pack_frame)."""
+    started = time.monotonic()
     body = await request.body()
+    received = time.monotonic()
     if not body:
         return {"success": False, "message": "Empty body"}
     try:
         rgb, depth, metadata = await asyncio.to_thread(unpack_frame_with_metadata, body)
     except Exception as e:  # noqa: BLE001 — report malformed protocol input at the HTTP boundary.
         return {"success": False, "message": f"Unpack error: {e}"}
+    decoded = time.monotonic()
 
     try:
         async with _build_lock:
+            locked = time.monotonic()
             result = await _engine_call(engine.store_frame, rgb, depth, metadata)
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
     if result.get("success"):
         _ensure_live_worker()
+    logger.info("Frame ingestion frames=1 bytes=%s receive_ms=%.1f decode_ms=%.1f lock_ms=%.1f store_ms=%.1f",
+                len(body), (received - started) * 1000, (decoded - received) * 1000,
+                (locked - decoded) * 1000, (time.monotonic() - locked) * 1000)
     return result
 
 
 @app.post("/api/scan/frames")
 async def scan_frames_batch(request: Request):
     """Accept a batch of compressed frames (binary body from pack_frames)."""
+    started = time.monotonic()
     body = await request.body()
+    received = time.monotonic()
     if not body:
         return {"success": False, "message": "Empty body"}
 
     def _unpack_and_store(raw_data: bytes):
+        decoding = time.monotonic()
         frames = unpack_frames(raw_data, with_metadata=True)
+        decoded = time.monotonic()
         results = []
         for rgb, depth, metadata in frames:
             try:
@@ -384,10 +395,15 @@ async def scan_frames_batch(request: Request):
                 }
             results.append(result)
         count = sum(bool(r["success"]) for r in results)
+        logger.info("Frame ingestion frames=%s bytes=%s receive_ms=%.1f lock_ms=%.1f decode_ms=%.1f store_ms=%.1f",
+                    len(frames), len(raw_data), (received - started) * 1000,
+                    (locked - received) * 1000, (decoded - decoding) * 1000,
+                    (time.monotonic() - decoded) * 1000)
         return count, engine.stored_count, len(frames), results
 
     try:
         async with _build_lock:
+            locked = time.monotonic()
             count, total, submitted, results = await _engine_call(
                 _unpack_and_store, body
             )

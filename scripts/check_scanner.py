@@ -63,6 +63,7 @@ def check_client(port, rgb, depth):
     store = QSettings(str(Path(settings_dir.name) / "scanner.ini"), QSettings.Format.IniFormat)
     window = main_window.MainWindow(preferences=ScannerPreferences(store))
     window.rgb_mode_combo.setCurrentIndex(1)  # Native calibrated VGA fixture.
+    window.live_cb.setChecked(True)  # This phase explicitly exercises live fusion.
 
     def wait_until(predicate):
         deadline = time.monotonic() + 30
@@ -136,13 +137,18 @@ def check_client(port, rgb, depth):
         assert window.server_client.get_status()["stored_count"] == 0
         assert not window.auto_capture_cb.isChecked() and window.settings_group.isEnabled()
         window._on_frame(rgb, depth)
+        window.live_cb.setChecked(False)
         window._start_scan()
         wait_until(lambda: window._scanning)
+        cues_before_offline = len(capture_cues)
         for _ in range(3):
             window._on_frame(rgb, depth)
             window._capture_frame()
         wait_until(lambda: window._server_stored == 3)
-        print("PASS: Qt client cancels without a build and starts a fresh scan", flush=True)
+        assert window.server_client.get_status()["frame_count"] == 0, "Offline captures must not fuse before Finish"
+        assert len(capture_cues) == cues_before_offline + 3, "Each locally buffered capture must confirm once"
+        assert window.task_worker.pending_capture_count == 0, "All offline captures must reach the server"
+        print("PASS: Qt client cancels, buffers offline captures and defers reconstruction until Finish", flush=True)
         window._stop_and_build()
         wait_until(lambda: window.btn_export_ply.isEnabled())
         assert window.btn_export_obj.isEnabled()
@@ -161,7 +167,7 @@ def check_client(port, rgb, depth):
             final["applied"] and final["voxel_m"] == 0.004 and final["blocks"] <= 5000
         ), final
         print(
-            "PASS: Qt client final rebuild preserves live resolution and enables export controls",
+            "PASS: Qt client offline Finish uses all uploaded captures and enables export controls",
             flush=True,
         )
         Path(preview_path).unlink(missing_ok=True)
@@ -263,7 +269,7 @@ def main():
                     "/api/scan/frame", content=pack_frame(rgb, depth)
                 ).json()["success"]
                 uploaded = http.post(
-                    "/api/scan/frames", content=pack_frames([(rgb, depth)] * 2)
+                    "/api/scan/frames", content=pack_frames([(rgb, depth)] * 2, spatial_prediction=True)
                 ).json()
                 assert uploaded["stored_count"] == 3, uploaded
                 print("PASS: health, reset, single-frame and batch upload", flush=True)

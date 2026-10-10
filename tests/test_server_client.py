@@ -24,6 +24,19 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
 
 
 class ServerClientTests(unittest.TestCase):
+    def test_remote_uploads_use_prediction_and_loopback_avoids_its_cpu_cost(self):
+        for host, expected in (("192.168.1.10", True), ("scanner.local", True), ("localhost", False)):
+            client = ServerClient()
+            http = Mock()
+            http.get.side_effect = [response({"status": "ok"}), response({})]
+            http.post.return_value = response({"success": True})
+            with patch("kinect_scanner.server_client.httpx.Client", return_value=http), \
+                    patch("kinect_scanner.server_client.threading.Thread"), \
+                    patch("kinect_scanner.server_client.pack_frame", return_value=b"frame") as frame:
+                self.assertTrue(client.connect_to_server(host, 8000))
+                client.send_frame(None, None)
+                self.assertEqual(expected, frame.call_args.kwargs["spatial_prediction"])
+            client.disconnect()
     def test_depth_build_waits_for_cpu_registration_with_bounded_connection(self):
         client = ServerClient()
         client._http = Mock()
@@ -66,8 +79,9 @@ class ServerClientTests(unittest.TestCase):
                 self.assertLogs("kinect_scanner.server_client", level="INFO") as logs:
             for _ in replies:
                 client.send_frames_batch([(None, None, {})])
-        self.assertEqual(3, len(logs.output))
-        self.assertIn("available again", logs.output[1])
+        availability = [line for line in logs.output if "Capture transport" not in line]
+        self.assertEqual(3, len(availability))
+        self.assertIn("available again", availability[1])
 
     def test_websocket_retry_logs_reason_changes_and_failure_after_recovery(self):
         client = ServerClient()

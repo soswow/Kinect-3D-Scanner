@@ -36,4 +36,5 @@ logs/
 # RGB-D data and local benchmark artifacts (never publish captures)
 datasets/
 recordings/
+capture-queue/
 benchmark-output/

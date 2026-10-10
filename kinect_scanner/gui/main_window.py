@@ -859,7 +859,7 @@ class MainWindow(QMainWindow):
         busy = busy or camera_stopping
         can_start_camera = ready or self._camera_suspended
         active = self._scanning
-        frames = self._server_stored > 0 or getattr(self.task_worker, "queued_task_count", 0) > 0
+        frames = self._server_stored > 0 or self._pending_upload_count() > 0
         valid_setup = self.depth_near_spin.value() < self.depth_far_spin.value() and (
             self.final_voxel_spin.value() == 0 or self.final_voxel_spin.value() >= 2
         )
@@ -909,6 +909,11 @@ class MainWindow(QMainWindow):
     def _refresh_status(self):
         interval = self._effective_capture_interval()
         offline = not (self._session_settings or {}).get("live_reconstruction", self.live_cb.isChecked())
+        pending_uploads = self._pending_upload_count()
+        if offline and self._session_id:
+            self.frame_count_label.setText(
+                f"Captured: {self._server_stored + pending_uploads} · Pending upload: {pending_uploads}"
+            )
         camera_motion_unverified = (
             self._scanning and not self._paused and offline
             and (self._session_settings or {}).get("color_recovery", self.color_tracking_cb.isChecked())
@@ -931,6 +936,11 @@ class MainWindow(QMainWindow):
             self.interval_help.setText(
                 f"Capture pace: ~{interval:g} s · adjusted for live reconstruction."
             )
+        elif offline:
+            self.interval_help.setText(
+                f"Captures no faster than {self.auto_capture_spin.interval_seconds:g} s. "
+                "Selects a sharp recent frame; buffers it locally and uploads in the background."
+            )
         else:
             self.interval_help.setText(
                 f"Captures no faster than {self.auto_capture_spin.interval_seconds:g} s. "
@@ -947,7 +957,7 @@ class MainWindow(QMainWindow):
                 "Cancelling scan…" if self._cancel_pending else "Starting scan…"
             )
         elif self._build_pending:
-            state = "Building final surface…"
+            state = "Uploading remaining captures before reconstruction…" if pending_uploads else "Building final surface…"
         elif self._export_pending:
             state = {"session": "Saving project…", "open": "Opening project…"}.get(self._export_pending["kind"], "Exporting final model…")
         elif self._final_preview_pending:
@@ -1584,7 +1594,7 @@ class MainWindow(QMainWindow):
             self._capture_waiting = "Auto capture waiting for live feedback to reconnect"
             self._refresh_status()
             return
-        if snapshot.get("fusion_paused") and outstanding:
+        if self.live_cb.isChecked() and snapshot.get("fusion_paused") and outstanding:
             self._capture_waiting = "Model paused · waiting for recovery check; match the last good image"
             self._refresh_status()
             return
@@ -1593,12 +1603,12 @@ class MainWindow(QMainWindow):
             self._capture_waiting = "Capturing automatically · paced by live reconstruction"
             self._refresh_status()
             return
-        if self.adaptive_capture_cb.isChecked() and self.task_worker.queued_task_count >= 5:
+        if self._adaptive_live_capture() and self.task_worker.queued_task_count >= 5:
             self._capture_waiting = "Auto capture waiting for uploads to catch up"
             self._refresh_status()
             return
         self._capture_waiting = ""
-        recovering = bool(snapshot.get("fusion_paused"))
+        recovering = self.live_cb.isChecked() and bool(snapshot.get("fusion_paused"))
         if not self._capture_pacer.ready(
             now, 0.1 if recovering else self.auto_capture_spin.interval_seconds,
             RGB_MODE_FPS[self.rgb_mode_combo.currentData()],
@@ -1610,6 +1620,9 @@ class MainWindow(QMainWindow):
 
     def _adaptive_live_capture(self):
         return self.adaptive_capture_cb.isChecked() and self.live_cb.isChecked()
+
+    def _pending_upload_count(self):
+        return getattr(self.task_worker, "pending_capture_count", self.task_worker.queued_task_count)
 
     def _effective_capture_interval(self):
         return self._capture_pacer.interval_seconds(
@@ -1657,8 +1670,9 @@ class MainWindow(QMainWindow):
             })
         )
         if not queued:
-            self._capture_waiting = "Upload queue full; skipped capture"
-            self._refresh_status()
+            self._paused = True
+            self._operation_error = getattr(self.task_worker, "capture_error", "") or "Capture paused: upload buffer full"
+            self._refresh_controls()
         else:
             self._last_capture_id = frame_id
             self._capture_pacer.captured(frame_id, time.monotonic(), live=self.live_cb.isChecked())
@@ -1667,6 +1681,8 @@ class MainWindow(QMainWindow):
             self._session_dirty = True
             self._operation_error = ""
             self._capture_waiting = ""
+            if not self.live_cb.isChecked():
+                self.capture_sound.play()
             self._reset_auto_capture_cadence()
             self._refresh_controls()
 
@@ -1679,7 +1695,7 @@ class MainWindow(QMainWindow):
     def _stop_and_build(self):
         if self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or not self.server_client.is_connected:
             return
-        if not self._server_stored and not getattr(self.task_worker, "queued_task_count", 0):
+        if not self._server_stored and not self._pending_upload_count():
             return
         logger.info("Finish scan requested session=%s stored=%s upload_queue=%s final_voxel_mm=%s",
                     self._session_id, self._server_stored, self.task_worker.queued_task_count,
@@ -2085,7 +2101,7 @@ class MainWindow(QMainWindow):
         if not result.get("success"):
             self._paused = True
             self._operation_error = result.get("message", "Capture rejected; scan retained")
-        elif not self._closing and not self._reset_pending:
+        elif not self._closing and not self._reset_pending and self.live_cb.isChecked():
             self.capture_sound.play()
         self._server_stored = max(
             self._server_stored, result.get("stored_count", self._server_stored)

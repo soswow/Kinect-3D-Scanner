@@ -27,6 +27,74 @@ def synthetic_capture(connection, stop_event, rgb_buffer, depth_buffer):
         stop_event.wait(0.1)
 
 
+def check_offline_capture(window, temporary):
+    """Exercise installed controls, real disk buffering and upload/build ordering."""
+    import numpy as np
+
+    from shared.protocol import pack_frames, unpack_frames
+    from .capture_spool import CaptureSpool
+    from .server_client import ServerClient
+    from .server_task_worker import ServerTaskType, ServerTaskWorker
+
+    client = ServerClient()
+    worker = ServerTaskWorker(client)
+    worker._spool = CaptureSpool(Path(temporary) / "capture-queue", "bundle-offline", {})
+    uploaded, cues, checks = [], [], []
+
+    def send(frames):
+        # Check the installed new wire format, including exact sensor pixels.
+        decoded = unpack_frames(pack_frames(frames, spatial_prediction=True), with_metadata=True)
+        for original, restored in zip(frames, decoded):
+            checks.append(np.array_equal(original[0], restored[0])
+                          and np.array_equal(original[1], restored[1]))
+        results = []
+        for _, _, metadata in frames:
+            uploaded.append(metadata["frame_id"])
+            results.append({"success": True, "index": len(uploaded) - 1})
+        return {"success": True, "stored_count": len(uploaded), "results": results}
+
+    client.send_frame = lambda *frame: send([frame])
+    client.send_frames_batch = send
+    client.request_build = lambda *args, **kwargs: {"success": uploaded == list(range(8))}
+    worker._save_reconstruction = lambda: None
+    original_worker, original_sound = window.task_worker, window.capture_sound.play
+    window.task_worker = worker
+    window.capture_sound.play = lambda: cues.append(True)
+    try:
+        window._session_id = "bundle-offline"
+        window.live_cb.setChecked(False)
+        window.adaptive_capture_cb.setChecked(True)
+        window.auto_capture_spin.set_interval_seconds(.5)
+        window._paused = False
+        for index in range(8):
+            window._capture_selector.clear()
+            window._last_frame_metadata = {**window._last_frame_metadata, "frame_id": index}
+            window._last_frame_time = time.monotonic()
+            window._capture_pacer.last_capture_at = window._last_frame_time - .5
+            window._auto_capture_tick()
+        checks.append(worker.pending_capture_count == 8 and len(cues) == 8)
+        checks.append("Captured: 8" in window.frame_count_label.text()
+                      and "Pending upload: 8" in window.frame_count_label.text())
+        window._stop_and_build()
+        checks.append("Uploading remaining captures" in window.scan_status_label.text())
+        while not worker._queue.empty() or worker._pending is not None:
+            task = worker._pending if worker._pending is not None else worker._queue.get_nowait()
+            worker._pending = None
+            if task.task_type == ServerTaskType.BUILD_MESH:
+                checks.append(uploaded == list(range(8)) and worker.pending_capture_count == 0)
+            worker._dispatch(task)
+        checks.append(len(cues) == 8)
+    finally:
+        window.task_worker = original_worker
+        window.capture_sound.play = original_sound
+        window._build_pending = False
+        window._session_dirty = False
+        window._session_id = None
+        worker._spool.cleanup()
+    if len(checks) != 13 or not all(checks):
+        raise RuntimeError(f"Offline capture/upload check failed: {checks}")
+
+
 def run_check():
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     os.environ.pop("KINECT_AUTOCONNECT", None)
@@ -124,6 +192,7 @@ def run_check():
                     motion_layout_checks.append(
                         window.logs_panel.text.toPlainText().count("Camera motion could not be verified") == 2
                     )
+                    check_offline_capture(window, temporary)
                     window._scanning = False
                     window._session_settings = None
                     window.server_client._connected = False
@@ -191,6 +260,6 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "data": str(data_root()), "exports": str(export_root())}
+              "offline_capture": "ok", "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0

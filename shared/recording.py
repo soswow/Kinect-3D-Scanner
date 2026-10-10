@@ -6,6 +6,8 @@ from pathlib import Path
 
 import cv2
 
+_PNG_OPTIONS = [cv2.IMWRITE_PNG_COMPRESSION, 1]
+
 
 class RecordingWriter:
     def __init__(self, path, settings):
@@ -43,10 +45,10 @@ class RecordingWriter:
         color_path = f"rgb/{index:06d}.png"
         depth_path = f"depth/{index:06d}.png"
         if not cv2.imwrite(
-            str(self.path / color_path), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            str(self.path / color_path), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), _PNG_OPTIONS
         ):
             raise OSError("Could not save RGB recording")
-        if not cv2.imwrite(str(self.path / depth_path), depth):
+        if not cv2.imwrite(str(self.path / depth_path), depth, _PNG_OPTIONS):
             raise OSError("Could not save depth recording")
         metadata = dict(metadata or {})
         display_paths = {}
@@ -59,7 +61,7 @@ class RecordingWriter:
                 shown = rotate_display(array, rotation)
                 if stream == "rgb":
                     shown = cv2.cvtColor(shown, cv2.COLOR_RGB2BGR)
-                if not cv2.imwrite(str(destination), shown):
+                if not cv2.imwrite(str(destination), shown, _PNG_OPTIONS):
                     raise OSError("Could not save portrait recording")
                 display_paths["display_" + stream] = "display/" + relative
         self.manifest["frames"].append(

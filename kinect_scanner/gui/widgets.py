@@ -109,7 +109,8 @@ class FrameIntervalSpinBox(QSpinBox):
         self.setToolTip(
             f"Minimum interval: {self.value()} fresh RGB/depth frames "
             f"({self._fps} fps nominal). Intervals round to whole frames. "
-            "Capture never runs faster than this interval and slows to match live reconstruction."
+            "Capture never runs faster than this interval. Live reconstruction can slow capture; "
+            "offline captures upload in the background."
             + ("\n" + self._capture_help if getattr(self, "_capture_help", "") else "")
         )
 

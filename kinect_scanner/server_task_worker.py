@@ -20,6 +20,9 @@ from PyQt6.QtCore import QThread
 from shared.recording import RecordingWriter
 from shared.sensor_recording import augment_session_archive
 
+from .capture_spool import CaptureSpool
+from .runtime import data_root
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,11 +65,25 @@ class ServerTaskWorker(QThread):
         self._recording_session_id = None
         self._live = False
         self._queue_full = False
+        self._spool = None
+        self._inflight_captures = 0
+        self._failed_uploads = False
+        self.capture_error = ""
 
     def submit(self, task: ServerTask):
         if self._stop_flag:
             return False
-        if task.task_type == ServerTaskType.SEND_FRAME and self._queue.qsize() >= 100:
+        if task.task_type == ServerTaskType.SEND_FRAME and self._spool is not None:
+            try:
+                path = self._spool.append(task.kwargs["rgb"], task.kwargs["depth"],
+                                          task.kwargs.get("metadata", {}))
+            except (OSError, ValueError) as exc:
+                self.capture_error = f"Capture paused: {exc}"
+                logger.error("%s", self.capture_error)
+                return False
+            task = ServerTask(ServerTaskType.SEND_FRAME, {"spool_path": path, "spool": self._spool})
+            self.capture_error = ""
+        elif task.task_type == ServerTaskType.SEND_FRAME and self._queue.qsize() >= 100:
             if not self._queue_full:
                 logger.warning("Capture rejected: upload queue full session=%s", self._client.session_id,
                                extra={"ui_state_key": "upload-queue"})
@@ -84,6 +101,26 @@ class ServerTaskWorker(QThread):
     @property
     def queued_task_count(self):
         return self._queue.qsize()
+
+    @property
+    def pending_capture_count(self):
+        if self._spool is not None:
+            return self._spool.pending_count
+        return self._queue.qsize() + self._inflight_captures
+
+    def _configure_spool(self, settings, session_id):
+        if self._spool is not None and self._spool.session_id == session_id:
+            return
+        if self._spool is not None:
+            self._spool.cleanup()
+        self._spool = (CaptureSpool(data_root() / "capture-queue", session_id, settings)
+                       if session_id and not self._live else None)
+        self._failed_uploads = False
+
+    def _require_uploaded_captures(self):
+        if self._failed_uploads or (self._spool is not None and self._spool.pending_count):
+            retained = f" Pending captures are retained in {self._spool.path}." if self._spool else ""
+            raise RuntimeError("Some captures were not confirmed by the server; build/save stopped." + retained)
 
     def stop(self):
         self._stop_flag = True
@@ -107,21 +144,29 @@ class ServerTaskWorker(QThread):
             finally:
                 logger.info("Task ended task=%s session=%s seconds=%.2f queue=%s", task.task_type.name,
                             self._client.session_id, time.monotonic() - started, self._queue.qsize())
+        if self._spool is not None:
+            if self._spool.pending_count:
+                logger.info("Unconfirmed captures retained count=%s path=%s",
+                            self._spool.pending_count, self._spool.path)
+            else:
+                self._spool.cleanup()
 
-    _MAX_BATCH = 100  # max frames per HTTP request
+    _MAX_BATCH = 8  # Bound peak RAM and acknowledgement latency while a spool drains.
 
     def _drain_send_frames(self, first_task: ServerTask) -> dict:
         """Batch only consecutive frames, preserving command barriers exactly."""
 
         def frame(task):
+            if "spool_path" in task.kwargs:
+                return CaptureSpool.load(task.kwargs["spool_path"])
             return (
                 task.kwargs["rgb"],
                 task.kwargs["depth"],
                 task.kwargs.get("metadata", {}),
             )
 
-        frames = [frame(first_task)]
-        while len(frames) < (8 if self._live else self._MAX_BATCH):
+        tasks = [first_task]
+        while len(tasks) < self._MAX_BATCH:
             try:
                 task = self._queue.get_nowait()
             except queue.Empty:
@@ -132,15 +177,19 @@ class ServerTaskWorker(QThread):
             if task.task_type != ServerTaskType.SEND_FRAME:
                 self._pending = task
                 break
-            frames.append(frame(task))
-        logger.info("Uploading captures session=%s count=%s frame_ids=%s", self._client.session_id,
-                    len(frames), [metadata.get("frame_id") for _, _, metadata in frames])
+            tasks.append(task)
+        self._inflight_captures = len(tasks)
+        frames = []
         try:
+            frames = [frame(task) for task in tasks]
+            logger.info("Uploading captures session=%s count=%s frame_ids=%s", self._client.session_id,
+                        len(frames), [metadata.get("frame_id") for _, _, metadata in frames])
             if len(frames) == 1:
                 result = self._client.send_frame(*frames[0])
             else:
                 result = self._client.send_frames_batch(frames)
         except Exception as exc:
+            self._failed_uploads = True
             # Release precisely these captures on a failed transport, before
             # the task failure pauses scanning. A later retry must not wedge.
             self._client.frame_stored.emit({
@@ -152,19 +201,25 @@ class ServerTaskWorker(QThread):
                 ],
             })
             raise
+        finally:
+            self._inflight_captures = 0
         acknowledgements = result.get("results", [result] if len(frames) == 1 else [])
         logger.info("Capture upload session=%s count=%s success=%s stored=%s frame_ids=%s",
                     self._client.session_id, len(frames), result.get("success"), result.get("stored_count"),
                     [metadata.get("frame_id") for _, _, metadata in frames])
         capture_acks = acknowledgements or [{"success": result.get("success", False)}] * len(frames)
+        complete = len(capture_acks) == len(tasks) and all(ack.get("success") for ack in capture_acks)
+        if not complete:
+            self._failed_uploads = True
         result = {
             **result,
+            "success": complete,
             "capture_acknowledgements": [
                 {**ack, "frame_id": metadata.get("frame_id")}
                 for (_, _, metadata), ack in zip(frames, capture_acks)
             ],
         }
-        if result.get("success") and self._recording:
+        if any(ack.get("success") for ack in capture_acks) and self._recording:
             try:
                 if not acknowledgements:
                     # Older servers cannot identify partial-batch acceptance.
@@ -181,6 +236,9 @@ class ServerTaskWorker(QThread):
                 logger.exception("Local capture recording stopped path=%s", self._recording.path, extra={"ui_log": False})
                 self._recording = None
                 self._client.task_error.emit(f"Recording stopped: {exc}")
+        for task, ack in zip(tasks, capture_acks):
+            if ack.get("success") and "spool_path" in task.kwargs:
+                task.kwargs["spool"].acknowledge(task.kwargs["spool_path"])
         return result
 
     def _dispatch(self, task: ServerTask):
@@ -193,6 +251,7 @@ class ServerTaskWorker(QThread):
             else:
                 status = self._client.last_status
                 self._live = bool(status.get("settings", {}).get("live_reconstruction"))
+                self._configure_spool(status.get("settings", {}), status.get("session_id"))
                 if status.get("session_id") != self._recording_session_id:
                     self._recording = None
                     self._recording_session_id = None
@@ -226,9 +285,8 @@ class ServerTaskWorker(QThread):
             self._recording_session_id = None
             self._client.session_id = result.get("session_id")
             self._live = result["settings"].get("live_reconstruction", False)
+            self._configure_spool(result["settings"], result.get("session_id"))
             if task.kwargs.get("record"):
-                from .runtime import data_root
-
                 root = data_root() / "recordings"
                 path = root / datetime.now(timezone.utc).astimezone().strftime("scan-%Y%m%d-%H%M%S-%f")
                 try:
@@ -242,6 +300,7 @@ class ServerTaskWorker(QThread):
             self._client.reset_done.emit(result)
 
         elif tt == ServerTaskType.BUILD_MESH:
+            self._require_uploaded_captures()
             self._client.task_started.emit("Building mesh on server...")
             options = task.kwargs.get("options")
             result = self._client.request_build(options) if options else self._client.request_build()
@@ -258,9 +317,11 @@ class ServerTaskWorker(QThread):
             self._recording = None
             self._recording_session_id = None
             self._live = result["settings"].get("live_reconstruction", False)
+            self._configure_spool(result["settings"], result.get("session_id"))
             self._client.project_opened.emit(result, path)
 
         elif tt == ServerTaskType.PREVIEW:
+            self._require_uploaded_captures()
             self._client.task_started.emit("Generating preview on server...")
             path = self._client.request_preview()
             self._save_reconstruction()
@@ -282,6 +343,7 @@ class ServerTaskWorker(QThread):
             self._client.export_done.emit(success, path)
 
         elif tt in (ServerTaskType.EXPORT_TEXTURE, ServerTaskType.EXPORT_SESSION):
+            self._require_uploaded_captures()
             path = task.kwargs["path"]
             fmt = task.kwargs.get("format", "session")
             self._client.task_started.emit(f"Exporting {fmt} to {path}...")
