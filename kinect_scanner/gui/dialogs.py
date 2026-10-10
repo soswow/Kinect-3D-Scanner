@@ -41,16 +41,26 @@ class ExportDialog(QDialog):
         self.format_description = QLabel()
         self.format_description.setWordWrap(True)
         layout.addWidget(self.format_description)
-        self.texture_exposure_cb = QCheckBox("Match texture exposures")
+        self.texture_exposure_cb = QCheckBox("Match photo brightness when reliable")
         self.texture_exposure_cb.setToolTip(
-            "Reduce brightness differences between source photos when the correction improves the texture."
+            "Match brightness and color using shared surface observations. "
+            "Leave photos unchanged if the overlap does not support a reliable correction."
         )
-        self.texture_best_cb = QCheckBox("Pick one source photo per surface area")
+        self.texture_best_cb = QCheckBox("Keep photo boundaries sharp")
         self.texture_best_cb.setToolTip(
-            "Can keep details sharper, but may make seams between photos more visible."
+            "Both modes keep one photo across connected surface regions. "
+            "Unchecked softens only a narrow strip along compatible photo boundaries; "
+            "checked keeps those boundaries unblended."
         )
         layout.addWidget(self.texture_exposure_cb)
         layout.addWidget(self.texture_best_cb)
+        self.texture_description = QLabel(
+            "Details come from one photo per connected surface region. "
+            "By default, only photo boundaries are softened. "
+            "Brightness matching may leave the result unchanged if no reliable correction is found."
+        )
+        self.texture_description.setWordWrap(True)
+        layout.addWidget(self.texture_description)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.export_button = self.buttons.addButton(
             "Export", QDialogButtonBox.ButtonRole.AcceptRole
@@ -84,6 +94,7 @@ class ExportDialog(QDialog):
         textured = self.selected_format in ("glb", "obj.zip")
         self.texture_exposure_cb.setEnabled(textured)
         self.texture_best_cb.setEnabled(textured)
+        self.texture_description.setVisible(textured)
 
 
 class SessionProtectionDialog(QDialog):

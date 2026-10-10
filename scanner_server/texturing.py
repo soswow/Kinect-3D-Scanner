@@ -12,6 +12,7 @@ import numpy as np
 import open3d as o3d
 import trimesh
 from PIL import Image
+from scipy.ndimage import distance_transform_edt
 
 from shared.calibration import prepare_rgbd, project_rgb
 from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
@@ -292,6 +293,127 @@ def _project(
     return colors, weights
 
 
+def _face_neighbors(mesh):
+    """Surface adjacency, independent of UV chart cuts; do not cross sharp folds."""
+    faces = np.asarray(mesh.triangles)
+    edges = np.sort(faces[:, [[0, 1], [1, 2], [2, 0]]].reshape(-1, 2), axis=1)
+    _, inverse, counts = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
+    order = np.argsort(inverse, kind="stable")
+    starts = np.cumsum(counts) - counts
+    shared = np.flatnonzero(counts == 2)
+    a, b = order[starts[shared]], order[starts[shared] + 1]
+    triangles = np.asarray(mesh.vertices)[faces]
+    normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+    keep = np.sum(normals[a // 3] * normals[b // 3], axis=1) > 0.5
+    a, b = a[keep], b[keep]
+    neighbors = np.full((len(faces), 3), -1, np.int32)
+    neighbors[a // 3, a % 3] = b // 3
+    neighbors[b // 3, b % 3] = a // 3
+    return neighbors
+
+
+def _select_face_sources(scores, neighbors):
+    """Favor connected photo regions without assigning an unobserved source.
+
+    Scores summarize all atlas samples of each face, including missing depth.
+    A short diffusion supplies a coherent initial labeling, then graph-colored
+    coordinate descent reduces a visibility-constrained Potts energy. Updating
+    independent faces avoids the oscillation of simultaneous neighbor voting.
+    """
+    observed = scores > 0
+    best = scores.max(axis=0)
+    relative = scores / np.maximum(best, 1e-12)
+    safe = np.maximum(neighbors, 0)
+    joined = (neighbors >= 0) & (best[safe] > 0)
+    degree = np.maximum(joined.sum(axis=1), 1)
+    smooth = relative.copy()
+    for _ in range(5):
+        average = (smooth[:, safe] * joined[None]).sum(axis=2) / degree
+        smooth = np.where(observed, 0.5 * relative + 0.5 * average, 0)
+    initial = scores.argmax(axis=0)
+    labels = smooth.argmax(axis=0).astype(np.int32)
+    labels[best == 0] = -1
+    costs = -np.log(np.maximum(relative, 1e-12))
+    costs[~observed] = np.inf
+    # A triangle has at most three manifold neighbors, so four colors suffice.
+    groups = np.full(len(best), -1, np.int8)
+    for face, adjacent in enumerate(neighbors):
+        occupied = set(groups[adjacent[adjacent >= 0]])
+        groups[face] = next(color for color in range(4) if color not in occupied)
+    views = np.arange(len(scores))[:, None, None]
+    iterations = 0
+    for iterations in range(1, 13):
+        changed = 0
+        for color in range(4):
+            ids = np.flatnonzero((groups == color) & (best > 0))
+            adjacent_labels = labels[safe[ids]]
+            penalty = 0.35 * (
+                (views != adjacent_labels[None]) * joined[ids][None]
+            ).sum(axis=2)
+            energy = costs[:, ids] + penalty
+            chosen = energy.argmin(axis=0)
+            # Retain the current source on ties, including identical photos.
+            improve = energy[chosen, np.arange(len(ids))] < (
+                energy[labels[ids], np.arange(len(ids))] - 1e-6
+            )
+            changed += int(improve.sum())
+            labels[ids[improve]] = chosen[improve]
+        if not changed:
+            break
+    edges = joined & (best[:, None] > 0)
+    return labels, {
+        "method": "connected_surface_regions",
+        "optimization_passes": iterations,
+        "independent_face_boundaries": int(((initial[:, None] != initial[safe]) & edges).sum() // 2),
+        "region_boundaries": int(((labels[:, None] != labels[safe]) & edges).sum() // 2),
+    }
+
+
+def _seam_partners(positions, sources, valid, size, width=3, *, face_ids=None, neighbors=None):
+    """Find one neighboring photo in a narrow band, rejecting unrelated UV islands."""
+    source_map = sources.reshape(size, size)
+    world = positions.reshape(size, size, 3)
+    observed = valid.reshape(size, size) & (source_map >= 0)
+    boundary = np.zeros((size, size), bool)
+    partner = np.full((size, size), -1, np.int32)
+    for axis in (0, 1):
+        first = (slice(None, -1), slice(None)) if axis == 0 else (slice(None), slice(None, -1))
+        second = (slice(1, None), slice(None)) if axis == 0 else (slice(None), slice(1, None))
+        separation = np.linalg.norm(world[first] - world[second], axis=2)
+        adjacent = observed[first] & observed[second]
+        if face_ids is not None:
+            face_map = face_ids.reshape(size, size)
+            a, b = face_map[first], face_map[second]
+            linked = (a == b) | np.any(neighbors[np.maximum(a, 0)] == b[..., None], axis=2)
+            adjacent &= linked
+        # Estimate local texel spacing, rather than allowing neighboring atlas
+        # tiles to blend different surfaces at their packed chart boundaries.
+        spacing = np.median(separation[adjacent]) if adjacent.any() else 0
+        seam = adjacent & (source_map[first] != source_map[second]) & (
+            separation <= max(1e-6, spacing * 3)
+        )
+        boundary[first] |= seam
+        boundary[second] |= seam
+        partner[first][seam] = source_map[second][seam]
+        partner[second][seam] = source_map[first][seam]
+    if not boundary.any():
+        return partner.reshape(-1), np.zeros(size * size, np.float32)
+    distance, nearest = distance_transform_edt(~boundary, return_indices=True)
+    origin = tuple(nearest)
+    separation = np.linalg.norm(world - world[origin], axis=2)
+    local_spacing = np.maximum(
+        np.linalg.norm(world[origin] - world[np.clip(nearest[0] + 1, 0, size - 1), nearest[1]], axis=2),
+        np.linalg.norm(world[origin] - world[nearest[0], np.clip(nearest[1] + 1, 0, size - 1)], axis=2),
+    )
+    band = observed & (distance < width) & (source_map == source_map[origin]) & (
+        separation <= np.maximum(local_spacing * (width + 1), 1e-6)
+    )
+    result = np.where(band, partner[origin], -1).reshape(-1)
+    amount = np.where(band, 0.5 * (1 - distance / width), 0).astype(np.float32).reshape(-1)
+    return result, amount
+
+
 def make_textured_mesh(
     engine,
     size=1024,
@@ -341,8 +463,11 @@ def make_textured_mesh(
     normals = baked["normals"].numpy().reshape(-1, 3)
     valid = np.all(np.isfinite(positions), axis=1)
     albedo = np.nan_to_num(baked["albedo"].numpy(), nan=0).reshape(-1, 3)
-    totals = np.zeros(len(positions), np.float32)
-    sums = np.zeros((len(positions), 3), np.float32)
+    tensor.triangle["source_face"] = o3d.core.Tensor(np.arange(len(mesh.triangles), dtype=np.int64))
+    face_ids = tensor.bake_triangle_attr_textures(
+        size, {"source_face"}, fill=-1, update_material=False,
+    )["source_face"].numpy().reshape(-1)
+    valid &= face_ids >= 0
     views = _views(engine, max_views) if use_images else []
     c = engine.settings.camera
     valid_indices = np.flatnonzero(valid)
@@ -353,7 +478,10 @@ def make_textured_mesh(
         if engine.settings.sensor_calibration:
             rgb = source_rgb  # Native lens pixels, sampled with K,D and R,T.
         prepared.append((pose, rgb, depth.astype(np.float32) / 1000))
-    exposure_report = {"applied": False, "reason": "Not requested"}
+    exposure_report = {
+        "applied": False,
+        "reason": "Fewer than two source photos or no observed surface" if exposure_correction else "Not requested",
+    }
     gains = np.ones((len(views), 3), np.float32)
     if exposure_correction and len(views) > 1 and len(valid_indices):
         from .photometric import estimate_gains
@@ -378,7 +506,10 @@ def make_textured_mesh(
         gains, exposure_report = estimate_gains(
             np.asarray(samples), np.asarray(visible)
         )
+    exposure_report["requested"] = bool(exposure_correction)
     best_weight = np.zeros(len(positions), np.float32)
+    sources = np.full(len(positions), -1, np.int32)
+    face_scores = np.zeros((len(views), len(mesh.triangles)), np.float32)
     for view_index, (pose, rgb, depth) in enumerate(prepared):
         for start in range(0, len(valid_indices), 65536):
             ids = valid_indices[start : start + 65536]
@@ -395,17 +526,65 @@ def make_textured_mesh(
                 rgb_camera=engine.settings.rgb_camera,
             )
             values = np.clip(values * gains[view_index], 0, 1)
-            if blend_mode == "best":
-                better = weight > best_weight[ids]
-                chosen = ids[better]
-                albedo[chosen] = values[better]
-                best_weight[chosen] = weight[better]
-            else:
-                sums[ids] += values * weight[:, None]
-            totals[ids] += weight
-    projected = totals > 0
-    if blend_mode == "blend":
-        albedo[projected] = sums[projected] / totals[projected, None]
+            better = weight > best_weight[ids]
+            chosen = ids[better]
+            albedo[chosen] = values[better]
+            best_weight[chosen] = weight[better]
+            sources[chosen] = view_index
+            face_scores[view_index] += np.bincount(
+                face_ids[ids], weights=weight, minlength=len(mesh.triangles),
+            )
+    projected = best_weight > 0
+    selection_report = {"method": "no_source_images"}
+    softened = np.zeros(len(positions), bool)
+    if views and valid.any():
+        counts = np.bincount(face_ids[valid], minlength=len(mesh.triangles))
+        face_scores /= np.maximum(counts, 1)
+        neighbors = _face_neighbors(mesh)
+        face_sources, selection_report = _select_face_sources(face_scores, neighbors)
+        preferred = np.full(len(positions), -1, np.int32)
+        preferred[valid] = face_sources[face_ids[valid]]
+        # If a region's photo has missing depth at an individual texel, keep
+        # the depth-tested best photo from the first pass there.
+        for view_index, (pose, rgb, depth) in enumerate(prepared):
+            selected = np.flatnonzero(valid & (preferred == view_index))
+            for start in range(0, len(selected), 65536):
+                ids = selected[start : start + 65536]
+                values, weight = _project(
+                    positions[ids], normals[ids], rgb, depth, pose, c,
+                    engine.settings.near_m, engine.settings.far_m,
+                    sensor_calibration=engine.settings.sensor_calibration,
+                    rgb_camera=engine.settings.rgb_camera,
+                )
+                visible = weight > 0
+                albedo[ids[visible]] = np.clip(values[visible] * gains[view_index], 0, 1)
+                sources[ids[visible]] = view_index
+        if blend_mode == "blend":
+            partners, amounts = _seam_partners(
+                positions, sources, valid, size, face_ids=face_ids, neighbors=neighbors,
+            )
+            for view_index, (pose, rgb, depth) in enumerate(prepared):
+                selected = np.flatnonzero(partners == view_index)
+                for start in range(0, len(selected), 65536):
+                    ids = selected[start : start + 65536]
+                    values, weight = _project(
+                        positions[ids], normals[ids], rgb, depth, pose, c,
+                        engine.settings.near_m, engine.settings.far_m,
+                        sensor_calibration=engine.settings.sensor_calibration,
+                        rgb_camera=engine.settings.rgb_camera,
+                    )
+                    values = np.clip(values * gains[view_index], 0, 1)
+                    # Grossly disagreeing samples usually contain shifted
+                    # detail/occlusion; averaging them would create ghosting.
+                    compatible = (weight > 0) & (np.max(np.abs(values - albedo[ids]), axis=1) < 0.12)
+                    chosen = ids[compatible]
+                    mix = amounts[chosen, None]
+                    albedo[chosen] = albedo[chosen] * (1 - mix) + values[compatible] * mix
+                    softened[chosen] = True
+        selection_report.update(
+            source_faces=[int(np.sum(face_sources == i)) for i in range(len(views))],
+            fallback_texels=int(np.sum(projected & (sources != preferred))),
+        )
     image = Image.fromarray(
         np.clip(albedo.reshape(size, size, 3) * 255, 0, 255).astype(np.uint8)
     )
@@ -427,6 +606,10 @@ def make_textured_mesh(
         "method": "depth_tested_rgb" if views else "vertex_color_bake",
         "texture_size": size,
         "blend_mode": blend_mode,
+        "source_selection": selection_report,
+        "seam_blending": {"width_texels": 3 if blend_mode == "blend" else 0,
+                          "softened_texels": int(softened.sum()),
+                          "projected_texels": int(projected.sum())},
         "exposure_correction": exposure_report,
         "atlas_partitions": partitions,
         "atlas": atlas_report,
@@ -438,6 +621,7 @@ def make_textured_mesh(
         "unobserved_fallback": "fused vertex colors",
         "depth_unit": "metres",
     }
+    result.metadata["texture_report"] = report
     return result, report
 
 
