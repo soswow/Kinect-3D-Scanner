@@ -1,0 +1,1795 @@
+{
+  "kind": "chest-markers-apriltag-priority-v1",
+  "date": "2026-10-10",
+  "production_base_commit": "762a6da",
+  "input_snapshot_sha256": "1e01b4d8c884ea849d5f50b5dba13469176a64e0eade807081d5961639021028",
+  "source_sha256": "ce8a86f0930e77f6c2c080cb690f71fc634acc79fb8b46e6053d8202316a4f2c",
+  "source_changed_during_replay": false,
+  "pose_seeds_used": false,
+  "finish_only": true,
+  "settings": {
+    "camera": {
+      "name": "depth",
+      "width": 640,
+      "height": 480,
+      "fx": 585.8488741537053,
+      "fy": 586.5345554939067,
+      "cx": 314.42413669541764,
+      "cy": 251.47666864711306,
+      "image_space": "native_depth",
+      "distortion": [
+        -0.13439164241585547,
+        0.5252875235942552,
+        0.0031447382908560296,
+        0.0010622336987000532,
+        -0.6435102692824457
+      ],
+      "depth_scale": 1.0
+    },
+    "near_m": 0.5,
+    "far_m": 3.0,
+    "voxel_m": 0.01,
+    "truncation_m": 0.08,
+    "min_fitness": 0.35,
+    "max_rmse_m": 0.02,
+    "max_translation_m": 0.3,
+    "max_rotation_deg": 30.0,
+    "final_weight": 0.5,
+    "min_component_triangles": 30,
+    "roi": null,
+    "filter_depth": true,
+    "color_recovery": true,
+    "apriltag_tracking": true,
+    "apriltag_dictionaries": [
+      "DICT_APRILTAG_25h9"
+    ],
+    "live_reconstruction": false,
+    "refine_poses": false,
+    "bundle_adjustment": false,
+    "reconnect_fragments": true,
+    "offline_registration": "depth",
+    "relocalize": true,
+    "confidence_fusion": true,
+    "final_voxel_m": 0.005,
+    "final_block_count": 5000,
+    "sensor_calibration": {
+      "schema_version": 1,
+      "status": "final",
+      "date": "2026-10-05",
+      "device": "Xbox 360 Kinect / Kinect v1",
+      "camera_serial": "A00363W00948202A",
+      "board_definition": {
+        "squares_x": 18,
+        "squares_y": 26,
+        "square_mm": 30.0,
+        "marker_mm": 21.0,
+        "dictionary": "DICT_4X4_250",
+        "legacy_pattern": false,
+        "first_marker_id": 0
+      },
+      "intrinsics": {
+        "rgb_low_res": {
+          "schema_version": 1,
+          "status": "final",
+          "camera_mode": "rgb_low_res",
+          "image_size": [
+            640,
+            480
+          ],
+          "pixel_convention": "Original unmirrored native pixels; x right, y down; zero-based coordinates",
+          "distortion_model": "OpenCV Brown-Conrady",
+          "distortion_coefficient_order": [
+            "k1",
+            "k2",
+            "p1",
+            "p2",
+            "k3"
+          ],
+          "camera_matrix": [
+            [
+              520.8747596397207,
+              0.0,
+              306.3611902369963
+            ],
+            [
+              0.0,
+              521.5815530810289,
+              256.8650481513233
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ],
+          "distortion_coefficients": [
+            0.21133917766081833,
+            -0.6173500075302261,
+            0.0011842853439847228,
+            -0.0009370614412966757,
+            0.5756123338709149
+          ],
+          "calibration_training_rms_px": 0.2266559793708998,
+          "training_views": 44,
+          "heldout_reprojection_rms_px": 0.2749895273154097,
+          "heldout_views": 10,
+          "selection": "Lowest held-out reprojection RMS of the evaluated k1, simple, and full models",
+          "provenance": {
+            "source": "/Users/sasha/hobby/camera-calibration/output/kinect-rgb-assessment/full.json",
+            "source_sha256": "64042d919920e0f9494b6b8602bd00b786a32fcec11098134390f882dd86b8de",
+            "assessment": "/Users/sasha/hobby/camera-calibration/output/kinect-rgb-assessment/assessment.json"
+          }
+        },
+        "rgb_high_res": {
+          "schema_version": 1,
+          "status": "final",
+          "camera_mode": "rgb_high_res",
+          "image_size": [
+            1280,
+            1024
+          ],
+          "pixel_convention": "Original unmirrored native pixels; x right, y down; zero-based coordinates",
+          "distortion_model": "OpenCV Brown-Conrady",
+          "distortion_coefficient_order": [
+            "k1",
+            "k2",
+            "p1",
+            "p2",
+            "k3"
+          ],
+          "camera_matrix": [
+            [
+              1044.0270269982839,
+              0.0,
+              617.6260414065628
+            ],
+            [
+              0.0,
+              1045.8038968361068,
+              512.2126320159759
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ],
+          "distortion_coefficients": [
+            0.19512856326969397,
+            -0.5326713821933459,
+            0.000736662586731933,
+            -0.00038579684365116503,
+            0.4426903567344948
+          ],
+          "calibration_training_rms_px": 0.3414765368232631,
+          "training_views": 75,
+          "heldout_reprojection_rms_px": 0.4252168410186738,
+          "heldout_views": 18,
+          "selection": "Lowest held-out reprojection RMS of the evaluated k1, simple, and full models",
+          "provenance": {
+            "source": "/Users/sasha/hobby/camera-calibration/output/kinect-rgb-high-res-assessment/full.json",
+            "source_sha256": "1a568a2019e14f89bd2a4a58576485931f5fad02da638338b8c8285e8782b09f",
+            "assessment": "/Users/sasha/hobby/camera-calibration/output/kinect-rgb-high-res-assessment/assessment.json"
+          }
+        },
+        "ir": {
+          "schema_version": 1,
+          "status": "final",
+          "camera_mode": "ir",
+          "image_size": [
+            640,
+            488
+          ],
+          "pixel_convention": "Original unmirrored native pixels; x right, y down; zero-based coordinates",
+          "distortion_model": "OpenCV Brown-Conrady",
+          "distortion_coefficient_order": [
+            "k1",
+            "k2",
+            "p1",
+            "p2",
+            "k3"
+          ],
+          "camera_matrix": [
+            [
+              585.8488741537053,
+              0.0,
+              317.5975318374076
+            ],
+            [
+              0.0,
+              586.5345554939067,
+              254.76658331408706
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ],
+          "distortion_coefficients": [
+            -0.13439164241585547,
+            0.5252875235942552,
+            0.0031447382908560296,
+            0.0010622336987000532,
+            -0.6435102692824457
+          ],
+          "calibration_training_rms_px": 0.26743833997103617,
+          "training_views": 41,
+          "heldout_reprojection_rms_px": 0.24157165342155032,
+          "heldout_views": 10,
+          "selection": "Lowest held-out reprojection RMS of the evaluated k1, simple, and full models",
+          "provenance": {
+            "source": "/Users/sasha/hobby/camera-calibration/output/kinect-ir-assessment/full.json",
+            "source_sha256": "5267b66d115344c78f8072828abf786293072149d345ee8b64b76dc64aee184c",
+            "assessment": "/Users/sasha/hobby/camera-calibration/output/kinect-ir-assessment/assessment.json"
+          }
+        },
+        "depth": {
+          "schema_version": 1,
+          "status": "final",
+          "camera_mode": "depth_11bit",
+          "image_size": [
+            640,
+            480
+          ],
+          "pixel_convention": "Original unmirrored native pixels; x right, y down; zero-based coordinates",
+          "distortion_model": "OpenCV Brown-Conrady",
+          "distortion_coefficient_order": [
+            "k1",
+            "k2",
+            "p1",
+            "p2",
+            "k3"
+          ],
+          "camera_matrix": [
+            [
+              585.8488741537053,
+              0.0,
+              314.42413669541764
+            ],
+            [
+              0.0,
+              586.5345554939067,
+              251.47666864711306
+            ],
+            [
+              0.0,
+              0.0,
+              1.0
+            ]
+          ],
+          "distortion_coefficients": [
+            -0.13439164241585547,
+            0.5252875235942552,
+            0.0031447382908560296,
+            0.0010622336987000532,
+            -0.6435102692824457
+          ],
+          "derivation": "IR K with principal point translated by accepted IR-to-depth shift; same IR lens distortion",
+          "camera_coordinates": "IR optical camera frame: x right, y down, Z forward; millimetres",
+          "applies_to": "Native unregistered 640x480 raw depth; undistort once before deprojection",
+          "provenance": {
+            "path": "/Users/sasha/hobby/xbox360/calibration/final/ir-to-depth.json",
+            "sha256": "3fb1e3eac224cf7d2a2b13961996af7dd0f07329c33603c456b1ad623a3a9871"
+          }
+        }
+      },
+      "ir_to_rgb": {
+        "schema_version": 1,
+        "status": "final",
+        "coordinate_convention": "OpenCV camera coordinates: x right, y down, z forward",
+        "transform": "X_rgb_mm = R @ X_ir_mm + T_mm",
+        "R": [
+          [
+            0.9999950279139148,
+            0.0009246427382497715,
+            0.0030148272347501363
+          ],
+          [
+            -0.0009324891496345145,
+            0.999996179395044,
+            0.0026022412072657744
+          ],
+          [
+            -0.0030124095728507917,
+            -0.002605039562382902,
+            0.9999920695472759
+          ]
+        ],
+        "T_mm": [
+          -25.688231244055586,
+          0.35505579239831697,
+          0.9266685211679345
+        ],
+        "baseline_mm": 25.70739200331128,
+        "rotation_vector_deg": [
+          -0.14917802120600832,
+          0.17266809685750575,
+          -0.053203057873879106
+        ],
+        "inverse": {
+          "R": [
+            [
+              0.9999950279139148,
+              -0.0009324891496345145,
+              -0.0030124095728507917
+            ],
+            [
+              0.0009246427382497715,
+              0.999996179395044,
+              -0.002605039562382902
+            ],
+            [
+              0.0030148272347501363,
+              0.0026022412072657744,
+              0.9999920695472759
+            ]
+          ],
+          "T_mm": [
+            25.691226110756418,
+            -0.32888799123324264,
+            -0.8501395339137556
+          ],
+          "transform": "X_ir_mm = R.T @ X_rgb_mm - R.T @ T_mm"
+        },
+        "rgb_camera_center_in_ir_mm": [
+          25.691226110756418,
+          -0.32888799123324264,
+          -0.8501395339137556
+        ],
+        "ir_camera_center_in_rgb_mm": [
+          -25.688231244055586,
+          0.35505579239831697,
+          0.9266685211679345
+        ],
+        "applies_to": [
+          "rgb_high_res",
+          "rgb_low_res"
+        ],
+        "low_res_application": "Same physical camera pose, using the separately calibrated low-resolution RGB K and D; fit and direct cross-camera validation used high-resolution RGB",
+        "fit_views": 27,
+        "fixed_intrinsics": [
+          "ir",
+          "rgb_high_res"
+        ],
+        "final_training_stereo_rms_px": 0.6356771828910323,
+        "validation": {
+          "training_views": 21,
+          "heldout_views": 6,
+          "pooled_transfer_rms_px": {
+            "ir": 0.7807018707204375,
+            "rgb": 1.4057934724782026
+          },
+          "definition": "Source-camera-only board pose predicts target-camera corners; validation transform trained separately from the all-27-view final transform"
+        },
+        "measurement_limits": {
+          "square_pitch_mm": 30,
+          "host_callback_separation_ms": [
+            237.79558297246695,
+            275.25616716593504
+          ],
+          "median_host_callback_separation_ms": 254.23241592943668,
+          "baseline_frame_bootstrap_percentile_95_mm": [
+            24.100825384785768,
+            26.52520746551652
+          ],
+          "notes": "Bootstrap is conditional on fixed intrinsics and 30 mm print pitch; handheld motion and common systematic errors are not included"
+        },
+        "provenance": {
+          "source": "/Users/sasha/hobby/xbox360/calibration/rgb-ir-depth-20261005/rgb-ir-candidate.json",
+          "source_sha256": "e25f4fec1fed830f3b1f3cad9274e88c8eaf2c2176c91cffc83d48505aec73b8"
+        }
+      },
+      "ir_to_depth": {
+        "schema_version": 1,
+        "status": "final",
+        "selected_runtime_model": "translation",
+        "ir_image_size": [
+          640,
+          488
+        ],
+        "depth_image_size": [
+          640,
+          480
+        ],
+        "coordinate_space": "Native distorted unmirrored zero-based pixels",
+        "pixel_mapping": "p_depth = p_ir + ir_to_depth_shift_px",
+        "inverse_pixel_mapping": "p_ir = p_depth - ir_to_depth_shift_px",
+        "ir_to_depth_shift_px": [
+          -3.173395141989961,
+          -3.289914666973986
+        ],
+        "depth_to_ir_shift_px": [
+          3.173395141989961,
+          3.289914666973986
+        ],
+        "depth_camera_matrix": [
+          [
+            585.8488741537053,
+            0.0,
+            314.42413669541764
+          ],
+          [
+            0.0,
+            586.5345554939067,
+            251.47666864711306
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "distortion_coefficients": [
+          -0.13439164241585547,
+          0.5252875235942552,
+          0.0031447382908560296,
+          0.0010622336987000532,
+          -0.6435102692824457
+        ],
+        "fit_frames": 30,
+        "boundary_samples": 4658,
+        "nuisance_terms": {
+          "outward_edge_bias_px": 0.8708577326274153,
+          "thickness_fraction": 0.21812974756848785
+        },
+        "nuisance_warning": "These boundary terms are not optical corrections. Do not add them to image coordinates or principal points.",
+        "validation": {
+          "heldout_edge_normal_error_px": {
+            "count": 1257,
+            "rms": 0.9068292043948667,
+            "median": 0.5389918134174767,
+            "p95": 1.5977976109230174,
+            "maximum": 5.485217524135043
+          },
+          "conditional_frame_bootstrap_95": {
+            "dx": [
+              -3.377224165682681,
+              -2.9341298188991773
+            ],
+            "dy": [
+              -3.369120026815816,
+              -3.219157410724997
+            ],
+            "outward_edge_bias_px": [
+              0.8049381708631053,
+              0.9460742428491022
+            ],
+            "thickness_fraction": [
+              2.6228344912781866e-13,
+              0.4587183981313589
+            ]
+          },
+          "separate_datasets": {
+            "old": {
+              "parameters": {
+                "dx": -3.2379239344645456,
+                "dy": -3.4249393734271547,
+                "outward_edge_bias_px": 0.9102939570484081,
+                "thickness_fraction": 0.2046704663112792
+              },
+              "residual": {
+                "count": 2023,
+                "rms": 0.9841989687523619,
+                "median": 0.5543929486315573,
+                "p95": 1.6260039191459017,
+                "maximum": 6.945370993975592
+              },
+              "condition_number": 2.894814184521977,
+              "success": true
+            },
+            "new": {
+              "parameters": {
+                "dx": -3.1356089477596463,
+                "dy": -3.198531362749605,
+                "outward_edge_bias_px": 0.8407026919231834,
+                "thickness_fraction": 0.2384705673130239
+              },
+              "residual": {
+                "count": 2635,
+                "rms": 0.8097880416077365,
+                "median": 0.5229605193334854,
+                "p95": 1.5703607613099078,
+                "maximum": 4.075603539728883
+              },
+              "condition_number": 2.4878492789215843,
+              "success": true
+            }
+          },
+          "near_frontal_check": {
+            "parameters": {
+              "dx": -3.208127123389483,
+              "dy": -3.188909800787547,
+              "outward_edge_bias_px": 0.9171254303751307
+            },
+            "residual": {
+              "count": 1718,
+              "rms": 0.7871208946757047,
+              "median": 0.5301880281675531,
+              "p95": 1.528961416228745,
+              "maximum": 3.1804407152091017
+            },
+            "condition_number": 2.4224045090383894,
+            "success": true
+          },
+          "plane_threshold_sensitivity": [
+            {
+              "raw_plane_threshold": 2,
+              "parameters": {
+                "dx": -3.173395141989961,
+                "dy": -3.289914666973986,
+                "outward_edge_bias_px": 0.8708577326274153,
+                "thickness_fraction": 0.21812974756848785
+              },
+              "heldout_normal_error_px": {
+                "count": 1257,
+                "rms": 0.9068292043948667,
+                "median": 0.5389918134174767,
+                "p95": 1.5977976109230174,
+                "maximum": 5.485217524135043
+              }
+            },
+            {
+              "raw_plane_threshold": 3,
+              "parameters": {
+                "dx": -3.115286076442819,
+                "dy": -3.294050397821238,
+                "outward_edge_bias_px": 0.9658540396825295,
+                "thickness_fraction": 0.3482336088694769
+              },
+              "heldout_normal_error_px": {
+                "count": 1409,
+                "rms": 1.1589532845257682,
+                "median": 0.5385811906690687,
+                "p95": 1.81025342823685,
+                "maximum": 6.9499955760923395
+              }
+            },
+            {
+              "raw_plane_threshold": 5,
+              "parameters": {
+                "dx": -3.083181573704878,
+                "dy": -3.3012847638737983,
+                "outward_edge_bias_px": 0.9759900602472605,
+                "thickness_fraction": 0.5230814219496651
+              },
+              "heldout_normal_error_px": {
+                "count": 1437,
+                "rms": 1.2932122834534636,
+                "median": 0.5421983410804403,
+                "p95": 2.114505378385816,
+                "maximum": 7.050980673854285
+              }
+            },
+            {
+              "raw_plane_threshold": 8,
+              "parameters": {
+                "dx": -3.0861817806266476,
+                "dy": -3.303405736465635,
+                "outward_edge_bias_px": 0.9765089198506451,
+                "thickness_fraction": 0.5515724413851248
+              },
+              "heldout_normal_error_px": {
+                "count": 1435,
+                "rms": 1.294372007566938,
+                "median": 0.5410852225086256,
+                "p95": 2.11780192542702,
+                "maximum": 7.054245976070795
+              }
+            }
+          ]
+        },
+        "board": {
+          "side_lengths_mm": {
+            "top": 845,
+            "bottom": 834,
+            "right": 599,
+            "left": 598
+          },
+          "thickness_mm": 12,
+          "outline_board_mm": [
+            [
+              -7.632503509521484,
+              -43.52073669433594
+            ],
+            [
+              589.3193969726562,
+              -28.459808349609375
+            ],
+            [
+              579.9842529296875,
+              806.5281372070312
+            ],
+            [
+              -16.610628128051758,
+              802.1622924804688
+            ]
+          ]
+        },
+        "selected_plane_threshold_raw": 2,
+        "annotated_plane_threshold_raw": 5,
+        "measurement_method": "Independent IR front-outline gradients and raw-disparity plane-supported depth boundaries; quadrilateral outline, 12 mm side projection and boundary expansion modeled separately; complete-pair holdout",
+        "limitations": [
+          "Depth plane membership can include 12 mm side surfaces; modeled thickness is a hypothesis, not direct side segmentation",
+          "Boundary processing can widen the depth silhouette; fitted outward bias is not an optical parameter",
+          "Left projector shadows are omitted; horizontal offset is coupled to outward boundary bias",
+          "Frame resampling excludes common systematic errors in edge selection and camera calibration",
+          "Front-face outline initialized from earlier IR measurements; mm lengths assume 30 mm print pitch",
+          "New IR outlines were visually seeded and refined with raw intensity gradients; thickness pose from four outline corners is approximate",
+          "Three cropped close-up boards and outlines with inconsistent full-face geometry are annotated but excluded from mapping",
+          "Isolated edge samples rejected by independent IR/depth smooth-curve residuals (1 / 1.25 px), before fitting the mapping"
+        ],
+        "provenance": [
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/ir-depth-combined-20261005/ir-depth-grid-candidate.json",
+            "sha256": "2594938173f38ff608bded66e92daad23a1faf42f4fc81f19f00876870bb0916"
+          },
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/ir-depth-combined-20261005/front-plane-assessment/mapping-assessment.json",
+            "sha256": "3ec5df59ac06cc35d40856071a427cc22d3f211205aa0d1e06552249d9ca974c"
+          },
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/ir-depth-combined-20261005/front-plane-assessment/observations.json",
+            "sha256": "e4dfc356b174df233a85c58a387b4f8cd5a39245a8080ce0abe7fd0f9a5919eb"
+          }
+        ]
+      },
+      "depth_encoding": {
+        "size": [
+          640,
+          480
+        ],
+        "storage": "uint16",
+        "meaning": "11-bit raw disparity",
+        "invalid_value": 2047,
+        "metric_conversion": "raw_depth_to_mm; device factory inverse disparity with accepted board-checked scale correction",
+        "factory_raw_to_mm_lut": "../rgb-ir-depth-20261005/factory/rgb-medium-raw-to-mm.bin",
+        "lut_encoding": "Selected LUT: 2048 little-endian uint16 entries, round to nearest millimetre; reject nonphysical/out-of-range codes. Archived factory LUT contains unguarded entries outside its physical domain.",
+        "metric_quantity": "Axial Z in the IR camera coordinate frame, millimetres",
+        "selected_raw_to_mm_lut": "raw-to-mm.bin",
+        "metric_invalid_value": 0
+      },
+      "ir_encoding": {
+        "storage": "uint16",
+        "meaning": "Infrared brightness",
+        "native_10bit_recovery": "stored_value >> 6"
+      },
+      "factory_check": {
+        "device_reported_nominal_baseline_mm": 23,
+        "library_override_baseline_mm": 24,
+        "valid_rgb_size": [
+          640,
+          480
+        ],
+        "high_res_registration_query_valid": false,
+        "notes": "Equivalent rigid approximation to the complete VGA factory polynomial mapping and depth shift, under measured intrinsics and accepted grid offset; not EEPROM R/T or independent distance validation",
+        "report": "../ir-depth-combined-20261005/factory-crosscheck.json",
+        "equivalent_horizontal_translation_mm_with_final_grid": 25.75175173335703,
+        "equivalent_rigid_T_mm_with_final_grid": [
+          -25.75175173335703,
+          0.1207927647105552,
+          -1.9159097599411639
+        ],
+        "mapping_fit_rms_vga_px": 0.8187342043109584,
+        "historical_report": "../rgb-ir-depth-20261005/factory/comparison.txt"
+      },
+      "raw_depth_to_mm": {
+        "schema_version": 1,
+        "status": "final",
+        "selected_model": "factory_scale",
+        "input": {
+          "mode": "FREENECT_DEPTH_11BIT",
+          "storage": "uint16",
+          "encoded_code_range": [
+            0,
+            2047
+          ],
+          "invalid_value": 2047
+        },
+        "output": {
+          "quantity": "IR-camera axial Z",
+          "units": "millimetres",
+          "invalid_value": 0
+        },
+        "factory_inverse_metres": {
+          "a_per_code": -0.002894444388888889,
+          "b": 3.153230511027778,
+          "formula": "Z_mm = 1000 / (a_per_code * raw + b)"
+        },
+        "scale": 1.0089130025175321,
+        "formula": "Z_mm = scale * 1000 / (a_per_code * raw + b)",
+        "equivalent_inverse_metres": {
+          "a_per_code": -0.0028688741067529173,
+          "b": 3.1253740443026787,
+          "formula": "Z_mm = 1000 / (a_per_code * raw + b)"
+        },
+        "validity": "Raw code in 0..2047 and not 2047; factory denominator > 0; corrected 0 < Z_mm < 10000. Otherwise output 0. Raw code 0 is not the invalid sentinel.",
+        "lookup_table": {
+          "file": "raw-to-mm.bin",
+          "encoding": "2048 little-endian uint16 entries, indexed by raw code; nearest whole millimetre; invalid output 0",
+          "path": "/Users/sasha/hobby/xbox360/calibration/final/raw-to-mm.bin",
+          "sha256": "41c5dcc8ebd9a0a08d52c27fff0eade50582e7fcbba83991eacda6443fe65f57"
+        },
+        "camera_coordinates": "IR optical camera frame; x right, y down, Z forward; millimetres",
+        "training_frames": 16,
+        "training_datasets": {
+          "old": 12,
+          "new": 4
+        },
+        "samples": 34172,
+        "reference_z_range_mm": [
+          805.3857309608535,
+          1612.6507192340725
+        ],
+        "observed_raw_range": [
+          654,
+          875
+        ],
+        "validation": {
+          "factory": {
+            "absolute_error_mm": {
+              "count": 34172,
+              "rms": 11.688223354621629,
+              "median": 9.821443363584535,
+              "p95": 20.419750649896912,
+              "maximum": 40.831295106019525
+            },
+            "signed_mean_mm": -9.780823989034921,
+            "signed_median_mm": -9.74212532028298
+          },
+          "corrected": {
+            "absolute_error_mm": {
+              "count": 34172,
+              "rms": 6.5911300549632434,
+              "median": 4.268698361358474,
+              "p95": 12.789903540560026,
+              "maximum": 37.531809860576686
+            },
+            "signed_mean_mm": -0.25015632824089223,
+            "signed_median_mm": -0.29518195038008344
+          },
+          "equal_frame_corrected_rms_mm": 6.871089451968674,
+          "scale_frame_bootstrap_percentile_95": [
+            1.0076835689581094,
+            1.0105122081548283
+          ],
+          "leave_dataset_out": {
+            "old": {
+              "training_parameters": [
+                1.0136922274577096
+              ],
+              "heldout": {
+                "absolute_error_mm": {
+                  "count": 24197,
+                  "rms": 9.096286430430437,
+                  "median": 6.631930750717402,
+                  "p95": 16.67562666273889,
+                  "maximum": 44.12465890932208
+                },
+                "signed_mean_mm": 6.866918309843947,
+                "signed_median_mm": 6.487921571296056
+              }
+            },
+            "new": {
+              "training_parameters": [
+                1.0075620435230654
+              ],
+              "heldout": {
+                "absolute_error_mm": {
+                  "count": 9975,
+                  "rms": 8.288545050124508,
+                  "median": 7.100248171684825,
+                  "p95": 14.155664865979949,
+                  "maximum": 23.010074505746502
+                },
+                "signed_mean_mm": -6.251540512328022,
+                "signed_median_mm": -6.873841272717073
+              }
+            }
+          },
+          "outline_only_check": {
+            "frames": 14,
+            "factory": {
+              "absolute_error_mm": {
+                "count": 20165,
+                "rms": 19.105762469829763,
+                "median": 17.926586816838835,
+                "p95": 29.62728725509173,
+                "maximum": 54.18570977688546
+              },
+              "signed_mean_mm": -17.204269925236872,
+              "signed_median_mm": -17.926586816838835
+            },
+            "corrected": {
+              "absolute_error_mm": {
+                "count": 20165,
+                "rms": 9.753415036434362,
+                "median": 7.713123474473377,
+                "p95": 17.419867627532813,
+                "maximum": 38.264184670475515
+              },
+              "signed_mean_mm": -5.37181146094718,
+              "signed_median_mm": -6.245860601736695
+            }
+          }
+        },
+        "measurement_method": "IR ChArUco pose supplies metric front-plane Z; sample printed-board interior using accepted depth-to-IR mapping and fixed IR intrinsics. Equal-frame robust scale fit; leave-one-frame-out validation; outline-only poses excluded from training.",
+        "board_scale": "Metric poses use accepted 30 mm ChArUco pitch; recovered physical outline agrees with independently supplied board sides. Four side lengths alone do not fix the board quadrilateral.",
+        "selection_reason": "One multiplicative correction preserves the factory reciprocal-disparity model and lowers held-out error. Offset and two-parameter inverse models have similar errors; extra degrees of freedom are not justified.",
+        "limitations": [
+          "Accuracy is measured relative to the accepted IR board poses, not an independent laser/tape distance from the lens",
+          "Shared print scale, intrinsic, and planar-pose errors are absent from frame-bootstrap confidence",
+          "Old/new capture sessions disagree by several millimetres even after correction",
+          "Outline-only poses are checked separately and never train the conversion",
+          "Measured range is about 0.8\u20131.6 m. Errors outside this range were not measured",
+          "No per-pixel disparity correction is fitted; local pattern and surface-dependent errors remain"
+        ],
+        "provenance": [
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/depth-metric-20261005/assessment.json",
+            "sha256": "2724fe08f8b4ea6265c391ef9ebd5aa862bbfe88cb199037a5c56e4b2d039c97"
+          },
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/depth-metric-20261005/board-depth-samples.npz",
+            "sha256": "b30f34c11c766f5b81ae9f3de7b9c8279bf6245401c12b7cd187c9d20acbed61"
+          },
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/rgb-ir-depth-20261005/factory/rgb-medium-parameters.json",
+            "sha256": "a3c957ce1a70eb78d44eda8605af7a0fd6b9f584baf7240323821d3b7b4e12c6"
+          },
+          {
+            "path": "/Users/sasha/hobby/xbox360/calibration/rgb-ir-depth-20261005/factory/rgb-medium-raw-to-mm.bin",
+            "sha256": "6e5098a3c88645d15dc815478799c2e61c7bb97679d31d292ba775841b837f7a"
+          }
+        ]
+      },
+      "physical_board": {
+        "top": 845,
+        "bottom": 834,
+        "right": 599,
+        "left": 598,
+        "thickness": 12
+      }
+    },
+    "rgb_mode": "rgb_high_res",
+    "rgb_exposure_mode": "manual",
+    "rgb_shutter_speed": 120,
+    "rgb_gain": 8,
+    "gravity_assistance": true,
+    "record_full_camera_streams": true,
+    "accelerometer_calibration": {
+      "id": "main",
+      "verified": false,
+      "bias_m_s2": [
+        0.05175090380377041,
+        -0.20245328948184624,
+        0.17920781578860145
+      ],
+      "scale": [
+        0.9954925124186617,
+        1.0014803121020803,
+        0.9938719416472468
+      ],
+      "sensor_to_camera": [
+        [
+          -0.9998491873702026,
+          0.013008088745734003,
+          0.011506178441530972
+        ],
+        [
+          -0.013284822303517116,
+          -0.999616178940808,
+          -0.02431066219052287
+        ],
+        [
+          0.01118552687669233,
+          -0.02445985337161401,
+          0.9996382343435698
+        ]
+      ],
+      "evidence": {
+        "observations": [
+          {
+            "acceleration_m_s2": [
+              0.05851411869053374,
+              9.611452322206091,
+              0.8216828172875345
+            ],
+            "up_camera": [
+              0,
+              -1,
+              0
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.9482842084980803,
+              "scatter_rms_m_s2": 0.12425120851685777,
+              "peak_deviation_m_s2": 0.22277692423621376,
+              "linear_drift_m_s2": 0.06536052193442951,
+              "block_shift_m_s2": 0.05922952134996344
+            },
+            "pose": "upright"
+          },
+          {
+            "acceleration_m_s2": [
+              0.11363938880825677,
+              -9.956663030156424,
+              0.10460245928076117
+            ],
+            "up_camera": [
+              0,
+              1,
+              0
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.9229054164898116,
+              "scatter_rms_m_s2": 0.10338055816892512,
+              "peak_deviation_m_s2": 0.2759462537269216,
+              "linear_drift_m_s2": 0.02129274840274561,
+              "block_shift_m_s2": 0.028660837530265472
+            },
+            "pose": "upside_down"
+          },
+          {
+            "acceleration_m_s2": [
+              -9.825992504930973,
+              0.303032577251808,
+              0.14783200197238652
+            ],
+            "up_camera": [
+              1,
+              0,
+              0
+            ],
+            "capture_summary": {
+              "sample_count": 52,
+              "rejected_reads": 0,
+              "duration_s": 2.933040687996254,
+              "scatter_rms_m_s2": 0.11045853757560906,
+              "peak_deviation_m_s2": 0.2306273138584169,
+              "linear_drift_m_s2": 0.02294537035325324,
+              "block_shift_m_s2": 0.023588257366446385
+            },
+            "pose": "right_up"
+          },
+          {
+            "acceleration_m_s2": [
+              9.884367593936467,
+              -0.2717856555394291,
+              -0.00022592323818738857
+            ],
+            "up_camera": [
+              -1,
+              0,
+              0
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.939417437497468,
+              "scatter_rms_m_s2": 0.17747560994458628,
+              "peak_deviation_m_s2": 0.3342260005995755,
+              "linear_drift_m_s2": 0.02614952508693929,
+              "block_shift_m_s2": 0.04587888315941302
+            },
+            "pose": "left_up"
+          },
+          {
+            "acceleration_m_s2": [
+              0.19497175455571683,
+              -0.5740709482341562,
+              9.851834647637476
+            ],
+            "up_camera": [
+              0,
+              0,
+              1
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.941937333001988,
+              "scatter_rms_m_s2": 0.12143158635480841,
+              "peak_deviation_m_s2": 0.2165770911366859,
+              "linear_drift_m_s2": 0.05670761448678309,
+              "block_shift_m_s2": 0.06699527095488789
+            },
+            "pose": "lenses_up"
+          },
+          {
+            "acceleration_m_s2": [
+              -0.1149949282373811,
+              -0.32668500241896464,
+              -9.85047910820835
+            ],
+            "up_camera": [
+              0,
+              0,
+              -1
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.945222875496256,
+              "scatter_rms_m_s2": 0.15790692974106427,
+              "peak_deviation_m_s2": 0.2849100749586987,
+              "linear_drift_m_s2": 0.04646847873186911,
+              "block_shift_m_s2": 0.06305554873307115
+            },
+            "pose": "lenses_down"
+          }
+        ],
+        "validation": [
+          {
+            "acceleration_m_s2": [
+              0.013555394291243352,
+              9.587956305434604,
+              0.26658942106111905
+            ],
+            "up_camera": [
+              0,
+              -1,
+              0
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.9551633539958857,
+              "scatter_rms_m_s2": 0.16830083354291844,
+              "peak_deviation_m_s2": 0.2849321094140176,
+              "linear_drift_m_s2": 0.06722228407167148,
+              "block_shift_m_s2": 0.05470982058840337
+            },
+            "pose": "upright"
+          },
+          {
+            "acceleration_m_s2": [
+              -9.83150155620062,
+              -0.14617233510724062,
+              0.10528022899532334
+            ],
+            "up_camera": [
+              1,
+              0,
+              0
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.9429432909964817,
+              "scatter_rms_m_s2": 0.10794261467167185,
+              "peak_deviation_m_s2": 0.254350638612937,
+              "linear_drift_m_s2": 0.04205888387178014,
+              "block_shift_m_s2": 0.02419381925861972
+            },
+            "pose": "right_up"
+          },
+          {
+            "acceleration_m_s2": [
+              0.1610832688276085,
+              0.20400868408321254,
+              9.807101846476373
+            ],
+            "up_camera": [
+              0,
+              0,
+              1
+            ],
+            "capture_summary": {
+              "sample_count": 53,
+              "rejected_reads": 0,
+              "duration_s": 2.944483916500758,
+              "scatter_rms_m_s2": 0.137835025154083,
+              "peak_deviation_m_s2": 0.23349032773700942,
+              "linear_drift_m_s2": 0.1734298753536592,
+              "block_shift_m_s2": 0.12829445420428554
+            },
+            "pose": "lenses_up"
+          }
+        ],
+        "report": {
+          "algorithm": "stationary-affine-polar-v1",
+          "fit": {
+            "rms_m_s2": 0.3244472786382087,
+            "max_m_s2": 0.41954962374053195,
+            "max_angle_deg": 2.4335392026764913
+          },
+          "reference_mode": "approximate",
+          "acceptance_limits": {
+            "max_m_s2": 1.0,
+            "max_angle_deg": 6
+          },
+          "validation": {
+            "rms_m_s2": 0.43419774516946696,
+            "max_m_s2": 0.6880236431553913,
+            "max_angle_deg": 3.8373546429328393
+          }
+        },
+        "reference": "Approximate prescribed camera directions; independent alignment not confirmed",
+        "reference_checked": false,
+        "device": {
+          "device_index": 0,
+          "capture_generation": "a37e0b8f025d413bad94f30154b635c5"
+        }
+      }
+    },
+    "orientation_mode": "auto"
+  },
+  "versions": {
+    "python": "3.12.7",
+    "open3d": "0.20.0",
+    "opencv": "5.0.0",
+    "numpy": "2.5.3"
+  },
+  "device": "CUDA:0",
+  "native_extension": {
+    "sha256": "3f9f09df7c7b44a580d838d8d3b8e8f10c71462f6e90b9e78fc2fde212027313",
+    "changed_during_profile": false
+  },
+  "omp_threads": "4",
+  "recorded_original_finish_s": 537.05,
+  "finish_s": 51.892679800017504,
+  "accepted_cameras": 98,
+  "mesh_built": true,
+  "geometry": {
+    "vertices": 389602,
+    "triangles": 768384,
+    "bounds_m": [
+      [
+        -1.5649999380111694,
+        -1.4499999284744263,
+        0.5399999618530273
+      ],
+      [
+        1.107446551322937,
+        0.73499995470047,
+        2.438295602798462
+      ]
+    ],
+    "surface_positions_1um_sha256": "465ad5bf81baeb37046530556ce71e7853e8dceed9fbdbad6177b69b8433a758"
+  },
+  "tag_priority": {
+    "attempted": true,
+    "applied": true,
+    "reason": "tag_map_and_measured_gap_recovery_validated",
+    "repeated_identities": [
+      {
+        "dictionary": "DICT_APRILTAG_25h9",
+        "id": 8
+      },
+      {
+        "dictionary": "DICT_APRILTAG_25h9",
+        "id": 9
+      },
+      {
+        "dictionary": "DICT_APRILTAG_25h9",
+        "id": 10
+      },
+      {
+        "dictionary": "DICT_APRILTAG_25h9",
+        "id": 11
+      }
+    ],
+    "shared_label_pairs": 2032,
+    "pose_pairs": 725,
+    "initial_component_sizes": [
+      95,
+      1,
+      1,
+      1
+    ],
+    "tag_supported_cameras": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      17,
+      18,
+      20,
+      22,
+      23,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      41,
+      43,
+      44,
+      45,
+      46,
+      47,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      60,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      74,
+      75,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      95,
+      96,
+      97
+    ],
+    "final_measurement_component_sizes": [
+      98
+    ],
+    "recovered_cameras": [
+      16,
+      19,
+      21,
+      24,
+      39,
+      40,
+      42,
+      48,
+      59,
+      61,
+      71,
+      72,
+      73,
+      76,
+      86,
+      94,
+      83
+    ],
+    "validation": {
+      "accepted": true,
+      "policy": "dominant_static_depth_with_local_surface_conflicts",
+      "maximum_mean_free_space_fraction": 0.08,
+      "tested_surface_projections": 31937255,
+      "free_space_fraction": 0.024215262081853935,
+      "conflicting_view_pairs": 233,
+      "worst_pairs": [
+        {
+          "source": 42,
+          "target": 62,
+          "tested": 1142,
+          "free_space_fraction": 0.6190893169877408,
+          "depth_agreement": 0.3809106830122592
+        },
+        {
+          "source": 42,
+          "target": 60,
+          "tested": 920,
+          "free_space_fraction": 0.5858695652173913,
+          "depth_agreement": 0.4141304347826087
+        },
+        {
+          "source": 42,
+          "target": 63,
+          "tested": 1093,
+          "free_space_fraction": 0.5727355901189387,
+          "depth_agreement": 0.3934126258005489
+        },
+        {
+          "source": 43,
+          "target": 62,
+          "tested": 1410,
+          "free_space_fraction": 0.5354609929078015,
+          "depth_agreement": 0.4645390070921986
+        },
+        {
+          "source": 43,
+          "target": 60,
+          "tested": 1231,
+          "free_space_fraction": 0.5207148659626321,
+          "depth_agreement": 0.479285134037368
+        },
+        {
+          "source": 41,
+          "target": 62,
+          "tested": 1258,
+          "free_space_fraction": 0.5158982511923689,
+          "depth_agreement": 0.29809220985691576
+        },
+        {
+          "source": 43,
+          "target": 63,
+          "tested": 1256,
+          "free_space_fraction": 0.5031847133757962,
+          "depth_agreement": 0.48089171974522293
+        },
+        {
+          "source": 42,
+          "target": 64,
+          "tested": 833,
+          "free_space_fraction": 0.4837935174069628,
+          "depth_agreement": 0.4177671068427371
+        },
+        {
+          "source": 41,
+          "target": 60,
+          "tested": 1010,
+          "free_space_fraction": 0.4772277227722772,
+          "depth_agreement": 0.42475247524752474
+        },
+        {
+          "source": 41,
+          "target": 63,
+          "tested": 1286,
+          "free_space_fraction": 0.4510108864696734,
+          "depth_agreement": 0.29237947122861585
+        },
+        {
+          "source": 40,
+          "target": 62,
+          "tested": 1375,
+          "free_space_fraction": 0.43563636363636365,
+          "depth_agreement": 0.32436363636363635
+        },
+        {
+          "source": 42,
+          "target": 67,
+          "tested": 871,
+          "free_space_fraction": 0.42824339839265213,
+          "depth_agreement": 0.4730195177956372
+        },
+        {
+          "source": 39,
+          "target": 62,
+          "tested": 1356,
+          "free_space_fraction": 0.41814159292035397,
+          "depth_agreement": 0.29129793510324486
+        },
+        {
+          "source": 44,
+          "target": 62,
+          "tested": 1864,
+          "free_space_fraction": 0.411480686695279,
+          "depth_agreement": 0.5842274678111588
+        },
+        {
+          "source": 40,
+          "target": 60,
+          "tested": 1097,
+          "free_space_fraction": 0.4029170464904284,
+          "depth_agreement": 0.4585232452142206
+        },
+        {
+          "source": 42,
+          "target": 65,
+          "tested": 643,
+          "free_space_fraction": 0.39502332814930013,
+          "depth_agreement": 0.447900466562986
+        },
+        {
+          "source": 44,
+          "target": 60,
+          "tested": 1802,
+          "free_space_fraction": 0.3873473917869034,
+          "depth_agreement": 0.6120976692563818
+        },
+        {
+          "source": 40,
+          "target": 63,
+          "tested": 1413,
+          "free_space_fraction": 0.3871196036801132,
+          "depth_agreement": 0.29016277423920733
+        },
+        {
+          "source": 41,
+          "target": 64,
+          "tested": 1044,
+          "free_space_fraction": 0.38026819923371646,
+          "depth_agreement": 0.289272030651341
+        },
+        {
+          "source": 45,
+          "target": 62,
+          "tested": 1961,
+          "free_space_fraction": 0.37327893931667516,
+          "depth_agreement": 0.6241713411524732
+        },
+        {
+          "source": 43,
+          "target": 64,
+          "tested": 1021,
+          "free_space_fraction": 0.3702252693437806,
+          "depth_agreement": 0.5220372184133203
+        },
+        {
+          "source": 42,
+          "target": 68,
+          "tested": 790,
+          "free_space_fraction": 0.36835443037974686,
+          "depth_agreement": 0.5594936708860759
+        },
+        {
+          "source": 39,
+          "target": 63,
+          "tested": 1559,
+          "free_space_fraction": 0.35471456061577933,
+          "depth_agreement": 0.27196921103271327
+        },
+        {
+          "source": 44,
+          "target": 63,
+          "tested": 1607,
+          "free_space_fraction": 0.3472308649657747,
+          "depth_agreement": 0.6291225886745488
+        },
+        {
+          "source": 45,
+          "target": 60,
+          "tested": 1922,
+          "free_space_fraction": 0.3376690946930281,
+          "depth_agreement": 0.6612903225806451
+        },
+        {
+          "source": 45,
+          "target": 63,
+          "tested": 1695,
+          "free_space_fraction": 0.31976401179941005,
+          "depth_agreement": 0.6637168141592921
+        },
+        {
+          "source": 40,
+          "target": 64,
+          "tested": 1168,
+          "free_space_fraction": 0.3184931506849315,
+          "depth_agreement": 0.2902397260273973
+        },
+        {
+          "source": 39,
+          "target": 60,
+          "tested": 946,
+          "free_space_fraction": 0.3150105708245243,
+          "depth_agreement": 0.5380549682875264
+        },
+        {
+          "source": 42,
+          "target": 61,
+          "tested": 1380,
+          "free_space_fraction": 0.2985507246376812,
+          "depth_agreement": 0.6275362318840579
+        },
+        {
+          "source": 39,
+          "target": 64,
+          "tested": 1290,
+          "free_space_fraction": 0.29457364341085274,
+          "depth_agreement": 0.2534883720930233
+        }
+      ]
+    },
+    "elapsed_s": 19.14100000000326,
+    "corner_refinement": {
+      "applied": true,
+      "landmarks": 52,
+      "feature_observations": 1540,
+      "invalid_identity_unions": 0,
+      "gravity_views": 0,
+      "nonlocal_depth_pairs": 0,
+      "depth_constraints": 0,
+      "initial_cost": 9484.744432795753,
+      "final_cost": 2643.4614623869365,
+      "shared_depth_planes": 0,
+      "plane_observations": 0,
+      "budget_limited": false,
+      "elapsed_s": 0.375,
+      "apriltag_landmarks": 52,
+      "apriltag_observations": 1540,
+      "globally_observed_cameras": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        47,
+        48,
+        49,
+        50,
+        91,
+        92,
+        93,
+        97
+      ],
+      "weights_are_calibrated_probabilities": false
+    },
+    "depth_refinement": {
+      "applied": true,
+      "landmarks": 52,
+      "feature_observations": 1540,
+      "invalid_identity_unions": 0,
+      "gravity_views": 0,
+      "nonlocal_depth_pairs": 392,
+      "depth_constraints": 39520,
+      "initial_cost": 36747.39735689931,
+      "final_cost": 13297.397665356217,
+      "shared_depth_planes": 4,
+      "plane_observations": 12240,
+      "budget_limited": false,
+      "elapsed_s": 1.5309999999881256,
+      "apriltag_landmarks": 52,
+      "apriltag_observations": 1540,
+      "globally_observed_cameras": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        97
+      ],
+      "weights_are_calibrated_probabilities": false
+    },
+    "final_measured_recovery_cameras": [
+      16,
+      19,
+      21,
+      24,
+      39,
+      40,
+      42,
+      48,
+      59,
+      61,
+      71,
+      72,
+      73,
+      76,
+      83,
+      85,
+      86,
+      94
+    ]
+  },
+  "ordinary_feature_views_extracted": [
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    47,
+    48,
+    58,
+    59,
+    60,
+    61,
+    70,
+    71,
+    72,
+    73,
+    75,
+    76,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    93,
+    94
+  ],
+  "saved_mesh_comparison": {
+    "reference_is_ground_truth": false,
+    "symmetric_vertex_distance_m": {
+      "median": 0.003357410430908203,
+      "p95": 0.010042462074957688,
+      "max": 0.062456778234339864
+    },
+    "camera_position_difference_m": {
+      "median": 0.017319465996519047,
+      "p95": 0.03597923830465121,
+      "max": 0.042321612684463626
+    },
+    "reference_vertices": 387087,
+    "new_vertices": 389209
+  },
+  "live_before": {
+    "elapsed_s": 29.543677999987267,
+    "accepted": 96,
+    "tag_registrations": 66,
+    "tracking_methods": {
+      "reference": 1,
+      "keyframe+visual": 92,
+      "icp": 3
+    },
+    "stages": {
+      "depth_filter": {
+        "total_ms": 2128.724699781742,
+        "frames": 98,
+        "p50_ms": 21.508049991098233,
+        "p95_ms": 22.87358999165008
+      },
+      "apriltag_detection": {
+        "total_ms": 495.62839991995133,
+        "frames": 98,
+        "p50_ms": 4.639699996914715,
+        "p95_ms": 7.346905005397269
+      },
+      "registration_cloud": {
+        "total_ms": 2112.402600061614,
+        "frames": 98,
+        "p50_ms": 21.006700000725687,
+        "p95_ms": 30.994205008028064
+      },
+      "fusion": {
+        "total_ms": 3480.9049999748822,
+        "frames": 96,
+        "p50_ms": 32.201800000621006,
+        "p95_ms": 40.830850004567765
+      },
+      "model_refresh": {
+        "total_ms": 2512.6099000044633,
+        "frames": 32,
+        "p50_ms": 61.50224999873899,
+        "p95_ms": 143.85735500691226
+      },
+      "tracking": {
+        "total_ms": 18584.917400032282,
+        "frames": 97,
+        "p50_ms": 49.16980001144111,
+        "p95_ms": 613.3065599831751
+      },
+      "tracking_verification": {
+        "total_ms": 97.46240000822581,
+        "frames": 4,
+        "p50_ms": 0.14420000661630183,
+        "p95_ms": 82.52293500117955
+      }
+    },
+    "source_sha256": "2cbba118490579c51a00af729f4578db669299086a93a22dd53d8e8cc5819209",
+    "source_changed": false
+  },
+  "live_after": {
+    "elapsed_s": 30.604817899991758,
+    "accepted": 95,
+    "tag_registrations": 58,
+    "tracking_methods": {
+      "reference": 1,
+      "keyframe+visual": 92,
+      "icp": 2
+    },
+    "stages": {
+      "depth_filter": {
+        "total_ms": 2158.6554001260083,
+        "frames": 98,
+        "p50_ms": 21.595750004053116,
+        "p95_ms": 23.66182000987464
+      },
+      "apriltag_detection": {
+        "total_ms": 1613.4283998399042,
+        "frames": 98,
+        "p50_ms": 15.944550017593428,
+        "p95_ms": 20.09894000075292
+      },
+      "registration_cloud": {
+        "total_ms": 1472.347399831051,
+        "frames": 98,
+        "p50_ms": 14.444499989622273,
+        "p95_ms": 18.369075006921765
+      },
+      "fusion": {
+        "total_ms": 3482.300699863117,
+        "frames": 95,
+        "p50_ms": 34.100100019713864,
+        "p95_ms": 40.747770003508776
+      },
+      "model_refresh": {
+        "total_ms": 1624.4821999571286,
+        "frames": 35,
+        "p50_ms": 16.51679998030886,
+        "p95_ms": 153.93188999441912
+      },
+      "tracking": {
+        "total_ms": 19877.05830007326,
+        "frames": 97,
+        "p50_ms": 51.210799982072785,
+        "p95_ms": 643.7120599905008
+      },
+      "tracking_verification": {
+        "total_ms": 238.7452000111807,
+        "frames": 4,
+        "p50_ms": 57.015800004592165,
+        "p95_ms": 122.98328500473872
+      }
+    },
+    "source_sha256": "ce8a86f0930e77f6c2c080cb690f71fc634acc79fb8b46e6053d8202316a4f2c",
+    "source_changed": false
+  },
+  "validation": {
+    "tests_run": 85,
+    "passed": 84,
+    "existing_failure": {
+      "name": "test_continuous_motion_has_metric_accuracy_and_seeds_sparse_fusion",
+      "baseline_and_new_rms_m": 0.0598798477557648,
+      "required_rms_m": 0.01
+    }
+  },
+  "limitations": [
+    "Saved mesh is not ground truth.",
+    "Recorded original server build versus isolated cold replay; both exclude input decoding.",
+    "Live duplicate quarantine changes accepted evidence, so timings do not isolate geometry deferral.",
+    "Sparse/disconnected/failed tag maps fall back to general recovery."
+  ]
+}

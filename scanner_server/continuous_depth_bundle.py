@@ -113,6 +113,7 @@ def expand_visual_measurements(poses, edges, motion):
     extended = MotionEvidence(metadata, motion.camera, appearance, tracked=tracked,
                               gravity=any(g is not None for g in motion.gravity),
                               visual=motion.visual, journal=motion.journal)
+    extended.tag_frames = getattr(motion, "tag_frames", ())
     direct = {}
     for node in expanded:
         feature = tracked[node]

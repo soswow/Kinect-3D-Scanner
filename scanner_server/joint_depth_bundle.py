@@ -74,6 +74,29 @@ def landmark_observations(poses, edges, motion, *, features_per_edge=80):
             cameras.append(view); identities.append(landmark)
             pixels.append(pixel); depths.append(point[2])
         landmarks.append(np.median(world, axis=0))
+    tag_start = len(cameras)
+    tag_keys = []
+    frames = getattr(motion, "tag_frames", ())
+    groups = {}
+    for view in poses:
+        if view >= len(frames):
+            continue
+        for key, tag in frames[view].tags.items():
+            for corner in range(4):
+                groups.setdefault((key, corner), []).append((view, tag.points[corner], tag.pixels[corner]))
+    for (key, corner), group in sorted(groups.items()):
+        if len(group) < 2:
+            continue
+        landmark = len(landmarks)
+        world = []
+        for view, point, pixel in group:
+            world.append(poses[view][:3, :3] @ point + poses[view][:3, 3])
+            cameras.append(view); identities.append(landmark)
+            pixels.append(pixel); depths.append(point[2]); tag_keys.append(key)
+        landmarks.append(np.median(world, axis=0))
+    motion.tag_observation_start = tag_start
+    motion.tag_observation_keys = tag_keys
+    motion.tag_landmark_count = sum(len(group) >= 2 for group in groups.values())
     return (np.asarray(cameras, int), np.asarray(identities, int),
             np.asarray(pixels).reshape(-1, 2), np.asarray(depths),
             np.asarray(landmarks).reshape(-1, 3), len(invalid))
@@ -137,6 +160,8 @@ def refine_motion_graph(poses, edges, motion, *, views=None, max_seconds=60., ma
         return poses, {"applied": False, "reason": "No fixed measured RGB-D identities"}
     owners = np.array([ids[i] for i in owners])
     depth_scale = .008 + .002*depths**2
+    pixel_scale = np.full(len(owners), 1.5)
+    pixel_scale[motion.tag_observation_start:] = .75
     priors = []
     for edge in edges:
         a, b = edge["source"], edge["target"]
@@ -257,12 +282,12 @@ def refine_motion_graph(poses, edges, motion, *, views=None, max_seconds=60., ma
         local = np.einsum("nji,nj->ni", rotations[owners], delta)
         z = np.maximum(local[:, 2], .05)
         projected = local[:, :2]/z[:, None]*[motion.camera.fx, motion.camera.fy]+[motion.camera.cx, motion.camera.cy]
-        feature_errors = np.column_stack(((projected-pixels)/1.5, (local[:, 2]-depths)/depth_scale))
+        feature_errors = np.column_stack(((projected-pixels)/pixel_scale[:, None], (local[:, 2]-depths)/depth_scale))
         image_jac = np.zeros((len(owners), 3, 3))
-        image_jac[:, 0, 0] = motion.camera.fx/z/1.5
-        image_jac[:, 1, 1] = motion.camera.fy/z/1.5
-        image_jac[:, 0, 2] = -motion.camera.fx*local[:, 0]/z**2/1.5
-        image_jac[:, 1, 2] = -motion.camera.fy*local[:, 1]/z**2/1.5
+        image_jac[:, 0, 0] = motion.camera.fx/z/pixel_scale
+        image_jac[:, 1, 1] = motion.camera.fy/z/pixel_scale
+        image_jac[:, 0, 2] = -motion.camera.fx*local[:, 0]/z**2/pixel_scale
+        image_jac[:, 1, 2] = -motion.camera.fy*local[:, 1]/z**2/pixel_scale
         image_jac[local[:, 2] <= .05, :2, 2] = 0.
         image_jac[:, 2, 2] = 1/depth_scale
         local_camera_jac = np.concatenate((np.einsum("njba,nb->naj", dr[owners], delta),
@@ -345,11 +370,32 @@ def refine_motion_graph(poses, edges, motion, *, views=None, max_seconds=60., ma
         pose = np.eye(4); pose[:3, :3] = rotations[i]; pose[:3, 3] = translations[i]
         refined[node] = pose
     refined[nodes[0]] = poses[nodes[0]].copy()
+    projected = local[:, :2]/np.maximum(local[:, 2, None], .05)*[motion.camera.fx, motion.camera.fy]+[motion.camera.cx, motion.camera.cy]
+    measured = np.column_stack(((pixels-[motion.camera.cx, motion.camera.cy])
+                                /[motion.camera.fx, motion.camera.fy]*depths[:, None], depths))
+    pixel_error = np.linalg.norm(projected-pixels, axis=1)
+    good = (local[:, 2] > .05) & (pixel_error <= 3) & (np.linalg.norm(local-measured, axis=1) <= .025)
+    tag_groups = {}
+    for row, key in enumerate(motion.tag_observation_keys, motion.tag_observation_start):
+        tag_groups.setdefault((nodes[owners[row]], key), []).append(row)
+    tag_support = {}
+    for (view, key), rows in tag_groups.items():
+        support = tag_support.setdefault(view, {"observed_tags": 0, "inlier_tags": 0, "inlier_identities": []})
+        support["observed_tags"] += 1
+        if len(rows) == 4 and good[rows].all():
+            support["inlier_tags"] += 1
+            support["inlier_identities"].append({"dictionary": key[0], "id": key[1]})
+    for support in tag_support.values():
+        support["support_fraction"] = support["inlier_tags"] / support["observed_tags"]
+        support["accepted"] = support["inlier_tags"] >= 1 and support["support_fraction"] >= .65
     return refined, {"applied": best[1] < initial_cost, "landmarks": len(initial_landmarks),
                      "feature_observations": len(owners), "invalid_identity_unions": invalid_unions,
                      "gravity_views": len(gravity_ids), "nonlocal_depth_pairs": len(depth_pairs),
                      "depth_constraints": len(da), "initial_cost": initial_cost, "final_cost": best[1],
                      "shared_depth_planes": len(planes), "plane_observations": len(plane_owners),
                      "budget_limited": budget_limited, "elapsed_s": time.monotonic()-started,
+                     "apriltag_landmarks": motion.tag_landmark_count,
+                     "apriltag_observations": len(motion.tag_observation_keys),
+                     "apriltag_camera_support": tag_support,
                      "globally_observed_cameras": [nodes[i] for i in determined],
                      "weights_are_calibrated_probabilities": False}

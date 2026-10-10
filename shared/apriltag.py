@@ -26,12 +26,15 @@ class TagFrame:
     ambiguous: int = 0
     reason: str = ""
     detections: list = field(default_factory=list, repr=False)
+    repeated: set = field(default_factory=set, repr=False)
 
     def report(self):
         return {"detected": self.detected, "usable": len(self.tags),
                 "ambiguous": self.ambiguous, "reason": self.reason,
                 "identities": [{"dictionary": name, "id": identity}
-                               for name, identity in sorted(self.tags)]}
+                               for name, identity in sorted(self.tags)],
+                "repeated_identities": [{"dictionary": name, "id": identity}
+                                        for name, identity in sorted(self.repeated)]}
 
     def preview(self):
         """Local display data, including detections rejected for tracking."""
@@ -54,7 +57,7 @@ class AprilTagDetector:
         self.detectors = [(name, aruco.ArucoDetector(
             aruco.getPredefinedDictionary(getattr(aruco, name)), parameters)) for name in names]
 
-    def detect(self, rgb, depth, camera, *, synchronized=True):
+    def decoded(self, rgb):
         gray = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2GRAY)
         observations = []
         for name, detector in self.detectors:
@@ -62,6 +65,16 @@ class AprilTagDetector:
             if ids is not None:
                 observations.extend(((name, int(identity)), np.asarray(pixels, float).reshape(4, 2))
                                     for identity, pixels in zip(ids.ravel(), corners))
+        return observations
+
+    def repeated_identities(self, rgb):
+        counts = {}
+        for key, _ in self.decoded(rgb):
+            counts[key] = counts.get(key, 0) + 1
+        return {key for key, count in counts.items() if count > 1}
+
+    def detect(self, rgb, depth, camera, *, synchronized=True):
+        observations = self.decoded(rgb)
         # A repeated printed ID cannot identify a unique physical landmark.
         # A quadrilateral decoded by multiple families is ambiguous as well.
         counts = {}
@@ -74,7 +87,8 @@ class AprilTagDetector:
                 if min(np.max(np.linalg.norm(a - np.roll(b, shift, axis=0), axis=1))
                        for shift in range(4)) < 5:
                     ambiguous.update((i, j))
-        result = TagFrame(detected=len(observations), ambiguous=len(ambiguous), detections=observations)
+        result = TagFrame(detected=len(observations), ambiguous=len(ambiguous), detections=observations,
+                          repeated={key for key, count in counts.items() if count > 1})
         if not synchronized:
             result.reason = "RGB/depth timing exceeds 20 ms"
             return result
@@ -87,6 +101,14 @@ class AprilTagDetector:
         if not result.tags:
             result.reason = "No unambiguous tags with measured depth"
         return result
+
+
+def without_repeated(frames):
+    """Quarantine known duplicate family/IDs across views, including hidden copies."""
+    repeated = set().union(*(frame.repeated for frame in frames))
+    return [TagFrame({k: v for k, v in f.tags.items() if k not in repeated},
+                     f.detected, f.ambiguous, f.reason, f.detections, set(f.repeated))
+            for f in frames], repeated
 
 
 def _pairs(source, target):

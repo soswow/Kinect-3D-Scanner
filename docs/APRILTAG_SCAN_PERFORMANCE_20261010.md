@@ -182,3 +182,62 @@ is a later accuracy opportunity after resolving the larger scheduling costs.
 These commands read the archive and write research reports. They neither load a
 project into the running server nor replace its mesh. No client or server
 runtime changes were installed for this analysis.
+
+## Implemented tag priority
+
+The subsequent implementation uses a shared corner map first in depth-mode
+Finish. It fits measured tag landmarks, refines with depth surfaces, and extracts
+ordinary RGB features on demand for cameras whose tags are missing or weak.
+Complete markers rejected by the initial fit do not pull those recovered cameras
+away from their RGB-D measurements. Recovery is bounded; insufficient coverage,
+disconnected final measurements or failed validation invokes the existing broad
+pipeline with tag poses retained as proposals.
+
+Final camera authority requires a connected graph of supported shared markers or
+revalidated RGB/depth connections, followed by the unchanged complete raw-depth
+audit. The raw corner measurements also participate in the general joint fit
+when broad recovery is needed. Repeated family/IDs found in any image are excluded
+throughout server processing; native RGB catches duplicates hidden on the depth
+grid. No IDs are hard-coded.
+
+Cold CUDA Finish replay of the same 98 selected captures took **51.9 seconds**
+and built a mesh from **98/98 cameras**, compared with the recorded server's
+**537.05 seconds**. The compact map/recovery/audit took **19.1 seconds**;
+17 cameras used measured recovery and 44 views required ordinary RGB features.
+The final measurement graph connected all 98 cameras. Sampled free-space
+conflicts were **2.42%**, passing the existing 8% bound (saved result: 1.91%).
+Earlier complete replays took 49.8 and 51.5 seconds. These are single-session
+measurements, not a guarantee for sparse or conflicting tag scenes.
+
+The replay used raw frames and the saved settings, never archived camera poses
+as initializers. Timing excludes imports, ZIP/image decoding, hashing and artifact
+export, as does the recorded server build's already-loaded input timing. The
+summary and provenance are in
+[chest-markers-apriltag-priority.json](benchmarks/chest-markers-apriltag-priority.json).
+The saved mesh is a comparison reference, not ground truth; its median symmetric
+vertex distance from an earlier completed replay was 3.4 mm and p95 was 10 mm.
+
+Live tracking already tried tags before ordinary features and ICP. Successful
+tag tracking now defers source normals and model registration levels, while
+extracting the current preview. Geometry fallback prepares the pending model
+before use. Live measurements on this recording also include the added native
+duplicate checks and changed rejection decisions, so they do not isolate the
+speed benefit of deferred geometry preparation on a clean unique-tag scan.
+
+Validation exercised 85 tests: 84 passed. The existing ordinary RGB tracker test
+`test_continuous_motion_has_metric_accuracy_and_seeds_sparse_fusion` fails its
+10 mm RMS assertion at 59.88 mm, identically on the unchanged `762a6da` baseline
+and this implementation. Tag-map, missing-tag recovery, native duplicate
+quarantine, independent depth rejection, live fallback/preview and transactional
+fusion checks passed. Full Finish and live replays used CUDA.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/profile_session.py `
+  export/chest-with-markers-scan-session_20261010_213124.zip `
+  --finish --finish-only --device cuda `
+  --output benchmark-output/apriltag-priority.json
+```
+
+This replay runs in an isolated process. It does not replace the loaded server
+project. The registration algorithm version is now `offline_depth_graph_v3`,
+so a saved result from the previous algorithm is recomputed on the next Finish.

@@ -1,6 +1,7 @@
 """Bounded measured RGB-D appearance proposals, never final pose authority."""
 
 from dataclasses import dataclass
+from collections.abc import Sequence
 
 import cv2
 import numpy as np
@@ -14,6 +15,26 @@ class Features:
     pixels: np.ndarray
     points: np.ndarray
     descriptors: np.ndarray | None
+
+
+class LazyFeatures(Sequence):
+    """Extract ordinary image features only when recovery needs that view."""
+    def __init__(self, count, load):
+        self.count, self.load, self.cache = count, load, {}
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(self.count))]
+        if index < 0:
+            index += self.count
+        if not 0 <= index < self.count:
+            raise IndexError(index)
+        if index not in self.cache:
+            self.cache[index] = self.load(index)
+        return self.cache[index]
 
 
 def extract_features(rgb, depth, camera, *, depth_support=True, method="orb"):

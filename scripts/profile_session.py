@@ -4,11 +4,13 @@ Examples (timings exclude image decoding, imports, and report preparation)::
 
     KINECT_NATIVE=off python scripts/profile_session.py export/scan.zip --limit 20
     KINECT_NATIVE=off python scripts/profile_session.py export/scan.zip --finish --cprofile
+    python scripts/profile_session.py export/scan.zip --finish --finish-only --device cuda
     KINECT_NATIVE=on python scripts/profile_session.py export/scan.zip --finish \
         --output benchmark-output/native.json --compare benchmark-output/python.json
 
 Use --use-pose-seeds --finish to profile Finish independently of live tracking.
 Archived poses remain proposals: the normal reconnection validates them again.
+Use --finish-only --finish for cold depth Finish without live tracking or pose seeds.
 Raw images and geometry artifacts must remain under ignored benchmark-output/.
 """
 
@@ -207,6 +209,7 @@ def compare_quality(report, baseline_path, np, *, preview_resolution=False):
         comparison_settings(report, preview_resolution=preview_resolution),
         report["finish_requested"],
         report["pose_seeds_used"],
+        report.get("finish_only", False),
     ) != (
         baseline["input_sha256"],
         baseline["selected_indices"],
@@ -214,6 +217,7 @@ def compare_quality(report, baseline_path, np, *, preview_resolution=False):
         comparison_settings(baseline, preview_resolution=preview_resolution),
         baseline["finish_requested"],
         baseline["pose_seeds_used"],
+        baseline.get("finish_only", False),
     ):
         raise ValueError(
             "Comparison requires identical input, frame selection, settings, seed, and phases"
@@ -282,6 +286,8 @@ def main():
     parser.add_argument("--bundle-adjustment", action="store_true",
                         help="Enable joint RGB-D refinement during Finish")
     parser.add_argument("--use-pose-seeds", action="store_true")
+    parser.add_argument("--finish-only", action="store_true",
+                        help="Cold depth Finish: store raw frames without live tracking or archived poses")
     parser.add_argument(
         "--cprofile",
         action="store_true",
@@ -307,6 +313,8 @@ def main():
         parser.error("Require positive stride and limit")
     if args.use_pose_seeds and not args.finish:
         parser.error("--use-pose-seeds requires --finish")
+    if args.finish_only and (not args.finish or args.use_pose_seeds):
+        parser.error("--finish-only requires --finish and excludes --use-pose-seeds")
     if args.bundle_adjustment and not args.finish:
         parser.error("--bundle-adjustment requires --finish")
     if args.final_block_count is not None and not 1 <= args.final_block_count <= 50000:
@@ -344,6 +352,9 @@ def main():
     with zipfile.ZipFile(args.session) as archive:
         manifest = json.loads(archive.read("manifest.json"))
         settings = ScanSettings.from_dict(manifest["settings"])
+        if args.finish_only and settings.offline_registration != "depth":
+            parser.error("--finish-only requires depth registration")
+        journal = json.loads(archive.read(manifest["motion_journal"])) if "motion_journal" in manifest else None
         original_settings_sha256 = hashlib.sha256(
             json.dumps(settings.to_dict(), sort_keys=True, allow_nan=False).encode()
         ).hexdigest()
@@ -384,6 +395,8 @@ def main():
         )
     engine = ScanEngine(device=args.device, tracking=args.tracking)
     engine.reset(settings=settings)
+    if journal:
+        engine.store_motion_journal(journal)
 
     def live():
         for index, (rgb, depth, item) in enumerate(frames):
@@ -393,7 +406,7 @@ def main():
             stored = engine.store_frame(rgb, depth, metadata)
             if not stored["success"]:
                 raise ValueError(f"Cannot store frame {index}: {stored['message']}")
-            if not args.use_pose_seeds:
+            if not (args.use_pose_seeds or args.finish_only):
                 engine.process_frames()
             print(
                 f"{index + 1}/{len(frames)} accepted={engine.frame_count} "
@@ -402,7 +415,7 @@ def main():
 
     _, live_s, live_profile = run_phase(
         live,
-        args.cprofile and not args.use_pose_seeds,
+        args.cprofile and not (args.use_pose_seeds or args.finish_only),
         args.output.with_suffix(".live.pstats"),
     )
     live_stages = dict(engine.stage_totals_ms)
@@ -483,6 +496,7 @@ def main():
         "accepted_indices": [item["index"] for item in reconstruction["poses"]],
         "finish_requested": args.finish,
         "pose_seeds_used": args.use_pose_seeds,
+        "finish_only": args.finish_only,
         "mesh_built": built,
         "build_result": build_result,
         "live_stages": stage_summary(live_diagnostics, live_stages, np),
