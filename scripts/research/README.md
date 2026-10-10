@@ -92,3 +92,13 @@ gain. The original-coordinate criteria include 0.5 mm / 0.1 degree Final poses,
 30,000 surface samples, p95 at most 0.5 mm, and precision/completeness at least
 .999 within 5 mm. Old fixed-pair permits and strict failures cannot authorize
 this current-source study.
+
+## AprilTag session diagnosis
+
+[`analyze_apriltag_session.py`](analyze_apriltag_session.py) reads an explicit saved
+session ZIP and writes pair timings, duplicate-ID evidence and optional compact
+tag/depth experiments to `--output`; use ignored `benchmark-output/`. It requires
+the scanner numerical environment and OpenCV ArUco, and does not contact the
+running server. `--compact-only --depth-refinement` selects the compact experiment;
+`--exclude-id` is an explicit experimental exclusion, not production policy.
+See [retained results and current reconstruction order](../../docs/FRAGMENT_RECONNECTION.md#apriltag-priority).

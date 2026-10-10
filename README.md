@@ -199,9 +199,8 @@ levels until geometry needs them, while keeping the preview current.
 OpenCV 4.8 or newer with `cv2.aruco` is required when tags are enabled. Update
 and restart the reconstruction server as well as the client to use these settings.
 
-The [98-capture AprilTag performance analysis](docs/APRILTAG_SCAN_PERFORMANCE_20261010.md)
-separates marker fitting from depth validation and repeated camera refinement,
-and measures a compact tag-first initialization experiment.
+See [AprilTag priority and measured limits](docs/FRAGMENT_RECONNECTION.md#apriltag-priority)
+for the reconstruction order, fallback behavior and retained performance evidence.
 
 Selected captures are buffered losslessly on local disk and uploaded in the
 background, so an upload backlog does not change the requested capture cadence.

@@ -69,6 +69,52 @@ verification and graph optimization currently run on CPU. CPU execution is
 supported. GICP, single-scale FPFH and PCA proposals are also benchmarked; a
 method's pair-match count is not evidence of a correct complete reconstruction.
 
+### AprilTag priority
+
+With AprilTag assistance enabled, depth-mode Finish (`offline_depth_graph_v3`)
+first fits a compact map of shared tag corners and refines it with measured depth.
+Ordinary RGB features are extracted on demand for cameras with missing or weak
+tag evidence. Missing tags, disconnected measurements or failed checks trigger
+the broader RGB/depth recovery pipeline with usable tag poses retained as proposals.
+Tags are optional; count alone does not establish a camera pose.
+
+Every retained camera needs supported shared markers or revalidated RGB/depth
+connections in a connected measurement graph, followed by the complete raw-depth
+audit. Whole-marker outliers are pruned. A repeated family/ID detected together
+in any native RGB image is quarantined throughout server processing; unseen
+physical duplicates remain an identity risk. Print each identity only once.
+Raw tag corner measurements also constrain the general joint fit on fallback.
+Saved registration results from earlier algorithm versions are recomputed at Finish.
+
+The October 10 chest recording exposed scheduling costs rather than slow marker
+fitting: pair fits had a median cost of 0.77 ms, while the original 537.05-second
+Finish spent 330.56 seconds on repeated joint refinement and revalidation.
+The implemented cold CUDA replay at source `7b161e2` took 51.9 seconds for
+98/98 selected cameras, including 19.1 seconds for compact mapping, recovery and
+audit. Seventeen cameras needed recovery and 44 views needed ordinary RGB features.
+Free-space conflicts were 2.42% versus 1.91% in the saved result, below the existing
+8% engineering bound. These are single-session consistency measurements, not
+physical accuracy or a promise for sparse-tag scans. Timing excludes imports,
+archive decoding, hashing and export; archived poses did not initialize the replay.
+See [original phase evidence](benchmarks/chest-markers-apriltag-performance.json)
+and [implementation provenance](benchmarks/chest-markers-apriltag-priority.json)
+for source, input, settings and environment details.
+
+Live fusion already tries measured tags first. Successful tag tracking defers
+source normals and model registration levels while refreshing the preview;
+geometry fallback prepares the pending model before use. The recorded live
+comparison also changed duplicate rejection decisions, so it does not isolate
+this preparation saving or establish a whole-live speedup on unique tags.
+
+For isolated cold Finish reproduction, run `scripts/profile_session.py` with an
+explicit session ZIP, `--finish --finish-only --device cuda`, and an output under
+`benchmark-output/`. The retained research tool
+[`analyze_apriltag_session.py`](../scripts/research/analyze_apriltag_session.py)
+reproduces pair-stage evidence and compact experiments; it neither changes a
+loaded server project nor replaces its mesh. Detailed historical analysis remains
+available at [the implementation commit](https://github.com/soswow/Kinect-3D-Scanner/blob/7b161e2d5a27a16563f527191deffc9ba5077de9/docs/APRILTAG_SCAN_PERFORMANCE_20261010.md).
+Local detailed notes belong in ignored `docs/investigations/2026-10-10-apriltag-priority/`.
+
 ### Assumptions reconsidered
 
 | Previous policy | Decision in depth mode | What the evidence still requires |
@@ -92,7 +138,7 @@ overlap can still defeat these checks. Component-wide verification can reject a
 bad connection without identifying the correct replacement; retained captures
 remain available to later methods.
 
-The October 10 update uses `offline_depth_graph_v2`. It retains fixed color
+The earlier October 10 update used `offline_depth_graph_v2`. It retains fixed color
 identities in the reverse fit rather than letting anonymous depth ICP erase
 them. Batched point-pair votes cache oriented pairs, count pose bins together,
 and discard gross gravity conflicts before ranking. Loop counts report actual

@@ -53,7 +53,7 @@ links for checked-in evidence; use your own session paths for reproduction.
 | [CUDA experiment reference](CUDA_EXPERIMENTS.md) | Full matrices, rejected approaches, exact-query proofs and reproduction |
 | [Field CUDA research](FIELD_CUDA_RESEARCH.md) | Chest 5–7 allocation, recovery tradeoffs and source-bound experiments |
 | [Room replay](FULL_ROOM_SCAN_20261010.md) | Normal-upload motion evidence and unresolved room coverage |
-| [AprilTag performance](APRILTAG_SCAN_PERFORMANCE_20261010.md) | Repeated identities and compact tag/depth initializer experiment |
+| [AprilTag priority](FRAGMENT_RECONNECTION.md#apriltag-priority) | Conditional shared-corner initialization, recovery and recorded timing limits |
 | [Saved CUDA reports](benchmarks/CUDA_REPORTS.md) | Published summaries, charts and provenance |
 | [Linux/Python API reference](KINECT_V1_LINUX_PYTHON_REFERENCE.md) | Educational standalone examples; use production guides for the app |
 
