@@ -305,6 +305,12 @@ use **Browse** to choose another executable or a macOS `Blender.app`. The
 selected executable and depth sampling are remembered. Blender 4.2 or newer
 runs in a separate background process; it does not modify an open Blender scene.
 The server supplies the finished session and the textured fused OBJ bundle.
+When **Also keep selected captures locally** retained images for this session,
+the client reuses pairs whose native RGB and depth pixel hashes match the server.
+Missing or mismatched pairs are downloaded. Final poses, calibration and fused
+geometry still come from the server; the complete session is assembled locally
+before Blender runs. This uses the same server capability as Save Project;
+older servers transfer the full session. Blender exports keep lossless PNG photos.
 The normal texture options and triangle budget apply to the fused mesh.
 
 The `.blend` parents every exported object to one **Scan root** Empty at the

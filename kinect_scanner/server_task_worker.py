@@ -123,6 +123,16 @@ class ServerTaskWorker(QThread):
             retained = f" Pending captures are retained in {self._spool.path}." if self._spool else ""
             raise RuntimeError("Some captures were not confirmed by the server; build/save stopped." + retained)
 
+    def _local_export_captures(self):
+        """Offer acknowledged images only for the current, reuse-capable session."""
+        if (self._recording is None
+                or self._recording_session_id != self._client.session_id
+                or not self._client._project_export_supported):
+            return {}
+        from shared.project_archive import recording_captures
+        self._client.task_started.emit("Checking selected captures in local recording…")
+        return recording_captures(self._recording)
+
     def stop(self):
         self._stop_flag = True
         self._queue.put(None)
@@ -367,7 +377,12 @@ class ServerTaskWorker(QThread):
                 for fmt, destination, options in (("session", session, None),
                                                   ("obj.zip", model, task.kwargs.get("options"))):
                     self._client.task_started.emit("Downloading RGB-D session…" if fmt == "session" else "Preparing textured fused mesh…")
-                    if not self._client.request_export(fmt, str(destination), options=options):
+                    download_options = {"options": options}
+                    if fmt == "session":
+                        local = self._local_export_captures()
+                        if local:
+                            download_options["local_captures"] = local
+                    if not self._client.request_export(fmt, str(destination), **download_options):
                         raise RuntimeError(f"Could not download {fmt} for the Blender export")
                 result = convert_session(session, path, blender=task.kwargs["blender"],
                                          textured_model=model, stride=task.kwargs["stride"],
@@ -381,12 +396,8 @@ class ServerTaskWorker(QThread):
             path = task.kwargs["path"]
             fmt = task.kwargs.get("format", "session")
             download_options = {"options": task.kwargs.get("options")}
-            if (tt == ServerTaskType.EXPORT_SESSION and self._recording is not None
-                    and self._recording_session_id == self._client.session_id
-                    and self._client._project_export_supported):
-                from shared.project_archive import recording_captures
-                self._client.task_started.emit("Checking selected captures in local recording…")
-                local = recording_captures(self._recording)
+            if tt == ServerTaskType.EXPORT_SESSION:
+                local = self._local_export_captures()
                 if local:
                     download_options["local_captures"] = local
             self._client.task_started.emit(f"Exporting {fmt} to {path}...")

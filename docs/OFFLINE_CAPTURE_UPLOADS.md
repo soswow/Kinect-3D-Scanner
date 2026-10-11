@@ -73,7 +73,7 @@ from server ingestion costs on the next real scan. Optional local PNG recording
 uses explicit fast lossless compression.
 
 **Also keep selected captures locally** keeps an acknowledged lossless PNG
-recording separate from the temporary upload spool. Save Project reuses matching
+recording separate from the temporary upload spool. Save Project and Blender export reuse matching
 local capture pairs, downloading only the server's reconstruction/mesh, retained
 server-only observations and any images unavailable locally. Matching uses the
 current session, acknowledged server indices and native pixel hashes. The

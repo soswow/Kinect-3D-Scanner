@@ -347,6 +347,104 @@ class BlenderTaskTests(unittest.TestCase):
             self.assertEqual([(True, "scene.blend")], completed)
         self.assertFalse(Path(downloads[0][1]).exists())
 
+    def test_blender_assembles_verified_local_and_server_images_before_conversion(self):
+        import httpx
+        from shared.project_archive import pixel_digest
+        from shared.recording import RecordingWriter
+        from kinect_scanner.server_client import ServerClient
+        from kinect_scanner.server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
+
+        rgb = np.full((3, 4, 3), [30, 90, 180], np.uint8)
+        depth = np.arange(12, dtype=np.uint16).reshape(3, 4)
+        proof = {"index": 0, "rgb_sha256": pixel_digest(rgb), "depth_sha256": pixel_digest(depth)}
+        for changed_during_transfer in (False, True):
+            with self.subTest(changed=changed_during_transfer), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                recording = RecordingWriter(root / "local", {}, session_id="same")
+                for index in range(3):
+                    recording.append(rgb, depth, {"server_index": index})
+                # One mismatched pair and one unavailable pair must come from the server.
+                Image.fromarray(np.zeros_like(rgb)).save(recording.path / "rgb/000001.png")
+                (recording.path / "depth/000002.png").unlink()
+                requests = []
+                def transport(request):
+                    requests.append(request)
+                    if request.url.path.endswith("obj.zip"):
+                        return httpx.Response(200, content=b"textured model", headers={"content-type": "application/octet-stream"})
+                    body = json.loads(request.content)
+                    self.assertEqual("POST", request.method)
+                    self.assertNotIn("rgb_format", body)  # Blender retains lossless default.
+                    offered = body["reuse"]["captures"]
+                    self.assertEqual([0, 1], [row["index"] for row in offered])
+                    self.assertEqual(proof, offered[0])
+                    self.assertNotEqual(proof["rgb_sha256"], offered[1]["rgb_sha256"])
+                    manifest = {"frames": [{"rgb": f"rgb/{i:06d}.png", "depth": f"depth/{i:06d}.png"} for i in range(3)],
+                                "local_captures": {"session_id": "same", "captures": [proof]}}
+                    buffer = io.BytesIO()
+                    with zipfile.ZipFile(buffer, "w") as archive:
+                        archive.writestr("manifest.json", json.dumps(manifest))
+                        archive.writestr("reconstruction.json", b"final server poses")
+                        for index in (1, 2):
+                            archive.writestr(f"rgb/{index:06d}.png", png(rgb))
+                            archive.writestr(f"depth/{index:06d}.png", png(depth))
+                    if changed_during_transfer:
+                        Image.fromarray(np.zeros_like(rgb)).save(recording.path / "rgb/000000.png")
+                    return httpx.Response(200, content=buffer.getvalue(), headers={"content-type": "application/octet-stream"})
+                client = ServerClient()
+                client.session_id = "same"
+                client._project_export_supported = True
+                client._http = httpx.Client(base_url="http://test-server", transport=httpx.MockTransport(transport))
+                worker = ServerTaskWorker(client)
+                worker._recording, worker._recording_session_id = recording, "same"
+                output = root / "scene.blend"
+                output.write_bytes(b"previous scene")
+                completed = []
+                client.export_done.connect(lambda *args: completed.append(args))
+                def convert(session, path, **kwargs):
+                    with zipfile.ZipFile(session) as archive:
+                        self.assertNotIn("local_captures", json.loads(archive.read("manifest.json")))
+                        self.assertEqual(b"final server poses", archive.read("reconstruction.json"))
+                        for frame in range(3):
+                            for key, pixels in (("rgb", rgb), ("depth", depth)):
+                                np.testing.assert_array_equal(pixels, np.array(Image.open(io.BytesIO(archive.read(f"{key}/{frame:06d}.png")))))
+                    self.assertEqual(b"textured model", kwargs["textured_model"].read_bytes())
+                    output.write_bytes(b"new scene")
+                    return {"snapshots": 3}
+                with patch("kinect_scanner.blender_export.convert_session", side_effect=convert) as conversion:
+                    task = ServerTask(ServerTaskType.EXPORT_BLENDER, {"path": str(output), "blender": "blender", "stride": 1,
+                                                                     "options": {"max_triangles": 100}})
+                    if changed_during_transfer:
+                        with self.assertRaisesRegex(ValueError, "changed during save"):
+                            worker._dispatch(task)
+                        conversion.assert_not_called()
+                        self.assertEqual(b"previous scene", output.read_bytes())
+                        self.assertEqual([], completed)
+                    else:
+                        worker._dispatch(task)
+                        self.assertEqual(b"new scene", output.read_bytes())
+                        self.assertEqual([(True, str(output))], completed)
+                        self.assertEqual("GET", requests[1].method)
+                        self.assertEqual("100", requests[1].url.params["max_triangles"])
+                client._http.close()
+
+    def test_blender_full_download_for_other_session_older_server_or_absent_recording(self):
+        from unittest.mock import Mock
+        from kinect_scanner.server_client import ServerClient
+        from kinect_scanner.server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
+
+        for recording, session, supported in ((Mock(), "old", True), (Mock(), "same", False), (None, "same", True)):
+            with self.subTest(session=session, supported=supported, recording=recording):
+                client = ServerClient()
+                client.session_id, client._project_export_supported = "same", supported
+                client.request_export = Mock(return_value=True)
+                worker = ServerTaskWorker(client)
+                worker._recording, worker._recording_session_id = recording, session
+                with patch("shared.project_archive.recording_captures") as captures, patch("kinect_scanner.blender_export.convert_session"):
+                    worker._dispatch(ServerTask(ServerTaskType.EXPORT_BLENDER, {"path": "scene.blend", "blender": "blender", "stride": 1}))
+                    captures.assert_not_called()
+                    for call in client.request_export.call_args_list:
+                        self.assertNotIn("local_captures", call.kwargs)
+
     def test_failed_download_does_not_launch_blender_or_emit_success(self):
         from kinect_scanner.server_client import ServerClient
         from kinect_scanner.server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
