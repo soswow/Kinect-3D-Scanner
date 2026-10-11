@@ -121,12 +121,25 @@ Plain OBJ already contains vertex colors through a widely used extension; some
 readers ignore those colors. It does not contain UV coordinates or an MTL/texture.
 PLY is a reliable vertex-color export. The new formats are:
 
-- `/api/scan/export/glb`: a mesh with UVs and embedded texture/material.
-- `/api/scan/export/obj.zip`: OBJ, MTL, PNG, and `texture-report.json`.
+- `/api/scan/export/glb`: a mesh with UVs and embedded textures/materials.
+- `/api/scan/export/obj.zip`: OBJ, MTL, texture PNGs, and `texture-report.json`.
 
 Both accept `size=256|512|1024|2048`, `max_triangles=100..200000`,
-`max_views=1..64`, and `use_images=true|false`. Defaults are 1024, 50000, 24, and
-true. Optional `exposure_correction=true` enables bounded gain matching on
+`max_views=1..64`, and `use_images=true|false`. Defaults are 1024 **per page**,
+50000 triangles, 64 views, and true. Texture exports now add spatially grouped
+pages as mesh surface area grows. `texels_per_m=1..1024` (default 512) sets a
+planning target; `max_pages=1..32` (default 16) bounds image storage and work.
+`max_pages=1` requests the previous single-atlas layout. A 55% packing allowance
+guides page allocation; actual chart occupancy, source detail and the page cap
+can reduce attained density. The report includes page count, surface area,
+mapped/projected texel counts, occupancy and `page_budget_limited`. Bake working
+maps are processed one page at a time and selected RGB/depth observations are
+prepared once. Pages skip views only when their entire bounding box lies outside
+a depth-camera frustum; sparse visibility sampling does not discard source views.
+More pages and views increase projection work and file size;
+these defaults do not promise faster exports.
+
+Optional `exposure_correction=true` enables bounded gain matching on
 held-out depth-visible overlap; `blend_mode=best` selects the strongest
 angle/distance view instead of blending. Both have GUI export checkboxes. The texture mesh is a simplified copy;
 the full final mesh remains available through PLY/plain OBJ. UV seams duplicate
@@ -136,7 +149,11 @@ generation. This preserves triangle positions and colors; the topology repair
 counts are included in `texture-report.json`.
 Contradictory winding is also cut into separate sheets. If native atlas
 generation still rejects a partition, independently repaired charts are packed
-into texture tiles, subdividing only rejected charts. The report records the
+into texture tiles, subdividing only rejected charts. Rectangular sections in a
+texture are these UV chart groups, not snapshots or independent source photos.
+Fallback packing assigns space in proportion to surface area instead of giving
+every repaired chart the same small square. Charts share pages; each chart does
+not automatically need its own 1024-pixel image. The report records the
 atlas method, chart count and subdivisions; this fallback preserves every face
 of the simplified export mesh.
 Connections that cannot be separated return an actionable error.
@@ -146,8 +163,10 @@ The portable projection algorithm works on ARM CPUs:
 1. Select synchronized accepted views across the trajectory, favoring sharper
    images in each interval. Known pairing offsets above 20 ms are excluded;
    legacy captures without offsets retain the assumption of registered RGB-D.
+   Only accepted poses in the selected reconstruction can supply texture;
+   captures in disconnected maps cannot fill holes without verified registration.
 2. Generate a partitioned Open3D UV atlas and bake position, normal, and fused
-   color maps. Partitioning avoids expensive single-chart solves on scan meshes.
+   color maps on each page. Partitioning avoids expensive single-chart solves on scan meshes.
 3. Project surface texels into original RGB views using calibrated intrinsics and
    inverse camera-to-world poses. Require measured depth to agree with surface
    depth within `max(15 mm, 1% of depth)` and exclude grazing views.
@@ -156,11 +175,16 @@ The portable projection algorithm works on ARM CPUs:
 
 The pipeline supports measured lens correction and optional relative exposure
 gains. It does not optimize patch seams or photometric poses. Inaccurate calibration/poses can blur
-texture, and a larger atlas cannot create detail absent from 640x480 RGB. The
+texture, and more atlas pixels cannot create detail absent from the source RGB
+(640x480 or native 1280x1024). A 50,000-triangle export of a large scan also loses
+geometric detail independently of texture resolution; raise `max_triangles` to
+200,000 or use the full PLY when geometry matters. The
 depth tolerance is an engineering default, not a device-specific noise model.
 GLB/OBJ material round trips and asymmetric image orientation are tested. The
-viewer preserves texture materials when loading GLB or a textured OBJ extracted
-from its ZIP.
+viewer preserves multiple texture materials when loading GLB or a textured OBJ extracted
+from its ZIP. Bright clipped highlights, motion blur, inconsistent lighting,
+occlusion and missing depth remain input limitations. Brightness correction uses
+one shared solution across pages and still refuses inconsistent held-out overlap.
 
 ## Full session preservation
 

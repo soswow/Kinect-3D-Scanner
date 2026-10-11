@@ -83,6 +83,25 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Unchanged:", response.headers["x-texture-brightness"])
             self.assertGreater(len(response.content), 100)
 
+    async def test_texture_page_options_and_default_source_budget_reach_exporter(self):
+        def write_asset(engine, path, fmt, **options):
+            Path(path).write_bytes(b"asset")
+            return {"exposure_correction": {"applied": False, "reason": "Not requested"}}
+
+        with patch("scanner_server.texturing.export_texture", side_effect=write_asset) as export:
+            result = await self.http.get("/api/scan/export/glb", params={"max_pages": 8, "texels_per_m": 384})
+        self.assertEqual(200, result.status_code)
+        self.assertEqual(64, export.call_args.kwargs["max_views"])
+        self.assertEqual(8, export.call_args.kwargs["max_pages"])
+        self.assertEqual(384, export.call_args.kwargs["texels_per_m"])
+
+    async def test_invalid_texture_page_options_are_rejected(self):
+        from tests.test_features import texture_scene
+        server.engine = texture_scene()
+        for options in ({"max_pages": 0}, {"max_pages": 33}, {"texels_per_m": 0}):
+            result = await self.http.get("/api/scan/export/glb", params=options)
+            self.assertEqual(422, result.status_code)
+
     async def test_invalid_project_preserves_active_scan(self):
         before = server.engine
         volume = before.vbg

@@ -116,12 +116,12 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(0, occluded["projected_fraction"])
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary)
-            export_texture(engine, path / "scan.glb", size=256)
+            export_texture(engine, path / "scan.glb", size=256, max_pages=1)
             scene = trimesh.load(path / "scan.glb", force="scene")
             loaded = next(iter(scene.geometry.values()))
             self.assertIsInstance(loaded.visual, trimesh.visual.texture.TextureVisuals)
             self.assertIsNotNone(loaded.visual.material.baseColorTexture)
-            export_texture(engine, path / "scan.zip", "obj.zip", size=256)
+            export_texture(engine, path / "scan.zip", "obj.zip", size=256, max_pages=1)
             with zipfile.ZipFile(path / "scan.zip") as archive:
                 obj = archive.read("scan.obj").decode()
                 self.assertIn("mtllib scan.mtl", obj)

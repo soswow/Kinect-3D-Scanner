@@ -14,7 +14,7 @@ import trimesh
 from PIL import Image
 from scipy.ndimage import distance_transform_edt
 
-from shared.calibration import prepare_rgbd, project_rgb
+from shared.calibration import prepare_metric_depth, prepare_rgbd, project_rgb
 from shared.capture import RGB_DEPTH_ASSISTANCE_LIMIT_MS
 
 
@@ -224,16 +224,60 @@ def _fallback_uv_atlas(mesh, size, max_faces=1000):
 
     for group in range(partitions):
         unwrap(np.flatnonzero(groups == group))
-    columns = int(np.ceil(np.sqrt(len(charts))))
-    rows = int(np.ceil(len(charts) / columns))
-    cell = np.array([1 / columns, 1 / rows])
-    padding = np.minimum(1 / size, cell * 0.1)
+    triangles = vertices[faces]
+    areas = np.linalg.norm(np.cross(triangles[:, 1] - triangles[:, 0],
+                                    triangles[:, 2] - triangles[:, 0]), axis=1) / 2
+    rectangles = _chart_rectangles([areas[ids].sum() for ids, _ in charts])
     uv = np.empty((len(faces), 3, 2), dtype=np.float32)
     for chart, (ids, local_uv) in enumerate(charts):
-        origin = np.array([chart % columns, chart // columns]) * cell
+        origin, cell = rectangles[chart]
+        padding = np.minimum(2 / size, cell * 0.1)
         uv[ids] = origin + padding + local_uv * (cell - 2 * padding)
     tensor.triangle["texture_uvs"] = o3d.core.Tensor(uv)
-    return tensor, {"method": "repaired_chart_tiles", "charts": len(charts), "subdivisions": retries}
+    return tensor, {"method": "repaired_chart_tiles", "packing": "surface_area",
+                    "charts": len(charts), "subdivisions": retries}
+
+
+def _chart_rectangles(areas):
+    """Disjoint, area-proportional rectangles, avoiding equal tiles for tiny cuts."""
+    areas = np.asarray(areas, float)
+    areas = np.maximum(areas, max(areas.sum() * 1e-6, 1e-12))
+    result = [None] * len(areas)
+
+    def divide(ids, origin, extent):
+        if len(ids) == 1:
+            result[ids[0]] = (origin, extent)
+            return
+        order = ids[np.argsort(-areas[ids], kind="stable")]
+        cumulative = np.cumsum(areas[order])
+        cut = int(np.argmin(np.abs(cumulative[:-1] - cumulative[-1] / 2))) + 1
+        fraction = cumulative[cut - 1] / cumulative[-1]
+        axis = int(extent.argmax())
+        first, second = extent.copy(), extent.copy()
+        first[axis] *= fraction
+        second[axis] *= 1 - fraction
+        shifted = origin.copy()
+        shifted[axis] += first[axis]
+        divide(order[:cut], origin, first)
+        divide(order[cut:], shifted, second)
+
+    divide(np.arange(len(areas)), np.zeros(2), np.ones(2))
+    return result
+
+
+def _prepare_texture_views(engine, views):
+    prepared = []
+    for index, pose in views:
+        source_rgb, source_depth = engine.raw_frames[index]
+        if engine.settings.sensor_calibration:
+            # Projection uses the native RGB lens directly. Registering a dense
+            # RGB-D image here allocated work which was immediately discarded.
+            rgb = source_rgb
+            depth = prepare_metric_depth(source_depth, engine.settings)
+        else:
+            rgb, depth = prepare_rgbd(source_rgb, source_depth, engine.settings)
+        prepared.append((pose, rgb, depth.astype(np.float32) / 1000))
+    return prepared
 
 
 def _project(
@@ -422,6 +466,10 @@ def make_textured_mesh(
     use_images=True,
     exposure_correction=False,
     blend_mode="blend",
+    *,
+    _prepared=None,
+    _selected_views=None,
+    _exposure=None,
 ):
     if engine.mesh is None or not len(engine.mesh.triangles):
         raise ValueError("Build a mesh before texturing")
@@ -468,22 +516,21 @@ def make_textured_mesh(
         size, {"source_face"}, fill=-1, update_material=False,
     )["source_face"].numpy().reshape(-1)
     valid &= face_ids >= 0
-    views = _views(engine, max_views) if use_images else []
+    views = _selected_views
+    if views is None:
+        views = _views(engine, max_views) if use_images else []
     c = engine.settings.camera
     valid_indices = np.flatnonzero(valid)
-    prepared = []
-    for index, pose in views:
-        source_rgb, source_depth = engine.raw_frames[index]
-        rgb, depth = prepare_rgbd(source_rgb, source_depth, engine.settings)
-        if engine.settings.sensor_calibration:
-            rgb = source_rgb  # Native lens pixels, sampled with K,D and R,T.
-        prepared.append((pose, rgb, depth.astype(np.float32) / 1000))
+    prepared = _prepare_texture_views(engine, views) if _prepared is None else _prepared
     exposure_report = {
         "applied": False,
         "reason": "Fewer than two source photos or no observed surface" if exposure_correction else "Not requested",
     }
     gains = np.ones((len(views), 3), np.float32)
-    if exposure_correction and len(views) > 1 and len(valid_indices):
+    if _exposure is not None:
+        gains, exposure_report = _exposure
+        exposure_report = dict(exposure_report)
+    elif exposure_correction and len(views) > 1 and len(valid_indices):
         from .photometric import estimate_gains
 
         sample_ids = valid_indices[:: max(1, int(np.ceil(len(valid_indices) / 8192)))]
@@ -618,6 +665,9 @@ def make_textured_mesh(
         "topology_repair": topology_report,
         "views": [i for i, _ in views],
         "projected_fraction": float(projected.sum() / max(1, valid.sum())),
+        "mapped_texels": int(valid.sum()),
+        "projected_texels": int(projected.sum()),
+        "atlas_occupancy": float(valid.sum() / size**2),
         "unobserved_fallback": "fused vertex colors",
         "depth_unit": "metres",
     }
@@ -628,7 +678,9 @@ def make_textured_mesh(
 def export_texture(engine, filepath, fmt="glb", **options):
     if fmt not in ("glb", "obj.zip"):
         raise ValueError("Texture format must be glb or obj.zip")
-    mesh, report = make_textured_mesh(engine, **options)
+    from .texture_pages import make_textured_asset
+
+    mesh, report = make_textured_asset(engine, **options)
     if fmt == "glb":
         mesh.export(filepath, file_type="glb")
     else:

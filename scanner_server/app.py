@@ -748,10 +748,12 @@ async def export_textured(
     fmt: str,
     size: int = 1024,
     max_triangles: int = 50000,
-    max_views: int = 24,
+    max_views: int = 64,
     use_images: bool = True,
     exposure_correction: bool = False,
     blend_mode: str = "blend",
+    max_pages: int = 16,
+    texels_per_m: float = 512,
 ):
     """Portable UV texture export; options explicitly bound work and output size."""
     if fmt not in ("glb", "obj.zip"):
@@ -774,6 +776,8 @@ async def export_textured(
                     use_images=use_images,
                     exposure_correction=exposure_correction,
                     blend_mode=blend_mode,
+                    max_pages=max_pages,
+                    texels_per_m=texels_per_m,
                 )
             except ValueError as exc:
                 logger.warning("Texture export %s rejected: %s", fmt, exc)
