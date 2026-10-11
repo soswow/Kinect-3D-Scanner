@@ -7,7 +7,11 @@ import numpy as np
 
 
 class MotionCapturePolicy:
-    """Retain overlap before the ordinary cadence skips a large/weak step."""
+    """Historical overlap policy retained for the 10 October room replay.
+
+    The desktop client respects its minimum capture interval and no longer
+    uses this policy. Keep it for reproducing the recorded benchmark inputs.
+    """
     def __init__(self):
         self.reference = None
 

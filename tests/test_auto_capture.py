@@ -223,17 +223,55 @@ class AutoCaptureTests(unittest.TestCase):
         self.receive()
         self.assertEqual([2, 7], self.ids())
 
-    def test_offline_motion_adds_an_overlap_capture_before_the_nominal_cadence(self):
-        profile = ScanSettings(color_recovery=True, live_reconstruction=False, offline_registration="depth")
-        self.window._on_reset_done({"session_id": "overlap", "settings": profile.to_dict()})
-        self.window.auto_capture_spin.set_interval_seconds(1.)
-        self.window.auto_capture_cb.setChecked(True)
+    def test_offline_motion_and_tracking_loss_respect_three_second_interval(self):
+        moved = np.eye(4)
+        moved[0, 3] = .12
+        angle = np.radians(12)
+        rotated = np.eye(4)
+        rotated[:2, :2] = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
         visual = {"valid": True, "segment": "camera", "camera_to_local": np.eye(4).tolist()}
-        self.receive(visual_tracking=visual)
-        self.window._capture_frame()
-        moved = np.eye(4); moved[0, 3] = .12
-        self.receive(3, visual_tracking={**visual, "camera_to_local": moved.tolist()})
-        self.assertEqual([1, 3], self.ids())
+        observations = (
+            visual,
+            {**visual, "camera_to_local": moved.tolist()},
+            {**visual, "camera_to_local": rotated.tolist()},
+            {"valid": False, "reason": "Visual motion unverified"},
+            {**visual, "segment": "new-origin"},
+        )
+        for mode_index in (0, 1):
+            self.window.rgb_mode_combo.setCurrentIndex(mode_index)
+            for registration in ("depth", "fragments"):
+                self.window.offline_registration_combo.setCurrentIndex(
+                    self.window.offline_registration_combo.findData(registration))
+                for observation in observations:
+                    with self.subTest(mode=mode_index, registration=registration, visual=observation):
+                        self.window.task_worker.frames.clear()
+                        profile = ScanSettings(color_recovery=True, live_reconstruction=False,
+                                               offline_registration=registration,
+                                               rgb_mode=self.window.rgb_mode_combo.currentData())
+                        self.window._on_reset_done({"session_id": "interval", "settings": profile.to_dict()})
+                        self.window.auto_capture_spin.set_interval_seconds(3)
+                        periods = self.window.auto_capture_spin.value()
+                        self.receive(periods, visual_tracking=visual)
+                        self.assertEqual(1, len(self.ids()))
+                        for capture_count in (2, 3):
+                            self.receive(periods - 1, visual_tracking=observation)
+                            self.assertEqual(capture_count - 1, len(self.ids()))
+                            self.receive(visual_tracking=observation)
+                            self.assertEqual(capture_count, len(self.ids()))
+                        stamps = [f["metadata"]["captured_monotonic_s"]
+                                  for f in self.window.task_worker.frames]
+                        np.testing.assert_allclose(np.diff(stamps), [3, 3], atol=1e-9)
+                        self.assertEqual(observation, self.window.task_worker.frames[-1]["metadata"]["visual_tracking"])
+
+    def test_stale_fusion_pause_does_not_override_offline_interval_or_help(self):
+        self.window.auto_capture_spin.set_interval_seconds(3)
+        self.window.auto_capture_cb.setChecked(True)
+        self.window.live_view.snapshot = {"fusion_paused": True}
+        self.receive(29)
+        self.assertEqual([], self.ids())
+        self.assertIn("Captures no faster than 3 s", self.window.interval_help.text())
+        self.receive(31)
+        self.assertEqual([30, 60], self.ids())
 
     def test_recovery_uses_next_arrival_without_waiting_for_normal_interval(self):
         self.window.live_cb.setChecked(True)

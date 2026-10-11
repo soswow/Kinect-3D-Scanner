@@ -239,9 +239,9 @@ right drag (secondary-click and drag on a trackpad), middle drag, or Shift+left
 drag. **Fit View** resets rotation, zoom, and pan. Hover over the reconstruction
 counts for diagnostic timings. Depth preview uses inclusive clipping bounds: black
 means missing depth, gray means excluded depth, and a white outline marks the
-crop. **Capture interval** sets the ordinary automatic cadence. Offline depth
-scans retain extra overlapping views when camera movement grows or tracking
-weakens. Live capture slows to match recent processing and upload/feedback times, with the
+crop. **Capture interval** sets the minimum automatic cadence. Offline scans
+respect this interval even while moving or when camera tracking is uncertain.
+Live capture slows to match recent processing and upload/feedback times, with the
 adjusted pace available by hovering over the interval. It allows one processing frame and one
 waiting capture, including uploads, and waits if live feedback disconnects.
 Move more slowly at longer intervals to preserve overlap between views.

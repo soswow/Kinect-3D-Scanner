@@ -1,5 +1,10 @@
 # Fast room capture: normal-upload replay, 10 October 2026
 
+Historical evidence: this replay includes movement-triggered extra captures.
+The desktop client now respects the selected minimum capture interval even
+when moving or when tracking is uncertain. The replay tool retains the earlier
+policy to reproduce these recorded inputs and measurements.
+
 The reported scan originally retained 42/130 selected captures after roughly
 33 minutes. Some accepted poses were inverted relative to reliable gravity;
 the resulting model was unsuitable. The client did acquire acceleration, but

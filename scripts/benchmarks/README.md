@@ -19,7 +19,7 @@ against local exported data or an explicitly prepared fixture.
 | [benchmark_offline_geometry.py](benchmark_offline_geometry.py) | Depth-only registration qualification across distinct local recordings |
 | [audit_depth_visibility.py](audit_depth_visibility.py) | All-view depth visibility/consistency at measured poses |
 | [render_depth_graph.py](render_depth_graph.py) | Render depth geometry and camera paths without RGB |
-| [replay_normal_capture.py](replay_normal_capture.py) | Offline replay through ordinary client selection/payload behavior |
+| [replay_normal_capture.py](replay_normal_capture.py) | Reproduce the 10 October room replay's historical selection/payload behavior, including motion-triggered extra captures; the current client respects its minimum interval |
 
 Find these CLIs and their supporting source without importing numerical packages:
 `python scripts/list_tools.py --group benchmarks --json`.

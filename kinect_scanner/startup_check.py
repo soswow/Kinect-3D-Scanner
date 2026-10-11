@@ -96,6 +96,55 @@ def check_offline_capture(window, temporary):
         raise RuntimeError(f"Offline capture/upload check failed: {checks}")
 
 
+def check_offline_capture_interval(window):
+    """Check installed automatic cadence during movement and tracking loss."""
+    from unittest.mock import patch
+
+    import numpy as np
+
+    from .gui import main_window
+
+    frames = []
+    submit, sound = window.task_worker.submit, window.capture_sound.play
+    interval, automatic = window.auto_capture_spin.interval_seconds, window.auto_capture_cb.isChecked()
+    previous_frame = (window._last_rgb, window._last_depth, window._last_frame_metadata, window._last_frame_time)
+    window.task_worker.submit = lambda task: frames.append(task.kwargs) or True
+    window.capture_sound.play = lambda: None
+    clock = [time.monotonic()]
+    rgb, depth = np.full((4, 4, 3), 42, np.uint8), np.full((4, 4), 750, np.uint16)
+    visual = {"valid": True, "segment": "bundle", "camera_to_local": np.eye(4).tolist()}
+    moved = np.eye(4)
+    moved[0, 3] = .12
+    try:
+        window.auto_capture_spin.set_interval_seconds(3)
+        window.auto_capture_cb.setChecked(True)
+        periods = window.auto_capture_spin.value()
+        with patch.object(main_window.time, "monotonic", side_effect=lambda: clock[0]):
+            for count, observation in enumerate((visual, {**visual, "camera_to_local": moved.tolist()},
+                                                {"valid": False, "reason": "Synthetic tracking loss"})):
+                for _ in range(periods - 1):
+                    clock[0] += 3 / periods
+                    window._on_frame(rgb, depth, {"visual_tracking": observation})
+                if len(frames) != count:
+                    raise RuntimeError("Offline automatic capture ran before its selected interval")
+                clock[0] += 3 / periods
+                window._on_frame(rgb, depth, {"visual_tracking": observation})
+                if len(frames) != count + 1:
+                    raise RuntimeError("Offline automatic capture missed its selected interval")
+            stamps = [f["metadata"]["captured_monotonic_s"] for f in frames]
+            np.testing.assert_allclose(np.diff(stamps), [3, 3], atol=1e-8)
+            if "Captures no faster than 3 s" not in window.auto_capture_spin.toolTip():
+                raise RuntimeError("Offline capture tooltip does not describe its interval")
+    finally:
+        window.task_worker.submit, window.capture_sound.play = submit, sound
+        window.auto_capture_spin.set_interval_seconds(interval)
+        window.auto_capture_cb.setChecked(automatic)
+        window._last_rgb, window._last_depth, window._last_frame_metadata, window._last_frame_time = previous_frame
+        window._capture_pacer.reset()
+        window._capture_selector.clear()
+        window._reset_auto_capture_cadence()
+
+
 def run_check():
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     os.environ.pop("KINECT_AUTOCONNECT", None)
@@ -196,6 +245,7 @@ def run_check():
                     motion_layout_checks.append(
                         window.logs_panel.text.toPlainText().count("Camera motion could not be verified") == 2
                     )
+                    check_offline_capture_interval(window)
                     check_offline_capture(window, temporary)
                     check_reconstruction_progress(window)
                     window._scanning = False
@@ -265,7 +315,7 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "offline_capture": "ok", "project_save": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
+              "offline_capture": "ok", "offline_capture_interval": "ok", "project_save": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0

@@ -44,7 +44,7 @@ from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
 from ..capture_pacing import CapturePacer
-from ..capture_selection import CaptureSelector, MotionCapturePolicy
+from ..capture_selection import CaptureSelector
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..runtime import data_root, export_root
 from ..server_client import ServerClient
@@ -138,7 +138,6 @@ class MainWindow(QMainWindow):
         self._auto_frames_since_capture = 0
         self._capture_pacer = CapturePacer()
         self._capture_selector = CaptureSelector()
-        self._motion_capture_policy = MotionCapturePolicy()
         self._reset_pending = False
         self._cancel_pending = False
         self._reset_to_setup_pending = False
@@ -503,7 +502,7 @@ class MainWindow(QMainWindow):
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.auto_capture_spin)
         layout.addWidget(self.interval_row)
-        self.interval_help = QLabel("Selects a sharp recent frame. Offline scans also retain extra overlapping views when movement grows or tracking weakens; live scans follow reconstruction speed.", container)
+        self.interval_help = QLabel("Selects a sharp recent frame at the minimum interval; live scans can slow to follow reconstruction speed.", container)
         self.interval_help.setWordWrap(True)
         self.interval_help.hide()
         interval_label.setToolTip(self.interval_help.text())
@@ -977,7 +976,7 @@ class MainWindow(QMainWindow):
         if self._camera_suspended:
             self.interval_help.setText("Capture finished · stopping camera…" if self.worker.isRunning()
                                        else "Capture finished · camera and sensors are off.")
-        elif self._scanning and self.live_view.snapshot.get("fusion_paused"):
+        elif self._scanning and not offline and self.live_view.snapshot.get("fusion_paused"):
             self.interval_help.setText("Checking fresh views as soon as each recovery check finishes.")
         elif self._scanning and interval > self.auto_capture_spin.interval_seconds + 1e-9:
             self.interval_help.setText(
@@ -1284,11 +1283,9 @@ class MainWindow(QMainWindow):
             and self.auto_capture_cb.isChecked()
         ):
             self._auto_frames_since_capture += 1
-            bridge = (not self.live_cb.isChecked() and self.offline_registration_combo.currentData() == "depth"
-                      and self._motion_capture_policy.needed(self._last_frame_metadata))
-            if (bridge or self._auto_frames_since_capture >= self.auto_capture_spin.value()
-                    or self.live_view.snapshot.get("fusion_paused")):
-                self._auto_capture_tick(bridge=bridge)
+            if (self._auto_frames_since_capture >= self.auto_capture_spin.value()
+                    or (self.live_cb.isChecked() and self.live_view.snapshot.get("fusion_paused"))):
+                self._auto_capture_tick()
         self._refresh_controls()
 
     def _show_rgb(self, rgb):
@@ -1545,7 +1542,6 @@ class MainWindow(QMainWindow):
         )
         self._last_capture_id = None
         self._last_motion_capture_at = None
-        self._motion_capture_policy = MotionCapturePolicy()
         self._capture_pacer.reset()
         self._capture_selector.clear()
         self._reset_auto_capture_cadence()
@@ -1644,7 +1640,7 @@ class MainWindow(QMainWindow):
             self._on_task_failed("RESET", "Reset could not be queued" if reason == "reset_scan" else "Cancellation could not be queued")
         self._refresh_controls()
 
-    def _auto_capture_tick(self, *, bridge=False):
+    def _auto_capture_tick(self):
         if self._server_operation or self._reset_pending or self._export_pending or self._paused or self._connect_pending or self._restore_on_status:
             return
         snapshot = self.live_view.snapshot
@@ -1676,13 +1672,13 @@ class MainWindow(QMainWindow):
         self._capture_waiting = ""
         recovering = self.live_cb.isChecked() and bool(snapshot.get("fusion_paused"))
         if not self._capture_pacer.ready(
-            now, 0.1 if recovering or bridge else self.auto_capture_spin.interval_seconds,
+            now, 0.1 if recovering else self.auto_capture_spin.interval_seconds,
             RGB_MODE_FPS[self.rgb_mode_combo.currentData()],
             adaptive=self._adaptive_live_capture() and not recovering,
         ):
             self._refresh_status()
             return
-        self._capture_frame(select_best=not bridge)
+        self._capture_frame(select_best=True)
 
     def _adaptive_live_capture(self):
         return self.adaptive_capture_cb.isChecked() and self.live_cb.isChecked()
@@ -1745,7 +1741,6 @@ class MainWindow(QMainWindow):
         else:
             self._last_capture_id = frame_id
             self._last_motion_capture_at = metadata.get("captured_monotonic_s")
-            self._motion_capture_policy.captured(metadata)
             self._capture_pacer.captured(frame_id, time.monotonic(), live=self.live_cb.isChecked())
             self._capture_selector.clear()
             self._capture_revision += 1

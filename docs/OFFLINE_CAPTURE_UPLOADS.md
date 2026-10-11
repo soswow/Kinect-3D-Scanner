@@ -2,10 +2,11 @@
 
 With live reconstruction disabled, each selected frame is saved in a temporary
 lossless disk spool before capture is confirmed. Upload speed does not change
-the ordinary capture interval. Offline depth scans also retain overlapping
-views after 10 cm or 8 degrees of accumulated visual movement, and at roughly
-5 Hz while the visual chain is unverified. These thresholds are capture policy,
-not limits on which camera motions the server may reconstruct.
+the selected minimum capture interval. Camera movement, uncertain visual
+tracking and changes of tracking origin do not trigger extra snapshots.
+Move slowly enough to keep overlapping views at the interval you choose, or
+select a shorter interval. Continuous motion observations remain available
+between selected captures for reconstruction at Finish.
 A single upload worker drains consecutive
 captures in batches of up to eight, keeping image memory bounded while the
 backlog remains on disk. Build, inspection and project-save commands retain
