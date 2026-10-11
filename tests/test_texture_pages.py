@@ -4,6 +4,10 @@ import os
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 
 import tempfile
+import json
+import struct
+import shutil
+import subprocess
 import unittest
 import zipfile
 from pathlib import Path
@@ -13,7 +17,9 @@ import numpy as np
 import trimesh
 
 from scanner_server.texture_pages import _page_groups, _page_view_indices, make_textured_asset
-from scanner_server.texturing import _chart_rectangles, _prepare_texture_views, export_texture
+from scanner_server.texturing import (
+    _chart_rectangles, _prepare_texture_views, _single_object_gltf, export_texture,
+)
 from shared.calibration import prepare_rgbd
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
@@ -21,6 +27,43 @@ from tests.test_features import texture_scene
 
 
 class TexturePageTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get("BLENDER_EXECUTABLE") or shutil.which("blender"),
+                         "Set BLENDER_EXECUTABLE to verify Blender's default imports")
+    def test_blender_imports_one_object_with_all_page_materials(self):
+        blender = os.environ.get("BLENDER_EXECUTABLE") or shutil.which("blender")
+        engine = texture_scene()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = export_texture(engine, root / "scan.glb", size=256, max_pages=4)
+            export_texture(engine, root / "scan.zip", "obj.zip", size=256, max_pages=4)
+            with zipfile.ZipFile(root / "scan.zip") as archive:
+                archive.extractall(root / "obj")
+            check = root / "check.py"
+            check.write_text(
+                "import bpy\n"
+                f"paths = {repr([str(root / 'scan.glb'), str(root / 'obj/scan.obj')])}\n"
+                "for path in paths:\n"
+                "    bpy.ops.object.select_all(action='SELECT')\n"
+                "    bpy.ops.object.delete(use_global=False)\n"
+                "    if path.endswith('.glb'): bpy.ops.import_scene.gltf(filepath=path)\n"
+                "    else: bpy.ops.wm.obj_import(filepath=path)\n"
+                "    meshes = [o for o in bpy.context.scene.objects if o.type == 'MESH']\n"
+                "    assert len(meshes) == 1, meshes\n"
+                f"    assert len(meshes[0].data.polygons) == {len(engine.mesh.triangles)}\n"
+                f"    assert len(meshes[0].data.materials) == {report['texture_pages']}\n"
+                f"    assert {{p.material_index for p in meshes[0].data.polygons}} == set(range({report['texture_pages']}))\n"
+                "    for material in meshes[0].data.materials:\n"
+                "        assert any(n.type == 'TEX_IMAGE' and n.image for n in material.node_tree.nodes)\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [blender, "--background", "--factory-startup", "--threads", "2",
+                 "--python-exit-code", "1", "--python", str(check)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                timeout=90,
+            )
+            self.assertEqual(0, result.returncode, result.stdout)
+
     def test_frustum_culling_keeps_crossing_boxes_and_rejects_disjoint_views(self):
         engine = texture_scene()
         self.assertEqual([0], _page_view_indices(engine, engine.mesh, engine.poses))
@@ -86,17 +129,39 @@ class TexturePageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             export_texture(engine, root / "scan.glb", size=256, max_pages=4)
+            data = (root / "scan.glb").read_bytes()
+            json_size = struct.unpack_from("<I", data, 12)[0]
+            tree = json.loads(data[20:20 + json_size])
+            self.assertEqual([{"name": "scan", "mesh": 0}], tree["nodes"])
+            self.assertEqual(1, len(tree["meshes"]))
+            self.assertEqual(1, tree["meshes"][0]["extras"]["texture_report"]["export_objects"])
+            self.assertEqual(report["texture_pages"], len(tree["meshes"][0]["primitives"]))
+            self.assertEqual(set(range(report["texture_pages"])),
+                             {p["material"] for p in tree["meshes"][0]["primitives"]})
             glb = trimesh.load(root / "scan.glb", force="scene", process=False)
             self.assertEqual(report["texture_pages"], len(glb.geometry))
             for geometry in glb.geometry.values():
                 self.assertIsNotNone(geometry.visual.material.baseColorTexture)
+            self.assertEqual(len(engine.mesh.triangles), sum(len(g.faces) for g in glb.geometry.values()))
             export_texture(engine, root / "scan.zip", "obj.zip", size=256, max_pages=4)
             with zipfile.ZipFile(root / "scan.zip") as archive:
+                obj_text = archive.read("scan.obj").decode()
+                self.assertEqual(["o scan"], [l for l in obj_text.splitlines() if l.startswith("o ")])
+                self.assertFalse(any(l.startswith("g ") for l in obj_text.splitlines()))
+                self.assertEqual(report["texture_pages"], obj_text.count("usemtl "))
                 self.assertEqual(report["texture_pages"], len([n for n in archive.namelist() if n.endswith('.png')]))
                 archive.extractall(root / "obj")
             obj = trimesh.load(root / "obj/scan.obj", force="scene", process=False)
             self.assertEqual(report["texture_pages"], len(obj.geometry))
             self.assertEqual(len(engine.mesh.triangles), sum(len(g.faces) for g in obj.geometry.values()))
+
+    def test_single_object_export_refuses_transformed_page_nodes(self):
+        for transform in ({"translation": [1, 0, 0]}, {"scale": [1.000001, 1, 1]},
+                          {"rotation": [0, 0, 1, 0]}):
+            tree = {"nodes": [{"mesh": 0, **transform}],
+                    "meshes": [{"primitives": [{"material": 0}]}]}
+            with self.subTest(transform=transform), self.assertRaises(ValueError):
+                _single_object_gltf(tree)
 
     def test_page_cap_is_reported_and_single_atlas_remains_available(self):
         engine = texture_scene()

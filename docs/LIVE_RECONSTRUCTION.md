@@ -124,6 +124,16 @@ PLY is a reliable vertex-color export. The new formats are:
 - `/api/scan/export/glb`: a mesh with UVs and embedded textures/materials.
 - `/api/scan/export/obj.zip`: OBJ, MTL, texture PNGs, and `texture-report.json`.
 
+Both formats export **one scan object with multiple material assignments**.
+Texture pages are internal baking groups. OBJ switches materials with `usemtl`
+within one `o scan`; GLB stores one mesh/node with a primitive for each page
+material. Importing in Blender should create one mesh object, with a material
+slot for each texture page.
+The optional Blender import regression check runs in a separate background
+instance with factory settings; set `BLENDER_EXECUTABLE` to its executable path
+and run `python -m unittest tests.test_texture_pages`. It checks object count,
+faces and all texture material slots using Blender's default import options.
+
 Both accept `size=256|512|1024|2048`, `max_triangles=100..200000`,
 `max_views=1..64`, and `use_images=true|false`. Defaults are 1024 **per page**,
 50000 triangles, 64 views, and true. Texture exports now add spatially grouped

@@ -7,6 +7,7 @@ vertex color; original RGB is used only where measured depth agrees with mesh.
 import copy
 import json
 import zipfile
+from pathlib import Path
 
 import numpy as np
 import open3d as o3d
@@ -675,14 +676,51 @@ def make_textured_mesh(
     return result, report
 
 
+def _single_object_gltf(tree):
+    """Keep page material primitives in one scan mesh/node.
+
+    Baked page vertices already use scan coordinates. Only identity transforms
+    may be collapsed; silently dropping a transform would corrupt geometry.
+    """
+    identity = {"matrix": np.eye(4).reshape(-1), "translation": [0, 0, 0],
+                "rotation": [0, 0, 0, 1], "scale": [1, 1, 1]}
+    for node in tree.get("nodes", []):
+        for key, value in identity.items():
+            if not np.allclose(node.get(key, value), value, rtol=0, atol=1e-12):
+                raise ValueError("Texture pages must share scan coordinates before export")
+    primitives = [primitive for mesh in tree["meshes"] for primitive in mesh["primitives"]]
+    scene = dict(tree["scenes"][tree.get("scene", 0)])
+    report = scene.get("extras", {}).get("texture_report")
+    if report is None:
+        report = tree["meshes"][0].get("extras", {}).get("texture_report")
+    scan = {"name": "scan", "primitives": primitives}
+    if report is not None:
+        scan["extras"] = {"texture_report": report}
+    tree["meshes"] = [scan]
+    tree["nodes"] = [{"name": "scan", "mesh": 0}]
+    scene["nodes"] = [0]
+    tree["scenes"] = [scene]
+    tree["scene"] = 0
+
+
+def _single_object_obj(obj):
+    """One OBJ object with per-face usemtl assignments, preserving all indices."""
+    lines = [line for line in obj.splitlines() if not line.startswith(("o ", "g "))]
+    return "o scan\n" + "\n".join(lines) + "\n"
+
+
 def export_texture(engine, filepath, fmt="glb", **options):
     if fmt not in ("glb", "obj.zip"):
         raise ValueError("Texture format must be glb or obj.zip")
     from .texture_pages import make_textured_asset
 
     mesh, report = make_textured_asset(engine, **options)
+    report["export_objects"] = 1
+    mesh.metadata["texture_report"] = report
     if fmt == "glb":
-        mesh.export(filepath, file_type="glb")
+        Path(filepath).write_bytes(trimesh.exchange.gltf.export_glb(
+            mesh, tree_postprocessor=_single_object_gltf,
+        ))
     else:
         obj, assets = trimesh.exchange.obj.export_obj(
             mesh,
@@ -691,6 +729,7 @@ def export_texture(engine, filepath, fmt="glb", **options):
             write_texture=False,
             mtl_name="scan.mtl",
         )
+        obj = _single_object_obj(obj)
         with zipfile.ZipFile(
             filepath, "w", compression=zipfile.ZIP_DEFLATED
         ) as archive:
