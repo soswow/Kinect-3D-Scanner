@@ -55,6 +55,7 @@ from .apriltag_preview import paint_apriltags
 from .apriltags import AprilTagDictionaries
 from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
+from .capture_recovery import CaptureRecoveryDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
 from .logs import LogsPanel
@@ -97,6 +98,9 @@ class MainWindow(QMainWindow):
         self._capture_run_id = uuid.uuid4().hex[:12]
         self._pending_action = None
         self._export_pending = None
+        self._recovery_pending = False
+        self._recovery_rows = []
+        self._recovery_dialog = None
         self._project_path = None
         self._project_to_open = None
         self._connect_pending = False
@@ -162,6 +166,9 @@ class MainWindow(QMainWindow):
         self.server_client.websocket_status.connect(self._on_websocket_status)
         self.server_client.export_done.connect(self._on_export_done)
         self.server_client.compact_project_info.connect(self._on_compact_project_info)
+        self.server_client.recovery_list.connect(self._on_recovery_list)
+        self.server_client.recovery_done.connect(self._on_recovery_done)
+        self.server_client.recovery_export_done.connect(self._on_recovery_export_done)
         self.server_client.project_opened.connect(self._on_project_opened)
         self.server_client.transfer_progress.connect(self._on_transfer_progress)
         self.server_client.save_mesh_done.connect(self._on_save_mesh_done)
@@ -441,6 +448,7 @@ class MainWindow(QMainWindow):
         self.save_project_as_action = menu.addAction("Save Project As…", self._export_session)
         self.save_project_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_compact_project_action = menu.addAction("Save Compact Project…", self._save_compact_project)
+        self.recover_captures_action = menu.addAction("Recover Captures…", self._recover_captures)
         toolbar = QToolBar("Views")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
@@ -483,6 +491,10 @@ class MainWindow(QMainWindow):
         self.frame_count_label = QLabel("Captured: 0 · Added to model: 0")
         self.frame_count_label.setWordWrap(True)
         layout.addWidget(self.frame_count_label)
+        self.recovery_project_notice = QLabel(container)
+        self.recovery_project_notice.setWordWrap(True)
+        self.recovery_project_notice.hide()
+        layout.addWidget(self.recovery_project_notice)
         self.capture_mode_combo = QComboBox()
         self.capture_mode_combo.addItem("Automatic", "automatic")
         self.capture_mode_combo.addItem("Manual", "manual")
@@ -902,6 +914,8 @@ class MainWindow(QMainWindow):
         busy = self._reset_pending or self._preview_pending or self._build_pending or bool(self._export_pending)
         busy = busy or self._connect_pending or self._final_preview_pending
         busy = busy or bool(self._server_operation) or self._restore_on_status
+        busy = busy or self._recovery_pending
+        recovery_required = bool(getattr(self.task_worker, "capture_recovery_required", False))
         camera_stopping = self._camera_suspended and hasattr(self, "worker") and self.worker.isRunning()
         if self._camera_suspended:
             self.kinect_label.setText("Kinect: stopping…" if camera_stopping else "Kinect: stopped")
@@ -915,18 +929,18 @@ class MainWindow(QMainWindow):
         )
         self.btn_start_scan.setEnabled(connected and can_start_camera and valid_setup and not busy and (not active or self._paused))
         self.btn_start_scan.setText("New Scan" if self._session_id else "Start Scan")
-        self.btn_pause.setEnabled(connected and can_start_camera and not busy and (active or frames))
+        self.btn_pause.setEnabled(connected and can_start_camera and not busy and not recovery_required and (active or frames))
         self.btn_pause.setText("Resume Capture" if self._paused or not active else "Pause")
-        self.btn_capture.setEnabled(connected and ready and active and not self._paused and not busy)
-        self.btn_stop_build.setEnabled(connected and frames and not busy)
+        self.btn_capture.setEnabled(connected and ready and active and not self._paused and not busy and not recovery_required)
+        self.btn_stop_build.setEnabled(connected and frames and not busy and not recovery_required)
         self.btn_stop_build.setText("Retry Build" if self._build_failed else "Finish Scan")
         self.btn_cancel_scan.setEnabled(connected and not busy and (active or (frames and not self._has_mesh)))
         self.btn_reset_scan.setEnabled(connected and not busy and (active or frames or self._has_mesh or bool(self._session_id)))
-        self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
-        self.btn_export.setEnabled(connected and self._has_mesh and not busy)
-        self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy)
+        self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy and not recovery_required)
+        self.btn_export.setEnabled(connected and self._has_mesh and not busy and not recovery_required)
+        self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy and not recovery_required)
         compact_enabled = (connected and self._has_mesh and not active and not busy
-                           and getattr(self.server_client, "_compact_project_supported", False))
+                           and not recovery_required and getattr(self.server_client, "_compact_project_supported", False))
         self.btn_compact_project.setEnabled(compact_enabled)
         self.save_compact_project_action.setEnabled(compact_enabled)
         self.btn_compact_project.setToolTip(
@@ -940,7 +954,8 @@ class MainWindow(QMainWindow):
             self.save_project_as_action.setEnabled(self.btn_export_session.isEnabled())
         for button in (self.btn_export_ply, self.btn_export_obj, self.btn_export_glb,
                        self.btn_export_texture_obj, self.btn_save_mesh):
-            button.setEnabled(connected and self._has_mesh and not busy)
+            button.setEnabled(connected and self._has_mesh and not busy and not recovery_required)
+        self.recover_captures_action.setEnabled(not busy and not self._closing)
         self.settings_group.setEnabled(not active and not busy)
         self.project_jpeg_cb.setEnabled(not busy)
         self.capture_mode_combo.setEnabled(not busy)
@@ -958,7 +973,7 @@ class MainWindow(QMainWindow):
         self.scan_status_label.setToolTip(reason)
         self.fps_label.setToolTip(self.kinect_label.text())
         self.btn_start_scan.setToolTip(reason if not self.btn_start_scan.isEnabled() else "Begin a new capture session")
-        self.btn_connect.setEnabled(not (self._connect_pending or self._reset_pending or self._build_pending
+        self.btn_connect.setEnabled(not (self._recovery_pending or self._connect_pending or self._reset_pending or self._build_pending
                                         or self._preview_pending or self._export_pending or self._final_preview_pending))
         self.server_ip_edit.setEnabled(not connected and not self._connect_pending)
         self.server_port_spin.setEnabled(not connected and not self._connect_pending)
@@ -1012,6 +1027,10 @@ class MainWindow(QMainWindow):
             state = "Connecting to reconstruction server…"
         elif self._restore_on_status and self.server_client.is_connected:
             state = "Checking server scan…"
+        elif self._recovery_pending:
+            state = "Working on retained captures…"
+        elif getattr(self.task_worker, "capture_recovery_required", False):
+            state = "Retained captures need recovery · choose File → Recover Captures"
         elif self._reset_pending:
             state = "Resetting scan…" if self._reset_to_setup_pending else (
                 "Cancelling scan…" if self._cancel_pending else "Starting scan…"
@@ -1070,6 +1089,8 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _pause_or_resume(self):
+        if self._recovery_pending or getattr(self.task_worker, "capture_recovery_required", False):
+            return
         if self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or self._server_operation or self._connect_pending or self._restore_on_status:
             return
         if not self.server_client.is_connected:
@@ -1147,6 +1168,8 @@ class MainWindow(QMainWindow):
 
 
     def _toggle_connection(self):
+        if self._recovery_pending:
+            return
         if self._connect_pending or self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending:
             return
         if self.server_client.is_connected:
@@ -1180,6 +1203,7 @@ class MainWindow(QMainWindow):
         self.live_view.set_feedback_connected(True)
         self._set_scan_controls_enabled(True)
         self._show_message("Connected to reconstruction server", 4000)
+        self._update_recovery_dialog()
 
     def _on_server_disconnected(self, reason: str):
         self._start_when_camera_ready = False
@@ -1193,6 +1217,7 @@ class MainWindow(QMainWindow):
         self._set_scan_controls_enabled(False)
         self.connection_section.toggle.setChecked(True)
         self._show_message(f"Server: {reason}")
+        self._update_recovery_dialog()
 
     def _on_websocket_status(self, state, detail):
         if not self.server_client.is_connected or self._closing:
@@ -1459,6 +1484,8 @@ class MainWindow(QMainWindow):
 
     # ── scanning workflow ─────────────────────────────────────────────
     def _start_scan(self, checked=False, *, protected=False):
+        if self._recovery_pending:
+            return
         if not self.server_client.is_connected:
             QMessageBox.warning(self, "Not Connected", "Connect to the server first.")
             return
@@ -1531,6 +1558,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_reset_done(self, result):
+        self.recovery_project_notice.hide()
         self.guidance_label.setStyleSheet("")
         cancelled = self._cancel_pending
         reset_to_setup = self._reset_to_setup_pending
@@ -1624,6 +1652,8 @@ class MainWindow(QMainWindow):
         self._clear_scan("reset_scan", protected=protected)
 
     def _clear_scan(self, reason, *, protected=False):
+        if self._recovery_pending:
+            return
         if self._closing or not self.server_client.is_connected:
             return
         if self._reset_pending or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or self._server_operation or self._connect_pending or self._restore_on_status:
@@ -1708,6 +1738,8 @@ class MainWindow(QMainWindow):
         )
 
     def _capture_frame(self, *, select_best=False):
+        if self._recovery_pending or getattr(self.task_worker, "capture_recovery_required", False):
+            return
         if (
             not self._scanning
             or self._reset_pending
@@ -1773,6 +1805,8 @@ class MainWindow(QMainWindow):
         self._reset_auto_capture_cadence()
 
     def _stop_and_build(self):
+        if self._recovery_pending or getattr(self.task_worker, "capture_recovery_required", False):
+            return
         if self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or not self.server_client.is_connected:
             return
         if not self._server_stored and not self._pending_upload_count():
@@ -1813,6 +1847,8 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _preview_scan(self):
+        if self._recovery_pending or getattr(self.task_worker, "capture_recovery_required", False):
+            return
         if self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation:
             return
         if self._has_mesh:
@@ -1908,6 +1944,98 @@ class MainWindow(QMainWindow):
 
     def _save_project(self, checked=False):
         return self._export_session(path=self._project_path)
+
+    def _recover_captures(self, checked=False):
+        if self._recovery_pending or not self.recover_captures_action.isEnabled():
+            return
+        if self._recovery_dialog is None:
+            self._recovery_dialog = CaptureRecoveryDialog(self)
+            self._recovery_dialog.retry_requested.connect(self._retry_captures)
+            self._recovery_dialog.export_requested.connect(self._save_recovery_project)
+        self._update_recovery_dialog()
+        self._recovery_dialog.show()
+        self._recovery_dialog.raise_()
+        self.task_worker.submit(ServerTask(ServerTaskType.LIST_RECOVERY))
+
+    def _on_recovery_list(self, rows):
+        self._recovery_rows = rows
+        count = sum(row["count"] for row in rows)
+        if hasattr(self, "recover_captures_action"):
+            self.recover_captures_action.setText(f"Recover Captures… ({count})" if count else "Recover Captures…")
+        self._update_recovery_dialog()
+        if hasattr(self, "btn_capture"):
+            self._refresh_controls()
+
+    def _update_recovery_dialog(self):
+        if self._recovery_dialog is not None:
+            supported = (self.server_client.is_connected and self.server_client._capture_receipts_supported
+                         and not self._restore_on_status and not self._server_operation)
+            self._recovery_dialog.set_rows(self._recovery_rows, self.server_client.session_id, supported)
+
+    def _begin_recovery(self, task):
+        if self._recovery_pending or self._export_pending or self._build_pending or self._preview_pending or self._reset_pending or self._connect_pending:
+            return False
+        self._paused = True
+        self.auto_capture_cb.setChecked(False)
+        self._recovery_pending = True
+        self._operation_error = ""
+        if self._recovery_dialog is not None:
+            self._recovery_dialog.set_busy(True, "Working on retained captures…")
+        if not self.task_worker.submit(task):
+            self._on_task_failed(task.task_type.name, "Recovery could not be queued")
+            return False
+        self._refresh_controls()
+        return True
+
+    def _retry_captures(self, path):
+        row = next((row for row in self._recovery_rows if row["path"] == path), None)
+        if (not row or not row["retry_safe"] or row["session_id"] != self.server_client.session_id
+                or not self.server_client.is_connected or not self.server_client._capture_receipts_supported
+                or self._restore_on_status or self._server_operation):
+            return False
+        return self._begin_recovery(ServerTask(ServerTaskType.RETRY_CAPTURES, {"path": path}))
+
+    def _save_recovery_project(self, path):
+        row = next((row for row in self._recovery_rows if row["path"] == path), None)
+        if not row or not row["count"] or row.get("error"):
+            return False
+        answer = QMessageBox.information(self, "Save Recovery Project",
+            f"Save {row['count']} retained captures to a separate lossless project. "
+            "This partial copy contains only captures still kept in this upload buffer. "
+            "It excludes captures already uploaded, the finished model and independent sensor recordings. "
+            "Your current scan and the original local captures are preserved.",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save)
+        if answer != QMessageBox.StandardButton.Save:
+            return False
+        destination, _ = QFileDialog.getSaveFileName(self, "Save Recovery Project",
+            os.path.join(self._ensure_export_dir(), "scan-recovery.zip"), "Scanner projects (*.zip)")
+        if not destination:
+            return False
+        if os.path.exists(destination):
+            self._show_message("Choose a new file so existing projects are preserved.", 10000)
+            return False
+        return self._begin_recovery(ServerTask(ServerTaskType.EXPORT_RECOVERY, {
+            "path": path, "destination": destination,
+        }))
+
+    def _on_recovery_done(self, result):
+        self._recovery_pending = False
+        self._paused = True
+        if result.get("session_id") == self.server_client.session_id:
+            self._restore_server_session(self.server_client.last_status)
+        self._operation_error = "" if not result["remaining"] else "Some captures still need recovery; choose Recover Captures."
+        if self._recovery_dialog is not None:
+            self._recovery_dialog.set_busy(False, f"Recovered {result['recovered']} captures. Capture stays paused.")
+        self._show_message(f"Recovered {result['recovered']} captures; {result['remaining']} remain locally.", 10000)
+        self._refresh_controls()
+
+    def _on_recovery_export_done(self, path):
+        self._recovery_pending = False
+        if self._recovery_dialog is not None:
+            self._recovery_dialog.set_busy(False, "Recovery project saved. Original captures remain on this computer.")
+        self._show_message(f"Saved partial recovery project: {path}", 10000)
+        self._refresh_controls()
 
     def _save_compact_project(self, checked=False):
         if not self.btn_compact_project.isEnabled():
@@ -2007,6 +2135,8 @@ class MainWindow(QMainWindow):
         self._show_message(detail)
 
     def _begin_export(self, kind, path, task):
+        if self._recovery_pending or getattr(self.task_worker, "capture_recovery_required", False):
+            return False
         if self._closing or self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or self._export_pending or not self.server_client.is_connected:
             return False
         restore_capture = (self._scanning, self._paused)
@@ -2052,6 +2182,8 @@ class MainWindow(QMainWindow):
         return False
 
     def _save_mesh(self):
+        if self._recovery_pending or getattr(self.task_worker, "capture_recovery_required", False):
+            return
         if self._closing or self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or not self.server_client.is_connected:
             return
         os.makedirs(MESH_DIR, exist_ok=True)
@@ -2095,6 +2227,11 @@ class MainWindow(QMainWindow):
         self.task_worker.submit(ServerTask(ServerTaskType.STATUS))
 
     def _restore_server_session(self, status):
+        partial = bool((status.get("project_recovery") or {}).get("partial"))
+        self.recovery_project_notice.setText(
+            "Partial recovery project: contains retained captures from an interrupted upload; "
+            "earlier server-only captures were not recovered." if partial else "")
+        self.recovery_project_notice.setVisible(partial)
         if self._reset_to_setup_pending and not status.get("operation"):
             if not status.get("stored_count", 0) and not status.get("has_mesh"):
                 self._cancel_pending = True
@@ -2104,13 +2241,14 @@ class MainWindow(QMainWindow):
         session_id = status.get("session_id")
         same_session = session_id == self._session_id
         previous_stored = self._server_stored
-        self._session_id = session_id if status.get("stored_count", 0) or status.get("has_mesh") else None
+        pending_captures = self._pending_upload_count()
+        self._session_id = session_id if status.get("stored_count", 0) or status.get("has_mesh") or pending_captures else None
         self._session_settings = status.get("settings")
         self._server_stored = status.get("stored_count", 0)
         self._server_integrated = status.get("frame_count", 0)
         self._has_mesh = bool(status.get("has_mesh"))
-        self._scanning = self._server_stored > 0 and not self._has_mesh
-        self._paused = self._server_stored > 0
+        self._scanning = (self._server_stored > 0 or pending_captures > 0) and not self._has_mesh
+        self._paused = self._server_stored > 0 or pending_captures > 0
         self.auto_capture_cb.setChecked(False)
         # The connection command is a queue barrier. Use authoritative server
         # counts, and avoid learning the disconnected time as processing cost.
@@ -2124,7 +2262,7 @@ class MainWindow(QMainWindow):
             self._last_motion_capture_at = None
             self._capture_revision = self._server_stored
             self._saved_revision = 0
-            self._session_dirty = self._server_stored > 0
+            self._session_dirty = self._server_stored > 0 or pending_captures > 0
             self._last_preview_path = None
             self.live_view.reset()
             self.capture_sound.reset_tracking()
@@ -2438,6 +2576,8 @@ class MainWindow(QMainWindow):
     def _on_task_started(self, msg: str):
         logger.info("Operation session=%s %s", self._session_id, msg)
         self._show_message(msg)
+        if self._recovery_pending and self._recovery_dialog is not None:
+            self._recovery_dialog.set_busy(True, msg)
         if self._export_pending:
             self.progress_bar.setRange(0, 0)
             self._set_progress_visible(True)
@@ -2456,7 +2596,12 @@ class MainWindow(QMainWindow):
         logger.error("Task failed session=%s task=%s %s", self._session_id, task_type, message, extra={"ui_log": False})
         self._set_progress_visible(False)
         self._operation_error = f"{message} · current scan retained"
-        if task_type == "CONNECT":
+        if task_type in ("LIST_RECOVERY", "RETRY_CAPTURES", "EXPORT_RECOVERY"):
+            self._recovery_pending = False
+            self._paused = True
+            if self._recovery_dialog is not None:
+                self._recovery_dialog.set_busy(False, message + ". Original captures are retained.")
+        elif task_type == "CONNECT":
             self._connect_pending = False
             self.connection_section.toggle.setChecked(True)
         elif task_type == "RESET":

@@ -27,6 +27,83 @@ sys.path.insert(0, str(ROOT))
 from shared.protocol import pack_frame, pack_frames
 
 
+def check_capture_recovery(port, rgb, depth):
+    """Lose a real HTTP response, restart local resources, then retry in order."""
+    from unittest.mock import patch
+
+    from kinect_scanner.capture_recovery import export_recovery_project
+    from kinect_scanner.server_client import ServerClient
+    from kinect_scanner.server_task_worker import ServerTask, ServerTaskType as T, ServerTaskWorker
+    from shared.recording import RecordingWriter
+
+    with tempfile.TemporaryDirectory() as directory, patch(
+            "kinect_scanner.server_task_worker.data_root", return_value=Path(directory)):
+        client = ServerClient()
+        assert client.connect_to_server("127.0.0.1", port, notify=False)
+        worker = ServerTaskWorker(client)
+        try:
+            worker._dispatch(ServerTask(T.RESET, {"settings": {
+                "rgb_mode": "rgb_low_res", "live_reconstruction": False}, "record": True}))
+            session_id = client.session_id
+            # Use the remote codec even on loopback to include its derived metadata.
+            client._spatial_prediction = True
+            worker.submit(ServerTask(T.SEND_FRAME, {"rgb": rgb, "depth": depth,
+                                                     "metadata": {"frame_id": "recovery:0", "timestamp_s": 0.}}))
+            post = client._http.post
+
+            def lose_response(*args, **kwargs):
+                response = post(*args, **kwargs)
+                response.raise_for_status()
+                assert response.json()["success"]
+                raise httpx.ReadTimeout("Injected loss after the server admitted this capture")
+
+            with patch.object(client._http, "post", side_effect=lose_response):
+                try:
+                    worker._dispatch(worker._queue.get_nowait())
+                except httpx.ReadTimeout:
+                    pass
+                else:
+                    raise AssertionError("Expected injected response loss")
+            assert client.get_status()["stored_count"] == 1
+            worker.submit(ServerTask(T.SEND_FRAME, {"rgb": rgb, "depth": depth,
+                                                     "metadata": {"frame_id": "recovery:1", "timestamp_s": 1.}}))
+            try:
+                worker._dispatch(worker._queue.get_nowait())
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("Later captures must wait behind an uncertain upload")
+            assert client.get_status()["stored_count"] == 1
+            assert worker.pending_capture_count == 2
+            source = worker._spool.path
+            recovery = Path(directory) / "partial-recovery.zip"
+            export_recovery_project(worker._spool, recovery)
+            with zipfile.ZipFile(recovery) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+                assert manifest["recovery"]["partial"] and len(manifest["frames"]) == 2
+            assert worker.pending_capture_count == 2, "Saving a recovery copy must preserve originals"
+
+            # Re-create worker resources as on restart; only the original server
+            # session and its immutable receipts authorize replay.
+            restarted = ServerTaskWorker(client)
+            restarted._restore_session_resources(client.get_status())
+            assert restarted.capture_recovery_required and restarted.pending_capture_count == 2
+            restarted._dispatch(ServerTask(T.RETRY_CAPTURES, {"path": str(source)}))
+            status = client.get_status()
+            assert status["session_id"] == session_id and status["stored_count"] == 2
+            assert restarted.pending_capture_count == 0 and not restarted.capture_recovery_required
+            recording = RecordingWriter.for_session(Path(directory) / "recordings", session_id)
+            assert [row["metadata"]["server_index"] for row in recording.manifest["frames"]] == [0, 1]
+            restored = Path(directory) / "complete.zip"
+            assert client.request_export("session", str(restored))
+            with zipfile.ZipFile(restored) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+                assert [row["metadata"]["frame_id"] for row in manifest["frames"]] == ["recovery:0", "recovery:1"]
+            print("PASS: lost HTTP acknowledgement, restart discovery and ordered capture recovery without duplicates", flush=True)
+        finally:
+            client.disconnect(notify=False)
+
+
 def check_client(port, rgb, depth):
     from PyQt6.QtCore import QSettings, QThread, pyqtSignal
     from PyQt6.QtWidgets import QApplication
@@ -363,6 +440,8 @@ def main():
                     "PASS: complete synthetic scan over loopback HTTP/WebSocket",
                     flush=True,
                 )
+                if not args.server_only:
+                    check_capture_recovery(port, rgb, depth)
                 http.post("/api/scan/reset", json={"rgb_mode": "rgb_low_res"}).raise_for_status()
                 if not args.server_only:
                     check_client(port, rgb, depth)

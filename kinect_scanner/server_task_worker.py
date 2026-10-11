@@ -7,6 +7,7 @@ remote server instead of calling ScanEngine directly.
 import logging
 import os
 import queue
+import threading
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -43,6 +44,9 @@ class ServerTaskType(Enum):
     OPEN_PROJECT = auto()
     SAVE_MESH = auto()
     RESET = auto()
+    LIST_RECOVERY = auto()
+    RETRY_CAPTURES = auto()
+    EXPORT_RECOVERY = auto()
 
 
 @dataclass
@@ -71,9 +75,17 @@ class ServerTaskWorker(QThread):
         self._resource_session_id = None
         self._inflight_captures = 0
         self._failed_uploads = False
+        self._retained_spools = {}
+        self._capture_submission_lock = threading.RLock()
         self.capture_error = ""
 
     def submit(self, task: ServerTask):
+        # Snapshot checks must not mistake the append->enqueue window for an
+        # orphan capture when STATUS lands while the GUI submits a fresh frame.
+        with self._capture_submission_lock:
+            return self._submit(task)
+
+    def _submit(self, task: ServerTask):
         if self._stop_flag:
             return False
         if task.task_type == ServerTaskType.SEND_FRAME:
@@ -85,6 +97,8 @@ class ServerTaskWorker(QThread):
                                           task.kwargs.get("metadata", {}))
             except (OSError, ValueError) as exc:
                 self.capture_error = f"Capture paused: {exc}"
+                if self._spool.pending_count or self._spool.ordering_error:
+                    self._failed_uploads = True
                 logger.error("%s", self.capture_error)
                 return False
             task = ServerTask(ServerTaskType.SEND_FRAME, {
@@ -112,18 +126,61 @@ class ServerTaskWorker(QThread):
 
     @property
     def pending_capture_count(self):
+        matching = self._matching_spools()
+        if matching:
+            return sum(spool.pending_count for spool in matching)
         if self._spool is not None:
             return self._spool.pending_count
-        return self._queue.qsize() + self._inflight_captures
+        with self._queue.mutex:
+            queued = sum(task is not None and task.task_type == ServerTaskType.SEND_FRAME
+                         for task in self._queue.queue)
+        queued += bool(self._pending is not None and self._pending.task_type == ServerTaskType.SEND_FRAME)
+        return queued + self._inflight_captures
 
-    def _configure_spool(self, settings, session_id):
+    @property
+    def capture_recovery_required(self):
+        return self._failed_uploads or any(spool.pending_count for spool in self._matching_spools()
+                                           if spool is not self._spool)
+
+    def _matching_spools(self):
+        spools = dict(self._retained_spools)
+        if self._spool is not None:
+            spools[str(self._spool.path)] = self._spool
+        return [spool for spool in spools.values() if spool.session_id == self._client.session_id]
+
+    def _discover_recovery(self):
+        found = {str(spool.path): spool for spool in CaptureSpool.discover(data_root() / "capture-queue")}
+        if self._spool is not None:
+            key = str(self._spool.path)
+            if self._spool.ordering_error and key in found:
+                self._spool = found[key]
+            else:
+                found[key] = self._spool
+        self._retained_spools = found
+        rows = [{"path": str(spool.path), "session_id": spool.session_id,
+                 "count": spool.pending_count, "retry_safe": spool.retry_safe,
+                 "error": spool.ordering_error}
+                for spool in found.values() if spool.pending_count or spool.ordering_error]
+        self._client.recovery_list.emit(rows)
+        return rows
+
+    def _configure_spool(self, settings, session_id, base_index=0):
+        with self._capture_submission_lock:
+            return self._bind_spool(settings, session_id, base_index)
+
+    def _bind_spool(self, settings, session_id, base_index):
         if self._spool is not None and self._spool.session_id == session_id and not self._live:
-            return
+            if self._spool.pending_count or self._spool.base_index + self._spool.next_sequence == base_index:
+                return
         if self._spool is None and self._live and self._resource_session_id == session_id:
             return
         if self._spool is not None:
             self._spool.cleanup()
-        self._spool = (CaptureSpool(data_root() / "capture-queue", session_id, settings)
+        candidates = [spool for spool in self._retained_spools.values()
+                      if spool.session_id == session_id and spool.pending_count and spool.retry_safe]
+        self._spool = ((candidates[0] if len(candidates) == 1 else CaptureSpool(
+            data_root() / "capture-queue", session_id, settings,
+            receipts=self._client._capture_receipts_supported, base_index=base_index))
                        if session_id and not self._live else None)
         self._resource_session_id = session_id
         self._failed_uploads = False
@@ -131,14 +188,23 @@ class ServerTaskWorker(QThread):
     def _restore_session_resources(self, status):
         """Rebind local resources after authoritative connection/status checks.
 
-        Replacing a spool retains its unconfirmed files; only empty spools are
-        cleaned. Same-session checks preserve upload failures and recordings.
+        Replacing a spool preserves its pending captures and durable stream
+        manifest. Same-session checks preserve upload failures and recordings.
         """
         if "settings" not in status:
             return
         session_id = status.get("session_id")
+        self._discover_recovery()
         self._live = bool(status["settings"].get("live_reconstruction"))
-        self._configure_spool(status["settings"], session_id)
+        self._configure_spool(status["settings"], session_id, status.get("stored_count", 0))
+        with self._capture_submission_lock:
+            with self._queue.mutex:
+                scheduled = {task.kwargs.get("spool_path") for task in self._queue.queue
+                             if task is not None and task.task_type == ServerTaskType.SEND_FRAME}
+            if self._pending is not None and self._pending.task_type == ServerTaskType.SEND_FRAME:
+                scheduled.add(self._pending.kwargs.get("spool_path"))
+            if any(path not in scheduled for spool in self._matching_spools() for path in spool.pending_paths):
+                self._failed_uploads = True
         if session_id != self._recording_session_id or self._recording is None:
             self._recording = None
             self._recording_session_id = None
@@ -153,7 +219,8 @@ class ServerTaskWorker(QThread):
                                 session_id, self._recording.path)
 
     def _require_uploaded_captures(self):
-        if self._failed_uploads or (self._spool is not None and self._spool.pending_count):
+        self._discover_recovery()
+        if self._failed_uploads or self.pending_capture_count:
             retained = f" Pending captures are retained in {self._spool.path}." if self._spool else ""
             raise RuntimeError("Some captures were not confirmed by the server; build/save stopped." + retained)
 
@@ -172,6 +239,10 @@ class ServerTaskWorker(QThread):
         self._queue.put(None)
 
     def run(self):
+        try:
+            self._discover_recovery()
+        except (OSError, ValueError) as exc:
+            self._client.task_error.emit(f"Could not check retained captures: {exc}")
         while not self._stop_flag:
             task = self._pending if self._pending is not None else self._queue.get()
             self._pending = None
@@ -198,7 +269,7 @@ class ServerTaskWorker(QThread):
 
     _MAX_BATCH = 8  # Bound peak RAM and acknowledgement latency while a spool drains.
 
-    def _drain_send_frames(self, first_task: ServerTask) -> dict:
+    def _drain_send_frames(self, first_task: ServerTask, *, recovering=False) -> dict:
         """Batch only consecutive frames, preserving command barriers exactly."""
 
         def frame(task):
@@ -216,7 +287,7 @@ class ServerTaskWorker(QThread):
 
         capture_session_id = origin(first_task)
         tasks = [first_task]
-        while len(tasks) < self._MAX_BATCH:
+        while not recovering and len(tasks) < self._MAX_BATCH:
             try:
                 task = self._queue.get_nowait()
             except queue.Empty:
@@ -234,12 +305,16 @@ class ServerTaskWorker(QThread):
             frames = [frame(task) for task in tasks]
             if capture_session_id != self._client.session_id:
                 raise RuntimeError("Capture belongs to a different server session; upload stopped and local spool retained")
+            if self._failed_uploads and not recovering:
+                raise RuntimeError("Earlier captures need recovery; later captures remain on disk. Choose Recover Captures.")
             logger.info("Uploading captures session=%s count=%s frame_ids=%s", self._client.session_id,
                         len(frames), [metadata.get("frame_id") for _, _, metadata in frames])
             if len(frames) == 1:
                 result = self._client.send_frame(*frames[0])
             else:
                 result = self._client.send_frames_batch(frames)
+            if not isinstance(result, dict):
+                raise RuntimeError("Invalid upload confirmation; captures remain on disk")
             if result.get("session_id") and result["session_id"] != capture_session_id:
                 raise RuntimeError("Upload acknowledged a different server session; reconnect before continuing. Local spool retained")
         except Exception as exc:
@@ -259,13 +334,46 @@ class ServerTaskWorker(QThread):
         finally:
             self._inflight_captures = 0
         acknowledgements = result.get("results", [result] if len(frames) == 1 else [])
+        if not isinstance(acknowledgements, list) or any(not isinstance(ack, dict) for ack in acknowledgements):
+            self._failed_uploads = True
+            raise RuntimeError("Invalid capture confirmations; captures remain on disk")
         logger.info("Capture upload session=%s count=%s success=%s stored=%s frame_ids=%s",
                     self._client.session_id, len(frames), result.get("success"), result.get("stored_count"),
                     [metadata.get("frame_id") for _, _, metadata in frames])
-        capture_acks = acknowledgements or [{"success": result.get("success", False)}] * len(frames)
+        receipt_frames = any(metadata.get("upload_receipt") for _, _, metadata in frames)
+        capture_acks = acknowledgements or ([] if receipt_frames else [{"success": result.get("success", False)}] * len(frames))
+        if receipt_frames:
+            if len(capture_acks) != len(frames):
+                self._failed_uploads = True
+                raise RuntimeError("Upload confirmation count is incomplete; captures remain on disk")
+            from shared.capture_receipts import receipt_for
+            verified = []
+            for (rgb, depth, metadata), ack in zip(frames, capture_acks):
+                if ack.get("success") is False:
+                    verified.append(ack)
+                    continue
+                try:
+                    expected = receipt_for(rgb, depth, metadata)
+                except (ValueError, TypeError) as exc:
+                    self._failed_uploads = True
+                    raise RuntimeError("Capture proof is unavailable; originals remain on disk") from exc
+                proof = ack.get("capture_receipt")
+                if (ack.get("success") is not True or not isinstance(proof, dict)
+                        or type(proof.get("sequence")) is not int or type(proof.get("expected_index")) is not int
+                        or proof != expected or type(ack.get("index")) is not int
+                        or ack.get("index") != expected["expected_index"]
+                        or ack.get("session_id") != capture_session_id
+                        or result.get("session_id") != capture_session_id):
+                    ack = {**ack, "success": False, "message": "Upload confirmation could not be verified; capture retained"}
+                verified.append(ack)
+            capture_acks = verified
+            acknowledgements = verified
         complete = len(capture_acks) == len(tasks) and all(ack.get("success") for ack in capture_acks)
         if not complete:
             self._failed_uploads = True
+            result["message"] = next((ack.get("message") for ack in capture_acks
+                                      if not ack.get("success") and ack.get("message")),
+                                     result.get("message", "Capture upload was not confirmed"))
         result = {
             **result,
             "success": complete,
@@ -287,13 +395,15 @@ class ServerTaskWorker(QThread):
                         if "index" in ack:
                             metadata["server_index"] = ack["index"]
                         self._recording.append(rgb, depth, metadata)
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 logger.exception("Local capture recording stopped path=%s", self._recording.path, extra={"ui_log": False})
                 self._recording = None
                 self._client.task_error.emit(f"Recording stopped: {exc}")
         for task, ack in zip(tasks, capture_acks):
             if ack.get("success") and "spool_path" in task.kwargs:
-                task.kwargs["spool"].acknowledge(task.kwargs["spool_path"])
+                if not task.kwargs["spool"].acknowledge(task.kwargs["spool_path"]):
+                    self._failed_uploads = True
+                    result.update(success=False, message="Confirmed capture could not be removed locally; choose Recover Captures.")
         return result
 
     def _dispatch(self, task: ServerTask):
@@ -318,6 +428,53 @@ class ServerTaskWorker(QThread):
             self._client.last_status = dict(result)
             self._restore_session_resources(result)
             self._client.status_updated.emit(result)
+
+        elif tt == ServerTaskType.LIST_RECOVERY:
+            self._discover_recovery()
+
+        elif tt == ServerTaskType.RETRY_CAPTURES:
+            spool = CaptureSpool.open(task.kwargs["path"])
+            if not spool.retry_safe or not self._client._capture_receipts_supported or not self._client.is_connected:
+                raise RuntimeError("This capture buffer cannot be retried safely; save a recovery project instead")
+            status = self._client.get_status()
+            if status.get("session_id") != spool.session_id or status.get("operation"):
+                raise RuntimeError("Connect to the matching idle scan before retrying these captures")
+            self._client.session_id = status["session_id"]
+            self._client.last_status = dict(status)
+            self._retained_spools[str(spool.path)] = spool
+            if self._spool is not None and self._spool.path == spool.path:
+                self._spool = spool
+            paths = spool.pending_paths
+            for index, path in enumerate(paths):
+                self._client.task_started.emit(f"Recovering capture {index + 1} of {len(paths)}…")
+                result = self._drain_send_frames(ServerTask(ServerTaskType.SEND_FRAME, {
+                    "spool_path": path, "spool": spool, "capture_session_id": spool.session_id,
+                }), recovering=True)
+                self._client.frame_stored.emit(result)
+                if not result.get("success") or path.exists():
+                    reason = result.get("message", "Capture recovery was not confirmed")
+                    raise RuntimeError(reason + "; original captures remain on disk. "
+                                       "Save a recovery project if this scan cannot accept them")
+            self._discover_recovery()
+            self._failed_uploads = bool(self.pending_capture_count)
+            status = self._client.get_status()
+            if status.get("session_id") != spool.session_id:
+                self._failed_uploads = True
+                raise RuntimeError("Scan changed during recovery; reconnect before continuing")
+            self._client.last_status = dict(status)
+            if not self.pending_capture_count and not self._live:
+                self._spool = CaptureSpool(data_root() / "capture-queue", spool.session_id, status["settings"],
+                    receipts=True, base_index=status.get("stored_count", 0))
+            self._client.status_updated.emit(status)
+            self._client.recovery_done.emit({"session_id": spool.session_id, "recovered": len(paths),
+                                             "remaining": self.pending_capture_count})
+
+        elif tt == ServerTaskType.EXPORT_RECOVERY:
+            from .capture_recovery import export_recovery_project
+            spool = CaptureSpool.open(task.kwargs["path"])
+            self._client.task_started.emit("Saving retained captures to a recovery project…")
+            destination = export_recovery_project(spool, task.kwargs["destination"])
+            self._client.recovery_export_done.emit(str(destination))
 
         elif tt == ServerTaskType.COMPACT_PROJECT_INFO:
             self._require_uploaded_captures()
@@ -383,7 +540,7 @@ class ServerTaskWorker(QThread):
             self._recording = None
             self._recording_session_id = None
             self._live = result["settings"].get("live_reconstruction", False)
-            self._configure_spool(result["settings"], result.get("session_id"))
+            self._configure_spool(result["settings"], result.get("session_id"), result.get("stored_count", 0))
             self._client.project_opened.emit(result, path)
 
         elif tt == ServerTaskType.PREVIEW:

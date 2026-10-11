@@ -36,8 +36,53 @@ has session settings in `session.json` and uncompressed NPZ files with `rgb`,
 `depth` and JSON `metadata`. Only server-confirmed files are removed. Disk-write
 failure pauses capture and reserves at least 1 GiB of free space. Failed or
 uncertain uploads remain on disk, including after exit or starting another scan;
-they block a build/save of that incomplete session. Recovery of those files is
-currently manual; reopening the app does not automatically replay them.
+they block a build/save of that incomplete session. After an upload fails, later
+captures stay on disk until recovery so they cannot overtake the missing capture.
+
+## Recover interrupted uploads
+
+Choose **File → Recover Captures…** to inspect retained captures, including while
+disconnected. Discovery does not upload, reset a scan or remove files. Reconnecting
+checks the matching session's retained captures before enabling Finish and save.
+
+- **Retry Matching Scan** resumes ordered uploads to the same idle server session.
+  It requires captures made with receipt support on an updated client and server.
+  A lost acknowledgement can be confirmed without adding a duplicate capture.
+  The server rejects changed pixels/metadata, another session, or an insertion
+  that would put a capture in the wrong position. Failure leaves the remaining
+  files available for another retry or an offline recovery copy.
+- **Save Recovery Project** writes a lossless project from that buffer's pending
+  captures, with the original settings, calibration and metadata. This works
+  without a server. It is a **partial capture set**: already-confirmed images
+  that exist only on the server are not included, and it contains no finished
+  mesh or invented camera poses. Open the copy and use Finish to reconstruct
+  those retained observations. Saving a copy preserves the buffer and does not
+  mark the current scan saved or change its project destination.
+
+Older buffers can be exported when their capture order can be established, but
+cannot be safely retried through the new acknowledgement protocol. Unreadable or
+ambiguously ordered buffers are reported for manual recovery; the app does not
+silently skip their files. Resetting/reopening a server project creates a new
+session and cannot restore authority to retry an earlier session's captures.
+The partial-recovery notice remains visible after opening the copy and is
+preserved when saving or making a compact project from it.
+
+New buffers use a versioned atomic session manifest, durable sequence filenames,
+and per-capture receipts. A receipt binds the original native pixels and metadata
+to the stream, sequence and expected server index. Only a matching acknowledgement
+permits deletion. The server advertises `capture_protocol.capture_receipts: 1`;
+receipt uploads opt in with `X-Capture-Receipt: 1` and `X-Scan-Session`. Older
+clients retain their existing upload behavior. Updating a separately running
+server requires pulling the changes and restarting it when its work is saved.
+
+The server bounds streamed upload bodies before decoding: 6,000,000 bytes per
+single packet and 600,000,408 bytes for the existing maximum 100-packet batch.
+Oversized bodies receive HTTP 413, including uploads without an accurate
+Content-Length. One capture request at a time may read/decode/wait for storage;
+later requests wait before reading their bodies, so a long Finish cannot collect
+an unbounded in-memory upload backlog. Reading a slow upload does not hold the
+scan-state lock. These are ingress memory bounds, not changes to capture quality
+or the supported packet formats.
 
 Queued captures retain their originating session across reconnects. Current
 clients send `X-Scan-Session` with single and batch uploads; the server checks

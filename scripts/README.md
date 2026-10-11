@@ -69,6 +69,9 @@ and [check_cuda_native_server.py](check_cuda_native_server.py) mutate a **dedica
 empty test server** through synthetic or bounded archived captures, build/export
 and reset/settings requests. They check initial state and restore test settings;
 do not run them while another client is using that server.
+The full `check_scanner.py` also drops a real upload acknowledgement, restores
+local pending captures as after a client restart, and verifies ordered retry
+without duplicates; `--server-only` omits this Qt/client-dependent check.
 [check_cuda_backend.py](check_cuda_backend.py) runs backend tests and hardware
 probes in the configured development environment. All numerical benchmarks can
 consume substantial CPU/GPU resources; run outside active scanning.

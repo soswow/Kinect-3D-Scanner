@@ -36,6 +36,9 @@ class ServerClient(QObject):
     export_done = pyqtSignal(bool, str)
     project_opened = pyqtSignal(dict, str)
     compact_project_info = pyqtSignal(dict)
+    recovery_list = pyqtSignal(list)
+    recovery_done = pyqtSignal(dict)
+    recovery_export_done = pyqtSignal(str)
     transfer_progress = pyqtSignal(str, float, float)
     save_mesh_done = pyqtSignal(bool, str)
     status_updated = pyqtSignal(dict)
@@ -66,6 +69,7 @@ class ServerClient(QObject):
         self._feature_history_supported = False
         self._project_export_supported = False
         self._compact_project_supported = False
+        self._capture_receipts_supported = False
 
     @property
     def is_connected(self) -> bool:
@@ -98,6 +102,7 @@ class ServerClient(QObject):
             self._feature_history_supported = health.get("capture_protocol", {}).get("feature_history") == 1
             self._project_export_supported = health.get("project_export", {}).get("version") == 1
             self._compact_project_supported = health.get("project_export", {}).get("compact") == 1
+            self._capture_receipts_supported = health.get("capture_protocol", {}).get("capture_receipts") == 1
             if health.get("status") != "ok":
                 raise RuntimeError(f"Server not ok: {health}")
             status = self.get_status()
@@ -238,6 +243,8 @@ class ServerClient(QObject):
         """Pack and upload a frame. Returns the server response dict."""
         started = time.monotonic()
         headers = self._capture_headers()
+        if metadata and metadata.get("upload_receipt"):
+            self._require_receipt_transport(headers)
         self._check_motion_protocol(metadata)
         data = pack_frame(rgb, depth, metadata, compression_level=self._compression_level,
                           spatial_prediction=self._spatial_prediction)
@@ -263,6 +270,10 @@ class ServerClient(QObject):
         """Pack and upload multiple frames as a single batch."""
         started = time.monotonic()
         headers = self._capture_headers()
+        if any(len(frame) > 2 and frame[2] and frame[2].get("upload_receipt") for frame in frames):
+            if not all(len(frame) > 2 and frame[2] and frame[2].get("upload_receipt") for frame in frames):
+                raise RuntimeError("Capture upload could not verify every frame; retained captures are unchanged")
+            self._require_receipt_transport(headers)
         for frame in frames:
             self._check_motion_protocol(frame[2] if len(frame) > 2 else None)
         data = pack_frames(frames, compression_level=self._compression_level,
@@ -279,7 +290,7 @@ class ServerClient(QObject):
             if not self._batch_unavailable:
                 logger.warning("Server lacks batch endpoint, sending individually", extra={"ui_state_key": "batch-upload"})
                 self._batch_unavailable = True
-            if headers != self._capture_headers():
+            if headers.get("X-Scan-Session") != self._capture_headers().get("X-Scan-Session"):
                 raise RuntimeError("Scan session changed during upload; captures remain in the upload buffer. Reconnect before continuing.")
             results = [self.send_frame(*frame) for frame in frames]
             return {
@@ -301,6 +312,11 @@ class ServerClient(QObject):
         if self.session_id:
             headers["X-Scan-Session"] = self.session_id
         return headers
+
+    def _require_receipt_transport(self, headers):
+        if not self._capture_receipts_supported or not headers.get("X-Scan-Session"):
+            raise RuntimeError("Update and reconnect the reconstruction server before retrying retained captures")
+        headers["X-Capture-Receipt"] = "1"
 
     def _check_motion_protocol(self, metadata):
         if metadata and "motion_history" in metadata and not self._motion_history_supported:

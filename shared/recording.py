@@ -74,6 +74,39 @@ class RecordingWriter:
         self._save_manifest()
 
     def append(self, rgb, depth, metadata=None):
+        metadata = dict(metadata or {})
+        from .project_archive import pixel_digest, read_capture
+
+        index_identity = metadata.get("server_index")
+        frame_identity = metadata.get("frame_id")
+        session = self.manifest.get("session_id")
+        if metadata.get("session_id") is not None and session and metadata["session_id"] != session:
+            raise ValueError("Local capture belongs to another recording session")
+        for existing in self.manifest["frames"]:
+            if (not isinstance(existing, dict) or not isinstance(existing.get("metadata", {}), dict)
+                    or any(not isinstance(existing.get(key), str) for key in ("rgb", "depth"))):
+                raise ValueError("Invalid local recording frame or metadata; original recording preserved")
+            original = existing.get("metadata", {})
+            same_index = type(index_identity) is int and original.get("server_index") == index_identity
+            same_frame = (frame_identity is not None and type(original.get("frame_id")) is type(frame_identity)
+                          and original.get("frame_id") == frame_identity)
+            if not (same_index or same_frame):
+                continue
+            for key in ("server_index", "frame_id"):
+                if key in metadata and key in original and (type(metadata[key]) is not type(original[key])
+                                                            or metadata[key] != original[key]):
+                    raise ValueError("Conflicting local capture identity")
+            root = self.path.resolve()
+            paths = {key: (root / existing[key]).resolve() for key in ("rgb", "depth")}
+            if not all(path.is_relative_to(root) for path in paths.values()):
+                raise ValueError("Invalid local recording image path")
+            old_rgb, old_depth = read_capture(paths)
+            if pixel_digest(old_rgb) != pixel_digest(rgb) or pixel_digest(old_depth) != pixel_digest(depth):
+                raise ValueError("Conflicting local capture pixels")
+            if "server_index" not in original and type(index_identity) is int:
+                original["server_index"] = index_identity
+            self._save_manifest()
+            return False
         index = len(self.manifest["frames"])
         color_path = f"rgb/{index:06d}.png"
         depth_path = f"depth/{index:06d}.png"
@@ -83,7 +116,6 @@ class RecordingWriter:
             raise OSError("Could not save RGB recording")
         if not cv2.imwrite(str(self.path / depth_path), depth, _PNG_OPTIONS):
             raise OSError("Could not save depth recording")
-        metadata = dict(metadata or {})
         display_paths = {}
         rotation = metadata.get("orientation", {}).get("rotation_cw_degrees", 0)
         if rotation in (90, 180, 270):
@@ -107,3 +139,4 @@ class RecordingWriter:
             }
         )
         self._save_manifest()
+        return True

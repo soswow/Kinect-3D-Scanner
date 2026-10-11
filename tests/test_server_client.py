@@ -30,6 +30,50 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
 
 
 class ServerClientTests(unittest.TestCase):
+    def test_capture_receipt_capability_is_negotiated_and_rechecked_on_reconnect(self):
+        client = ServerClient()
+        for advertised in (True, False):
+            http = Mock()
+            http.get.side_effect = [response({"status": "ok", "capture_protocol": {"capture_receipts": 1} if advertised else {}}),
+                                    response({"session_id": "scan"})]
+            with patch("kinect_scanner.server_client.httpx.Client", return_value=http), patch("kinect_scanner.server_client.threading.Thread"):
+                self.assertTrue(client.connect_to_server("localhost", 8000))
+                self.assertEqual(advertised, client._capture_receipts_supported)
+            client.disconnect()
+    def test_receipt_upload_negotiates_header_and_keeps_session_snapshot(self):
+        for batch in (False, True):
+            with self.subTest(batch=batch):
+                client = ServerClient()
+                client.session_id = "original"
+                client._capture_receipts_supported = True
+                client._http = Mock()
+                client._http.post.return_value.status_code = 200
+                client._http.post.return_value.json.return_value = {"success": True}
+                metadata = {"upload_receipt": {"stream_id": "stream", "sequence": 0, "expected_index": 0}}
+                def pack(*args, **kwargs):
+                    client.session_id = "replacement"
+                    return b"capture"
+                with patch("kinect_scanner.server_client." + ("pack_frames" if batch else "pack_frame"), side_effect=pack):
+                    if batch:
+                        client.send_frames_batch([(None, None, metadata)])
+                    else:
+                        client.send_frame(None, None, metadata)
+                headers = client._http.post.call_args.kwargs["headers"]
+                self.assertEqual("original", headers["X-Scan-Session"])
+                self.assertEqual("1", headers["X-Capture-Receipt"])
+
+    def test_receipt_upload_never_falls_back_to_unguarded_old_server(self):
+        client = ServerClient()
+        client.session_id = "scan"
+        client._http = Mock()
+        metadata = {"upload_receipt": {"stream_id": "stream", "sequence": 0, "expected_index": 0}}
+        with self.assertRaisesRegex(RuntimeError, "Update"):
+            client.send_frame(None, None, metadata)
+        client._capture_receipts_supported = True
+        with self.assertRaisesRegex(RuntimeError, "every frame"):
+            client.send_frames_batch([(None, None, metadata), (None, None, {})])
+        client._http.post.assert_not_called()
+
     def test_compact_export_requires_capability_and_does_not_reuse_old_indices(self):
         client = ServerClient()
         client._http = Mock()
