@@ -104,6 +104,32 @@ class ProjectTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             export_session(candidate, self.path)
 
+    def test_compact_display_copy_opens_and_resaves_with_original_observations(self):
+        from scripts.analyze_session_contribution import compact_display_copies
+
+        self.source.frame_metadata[0]["orientation"] = {"rotation_cw_degrees": 90}
+        export_session(self.source, self.path)
+        compact = self.path.with_name("compact.zip")
+        compact_display_copies(self.path, compact)
+        candidate = self.candidate()
+        manifest = load_session(candidate, compact)
+        self.assertNotIn("display_rgb", manifest["frames"][0])
+        self.assertNotIn("display_depth", manifest["frames"][0])
+        self.assertEqual(90, candidate.frame_metadata[0]["orientation"]["rotation_cw_degrees"])
+        self.assertEqual(self.source.settings, candidate.settings)
+        for original, restored in zip(self.source.raw_frames, candidate.raw_frames):
+            for a, b in zip(original, restored):
+                np.testing.assert_array_equal(a, b)
+        np.testing.assert_array_equal(self.source.poses[0][1], candidate.poses[0][1])
+        np.testing.assert_allclose(self.source.mesh.vertices, candidate.mesh.vertices)
+        candidate._project_archive_path = str(compact)
+        saved = self.path.with_name("resaved.zip")
+        export_session(candidate, saved)
+        with zipfile.ZipFile(compact) as source, zipfile.ZipFile(saved) as target:
+            for frame in manifest["frames"]:
+                for key in ("rgb", "depth"):
+                    self.assertEqual(source.read(frame[key]), target.read(frame[key]))
+
     def test_invalid_poses_and_member_paths_are_rejected(self):
         for field in ("pose", "path"):
             with self.subTest(field=field):

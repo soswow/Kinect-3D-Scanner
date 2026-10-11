@@ -476,6 +476,70 @@ and map their server indices into recordings. Older servers without individual
 acknowledgements preserve captures but cannot establish partial-batch mappings.
 Datasets, captures, exports, and detailed replay artifacts remain ignored by Git.
 
+### Project contribution audit
+
+For a finished project, use the offline contribution audit before deciding to
+discard captures. It reads a complete saved ZIP without contacting a server,
+changing poses or allocating a reconstruction volume. Run it in the scanner
+numerical environment; `--help` and `--storage-only` need only Python's standard
+library. `--compact-output` also needs only the standard library when combined
+with `--storage-only`. Reports default to ignored `benchmark-output/session-contribution/`.
+
+```powershell
+python scripts/analyze_session_contribution.py recordings/project.zip `
+  --output benchmark-output/session-contribution `
+  --compact-output export/project-compact.zip
+```
+
+The optional compact copy keeps every native RGB/depth capture, image encoding,
+capture index, calibration, camera pose, sensor record and saved mesh. It omits
+only the optional `display_rgb`/`display_depth` members under `display/`, which
+are convenience copies of the oriented native images. The existing project
+reader uses native images and orientation metadata. Resaving matching image
+encodings can preserve the absence of display copies. All retained members except
+the edited manifest are SHA-256 verified against the source before publishing to
+a new, unoccupied path.
+The source and running scan remain unchanged. This does not prune snapshots.
+
+`summary.json` and `shots.csv` distinguish three different decisions:
+
+- **Outside the final pose set:** these captures are absent from the selected
+  mesh's fusion and cannot supply its texture. This is exact for that saved
+  reconstruction, but disconnected maps can contain useful missing surfaces.
+- **Texture selection:** protect all photos selected by the current default
+  exporter (up to 64) rather than assuming every accepted RGB image is used.
+  Removing accepted views changes trajectory sampling, so a production pruning
+  feature must preserve source-photo identities explicitly or rebake and compare.
+- **Sampled geometry redundancy:** propose joint removals at saved poses using
+  deterministic, area-weighted mesh samples and calibrated filtered depth. Keep
+  at least three observations where available, and one view with at least 90%
+  of the original best angle/distance score at each observed sample. Separate
+  held-out surface points report coverage, observation-support and best-view
+  deficits. Zero deficits on sampled points are not proof that fusion is unchanged.
+
+Default selection and held-out splits each contain 50,000 surface points. Depth
+agreement uses the texture export tolerance `max(15 mm, 1% of depth)`, with
+incidence cosine above 0.25. This measures support for the existing surface;
+small or missing surfaces can be missed. It does not measure physical noise,
+prove registration-graph connectivity, evaluate TSDF free space, or verify
+texture colors, exposure/seam fitting and vertex-color fallback. Before pruning
+accepted depth views, rebuild a separate candidate volume at the same final
+settings and compare bidirectional surface distances, holes, held-out measured
+depth and a matched texture bake. Keep the complete project for pose recovery
+and later reconstruction. The audit emits candidates only and never deletes shots.
+
+A recorded 438-capture room project at source `29b1df1` contained 218 final
+poses; 179 other captures were in disconnected validated maps and 41 in a
+depth-rejected map. Omitting 876 display-image copies reduced its PNG archive
+from 2,088,845,471 to 1,087,153,545 bytes (47.95%) while retaining all captures
+and verifying the other 879 members byte for byte. The default 50,000-point
+selection plus 50,000 held-out surface samples found no accepted-view removals
+meeting the three-observation/90%-score policy. Relaxing to one observation and
+80% of the best score proposed three removals (6.10 MB of native image payload),
+but two held-out points lost the required best-view quality. These are storage
+and fixed-pose support findings for that project, not general scan redundancy
+or proof of reconstruction accuracy; no captures were pruned or volume rebuilt.
+
 ## Experimental final refinement
 
 Enable **Final pose refinement**, reset with `refine_poses: true`, or pass
