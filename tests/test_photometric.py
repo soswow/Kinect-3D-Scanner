@@ -46,9 +46,9 @@ class PhotometricTests(unittest.TestCase):
         closer[2, 3] = 0.02
         engine.poses.append((1, closer))
         engine.frame_metadata.append({})
-        plain, _ = make_textured_mesh(engine, size=256)
+        plain, _ = make_textured_mesh(engine, size=256, blend_mode="best")
         corrected, report = make_textured_mesh(
-            engine, size=256, exposure_correction=True
+            engine, size=256, exposure_correction=True, blend_mode="best"
         )
         best, best_report = make_textured_mesh(engine, size=256, blend_mode="best")
         self.assertTrue(report["exposure_correction"]["applied"], report)
@@ -73,6 +73,9 @@ class PhotometricTests(unittest.TestCase):
         self.assertLess(front_colors(corrected), 4)
         self.assertAlmostEqual(front_colors(best), front_colors(plain), delta=2)
         self.assertEqual("best", best_report["blend_mode"])
+        matched, matched_report = make_textured_mesh(engine, size=256)
+        self.assertTrue(matched_report["seam_leveling"]["applied"])
+        self.assertLess(front_colors(matched), front_colors(plain))
         engine.raw_frames = [(r, np.full_like(d, 900)) for r, d in engine.raw_frames]
         _, occluded = make_textured_mesh(
             engine, size=256, exposure_correction=True, blend_mode="best"

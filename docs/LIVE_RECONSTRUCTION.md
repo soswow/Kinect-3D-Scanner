@@ -153,9 +153,12 @@ a depth-camera frustum; sparse visibility sampling does not discard source views
 More pages and views increase projection work and file size;
 these defaults do not promise faster exports.
 
-Optional `exposure_correction=true` enables bounded gain matching on
-held-out depth-visible overlap; `blend_mode=best` selects the strongest
-angle/distance view instead of blending. Both have GUI export checkboxes. The texture mesh is a simplified copy;
+Default `blend_mode=blend` matches low-frequency photo colors across the whole
+surface before atlas cuts. It keeps the selected original photo's sharp detail.
+`blend_mode=best` keeps original photo colors and sharp boundaries.
+Optional `exposure_correction=true` additionally enables bounded per-camera
+gain matching on held-out depth-visible overlap. Both options have GUI export
+checkboxes. The texture mesh is a simplified copy;
 the full final mesh remains available through PLY/plain OBJ. UV seams duplicate
 export vertices deliberately. Non-manifold edge connections and disconnected
 vertex fans are separated into UV seams on the export copy before atlas
@@ -187,19 +190,38 @@ The portable projection algorithm works on ARM CPUs:
    stay unchanged; the report records that repair.
    Every page receives the same global labels, remapped to its unculled views.
    This makes source selection independent of page boundaries. It does not
-   optimize photographic alignment or color discontinuities.
-3. Generate a partitioned Open3D UV atlas and bake position, normal, and fused
+   optimize photographic alignment.
+3. For `blend_mode=blend`, project low-pass native RGB onto physical mesh
+   vertices with the same measured-depth visibility checks. Normal-aware short
+   mesh edges give observations a shared surface footprint; robust, capped
+   geometric weights estimate common low-frequency color. Fit bounded RGB
+   log gains (0.5–2), shrinking near-black channel gains towards luminance gain
+   to limit sensor-noise amplification. Incident normal axes resist winding
+   cancellation; consistently oriented bisectors handle sharp mesh corners.
+   The original photographs are never blurred for the final texture.
+   Interior surface points withheld from vertex fitting verify relative
+   low-frequency continuity. Unsupported regions keep original colors;
+   regressing disconnected components are rejected. These checks compare
+   photographs at saved poses, not reflectance or geometric ground truth.
+   The fit retains at most 200,000 original vertices and 64 photos, chunks
+   fitting temporaries, and blurs one image at a time. Several numerical buffers
+   coexist; input photos and atlas baking need additional memory. The report
+   records fit size/time, validation and rejection counts.
+4. Generate a partitioned Open3D UV atlas and bake position, normal, and fused
    color maps on each page. Partitioning avoids expensive single-chart solves on scan meshes.
-4. Project surface texels into original RGB views using calibrated intrinsics and
+5. Project surface texels into original RGB views using calibrated intrinsics and
    inverse camera-to-world poses. Require measured depth to agree with surface
    depth within `max(15 mm, 1% of depth)` and exclude grazing views.
-5. Bilinearly sample the chosen region photo. Where that photo has missing
-   depth, retain the strongest independently depth-tested source. Blend only
-   a narrow compatible photo-boundary strip; missing observations retain fused
-   vertex color. No generated image fills unobserved areas.
+6. Bilinearly sample the chosen region photo. Where that photo has missing
+   depth, retain the strongest independently depth-tested source. Apply the
+   shared physical gain field to the actual chosen photo, including these
+   fallback observations. Face and view remapping preserve the field across
+   UV winding changes and page cuts. If no supported color field is available,
+   the existing narrow compatible seam feather remains available. Missing
+   observations retain fused vertex color. No generated image fills them.
 
 The pipeline supports measured lens correction and optional relative exposure
-gains. It does not optimize patch seams or photometric poses. Inaccurate calibration/poses can blur
+gains and shared spatial color matching. It does not optimize photometric poses. Inaccurate calibration/poses can blur
 texture, and more atlas pixels cannot create detail absent from the source RGB
 (640x480 or native 1280x1024). A 50,000-triangle export of a large scan also loses
 geometric detail independently of texture resolution. The new 200,000 default
@@ -235,23 +257,45 @@ The existing pose-graph proposal improved average held-out loss by 2.31% but
 worsened four camera pairs and was rejected; sparse RGB-D bundle adjustment
 had no valid three-view landmarks. These rejected poses were not applied.
 
-Current seam feathering only sees neighboring atlas texels on physically linked
-faces, so cuts between distant charts/pages remain a limitation. Multiplicative
-per-camera gains cannot model all spatial lighting or glossy reflections. Two
+The shared color field works across distant charts/pages. The fallback narrow
+seam feather still only sees neighboring atlas texels on physically linked
+faces. Color matching cannot recover clipped detail, remove every glossy
+reflection or repair shifted photo edges. Some source grain is amplified even
+with dark-channel damping. Two
 bounded offline color-leveling prototypes (per-view affine fields and physical
 patch constants) were also rejected on that recording; neither is a production
 feature or a demonstrated seam fix. Raw measurements, prototypes and captures
 stay in ignored local investigation storage.
 
-The next texture experiment should distinguish smooth color differences from
-shifted photographic edges. [Let There Be Color! and the authors' implementation](https://github.com/nmoehrle/mvs-texturing)
+The production field separates smooth color differences from selected-photo
+detail. [Let There Be Color! and the authors' implementation](https://github.com/nmoehrle/mvs-texturing)
 use global mesh-patch color leveling followed by local seam correction.
 [Color Map Optimization](https://vladlen.info/publications/color-map-optimization-for-3d-reconstruction-with-consumer-depth-cameras/)
 jointly optimizes camera poses and image correction functions to address color
-mapping errors. These methods motivate separate bounded experiments, not a
+mapping errors. These methods motivate physical seam matching, not a
 claim that this exporter implements them. Use overlapping local camera windows,
 fixed measured calibration, independent depth validation, and matched renders;
 photometric consistency alone does not establish geometric accuracy.
+
+On the recorded half-room, matched 200K-face/16-page exports with identical
+geometry, UVs, source labels and cameras reduced the 95th percentile RGB gap
+across coplanar photo boundaries from 65.2 to 50.6/255 on the floor and 74.4 to
+56.4/255 on the wall. Independent low-frequency photo disagreement at 1,544
+interior points fell about 85%; this is not an 85% improvement in overall scan
+quality. Printed-marker high-frequency correlations remained 0.995–0.999.
+Selected upper/middle wood patches had about 14%/10% more normalized fine
+variation, so noise removal is not claimed. The strongest wall transitions and
+large floor brightness blocks visibly improve; reflections and alignment
+artifacts remain. These are one-recording results, not universal accuracy or
+throughput guarantees. Captures, matched renders, rejected additive/pose
+experiments and detailed metrics stay in ignored local investigation storage.
+The comparison used Windows, Open3D 0.20.0, NumPy 2.5.3 and four OpenMP
+threads; exported views used saved measured calibration and poses. Its source
+base was `7716a2a`, with Git file blobs `c33e8b1` (surface color), `4cb35a3`
+(texturing) and `1b6f772` (pages). The private project SHA256 is
+`b00bab6d12535eb365916ebfe8328606e98b840371f4f81efab3829c66e8b0c6`;
+the fixed 200K mesh SHA256 is
+`53ee9bedf0fbd87f3a9f0681386b67ba788a413ad76d713783044e55435828cf`.
 
 ## Full session preservation
 

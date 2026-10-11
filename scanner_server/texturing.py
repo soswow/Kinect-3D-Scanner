@@ -459,6 +459,27 @@ def _seam_partners(positions, sources, valid, size, width=3, *, face_ids=None, n
     return result, amount
 
 
+def _interpolate_face_corrections(positions, face_ids, triangles, corrections):
+    """Interpolate original face corners, independent of UV winding/vertex splits."""
+    points = triangles[face_ids]
+    ab, ac = points[:, 1] - points[:, 0], points[:, 2] - points[:, 0]
+    relative = positions - points[:, 0]
+    aa = np.einsum("ij,ij->i", ab, ab)
+    cc = np.einsum("ij,ij->i", ac, ac)
+    cross = np.einsum("ij,ij->i", ab, ac)
+    denominator = np.maximum(aa * cc - cross * cross, 1e-30)
+    ra = np.einsum("ij,ij->i", relative, ab)
+    rc = np.einsum("ij,ij->i", relative, ac)
+    second = (cc * ra - cross * rc) / denominator
+    third = (aa * rc - cross * ra) / denominator
+    barycentric = np.column_stack((1 - second - third, second, third))
+    # Atlas padding can extrapolate just outside a face. Keep color adjustment
+    # inside its corner range rather than amplifying it in the gutter.
+    barycentric = np.clip(barycentric, 0, 1)
+    barycentric /= np.maximum(barycentric.sum(axis=1, keepdims=True), 1e-30)
+    return np.einsum("ij,ijk->ik", barycentric, corrections[face_ids])
+
+
 def make_textured_mesh(
     engine,
     size=1024,
@@ -472,6 +493,8 @@ def make_textured_mesh(
     _selected_views=None,
     _exposure=None,
     _face_sources=None,
+    _color_field=None,
+    _seam_report=None,
 ):
     if engine.mesh is None or not len(engine.mesh.triangles):
         raise ValueError("Build a mesh before texturing")
@@ -488,6 +511,9 @@ def make_textured_mesh(
     mesh.remove_duplicated_triangles()
     mesh.remove_degenerate_triangles()
     mesh.remove_unreferenced_vertices()
+    if _color_field is not None and (len(_color_field.face_indices) != len(mesh.triangles) or
+                                     len(_color_field.view_indices) != len(_prepared)):
+        raise ValueError("Color field must match the page faces and prepared photos")
     topology_report = _make_uv_manifold(mesh)
     if _face_sources is not None and len(_face_sources) != len(mesh.triangles):
         raise ValueError("Whole-export labels must preserve page face order")
@@ -589,6 +615,10 @@ def make_textured_mesh(
     projected = best_weight > 0
     selection_report = {"method": "no_source_images"}
     softened = np.zeros(len(positions), bool)
+    seam_report = dict(_seam_report) if _seam_report is not None else {
+        "applied": False, "reason": "Fewer than two source photos" if blend_mode == "blend" else "Sharp boundaries requested",
+    }
+    corrected_texels, clipped_texels, corrected_fallback_texels = 0, 0, 0
     if views and valid.any():
         counts = np.bincount(face_ids[valid], minlength=len(mesh.triangles))
         face_scores /= np.maximum(counts, 1)
@@ -598,6 +628,12 @@ def make_textured_mesh(
         else:
             face_sources = _face_sources
             selection_report = {"method": "whole_export_face_regions"}
+        if _color_field is None and _seam_report is None and blend_mode == "blend" and len(prepared) > 1:
+            from .surface_color import estimate_color_field
+
+            _color_field, seam_report = estimate_color_field(
+                mesh, prepared, engine.settings, gains=gains,
+            )
         preferred = np.full(len(positions), -1, np.int32)
         preferred[valid] = face_sources[face_ids[valid]]
         # If a region's photo has missing depth at an individual texel, keep
@@ -613,9 +649,25 @@ def make_textured_mesh(
                     rgb_camera=engine.settings.rgb_camera,
                 )
                 visible = weight > 0
-                albedo[ids[visible]] = np.clip(values[visible] * gains[view_index], 0, 1)
+                chosen = ids[visible]
+                values = values[visible] * gains[view_index]
+                albedo[chosen] = np.clip(values, 0, 1)
                 sources[ids[visible]] = view_index
-        if blend_mode == "blend":
+        if seam_report.get("applied", False):
+            # Correct the actual depth-visible photo, including best-view
+            # fallback where the face's preferred photo has missing depth.
+            for view_index in range(len(prepared)):
+                selected = np.flatnonzero(valid & (sources == view_index))
+                for start in range(0, len(selected), 65536):
+                    ids = selected[start : start + 65536]
+                    adjustments = _color_field.evaluate(positions[ids], face_ids[ids], view_index)
+                    values = albedo[ids] * np.exp(adjustments)
+                    changed = np.any(np.abs(adjustments) > 1e-6, axis=1)
+                    corrected_texels += int(changed.sum())
+                    corrected_fallback_texels += int(np.sum(changed & (sources[ids] != preferred[ids])))
+                    clipped_texels += int(np.any(values > 1, axis=1).sum())
+                    albedo[ids] = np.clip(values, 0, 1)
+        if blend_mode == "blend" and not seam_report.get("applied", False):
             partners, amounts = _seam_partners(
                 positions, sources, valid, size, face_ids=face_ids, neighbors=neighbors,
             )
@@ -663,10 +715,12 @@ def make_textured_mesh(
         "texture_size": size,
         "blend_mode": blend_mode,
         "source_selection": selection_report,
-        "seam_blending": {"width_texels": 3 if blend_mode == "blend" else 0,
+        "seam_blending": {"width_texels": 3 if blend_mode == "blend" and not seam_report.get("applied", False) else 0,
                           "softened_texels": int(softened.sum()),
                           "projected_texels": int(projected.sum())},
         "exposure_correction": exposure_report,
+        "seam_leveling": dict(seam_report, corrected_texels=corrected_texels, clipped_texels=clipped_texels,
+                              corrected_fallback_texels=corrected_fallback_texels),
         "atlas_partitions": partitions,
         "atlas": atlas_report,
         "original_triangles": original_triangles,

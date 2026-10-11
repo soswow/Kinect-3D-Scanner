@@ -19,15 +19,94 @@ import trimesh
 from scanner_server.texture_pages import _page_groups, _page_view_indices, _whole_mesh_sources, make_textured_asset
 from scanner_server.texturing import (
     _chart_rectangles, _prepare_texture_views, _single_object_gltf, export_texture,
-    make_textured_mesh, _face_neighbors,
+    make_textured_mesh, _face_neighbors, _interpolate_face_corrections,
 )
 from shared.calibration import prepare_rgbd
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
+from scanner_server.surface_color import PhotoColorField
 from tests.test_features import texture_scene
 
 
 class TexturePageTests(unittest.TestCase):
+    def test_corner_corrections_preserve_spatial_field_and_padding_bounds(self):
+        triangles = np.array([[[0., 0., 1.], [2., 0., 1.], [0., 2., 1.]]])
+        corrections = np.array([[[0., 0., 0.], [.08, .02, 0.], [.02, .08, 0.]]])
+        positions = np.array([[.5, .5, 1.], [2., 0., 1.], [2.2, -.1, 1.]])
+        result = _interpolate_face_corrections(positions, np.zeros(3, int), triangles, corrections)
+        np.testing.assert_allclose(result[:2], [[.025, .025, 0.], [.08, .02, 0.]])
+        self.assertTrue(np.all(result >= 0))
+        self.assertTrue(np.all(result <= .08))
+        # Corner order can change during winding repair without changing the field.
+        reversed_result = _interpolate_face_corrections(
+            positions, np.zeros(3, int), triangles[:, ::-1], corrections[:, ::-1],
+        )
+        np.testing.assert_allclose(result, reversed_result)
+
+    def test_leveling_corrects_actual_visible_photo_including_depth_fallback(self):
+        engine = texture_scene()
+        depth = engine.raw_frames[0][1]
+        red = np.full((480, 640, 3), (180, 70, 50), np.uint8)
+        blue = np.full((480, 640, 3), (50, 70, 180), np.uint8)
+        engine.poses = [(0, np.eye(4)), (1, np.eye(4))]
+        labels = np.ones(len(engine.mesh.triangles), np.int32)
+        field = PhotoColorField(np.asarray(engine.mesh.vertices), np.asarray(engine.mesh.triangles),
+            np.broadcast_to(np.log([[[.8], [1.1]]]), (len(engine.mesh.vertices), 2, 3)),
+            np.arange(len(labels)), np.arange(2))
+        for selected_depth, expected, fallback in (
+            (depth, (55, 77, 198), False), (np.zeros_like(depth), (144, 56, 40), True),
+        ):
+            engine.raw_frames = [(red, depth), (blue, selected_depth)]
+            mesh, report = make_textured_mesh(
+                engine, size=256, _prepared=_prepare_texture_views(engine, engine.poses),
+                _selected_views=engine.poses, _face_sources=labels,
+                _color_field=field, _seam_report={"applied": True},
+            )
+            front = np.isclose(mesh.vertices[mesh.faces].mean(axis=1)[:, 2], 1.2)
+            colors = trimesh.visual.color.uv_to_color(
+                mesh.visual.uv[mesh.faces].mean(axis=1), mesh.visual.material.image,
+            )
+            np.testing.assert_allclose(colors[front, :3], np.tile(expected, (front.sum(), 1)), atol=2)
+            self.assertGreater(report["seam_leveling"]["corrected_texels"], 0)
+            self.assertEqual(fallback, report["seam_leveling"]["corrected_fallback_texels"] > 0)
+            self.assertEqual(0, report["seam_blending"]["softened_texels"])
+
+    def test_global_leveling_is_shared_across_pages_and_culled_views(self):
+        engine = texture_scene()
+        rgb = np.full((480, 640, 3), 100, np.uint8)
+        depth = engine.raw_frames[0][1]
+        disjoint = np.eye(4)
+        disjoint[0, 3] = 20
+        engine.poses = [(0, disjoint), (1, np.eye(4)), (2, np.eye(4))]
+        engine.raw_frames = [(rgb, depth)] * 3
+        engine.frame_metadata = [{}] * 3
+        triangles = np.asarray(engine.mesh.vertices)[np.asarray(engine.mesh.triangles)]
+        vertices = np.asarray(engine.mesh.vertices)
+        logs = np.zeros((len(vertices), 3, 3), np.float32)
+        logs[:, :, 0] = .03 + vertices[:, None, 0] * .02
+        field = PhotoColorField(vertices, np.asarray(engine.mesh.triangles), logs,
+                               np.arange(len(triangles)), np.arange(3))
+        for budget in (1, 4):
+            with patch("scanner_server.surface_color.estimate_color_field",
+                       return_value=(field, {"applied": True})) as solve:
+                asset, report = make_textured_asset(engine, size=256, max_pages=budget)
+            self.assertEqual(1, solve.call_count)
+            self.assertEqual(3, len(solve.call_args.args[1]))
+            self.assertEqual("whole_export", report["seam_leveling"]["scope"])
+            pages = list(asset.geometry.values()) if isinstance(asset, trimesh.Scene) else [asset]
+            for page in pages:
+                centers = page.vertices[page.faces].mean(axis=1)
+                front = np.isclose(centers[:, 2], 1.2)
+                colors = trimesh.visual.color.uv_to_color(
+                    page.visual.uv[page.faces].mean(axis=1), page.visual.material.image,
+                )
+                expected = 100 * np.exp(.03 + centers[front, 0] * .02)
+                np.testing.assert_allclose(colors[front, 0], expected, atol=2)
+                np.testing.assert_allclose(colors[front, 1:3], 100, atol=2)
+        with patch("scanner_server.surface_color.estimate_color_field") as solve:
+            make_textured_asset(engine, size=256, max_pages=1, blend_mode="best")
+        solve.assert_not_called()
+
     @unittest.skipUnless(os.environ.get("BLENDER_EXECUTABLE") or shutil.which("blender"),
                          "Set BLENDER_EXECUTABLE to verify Blender's default imports")
     def test_blender_imports_one_object_with_all_page_materials(self):
