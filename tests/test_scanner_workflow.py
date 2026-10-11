@@ -245,6 +245,10 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertEqual(3, self.window._server_stored)
         self.assertEqual("retained", self.window._session_id)
         self.assertTrue(self.window._scanning)
+        self.assertTrue(self.window._paused)
+        self.assertTrue(self.window._restore_on_status)
+        self.window._on_server_status({"session_id": "retained", "stored_count": 3,
+                                       "frame_count": 2, "settings": {}})
         self.window._on_project_opened({"session_id": "opened", "stored_count": 5,
                                        "frame_count": 4, "has_mesh": False, "settings": {}}, "/tmp/project.zip")
         self.assertEqual(5, self.window._server_stored)
@@ -252,6 +256,144 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertTrue(self.window._paused)
         self.assertFalse(self.window._session_dirty)
         self.assertEqual("/tmp/project.zip", self.window._project_path)
+
+    def test_new_scan_timeout_blocks_work_until_same_session_is_confirmed(self):
+        self.retain_scan()
+        self.window._project_path = "/tmp/retained.zip"
+        self.window._capture_revision = 7
+        self.window._saved_revision = 4
+        self.protection("discard")
+        self.window._start_scan(protected=True)
+        self.window._on_task_failed("RESET", "Response lost")
+        self.assertTrue(self.window._restore_on_status)
+        self.assertTrue(self.window._paused)
+        self.assertEqual([ServerTaskType.RESET, ServerTaskType.STATUS], self.task_types())
+        self.window._pause_or_resume()
+        self.window._capture_frame()
+        self.window._stop_and_build()
+        self.window._preview_scan()
+        self.assertFalse(self.window._export_session(path="/tmp/unsafe.zip"))
+        self.assertEqual(2, len(self.task_types()))
+        for button in (self.window.btn_capture, self.window.btn_stop_build,
+                       self.window.btn_start_scan, self.window.btn_open_project):
+            self.assertFalse(button.isEnabled())
+        with patch.object(main_window.QTimer, "singleShot") as retry:
+            self.window._on_task_failed("STATUS", "Still unreachable")
+        retry.assert_called_once_with(3000, self.window._poll_server_status)
+        self.assertTrue(self.window._restore_on_status)
+        self.assertTrue(self.window._paused)
+        self.window._on_server_status({"session_id": "retained", "stored_count": 3,
+                                       "frame_count": 2, "settings": {}})
+        self.assertFalse(self.window._restore_on_status)
+        self.assertTrue(self.window._paused)
+        self.assertTrue(self.window._session_dirty)
+        self.assertEqual(7, self.window._capture_revision)
+        self.assertEqual(4, self.window._saved_revision)
+        self.assertEqual("/tmp/retained.zip", self.window._project_path)
+
+    def test_failed_open_reconciles_replacement_and_forgets_old_save_destination(self):
+        self.retain_scan()
+        self.window._project_path = "/tmp/old.zip"
+        self.window._refresh_controls()
+        self.window._open_project(path="/tmp/new.zip", protected=True)
+        self.window._on_task_failed("OPEN_PROJECT", "Response lost after replacement")
+        self.assertTrue(self.window._paused)
+        self.assertEqual([ServerTaskType.OPEN_PROJECT, ServerTaskType.STATUS], self.task_types())
+        with patch.object(main_window.QTimer, "singleShot"):
+            self.window._on_server_status({"session_id": "old", "stored_count": 3,
+                                           "settings": {}, "operation": "open"})
+        self.assertTrue(self.window._restore_on_status)
+        self.assertFalse(self.window.btn_start_scan.isEnabled())
+        self.window._on_server_status({"session_id": "replacement", "stored_count": 5,
+                                       "frame_count": 4, "settings": {"near_m": 0.75}})
+        self.assertFalse(self.window._restore_on_status)
+        self.assertEqual("replacement", self.window._session_id)
+        self.assertEqual(5, self.window._server_stored)
+        self.assertTrue(self.window._paused)
+        self.assertTrue(self.window._session_dirty)
+        self.assertIsNone(self.window._project_path)
+        self.assertEqual(750, self.window.depth_near_spin.value())
+        with patch.object(main_window.QFileDialog, "getSaveFileName", return_value=("", "")) as chooser:
+            self.window._save_project()
+        chooser.assert_called_once()
+
+    def test_connecting_to_different_session_clears_saved_project_path(self):
+        self.retain_scan()
+        self.window._project_path = "/tmp/old.zip"
+        self.window._restore_server_session({"session_id": "another", "stored_count": 2,
+                                             "settings": {}})
+        self.assertIsNone(self.window._project_path)
+
+    def test_replacement_operation_keeps_barrier_through_old_and_settled_status(self):
+        for operation in ("reset", "open"):
+            for settled_session in ("retained", "replacement"):
+                with self.subTest(operation=operation, settled_session=settled_session):
+                    self.retain_scan()
+                    self.window.task_worker.tasks.clear()
+                    self.window._server_operation = None
+                    self.window._status_pending = False
+                    self.window._restore_on_status = True
+                    self.window._project_path = "/tmp/retained.zip"
+                    self.window._capture_revision = 7
+                    self.window._saved_revision = 4
+                    with patch.object(main_window.QTimer, "singleShot") as poll:
+                        self.window._on_server_status({"session_id": "retained", "stored_count": 3,
+                                                       "frame_count": 2, "settings": {}, "operation": operation})
+                    poll.assert_called_once_with(1000, self.window._poll_server_status)
+                    self.assertTrue(self.window._restore_on_status)
+                    self.assertTrue(self.window._paused)
+                    self.assertFalse(self.window._scanning)
+                    self.assertTrue(self.window._session_dirty)
+                    self.assertEqual("/tmp/retained.zip", self.window._project_path)
+                    self.assertEqual(7, self.window._capture_revision)
+                    self.assertEqual(4, self.window._saved_revision)
+                    for button in (self.window.btn_capture, self.window.btn_pause,
+                                   self.window.btn_start_scan, self.window.btn_stop_build,
+                                   self.window.btn_reset_scan, self.window.btn_cancel_scan,
+                                   self.window.btn_export, self.window.btn_export_session,
+                                   self.window.btn_open_project):
+                        self.assertFalse(button.isEnabled())
+                    self.window._shortcut_pause()
+                    self.window._shortcut_capture()
+                    self.window._auto_capture_tick()
+                    self.window._start_scan(protected=True)
+                    self.window._reset_scan(protected=True)
+                    self.window._cancel_scan(protected=True)
+                    self.window._stop_and_build()
+                    self.window._preview_scan()
+                    self.window._open_project(path="/tmp/unsafe.zip", protected=True)
+                    self.assertFalse(self.window._save_project())
+                    self.assertEqual([], self.task_types())
+                    self.window._on_server_status({"session_id": settled_session, "stored_count": 3,
+                                                   "frame_count": 2, "settings": {}})
+                    self.assertFalse(self.window._restore_on_status)
+                    self.assertFalse(self.window._reconcile_on_status)
+                    self.assertIsNone(self.window._server_operation)
+                    self.assertTrue(self.window._paused)
+                    self.assertTrue(self.window._scanning)
+                    self.assertTrue(self.window._session_dirty)
+                    if settled_session == "retained":
+                        self.assertEqual("/tmp/retained.zip", self.window._project_path)
+                        self.assertEqual(7, self.window._capture_revision)
+                        self.assertEqual(4, self.window._saved_revision)
+                    else:
+                        self.assertIsNone(self.window._project_path)
+
+    def test_export_callbacks_cannot_bypass_unresolved_session_barrier(self):
+        self.retain_scan()
+        self.window._has_mesh = True
+        for flag, value in (("_restore_on_status", True), ("_server_operation", "reset"),
+                            ("_server_operation", "open")):
+            with self.subTest(flag=flag, value=value):
+                setattr(self.window, flag, value)
+                with patch.object(main_window.QFileDialog, "getSaveFileName", return_value=("/tmp/unsafe.ply", "")):
+                    self.window._export_mesh("ply")
+                with patch.object(main_window.os, "makedirs") as mkdir:
+                    self.window._save_mesh()
+                mkdir.assert_not_called()
+                self.assertEqual([], self.task_types())
+                self.assertIsNone(self.window._export_pending)
+                setattr(self.window, flag, False if flag == "_restore_on_status" else None)
 
     def test_retry_build_uses_resolution_without_a_block_count_control(self):
         self.retain_scan()

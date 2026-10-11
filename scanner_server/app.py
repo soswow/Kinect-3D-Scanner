@@ -68,26 +68,31 @@ _latest_live = None
 _shutting_down = False
 _exclusive = False
 _exclusive_kind = None
+_exclusive_operations = []
 
 
 @asynccontextmanager
-async def _exclusive_operation(kind):
+async def _exclusive_operation(kind, *, drain_feedback=True):
     global _exclusive, _exclusive_kind
+    operation = (object(), kind)
+    _exclusive_operations.append(operation)
     _exclusive = True
-    _exclusive_kind = kind
+    _exclusive_kind = _exclusive_operations[0][1]
     started = time.monotonic()
     try:
         logger.info("Operation started kind=%s session=%s", kind, engine.session_id)
         async with _build_lock:
             # Finish earlier live updates before manual progress/final messages.
-            await _flush_live_feedback()
+            if drain_feedback:
+                await _flush_live_feedback()
             yield
     except BaseException:
         logger.exception("Operation failed kind=%s session=%s", kind, engine.session_id)
         raise
     finally:
-        _exclusive = False
-        _exclusive_kind = None
+        _exclusive_operations.remove(operation)
+        _exclusive = bool(_exclusive_operations)
+        _exclusive_kind = _exclusive_operations[0][1] if _exclusive else None
         logger.info("Operation ended kind=%s session=%s seconds=%.2f", kind, engine.session_id, time.monotonic() - started)
 
 
@@ -230,11 +235,28 @@ async def _engine_call(function, *args, **kwargs):
     # Cancellation cannot stop a native worker thread. Keep its lock held until
     # it finishes, so a cancelled HTTP request cannot race a subsequent reset.
     task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await task
-        raise
+    return await _await_native_task(task)
+
+
+async def _await_native_task(task):
+    """Drain a native worker despite repeated cancellation of its caller."""
+    cancelled = None
+    while True:
+        try:
+            result = await asyncio.shield(task)
+            break
+        except asyncio.CancelledError as exc:
+            if task.cancelled():
+                raise
+            cancelled = exc
+        except Exception:
+            if cancelled is None:
+                raise
+            logger.exception("Native operation failed while cancellation was waiting")
+            raise cancelled
+    if cancelled is not None:
+        raise cancelled
+    return result
 
 
 async def _wait_for_processing(task, drain_progress):
@@ -243,9 +265,17 @@ async def _wait_for_processing(task, drain_progress):
             await asyncio.wait({task}, timeout=0.05)
             await drain_progress()
         await drain_progress()
-    finally:
-        if not task.done():
-            await asyncio.shield(task)
+    except BaseException:
+        # A disconnect or progress failure must not release the engine lock
+        # while build/preview still owns its native objects. Preserve the
+        # original failure after draining, even if cancellation arrives again.
+        try:
+            await _await_native_task(task)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Native processing failed while draining after a request failure")
+        raise
 
 
 # ── Health / Status ────────────────────────────────────────────────────
@@ -275,7 +305,7 @@ async def health():
     from shared.protocol import MAX_METADATA_BYTES
     return {
         "status": "ok",
-        "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1},
+        "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1, "session_guard": 1},
         "project_export": {"version": 1, "rgb_formats": ["png", "jpeg"], "local_captures": 1},
         "backend": engine.backend,
         "session_id": engine.session_id,
@@ -333,7 +363,7 @@ async def scan_reset(request: Request):
         settings = ScanSettings.from_dict(value)
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
-    async with _build_lock:
+    async with _exclusive_operation("reset", drain_feedback=False):
         await _engine_call(engine.reset, settings=settings)
         _latest_live = None
         _pending_live = None
@@ -363,6 +393,7 @@ async def scan_frame(request: Request):
     try:
         async with _build_lock:
             locked = time.monotonic()
+            _check_capture_session(request)
             result = await _engine_call(engine.store_frame, rgb, depth, metadata)
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -372,6 +403,17 @@ async def scan_frame(request: Request):
                 len(body), (received - started) * 1000, (decoded - received) * 1000,
                 (locked - decoded) * 1000, (time.monotonic() - locked) * 1000)
     return result
+
+
+def _check_capture_session(request):
+    """Called under the engine lock so a reset cannot race the precondition.
+
+    Headerless clients retain legacy behavior; current clients send the session
+    they captured for, independently of image metadata and saved project IDs.
+    """
+    expected = request.headers.get("X-Scan-Session")
+    if expected is not None and expected != engine.session_id:
+        raise HTTPException(409, "Scan session changed; reconnect before uploading retained captures")
 
 
 @app.post("/api/scan/motion")
@@ -428,9 +470,12 @@ async def scan_frames_batch(request: Request):
     try:
         async with _build_lock:
             locked = time.monotonic()
+            _check_capture_session(request)
             count, total, submitted, results = await _engine_call(
                 _unpack_and_store, body
             )
+    except HTTPException:
+        raise
     except Exception as e:  # noqa: BLE001 — return a batch failure without losing the scan session.
         return {"success": False, "message": f"Batch error: {e}"}
 

@@ -39,6 +39,17 @@ uncertain uploads remain on disk, including after exit or starting another scan;
 they block a build/save of that incomplete session. Recovery of those files is
 currently manual; reopening the app does not automatically replay them.
 
+Queued captures retain their originating session across reconnects. Current
+clients send `X-Scan-Session` with single and batch uploads; the server checks
+it while holding the scan lock and rejects stale uploads with HTTP 409 before
+storing any of them. Unconfirmed spool files remain on disk. The server advertises
+`capture_protocol.session_guard: 1` in health responses. Headerless older clients
+remain supported, but require updating for protection against uploads crossing a
+reset. Older servers ignore the header and must also be updated and restarted.
+If reset or Open Project loses its response, capture and save/build/export actions
+wait for an authoritative, settled server status. Reconnecting the same session
+preserves its pending spool and failed-upload barrier.
+
 Remote capture packets use RGB4: horizontal differences within each image row,
 with uint16 depth differences separated into low/high byte planes before zlib
 level 1 compression. The transform is reversible, including unsigned overflow.

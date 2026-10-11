@@ -75,7 +75,19 @@ class ScanEngine:
     def reset(
         self, preset: ScanPreset | None = None, settings: ScanSettings | None = None
     ):
+        # Prepare on an isolated state holder. Allocation and optional backend
+        # initialization may fail; the active scan and its source archive must
+        # remain usable until every replacement resource is ready.
+        candidate = copy.copy(self)
+        candidate.backend = copy.deepcopy(self.backend)
+        candidate._project_archive_path = None
+        candidate._initialize_reset(preset=preset, settings=settings)
         self._discard_project_archive()
+        self.__dict__ = candidate.__dict__
+
+    def _initialize_reset(
+        self, preset: ScanPreset | None = None, settings: ScanSettings | None = None
+    ):
         if preset is not None:
             self.preset = preset
         if settings is not None:
