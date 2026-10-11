@@ -264,3 +264,92 @@ class SensorRecordingTests(unittest.TestCase):
             worker._dispatch(ServerTask(ServerTaskType.EXPORT_SESSION, {"path": str(destination), "sensor_recorder": recorder}))
         self.assertEqual(destination.read_bytes(), b"existing complete user archive")
         self.assertEqual(list(self.root.glob(".sensor-session-*")), [])
+
+    def test_repeated_augmentation_replaces_members_and_preserves_other_generations(self):
+        first = self.journal("first", full=False)
+        first.submit("events", {"sequence": 0})
+        first.close(3)
+        second = self.journal("second")
+        second.submit("rgb", frame_metadata(0, 1), self.rgb)
+        response = checkpoint(second)
+        snapshot = journal_snapshot(first.path.parent, response)
+        path = self.server_zip()
+        augment_session_archive(path, snapshot)
+        with zipfile.ZipFile(path) as archive:
+            original = {name: archive.read(name) for name in archive.namelist()}
+        second.submit("rgb", frame_metadata(1, 2), self.rgb)
+        latest = journal_snapshot(first.path.parent, checkpoint(second))
+        latest["segments"] = [s for s in latest["segments"] if s["generation"] == "second"]
+        augment_session_archive(path, latest)
+        augment_session_archive(path, latest)
+        with zipfile.ZipFile(path) as archive:
+            self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
+            for name, data in original.items():
+                if name.startswith("sensors/first/") or name.startswith(("rgb/", "depth/")):
+                    self.assertEqual(data, archive.read(name))
+            self.assertEqual(2, len(archive.read("sensors/second/rgb.jsonl").splitlines()))
+            self.assertIn("sensors/second/rgb/000000001.npy", archive.namelist())
+        from scanner_server.engine import ScanEngine
+        from scanner_server.session import load_session
+        engine = ScanEngine(device="cpu")
+        self.addCleanup(engine.shutdown)
+        load_session(engine, path)
+        self.assertEqual(1, engine.stored_count)
+        np.testing.assert_array_equal(self.depth, engine.raw_frames[0][1])
+        previous = path.read_bytes()
+        (second.path / "rgb/000000001.npy").unlink()
+        with self.assertRaises(FileNotFoundError):
+            augment_session_archive(path, latest)
+        self.assertEqual(previous, path.read_bytes())
+        self.assertFalse(path.with_name(path.name + ".sensors.tmp").exists())
+
+    def test_invalid_configuration_preserves_evidence_and_valid_segments(self):
+        journal = self.journal("valid", full=False)
+        journal.submit("events", {"sequence": 0})
+        journal.close(3)
+        for index, data in enumerate((b"{", b"", b"[]", b"null", b' {"started_timestamp_s":"bad"}', b"\xff")):
+            directory = journal.path.parent / f"failed-{index}"
+            directory.mkdir()
+            (directory / "configuration.json").write_bytes(data)
+        snapshot = journal_snapshot(journal.path.parent)
+        self.assertFalse(snapshot["complete"])
+        self.assertEqual(7, len(snapshot["segments"]))
+        for segment in snapshot["segments"]:
+            if segment["generation"] != "valid":
+                self.assertFalse(segment["status"]["complete"])
+                self.assertIn("Invalid sensor configuration", segment["status"]["configuration_error"])
+        path = self.server_zip()
+        augment_session_archive(path, snapshot)
+        with zipfile.ZipFile(path) as archive:
+            for directory in journal.path.parent.glob("failed-*"):
+                self.assertEqual((directory / "configuration.json").read_bytes(),
+                                 archive.read(f"sensors/{directory.name}/configuration.json"))
+            self.assertEqual(1, len(archive.read("sensors/valid/events.jsonl").splitlines()))
+            self.assertFalse(json.loads(archive.read("manifest.json"))["sensor_archive"]["complete"])
+        from scanner_server.engine import ScanEngine
+        from scanner_server.session import load_session
+        engine = ScanEngine(device="cpu")
+        self.addCleanup(engine.shutdown)
+        load_session(engine, path)
+        np.testing.assert_array_equal(self.depth, engine.raw_frames[0][1])
+
+    def test_configuration_publish_failure_retains_partial_initialization_evidence(self):
+        native_replace = Path.replace
+
+        def failed_publish(path, destination):
+            if path.name == "configuration.json.tmp":
+                raise OSError("configuration publish failed")
+            return native_replace(path, destination)
+
+        with patch.object(Path, "replace", failed_publish), self.assertRaisesRegex(OSError, "publish failed"):
+            SensorJournal(self.root / "raw", "failed", ScanSettings().to_dict())
+        directory = self.root / "raw" / "failed"
+        self.assertFalse((directory / "configuration.json").exists())
+        evidence = (directory / "configuration.json.tmp").read_bytes()
+        snapshot = journal_snapshot(directory.parent)
+        self.assertFalse(snapshot["complete"])
+        self.assertIn("configuration_error", snapshot["segments"][0]["status"])
+        path = self.server_zip()
+        augment_session_archive(path, snapshot)
+        with zipfile.ZipFile(path) as archive:
+            self.assertEqual(evidence, archive.read("sensors/failed/configuration.json.tmp"))

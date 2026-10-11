@@ -13,7 +13,7 @@ from scanner_server.engine import ScanEngine
 from scanner_server.motion_evidence import MotionEvidence
 from scanner_server.session import export_session, load_session
 from shared.inertial import calibration_profile
-from shared.motion_journal import acceleration_journal, validate_journal, merge_journals
+from shared.motion_journal import acceleration_journal, validate_journal, merge_journals, UNAVAILABLE_CONFIGURATION
 from shared.settings import CameraCalibration
 from tests.test_motion_history import observation, frame
 from kinect_scanner.server_task_worker import ServerTaskWorker, ServerTask, ServerTaskType
@@ -28,6 +28,68 @@ def journal():
 
 
 class MotionJournalTests(unittest.TestCase):
+    def test_failed_empty_initialization_keeps_incomplete_evidence_and_valid_motion(self):
+        from shared.sensor_recording import journal_snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            failed = root / "failed"
+            failed.mkdir()
+            (failed / "configuration.json").write_bytes(b"{")
+            valid = root / "valid"
+            valid.mkdir()
+            original = journal()["segments"][0]
+            data = b"".join((json.dumps(row) + "\n").encode() for row in original["samples"])
+            (valid / "accelerometer.jsonl").write_bytes(data)
+            (valid / "configuration.json").write_text(json.dumps({
+                "capture_generation": "camera", "settings": {"accelerometer_calibration": original["calibration"]}}))
+            (valid / "status.json").write_text(json.dumps({"closed": True, "complete": True,
+                "index_bytes": {"accelerometer": len(data)}}))
+            snapshot = journal_snapshot(root)
+            result = validate_journal(acceleration_journal(snapshot), default_calibration=original["calibration"])
+            by_name = {s["recording_segment"]: s for s in result["segments"]}
+            self.assertEqual(UNAVAILABLE_CONFIGURATION, by_name["failed"]["capture_generation"])
+            self.assertIsNone(by_name["failed"]["calibration"])
+            self.assertEqual([], by_name["failed"]["samples"])
+            self.assertFalse(by_name["failed"]["status"]["complete"])
+            self.assertIn("configuration unavailable", by_name["failed"]["status"]["error"])
+            self.assertEqual(original["samples"], by_name["valid"]["samples"])
+            client = Mock()
+            client.request_build.return_value = {"success": True}
+            client.send_motion_journal.return_value = {"success": True}
+            recorder = SimpleNamespace(completed_sensor_snapshot=lambda path: snapshot)
+            ServerTaskWorker(client)._dispatch(ServerTask(ServerTaskType.BUILD_MESH,
+                {"sensor_recorder": recorder, "sensor_path": str(root)}))
+            client.request_build.assert_called_once()
+            self.assertEqual(result, validate_journal(client.send_motion_journal.call_args.args[0]))
+
+    def test_unknown_configuration_with_acceleration_requires_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            segment = root / "failed"
+            segment.mkdir()
+            data = b'{"valid":false}\n'
+            (segment / "accelerometer.jsonl").write_bytes(data)
+            for configuration in (b"{", b"[]", b' {"settings":{}}'):
+                (segment / "configuration.json").write_bytes(configuration)
+                for length in (0, len(data)):
+                    with self.subTest(configuration=configuration, length=length):
+                        snapshot = {"root": str(root), "segments": [{"generation": "failed",
+                            "status": {"index_bytes": {"accelerometer": length}}}]}
+                        with self.assertRaisesRegex(ValueError, "restore configuration before Finish"):
+                            acceleration_journal(snapshot)
+                        self.assertEqual(data, (segment / "accelerometer.jsonl").read_bytes())
+
+    def test_unavailable_configuration_cannot_supply_calibration_or_samples(self):
+        for field, value in (("calibration", journal()["segments"][0]["calibration"]),
+                             ("samples", journal()["segments"][0]["samples"]),
+                             ("status", {"closed": True, "complete": True, "dropped_reads": 0})):
+            segment = {"recording_segment": "failed", "capture_generation": UNAVAILABLE_CONFIGURATION,
+                "calibration": None, "samples": [],
+                "status": {"closed": False, "complete": False, "dropped_reads": 0, "error": "configuration unavailable"}}
+            segment[field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                validate_journal({"version": 1, "segments": [segment]})
+
     def test_invalid_shapes_and_reused_recording_identities_are_rejected(self):
         for payload in ([], None, 1, "journal"):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
