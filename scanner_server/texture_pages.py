@@ -13,7 +13,10 @@ import numpy as np
 import open3d as o3d
 import trimesh
 
-from .texturing import _prepare_texture_views, _project, _views, make_textured_mesh
+from .texturing import (
+    _face_neighbors, _make_uv_manifold, _select_face_sources, _prepare_texture_views, _project, _views,
+    make_textured_mesh,
+)
 
 
 def _surface(mesh):
@@ -104,8 +107,37 @@ def _shared_exposure(engine, mesh, prepared, requested):
     return gains, report
 
 
+def _whole_mesh_sources(engine, mesh, prepared):
+    """Label the physical surface before UV/page cuts, using four face samples."""
+    # Signed adjacency needs consistent winding. Repair only the scoring copy;
+    # face IDs and positions survive, while ambiguous sheets remain separated.
+    mesh = copy.deepcopy(mesh)
+    topology = _make_uv_manifold(mesh)
+    triangles = np.asarray(mesh.vertices)[np.asarray(mesh.triangles)]
+    normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+    barycentric = np.array([[1/3, 1/3, 1/3], [.6, .2, .2], [.2, .6, .2], [.2, .2, .6]])
+    scores = np.zeros((len(prepared), len(triangles)), np.float32)
+    for start in range(0, len(triangles), 16384):
+        stop = min(start + 16384, len(triangles))
+        world = np.einsum('sk,fkj->fsj', barycentric, triangles[start:stop]).reshape(-1, 3)
+        normal = np.repeat(normals[start:stop], 4, axis=0)
+        for view, (pose, rgb, depth) in enumerate(prepared):
+            _, weight = _project(
+                world, normal, rgb, depth, pose, engine.settings.camera,
+                engine.settings.near_m, engine.settings.far_m,
+                engine.settings.sensor_calibration, engine.settings.rgb_camera,
+            )
+            scores[view, start:stop] = weight.reshape(-1, 4).mean(axis=1)
+    labels, report = _select_face_sources(scores, _face_neighbors(mesh))
+    report.update(scope="whole_export", samples_per_face=4,
+                  source_faces=[int(np.sum(labels == i)) for i in range(len(prepared))],
+                  topology_repair=topology)
+    return labels, report
+
+
 def make_textured_asset(
-    engine, size=1024, max_triangles=50000, max_views=64, use_images=True,
+    engine, size=1024, max_triangles=200000, max_views=64, use_images=True,
     exposure_correction=False, blend_mode="blend", max_pages=16, texels_per_m=512,
 ):
     """Return a mesh or multi-material scene and its aggregate texture report.
@@ -139,16 +171,27 @@ def make_textured_asset(
     prepared = _prepare_texture_views(engine, views)
     exposure = _shared_exposure(engine, mesh, prepared, exposure_correction)
     exposure[1].update(scope="whole_export", views=[i for i, _ in views])
+    labels, selection = (None, {"method": "no_source_images"})
+    if prepared:
+        labels, selection = _whole_mesh_sources(engine, mesh, prepared)
     pages, reports = [], []
     for page, ids in enumerate(groups):
         local = SimpleNamespace(mesh=_submesh(mesh, ids), settings=engine.settings)
         active = _page_view_indices(engine, local.mesh, views)
+        local_labels = None
+        if labels is not None:
+            mapping = np.full(len(views), -1, np.int32)
+            mapping[active] = np.arange(len(active))
+            local_labels = np.full(len(ids), -1, np.int32)
+            observed = labels[ids] >= 0
+            local_labels[observed] = mapping[labels[ids][observed]]
         textured, report = make_textured_mesh(
             local, size=size, max_triangles=max_triangles, max_views=max_views,
             use_images=use_images, exposure_correction=exposure_correction, blend_mode=blend_mode,
             _prepared=[prepared[i] for i in active],
             _selected_views=[views[i] for i in active],
             _exposure=(exposure[0][active], exposure[1]),
+            _face_sources=local_labels,
         )
         name = "scan_material" if len(groups) == 1 else f"scan_material_{page:03d}"
         textured.visual.material.name = name
@@ -174,7 +217,7 @@ def make_textured_asset(
             "atlas_occupancy": mapped / (len(pages) * size**2),
             "atlas": {"method": "surface_area_pages"},
             "seam_blending": {
-                "width_texels": 3 if blend_mode == "blend" else 0,
+                "width_texels": max(r["seam_blending"]["width_texels"] for r in reports),
                 "softened_texels": sum(r["seam_blending"]["softened_texels"] for r in reports),
                 "projected_texels": projected,
             },
@@ -188,6 +231,8 @@ def make_textured_asset(
         total_texture_pixels=len(pages) * size**2,
         page_budget_limited=bool(max(r["surface_area_m2"] for r in reports) > area_budget),
         pages=reports,
+        source_selection=selection,
+        views=[i for i, _ in views],
     )
     result.metadata["texture_report"] = report
     return result, report

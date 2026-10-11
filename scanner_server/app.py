@@ -747,7 +747,7 @@ async def open_project(request: Request):
 async def export_textured(
     fmt: str,
     size: int = 1024,
-    max_triangles: int = 50000,
+    max_triangles: int = 200000,
     max_views: int = 64,
     use_images: bool = True,
     exposure_correction: bool = False,

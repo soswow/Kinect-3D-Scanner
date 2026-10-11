@@ -21,6 +21,8 @@ class DialogTests(unittest.TestCase):
     def test_format_mapping_and_texture_options(self):
         dialog = ExportDialog()
         self.assertEqual("glb", dialog.selected_format)
+        self.assertEqual(200000, dialog.triangle_budget_spin.value())
+        dialog.triangle_budget_spin.setValue(50000)
         dialog.texture_exposure_cb.setChecked(True)
         dialog.texture_best_cb.setChecked(True)
         for fmt in ("glb", "obj.zip", "ply", "obj"):
@@ -29,15 +31,24 @@ class DialogTests(unittest.TestCase):
             textured = fmt in ("glb", "obj.zip")
             self.assertEqual(textured, dialog.texture_exposure_cb.isEnabled())
             self.assertEqual(textured, dialog.texture_best_cb.isEnabled())
+            self.assertEqual(textured, dialog.triangle_budget_spin.isEnabled())
             self.assertTrue(dialog.format_description.text())
         self.assertIn("do not support", dialog.format_description.text())
         dialog.format_combo.setCurrentIndex(0)
         self.assertEqual(
-            {"exposure_correction": True, "blend_mode": "best"},
+            {"max_triangles": 50000, "exposure_correction": True, "blend_mode": "best"},
             dialog.texture_options,
         )
         dialog.texture_best_cb.setChecked(False)
         self.assertEqual("blend", dialog.texture_options["blend_mode"])
+        dialog.close()
+
+    def test_triangle_budget_accepts_full_supported_range(self):
+        dialog = ExportDialog()
+        for budget in (100, 50000, 200000):
+            dialog.triangle_budget_spin.setValue(budget)
+            self.assertEqual(budget, dialog.texture_options["max_triangles"])
+        self.assertIn("exported textured mesh", dialog.triangle_budget_spin.toolTip())
         dialog.close()
 
     def test_export_acceptance_only_returns_choice(self):

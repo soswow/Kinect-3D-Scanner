@@ -136,7 +136,11 @@ faces and all texture material slots using Blender's default import options.
 
 Both accept `size=256|512|1024|2048`, `max_triangles=100..200000`,
 `max_views=1..64`, and `use_images=true|false`. Defaults are 1024 **per page**,
-50000 triangles, 64 views, and true. Texture exports now add spatially grouped
+200000 triangles, 64 views, and true. The export dialog's **Triangle budget**
+persists this choice and sends it as `max_triangles`. Choose a smaller budget
+for less export work and smaller geometry files. This limit simplifies an export
+copy; it does not limit the reconstruction or change the saved project.
+Texture exports now add spatially grouped
 pages as mesh surface area grows. `texels_per_m=1..1024` (default 512) sets a
 planning target; `max_pages=1..32` (default 16) bounds image storage and work.
 `max_pages=1` requests the previous single-atlas layout. A 55% packing allowance
@@ -175,26 +179,79 @@ The portable projection algorithm works on ARM CPUs:
    legacy captures without offsets retain the assumption of registered RGB-D.
    Only accepted poses in the selected reconstruction can supply texture;
    captures in disconnected maps cannot fill holes without verified registration.
-2. Generate a partitioned Open3D UV atlas and bake position, normal, and fused
+2. Select coherent source-photo regions on the whole simplified mesh before
+   page/UV cuts. Four interior samples per face supply depth-tested
+   angle/distance scores; physical face adjacency favors connected labels.
+   A separate scoring copy receives winding/manifold repair so signed adjacency
+   does not treat a reversed coplanar face as a sharp fold. Face IDs and positions
+   stay unchanged; the report records that repair.
+   Every page receives the same global labels, remapped to its unculled views.
+   This makes source selection independent of page boundaries. It does not
+   optimize photographic alignment or color discontinuities.
+3. Generate a partitioned Open3D UV atlas and bake position, normal, and fused
    color maps on each page. Partitioning avoids expensive single-chart solves on scan meshes.
-3. Project surface texels into original RGB views using calibrated intrinsics and
+4. Project surface texels into original RGB views using calibrated intrinsics and
    inverse camera-to-world poses. Require measured depth to agree with surface
    depth within `max(15 mm, 1% of depth)` and exclude grazing views.
-4. Bilinearly sample RGB and blend with view-angle/distance weights. Missing
-   texels retain fused vertex color. No generated image fills unobserved areas.
+5. Bilinearly sample the chosen region photo. Where that photo has missing
+   depth, retain the strongest independently depth-tested source. Blend only
+   a narrow compatible photo-boundary strip; missing observations retain fused
+   vertex color. No generated image fills unobserved areas.
 
 The pipeline supports measured lens correction and optional relative exposure
 gains. It does not optimize patch seams or photometric poses. Inaccurate calibration/poses can blur
 texture, and more atlas pixels cannot create detail absent from the source RGB
 (640x480 or native 1280x1024). A 50,000-triangle export of a large scan also loses
-geometric detail independently of texture resolution; raise `max_triangles` to
-200,000 or use the full PLY when geometry matters. The
+geometric detail independently of texture resolution. The new 200,000 default
+preserves more of the reconstructed surface; use full PLY/plain OBJ to retain
+all final triangles. Final voxel size, measured depth, fusion, meshing and
+component filtering determine the full reconstruction's geometry. The
 depth tolerance is an engineering default, not a device-specific noise model.
 GLB/OBJ material round trips and asymmetric image orientation are tested. The
 viewer preserves multiple texture materials when loading GLB or a textured OBJ extracted
 from its ZIP. Bright clipped highlights, motion blur, inconsistent lighting,
 occlusion and missing depth remain input limitations. Brightness correction uses
 one shared solution across pages and still refuses inconsistent held-out overlap.
+
+### Geometry, image alignment and seam limits
+
+More triangles reduce simplification error; they cannot repair misregistered
+photos or reconstructed geometry. A straight line slanted against an imported
+coordinate grid can also reflect the chosen orientation; local bends and steps
+across photo regions require separate investigation. Gravity does not constrain
+the room's horizontal heading. Compare the full saved mesh, exports at matched
+budgets, and native-image reprojection before changing poses or calibration.
+
+In the recorded half-room investigation at source `035b3a4`, the full mesh had
+2,732,087 triangles. With 65,536 seeded area-weighted full-surface samples,
+nearest-triangle distance to 50K/200K exports had 95th percentiles 2.58/1.17 mm.
+These measure export simplification relative to the reconstructed mesh, not
+accuracy against the real room. A bounded 24-view floor-tag check found
+leave-one-view-out native RGB reprojection disagreement of 4.10 px median and
+8.42 px at the 95th percentile, compared with 0.86/2.12 px for same-view
+projection. This supports cross-view inconsistency without isolating pose,
+depth, calibration or timing error. Selected door views had no shared tags.
+The existing pose-graph proposal improved average held-out loss by 2.31% but
+worsened four camera pairs and was rejected; sparse RGB-D bundle adjustment
+had no valid three-view landmarks. These rejected poses were not applied.
+
+Current seam feathering only sees neighboring atlas texels on physically linked
+faces, so cuts between distant charts/pages remain a limitation. Multiplicative
+per-camera gains cannot model all spatial lighting or glossy reflections. Two
+bounded offline color-leveling prototypes (per-view affine fields and physical
+patch constants) were also rejected on that recording; neither is a production
+feature or a demonstrated seam fix. Raw measurements, prototypes and captures
+stay in ignored local investigation storage.
+
+The next texture experiment should distinguish smooth color differences from
+shifted photographic edges. [Let There Be Color! and the authors' implementation](https://github.com/nmoehrle/mvs-texturing)
+use global mesh-patch color leveling followed by local seam correction.
+[Color Map Optimization](https://vladlen.info/publications/color-map-optimization-for-3d-reconstruction-with-consumer-depth-cameras/)
+jointly optimizes camera poses and image correction functions to address color
+mapping errors. These methods motivate separate bounded experiments, not a
+claim that this exporter implements them. Use overlapping local camera windows,
+fixed measured calibration, independent depth validation, and matched renders;
+photometric consistency alone does not establish geometric accuracy.
 
 ## Full session preservation
 

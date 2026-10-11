@@ -92,8 +92,20 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             result = await self.http.get("/api/scan/export/glb", params={"max_pages": 8, "texels_per_m": 384})
         self.assertEqual(200, result.status_code)
         self.assertEqual(64, export.call_args.kwargs["max_views"])
+        self.assertEqual(200000, export.call_args.kwargs["max_triangles"])
         self.assertEqual(8, export.call_args.kwargs["max_pages"])
         self.assertEqual(384, export.call_args.kwargs["texels_per_m"])
+
+    async def test_explicit_texture_triangle_budget_reaches_exporter(self):
+        def write_asset(engine, path, fmt, **options):
+            Path(path).write_bytes(b"asset")
+            return {"exposure_correction": {"applied": False, "reason": "Not requested"}}
+
+        for budget in (100, 50000, 200000):
+            with patch("scanner_server.texturing.export_texture", side_effect=write_asset) as export:
+                result = await self.http.get("/api/scan/export/glb", params={"max_triangles": budget})
+            self.assertEqual(200, result.status_code)
+            self.assertEqual(budget, export.call_args.kwargs["max_triangles"])
 
     async def test_invalid_texture_page_options_are_rejected(self):
         from tests.test_features import texture_scene

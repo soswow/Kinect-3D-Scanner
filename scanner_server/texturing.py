@@ -462,7 +462,7 @@ def _seam_partners(positions, sources, valid, size, width=3, *, face_ids=None, n
 def make_textured_mesh(
     engine,
     size=1024,
-    max_triangles=50000,
+    max_triangles=200000,
     max_views=24,
     use_images=True,
     exposure_correction=False,
@@ -471,6 +471,7 @@ def make_textured_mesh(
     _prepared=None,
     _selected_views=None,
     _exposure=None,
+    _face_sources=None,
 ):
     if engine.mesh is None or not len(engine.mesh.triangles):
         raise ValueError("Build a mesh before texturing")
@@ -488,6 +489,8 @@ def make_textured_mesh(
     mesh.remove_degenerate_triangles()
     mesh.remove_unreferenced_vertices()
     topology_report = _make_uv_manifold(mesh)
+    if _face_sources is not None and len(_face_sources) != len(mesh.triangles):
+        raise ValueError("Whole-export labels must preserve page face order")
     mesh.compute_vertex_normals()
     tensor = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
     partitions = max(1, min(256, int(np.ceil(len(mesh.triangles) / 1000))))
@@ -579,9 +582,10 @@ def make_textured_mesh(
             albedo[chosen] = values[better]
             best_weight[chosen] = weight[better]
             sources[chosen] = view_index
-            face_scores[view_index] += np.bincount(
-                face_ids[ids], weights=weight, minlength=len(mesh.triangles),
-            )
+            if _face_sources is None:
+                face_scores[view_index] += np.bincount(
+                    face_ids[ids], weights=weight, minlength=len(mesh.triangles),
+                )
     projected = best_weight > 0
     selection_report = {"method": "no_source_images"}
     softened = np.zeros(len(positions), bool)
@@ -589,7 +593,11 @@ def make_textured_mesh(
         counts = np.bincount(face_ids[valid], minlength=len(mesh.triangles))
         face_scores /= np.maximum(counts, 1)
         neighbors = _face_neighbors(mesh)
-        face_sources, selection_report = _select_face_sources(face_scores, neighbors)
+        if _face_sources is None:
+            face_sources, selection_report = _select_face_sources(face_scores, neighbors)
+        else:
+            face_sources = _face_sources
+            selection_report = {"method": "whole_export_face_regions"}
         preferred = np.full(len(positions), -1, np.int32)
         preferred[valid] = face_sources[face_ids[valid]]
         # If a region's photo has missing depth at an individual texel, keep

@@ -514,6 +514,9 @@ class MainWindow(QMainWindow):
         self.texture_exposure_cb.hide()
         self.texture_best_cb = QCheckBox(container)
         self.texture_best_cb.hide()
+        self._texture_max_triangles = self.preferences.read("export/max_triangles", 200000)
+        if type(self._texture_max_triangles) is not int or not 100 <= self._texture_max_triangles <= 200000:
+            self._texture_max_triangles = 200000
 
         start_row = QHBoxLayout()
         self.btn_start_scan = QPushButton("Start Scan")
@@ -1113,6 +1116,8 @@ class MainWindow(QMainWindow):
             self.preferences.write("export/format", fmt)
             self.preferences.write("export/exposure_correction", self.texture_exposure_cb.isChecked())
             self.preferences.write("export/best_source", self.texture_best_cb.isChecked())
+            self._texture_max_triangles = dialog.texture_options["max_triangles"]
+            self.preferences.write("export/max_triangles", self._texture_max_triangles)
             if fmt in ("glb", "obj.zip"):
                 self._export_texture(fmt)
             elif fmt == "ply":
@@ -1850,6 +1855,7 @@ class MainWindow(QMainWindow):
         task_type = {"ply": ServerTaskType.EXPORT_PLY, "obj": ServerTaskType.EXPORT_OBJ}.get(fmt, ServerTaskType.EXPORT_TEXTURE)
         if task_type == ServerTaskType.EXPORT_TEXTURE:
             kwargs.update(format=fmt, options={
+                "max_triangles": self._texture_max_triangles,
                 "exposure_correction": self.texture_exposure_cb.isChecked(),
                 "blend_mode": "best" if self.texture_best_cb.isChecked() else "blend",
             })

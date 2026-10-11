@@ -454,13 +454,16 @@ class GuiPreferencesTests(unittest.TestCase):
 
     def test_export_dialog_restores_choices_and_cancel_does_not_save_changes(self):
         self.store.write("export/format", "ply")
+        self.store.write("export/max_triangles", 50000)
         self.store.write("export/exposure_correction", True)
         self.store.write("export/best_source", True)
         dialog = dialogs.ExportDialog(preferences=self.store)
         self.assertEqual("ply", dialog.selected_format)
-        self.assertEqual({"exposure_correction": True, "blend_mode": "best"}, dialog.texture_options)
+        self.assertEqual({"max_triangles": 50000, "exposure_correction": True, "blend_mode": "best"}, dialog.texture_options)
         dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("obj.zip"))
+        dialog.triangle_budget_spin.setValue(100)
         dialog.reject()
+        self.assertEqual(50000, self.new_store().read("export/max_triangles", 200000))
         self.assertEqual("ply", self.new_store().read("export/format", "glb"))
 
     def test_accepted_export_choices_are_remembered(self):
@@ -472,14 +475,19 @@ class GuiPreferencesTests(unittest.TestCase):
         dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("obj.zip"))
         dialog.texture_exposure_cb.setChecked(True)
         dialog.texture_best_cb.setChecked(True)
+        dialog.triangle_budget_spin.setValue(50000)
         with patch.object(main_window, "ExportDialog", return_value=dialog), \
              patch.object(dialog, "exec", return_value=1), \
              patch.object(window, "_export_texture") as export:
             window._choose_export()
         export.assert_called_once_with("obj.zip")
+        with patch.object(main_window.QFileDialog, "getSaveFileName", return_value=("scan.zip", "")), \
+             patch.object(window, "_begin_export") as begin:
+            window._export_mesh("obj.zip")
+        self.assertEqual(50000, begin.call_args.args[2].kwargs["options"]["max_triangles"])
         restored = dialogs.ExportDialog(preferences=self.new_store())
         self.assertEqual("obj.zip", restored.selected_format)
-        self.assertEqual({"exposure_correction": True, "blend_mode": "best"}, restored.texture_options)
+        self.assertEqual({"max_triangles": 50000, "exposure_correction": True, "blend_mode": "best"}, restored.texture_options)
         restored.close()
         dialog.close()
 

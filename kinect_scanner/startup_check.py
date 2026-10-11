@@ -317,15 +317,17 @@ def check_texture_export_dialog(window):
     try:
         if "connected surface region" not in dialog.texture_description.text():
             raise RuntimeError("Texture export explanation is missing")
+        if dialog.triangle_budget_spin.value() != 200000:
+            raise RuntimeError("Texture triangle default is not 200000")
         for correction in (False, True):
             for sharp in (False, True):
                 dialog.texture_exposure_cb.setChecked(correction)
                 dialog.texture_best_cb.setChecked(sharp)
-                expected = {"exposure_correction": correction, "blend_mode": "best" if sharp else "blend"}
+                expected = {"max_triangles": 200000, "exposure_correction": correction, "blend_mode": "best" if sharp else "blend"}
                 if dialog.texture_options != expected:
                     raise RuntimeError("Texture export choices are not independent")
         dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("ply"))
-        if dialog.texture_best_cb.isEnabled() or not dialog.texture_description.isHidden():
+        if dialog.triangle_budget_spin.isEnabled() or dialog.texture_best_cb.isEnabled() or not dialog.texture_description.isHidden():
             raise RuntimeError("Texture choices shown for an untextured format")
     finally:
         dialog.reject()

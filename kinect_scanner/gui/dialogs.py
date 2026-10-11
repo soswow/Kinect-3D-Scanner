@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QLabel,
     QVBoxLayout,
+    QSpinBox,
 )
 
 
@@ -52,6 +53,17 @@ class ExportDialog(QDialog):
             "Unchecked softens only a narrow strip along compatible photo boundaries; "
             "checked keeps those boundaries unblended."
         )
+        self.triangle_budget_label = QLabel("Triangle budget")
+        self.triangle_budget_spin = QSpinBox()
+        self.triangle_budget_spin.setRange(100, 200000)
+        self.triangle_budget_spin.setSingleStep(10000)
+        self.triangle_budget_spin.setValue(200000)
+        self.triangle_budget_spin.setToolTip(
+            "Affects only the exported textured mesh. More triangles preserve geometric detail "
+            "but increase export work and file size. The full final mesh is unchanged."
+        )
+        layout.addWidget(self.triangle_budget_label)
+        layout.addWidget(self.triangle_budget_spin)
         layout.addWidget(self.texture_exposure_cb)
         layout.addWidget(self.texture_best_cb)
         self.texture_description = QLabel(
@@ -73,6 +85,7 @@ class ExportDialog(QDialog):
             preferences.restore(self.format_combo, "export/format")
             preferences.restore(self.texture_exposure_cb, "export/exposure_correction")
             preferences.restore(self.texture_best_cb, "export/best_source")
+            preferences.restore(self.triangle_budget_spin, "export/max_triangles")
         self.format_combo.currentIndexChanged.connect(self._update_format)
         self._update_format()
 
@@ -83,6 +96,7 @@ class ExportDialog(QDialog):
     @property
     def texture_options(self):
         return {
+            "max_triangles": self.triangle_budget_spin.value(),
             "exposure_correction": self.texture_exposure_cb.isChecked(),
             "blend_mode": "best" if self.texture_best_cb.isChecked() else "blend",
         }
@@ -94,6 +108,8 @@ class ExportDialog(QDialog):
         textured = self.selected_format in ("glb", "obj.zip")
         self.texture_exposure_cb.setEnabled(textured)
         self.texture_best_cb.setEnabled(textured)
+        self.triangle_budget_spin.setEnabled(textured)
+        self.triangle_budget_label.setEnabled(textured)
         self.texture_description.setVisible(textured)
 
 

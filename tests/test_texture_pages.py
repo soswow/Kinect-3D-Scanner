@@ -16,9 +16,10 @@ from unittest.mock import patch
 import numpy as np
 import trimesh
 
-from scanner_server.texture_pages import _page_groups, _page_view_indices, make_textured_asset
+from scanner_server.texture_pages import _page_groups, _page_view_indices, _whole_mesh_sources, make_textured_asset
 from scanner_server.texturing import (
     _chart_rectangles, _prepare_texture_views, _single_object_gltf, export_texture,
+    make_textured_mesh, _face_neighbors,
 )
 from shared.calibration import prepare_rgbd
 from shared.sensor_calibration import load_calibration
@@ -73,6 +74,102 @@ class TexturePageTests(unittest.TestCase):
         engine.mesh.scale(10, center=(0, 0, 0))
         # Most corners are outside, but a surface crosses the near plane.
         self.assertEqual([0], _page_view_indices(engine, engine.mesh, engine.poses))
+
+    def test_whole_surface_sources_are_independent_of_page_budget_and_culling(self):
+        engine = texture_scene()
+        depth = engine.raw_frames[0][1]
+        red = np.full((480, 640, 3), (220, 30, 10), np.uint8)
+        blue = np.full((480, 640, 3), (10, 30, 220), np.uint8)
+        disjoint = np.eye(4)
+        disjoint[0, 3] = 20
+        engine.poses = [(0, disjoint), (1, np.eye(4)), (2, np.eye(4))]
+        engine.raw_frames = [(blue, depth), (red, depth), (blue, depth)]
+        engine.frame_metadata = [{}, {}, {}]
+        reports = []
+        for budget in (1, 4):
+            with patch("scanner_server.texture_pages.make_textured_mesh", wraps=make_textured_mesh) as baker:
+                asset, report = make_textured_asset(engine, size=256, max_pages=budget, blend_mode="best")
+            reports.append(report)
+            self.assertEqual(budget, report["texture_pages"])
+            self.assertEqual([0, 1, 2], report["views"])
+            self.assertEqual(0, report["source_selection"]["source_faces"][0])
+            self.assertGreater(report["source_selection"]["source_faces"][1], 0)
+            for call in baker.call_args_list:
+                # Global source 1 must become local 0 after the disjoint source 0 is culled.
+                self.assertEqual([1, 2], [i for i, _ in call.kwargs["_selected_views"]])
+                self.assertTrue(set(call.kwargs["_face_sources"]).issubset({-1, 0}))
+            pages = list(asset.geometry.values()) if isinstance(asset, trimesh.Scene) else [asset]
+            for page in pages:
+                centers = page.vertices[page.faces].mean(axis=1)
+                front = np.isclose(centers[:, 2], 1.2)
+                if front.any():
+                    uv = page.visual.uv[page.faces].mean(axis=1)
+                    colors = trimesh.visual.color.uv_to_color(uv, page.visual.material.image)
+                    np.testing.assert_allclose(colors[front, :3], np.tile((220, 30, 10), (front.sum(), 1)), atol=2)
+        self.assertEqual(reports[0]["source_selection"], reports[1]["source_selection"])
+        self.assertEqual(reports[0]["views"], reports[1]["views"])
+
+    def test_whole_source_scoring_repairs_mixed_winding_without_mutating_mesh(self):
+        import open3d as o3d
+
+        engine = texture_scene()
+        engine.mesh = o3d.geometry.TriangleMesh()
+        engine.mesh.vertices = o3d.utility.Vector3dVector([
+            [-.1, -.1, 1.2], [.1, -.1, 1.2], [.1, .1, 1.2], [-.1, .1, 1.2],
+        ])
+        consistent = np.array([[0, 1, 2], [0, 2, 3]], np.int32)
+        reversed_faces = consistent.copy()
+        reversed_faces[1] = reversed_faces[1, ::-1]
+        prepared = _prepare_texture_views(engine, engine.poses) * 2
+        outcomes = []
+        for faces in (consistent, reversed_faces):
+            engine.mesh.triangles = o3d.utility.Vector3iVector(faces)
+            if np.array_equal(faces, reversed_faces):
+                self.assertTrue(np.all(_face_neighbors(engine.mesh) == -1))
+            # Nearly tied observations prefer opposite photos per face. Surface
+            # continuity should join these coplanar faces despite input winding.
+            weights = [np.repeat([1., .9], 4), np.repeat([.95, 1.], 4)]
+            with patch("scanner_server.texture_pages._project", side_effect=[
+                (np.zeros((8, 3), np.float32), weight) for weight in weights
+            ]):
+                labels, report = _whole_mesh_sources(engine, engine.mesh, prepared)
+            np.testing.assert_array_equal(faces, np.asarray(engine.mesh.triangles))
+            self.assertEqual(labels[0], labels[1])
+            self.assertEqual(0, report["topology_repair"]["removed_triangles"])
+            self.assertEqual("whole_export", report["scope"])
+            outcomes.append((labels, report["source_faces"]))
+        np.testing.assert_array_equal(outcomes[0][0], outcomes[1][0])
+        self.assertEqual(outcomes[0][1], outcomes[1][1])
+
+    def test_precomputed_face_sources_override_scores_with_depth_tested_fallback(self):
+        engine = texture_scene()
+        depth = engine.raw_frames[0][1]
+        red = np.full((480, 640, 3), (220, 30, 10), np.uint8)
+        blue = np.full((480, 640, 3), (10, 30, 220), np.uint8)
+        engine.poses = [(0, np.eye(4)), (1, np.eye(4))]
+        engine.frame_metadata = [{}, {}]
+        labels = np.ones(len(engine.mesh.triangles), np.int32)
+        cases = ((depth, depth, (10, 30, 220)),
+                 (depth, np.zeros_like(depth), (220, 30, 10)),
+                 (np.zeros_like(depth), np.zeros_like(depth), (204, 51, 25)))
+        for first_depth, second_depth, expected in cases:
+            engine.raw_frames = [(red, first_depth), (blue, second_depth)]
+            prepared = _prepare_texture_views(engine, engine.poses)
+            mesh, report = make_textured_mesh(
+                engine, size=256, blend_mode="best", _prepared=prepared,
+                _selected_views=engine.poses, _face_sources=labels,
+            )
+            centers = mesh.vertices[mesh.faces].mean(axis=1)
+            front = np.isclose(centers[:, 2], 1.2)
+            self.assertTrue(front.any())
+            uv = mesh.visual.uv[mesh.faces].mean(axis=1)
+            colors = trimesh.visual.color.uv_to_color(uv, mesh.visual.material.image)
+            np.testing.assert_allclose(colors[front, :3], np.tile(expected, (front.sum(), 1)), atol=2)
+            self.assertEqual("whole_export_face_regions", report["source_selection"]["method"])
+            if first_depth.any():
+                self.assertGreater(report["projected_texels"], 0)
+            else:
+                self.assertEqual(0, report["projected_texels"])
 
     def test_native_preparation_preserves_depth_without_registering_unused_rgb(self):
         engine = texture_scene()
