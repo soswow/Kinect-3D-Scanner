@@ -253,14 +253,83 @@ claim that this exporter implements them. Use overlapping local camera windows,
 fixed measured calibration, independent depth validation, and matched renders;
 photometric consistency alone does not establish geometric accuracy.
 
+## Blender analysis export
+
+Choose **Blender — animated RGB-D scene** in **Export mesh** after Finish Scan.
+The client finds Blender on PATH or in common macOS/Windows install locations;
+use **Browse** to choose another executable or a macOS `Blender.app`. The
+selected executable and depth sampling are remembered. Blender 4.2 or newer
+runs in a separate background process; it does not modify an open Blender scene.
+The server supplies the finished session and the textured fused OBJ bundle.
+The normal texture options and triangle budget apply to the fused mesh.
+
+The `.blend` contains three top-level collections: **Fused mesh**, **Depth
+snapshots**, and **Camera**. The fused mesh retains its texture material slots.
+There is exactly one camera and one background-image slot. Frame 1 keeps that
+camera visible, hides every depth snapshot and makes the background transparent.
+Frames 2 onward step through accepted final camera poses, their background
+photos and exactly one visible depth mesh. The fused mesh's visibility has no
+animation; manually hiding it stays effective while scrubbing. Pose and
+visibility switches use constant keyframes, with no Python frame handlers or
+automatic script execution required when reopening the file.
+
+Keep the sibling `scan.images-<id>/` directory beside `scan.blend`. It contains
+the lossless, undistorted RGB sequence used by the camera's single background
+slot; Blender image sequences are external dependencies. Ordinary material
+textures are packed in the scene. Each export writes a new sequence directory
+so replacing the scene cannot corrupt an existing export's images. Old image
+directories can be removed when no retained `.blend` still references them.
+Moving the scene and its image directory together preserves the background.
+
+Each snapshot mesh uses only its own depth and RGB observations. Preparation
+applies the saved raw-disparity calibration, nearest-neighbour depth
+rectification, clipping, crop and conservative depth filter. Triangulation
+leaves holes and rejects sampled cells with invalid pixels or a depth jump
+larger than `max(30 mm, 2% of depth)`. RGB projection uses the measured separate
+camera transform; the Blender camera also includes that fixed offset, calibrated
+focal lengths and principal point. Images are undistorted with the matching K.
+These meshes are partial measured surfaces, not watertight reconstructions.
+Depth sampling defaults to every two pixels; choose every pixel for full depth
+resolution, or wider sampling to reduce scene memory. Wider cells can omit thin
+features. All accepted frames remain included. Unregistered captures have no
+shared-world pose and are omitted, with their indices retained in the scene's
+`scanner_export` property. Object metadata and timeline markers retain source
+frame IDs, capture times and animation frame mapping. Large scans can require
+substantial Blender memory even with only one snapshot visible.
+
+For an already saved project, without a server or camera:
+
+```bash
+python scripts/export_blender_session.py --session recordings/session.zip \
+  --output export/scan.blend --blender /Applications/Blender.app
+```
+
+The standalone tool textures the saved fused mesh without rerunning registration
+or fusion. Supply `--textured-model export/scan.obj.zip` to reuse an existing
+textured OBJ bundle, and `--snapshot-stride 1|2|4|8` to choose depth sampling.
+Without `--output`, artifacts go to ignored `benchmark-output/blender-export/`.
+Help loads no optional numerical packages. Failed conversions preserve an
+existing `.blend` and remove the new sequence directory.
+
+The synthetic regression in `tests/test_blender_export.py` checks native Kinect
+RGB offsets, pixel-center UV projection, holes and depth edges, failed-write
+preservation, then saves, moves and reopens a Blender scene to inspect its one
+camera/one slot, calibrated projection, material packing and animation. Set
+`BLENDER_EXECUTABLE` to run that round trip in a separate factory-startup process.
+It establishes export behavior, not scan-pose accuracy or large-session memory
+capacity. Mac packaged-client verification remains a separate installed-app check.
+
 ## Full session preservation
 
 **Save full RGB-D session**, or `/api/scan/export/session`, returns a ZIP with
-lossless RGB PNGs, uint16 millimetre depth PNGs, `manifest.json`, and
+lossless RGB PNGs, uint16 depth PNGs, `manifest.json`, and
 `reconstruction.json`. The report stores settings/calibration, backend, accepted
 camera-to-world poses in metres, original poses when refinement applied,
 per-frame tracking diagnostics, timings, and refinement outcome. It deliberately
 keeps estimated poses separate from evaluation reference poses.
+Native Kinect projects retain raw disparity and its complete sensor calibration;
+metric dataset projects retain millimetre depth. Use `manifest.depth_unit` and
+the saved calibration rather than assuming every uint16 PNG is millimetres.
 
 Unzip and replay using:
 

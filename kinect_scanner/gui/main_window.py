@@ -1120,6 +1120,8 @@ class MainWindow(QMainWindow):
             self.preferences.write("export/max_triangles", self._texture_max_triangles)
             if fmt in ("glb", "obj.zip"):
                 self._export_texture(fmt)
+            elif fmt == "blend":
+                self._export_blender(dialog.blender_options)
             elif fmt == "ply":
                 self._export_ply()
             else:
@@ -1841,6 +1843,32 @@ class MainWindow(QMainWindow):
     def _export_texture(self, fmt):
         self._export_mesh(fmt)
 
+    def _export_blender(self, options):
+        if not self._has_mesh or self._export_pending:
+            return
+        from ..blender_export import find_blender
+
+        try:
+            blender = find_blender(options.get("blender"))
+            if not blender:
+                raise ValueError("Install Blender 4.2 or newer, then choose its application or executable in Export.")
+        except ValueError as exc:
+            self._show_message(str(exc), 10000)
+            return
+        self.preferences.write("export/blender_path", blender)
+        self.preferences.write("export/snapshot_stride", options["stride"])
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Blender scene", os.path.join(self._ensure_export_dir(), "scan.blend"),
+            "Blender scenes (*.blend)",
+        )
+        if path:
+            self._begin_export("blender", path, ServerTask(ServerTaskType.EXPORT_BLENDER, {
+                "path": path, "blender": blender, "stride": options["stride"],
+                "options": {"max_triangles": self._texture_max_triangles,
+                            "exposure_correction": self.texture_exposure_cb.isChecked(),
+                            "blend_mode": "best" if self.texture_best_cb.isChecked() else "blend"},
+            }))
+
     def _export_mesh(self, fmt):
         if not self._has_mesh or self._export_pending:
             return
@@ -2385,9 +2413,10 @@ class MainWindow(QMainWindow):
             if pending:
                 self._scanning, self._paused = pending["restore_capture"]
             self._configure_sensor_recording()
-        elif task_type in ("EXPORT_PLY", "EXPORT_OBJ", "EXPORT_TEXTURE", "EXPORT_SESSION"):
+        elif task_type in ("EXPORT_PLY", "EXPORT_OBJ", "EXPORT_TEXTURE", "EXPORT_SESSION", "EXPORT_BLENDER"):
             if self._export_pending:
                 self._on_export_done(False, self._export_pending["path"])
+                self._operation_error = f"{message} · current scan retained"
         elif task_type == "SEND_FRAME":
             self._paused = True
         elif task_type == "STATUS":

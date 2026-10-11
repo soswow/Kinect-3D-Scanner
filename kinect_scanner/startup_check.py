@@ -329,6 +329,12 @@ def check_texture_export_dialog(window):
         dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("ply"))
         if dialog.triangle_budget_spin.isEnabled() or dialog.texture_best_cb.isEnabled() or not dialog.texture_description.isHidden():
             raise RuntimeError("Texture choices shown for an untextured format")
+        dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("blend"))
+        if dialog.blender_path_edit.isHidden() or dialog.snapshot_combo.isHidden() or not dialog.triangle_budget_spin.isEnabled():
+            raise RuntimeError("Blender export choices are missing")
+        from .blender_export import _scene_script
+        if not _scene_script().is_file():
+            raise RuntimeError("Blender scene writer source is missing from the client")
     finally:
         dialog.reject()
 

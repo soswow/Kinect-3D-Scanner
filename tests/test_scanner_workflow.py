@@ -568,6 +568,37 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertTrue(self.window._session_dirty)
         self.assertFalse(self.window._paused)
 
+    def test_blender_export_queues_conversion_and_preserves_unsaved_project_state(self):
+        self.retain_scan()
+        self.window._has_mesh = True
+        path = os.path.join(self.preferences_dir.name, "scan.blend")
+        with patch("kinect_scanner.blender_export.find_blender", return_value="/Applications/Blender.app/Contents/MacOS/Blender"), \
+             patch.object(main_window.QFileDialog, "getSaveFileName", return_value=(path, "")):
+            self.window._export_blender({"blender": None, "stride": 4})
+        task = self.window.task_worker.tasks[-1]
+        self.assertEqual(ServerTaskType.EXPORT_BLENDER, task.task_type)
+        self.assertEqual(4, task.kwargs["stride"])
+        self.assertEqual(200000, task.kwargs["options"]["max_triangles"])
+        self.assertTrue(self.window._paused)
+        self.window._on_export_done(True, path)
+        self.assertTrue(self.window._session_dirty)
+        self.assertFalse(self.window._paused)
+        self.assertIsNone(self.window._project_path)
+        self.assertEqual(4, self.window.preferences.read("export/snapshot_stride", None))
+
+    def test_blender_failure_restores_capture_and_reports_its_actual_cause(self):
+        self.retain_scan()
+        self.window._has_mesh = True
+        path = os.path.join(self.preferences_dir.name, "scan.blend")
+        with patch("kinect_scanner.blender_export.find_blender", return_value="blender"), \
+             patch.object(main_window.QFileDialog, "getSaveFileName", return_value=(path, "")):
+            self.window._export_blender({"blender": None, "stride": 2})
+        self.window._on_task_failed("EXPORT_BLENDER", "Blender version is unsupported")
+        self.assertIsNone(self.window._export_pending)
+        self.assertFalse(self.window._paused)
+        self.assertTrue(self.window._session_dirty)
+        self.assertIn("Blender version is unsupported", self.window._operation_error)
+
     def test_stale_final_preview_cannot_replace_new_session(self):
         self.window._session_id = "new-session"
         self.window._final_preview_session = "old-session"

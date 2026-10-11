@@ -5,7 +5,11 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QVBoxLayout,
     QSpinBox,
 )
@@ -16,6 +20,9 @@ class ExportDialog(QDialog):
 
     _FORMATS = (
         ("GLB — textured", "glb", "A textured model in one self-contained file."),
+        ("Blender — animated RGB-D scene", "blend",
+         "One animated camera, a textured fused mesh, and a collection of depth snapshots. "
+         "Requires Blender 4.2 or newer. Keep the exported image folder beside the .blend file."),
         (
             "OBJ bundle — textured ZIP",
             "obj.zip",
@@ -73,6 +80,25 @@ class ExportDialog(QDialog):
         )
         self.texture_description.setWordWrap(True)
         layout.addWidget(self.texture_description)
+        self.blender_label = QLabel("Blender application or executable")
+        layout.addWidget(self.blender_label)
+        blender_row = QHBoxLayout()
+        self.blender_path_edit = QLineEdit()
+        self.blender_path_edit.setPlaceholderText("Auto-detect installed Blender")
+        self.blender_browse = QPushButton("Browse…")
+        self.blender_browse.clicked.connect(self._browse_blender)
+        blender_row.addWidget(self.blender_path_edit)
+        blender_row.addWidget(self.blender_browse)
+        layout.addLayout(blender_row)
+        self.snapshot_label = QLabel("Depth snapshot sampling")
+        self.snapshot_combo = QComboBox()
+        for stride, label in ((1, "Every pixel — full depth resolution"), (2, "Every 2 pixels"),
+                              (4, "Every 4 pixels"), (8, "Every 8 pixels")):
+            self.snapshot_combo.addItem(label, stride)
+        self.snapshot_combo.setCurrentIndex(1)
+        self.snapshot_combo.setToolTip("All accepted snapshots are included. Wider sampling uses fewer triangles and less Blender memory.")
+        layout.addWidget(self.snapshot_label)
+        layout.addWidget(self.snapshot_combo)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.export_button = self.buttons.addButton(
             "Export", QDialogButtonBox.ButtonRole.AcceptRole
@@ -86,6 +112,8 @@ class ExportDialog(QDialog):
             preferences.restore(self.texture_exposure_cb, "export/exposure_correction")
             preferences.restore(self.texture_best_cb, "export/best_source")
             preferences.restore(self.triangle_budget_spin, "export/max_triangles")
+            preferences.restore(self.blender_path_edit, "export/blender_path")
+            preferences.restore(self.snapshot_combo, "export/snapshot_stride")
         self.format_combo.currentIndexChanged.connect(self._update_format)
         self._update_format()
 
@@ -101,16 +129,30 @@ class ExportDialog(QDialog):
             "blend_mode": "best" if self.texture_best_cb.isChecked() else "blend",
         }
 
+    @property
+    def blender_options(self):
+        return {"blender": self.blender_path_edit.text().strip() or None,
+                "stride": self.snapshot_combo.currentData()}
+
+    def _browse_blender(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Choose Blender application or executable",
+                                             self.blender_path_edit.text(), "Applications and executables (*)")
+        if path:
+            self.blender_path_edit.setText(path)
+
     def _update_format(self, _index=None):
         self.format_description.setText(
             self._FORMATS[self.format_combo.currentIndex()][2]
         )
-        textured = self.selected_format in ("glb", "obj.zip")
+        textured = self.selected_format in ("glb", "obj.zip", "blend")
         self.texture_exposure_cb.setEnabled(textured)
         self.texture_best_cb.setEnabled(textured)
         self.triangle_budget_spin.setEnabled(textured)
         self.triangle_budget_label.setEnabled(textured)
         self.texture_description.setVisible(textured)
+        for widget in (self.blender_label, self.blender_path_edit, self.blender_browse,
+                       self.snapshot_label, self.snapshot_combo):
+            widget.setVisible(self.selected_format == "blend")
 
 
 class SessionProtectionDialog(QDialog):

@@ -38,6 +38,7 @@ class ServerTaskType(Enum):
     EXPORT_OBJ = auto()
     EXPORT_TEXTURE = auto()
     EXPORT_SESSION = auto()
+    EXPORT_BLENDER = auto()
     OPEN_PROJECT = auto()
     SAVE_MESH = auto()
     RESET = auto()
@@ -348,6 +349,25 @@ class ServerTaskWorker(QThread):
             self._client.task_started.emit(f"Downloading OBJ to {path}...")
             success = self._client.request_export("obj", path)
             self._client.export_done.emit(success, path)
+
+        elif tt == ServerTaskType.EXPORT_BLENDER:
+            self._require_uploaded_captures()
+            from .blender_export import convert_session
+
+            path = task.kwargs["path"]
+            with tempfile.TemporaryDirectory(prefix="scanner-blender-") as temporary:
+                session = Path(temporary) / "session.zip"
+                model = Path(temporary) / "model.zip"
+                for fmt, destination, options in (("session", session, None),
+                                                  ("obj.zip", model, task.kwargs.get("options"))):
+                    self._client.task_started.emit("Downloading RGB-D session…" if fmt == "session" else "Preparing textured fused mesh…")
+                    if not self._client.request_export(fmt, str(destination), options=options):
+                        raise RuntimeError(f"Could not download {fmt} for the Blender export")
+                result = convert_session(session, path, blender=task.kwargs["blender"],
+                                         textured_model=model, stride=task.kwargs["stride"],
+                                         progress=self._client.task_started.emit)
+                logger.info("Blender export: %s", result, extra={"ui_event": True})
+            self._client.export_done.emit(True, path)
 
         elif tt in (ServerTaskType.EXPORT_TEXTURE, ServerTaskType.EXPORT_SESSION):
             self._require_uploaded_captures()

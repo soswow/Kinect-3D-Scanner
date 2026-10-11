@@ -466,6 +466,15 @@ class GuiPreferencesTests(unittest.TestCase):
         self.assertEqual(50000, self.new_store().read("export/max_triangles", 200000))
         self.assertEqual("ply", self.new_store().read("export/format", "glb"))
 
+    def test_blender_export_path_and_sampling_are_restored_independently(self):
+        self.store.write("export/format", "blend")
+        self.store.write("export/blender_path", "/Applications/Blender.app")
+        self.store.write("export/snapshot_stride", 4)
+        dialog = dialogs.ExportDialog(preferences=self.new_store())
+        self.assertEqual("blend", dialog.selected_format)
+        self.assertEqual({"blender": "/Applications/Blender.app", "stride": 4}, dialog.blender_options)
+        dialog.close()
+
     def test_accepted_export_choices_are_remembered(self):
         window = self.window(self.store)
         window.server_client._connected = True

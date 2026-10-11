@@ -19,5 +19,6 @@ kinect-scanner = "kinect_scanner.__main__:main"
 include = ["kinect_scanner*", "scanner_server*", "shared*", "calibration"]
 
 [tool.setuptools.package-data]
+kinect_scanner = ["blender_scene.py"]
 "kinect_scanner.gui" = ["assets/*.wav"]
 calibration = ["*.json", "*.bin"]

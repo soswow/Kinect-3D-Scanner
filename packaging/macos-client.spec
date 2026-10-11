@@ -15,6 +15,7 @@ datas = collect_data_files("open3d", includes=["resources/*"])
 datas += [(str(root / "calibration/default.json"), "calibration"),
           (str(root / "calibration/raw-to-mm.bin"), "calibration"),
           (str(root / "assets/icons/Assets.car"), "."),
+          (str(root / "kinect_scanner/blender_scene.py"), "kinect_scanner"),
           (str(root / "kinect_scanner/gui/assets"), "kinect_scanner/gui/assets")]
 hiddenimports = ["freenect", "open3d.pybind"]
 if importlib.util.find_spec("_kinect_native") is not None:

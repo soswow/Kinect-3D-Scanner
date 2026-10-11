@@ -95,7 +95,8 @@ class CaptureSpoolTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "network lost"):
                 worker._dispatch(worker._queue.get_nowait())
             self.assertEqual(1, worker.pending_capture_count)
-            for task in (ServerTask(T.BUILD_MESH), ServerTask(T.EXPORT_SESSION, {"path": "scan.zip"})):
+            for task in (ServerTask(T.BUILD_MESH), ServerTask(T.EXPORT_SESSION, {"path": "scan.zip"}),
+                         ServerTask(T.EXPORT_BLENDER, {"path": "scan.blend"})):
                 with self.assertRaisesRegex(RuntimeError, "retained"):
                     worker._dispatch(task)
             client.request_build.assert_not_called()
