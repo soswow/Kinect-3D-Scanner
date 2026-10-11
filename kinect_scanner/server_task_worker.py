@@ -368,9 +368,10 @@ class ServerTaskWorker(QThread):
 
         elif tt == ServerTaskType.EXPORT_BLENDER:
             self._require_uploaded_captures()
-            from .blender_export import convert_session
+            from .blender_export import convert_session, _require_disk_space
 
             path = task.kwargs["path"]
+            _require_disk_space(Path(path).resolve().parent)
             with tempfile.TemporaryDirectory(prefix="scanner-blender-") as temporary:
                 session = Path(temporary) / "session.zip"
                 model = Path(temporary) / "model.zip"

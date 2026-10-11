@@ -19,6 +19,19 @@ import zipfile
 logger = logging.getLogger(__name__)
 
 
+_DISK_RESERVE = 1024**3
+
+
+def _require_disk_space(path):
+    free = shutil.disk_usage(path).free
+    if free < _DISK_RESERVE:
+        raise RuntimeError(
+            f"Not enough disk space for Blender export: {free / 1024**2:.0f} MiB free. "
+            "Keep at least 1 GiB free during export, plus space for the scene and images. "
+            "Choose a drive with more free space or coarser depth sampling. Current scan is retained."
+        )
+
+
 def find_blender(path=None):
     """Resolve an executable or macOS .app; explicit selections never fall back."""
     def executable(candidate):
@@ -228,6 +241,7 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
     if surface not in ("smooth", "measured"):
         raise ValueError("Snapshot surface must be smooth or measured")
     output.parent.mkdir(parents=True, exist_ok=True)
+    _require_disk_space(output.parent)
     # A distinct relative directory keeps a previously exported scene and its
     # sequence usable until the replacement .blend is completely written.
     assets = output.parent / f"{output.stem}.images-{uuid.uuid4().hex[:8]}"
@@ -262,10 +276,8 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
                 poses.append((index, pose))
             if not poses:
                 raise ValueError("The session has no accepted camera poses; finish reconstruction first")
-            model = work / "textured-model.zip"
-            if textured_model:
-                shutil.copyfile(textured_model, model)
-            else:
+            model = Path(textured_model) if textured_model else work / "textured-model.zip"
+            if not textured_model:
                 notify("Baking the saved fused mesh textures…")
                 from types import SimpleNamespace
                 import open3d as o3d
@@ -287,11 +299,14 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
                     if name.name != info.filename or info.file_size > 2 * 1024**3:
                         raise ValueError("Unsupported textured model member")
                     (model_dir / name.name).write_bytes(_read(bundle, info.filename, 2 * 1024**3))
+            if not textured_model:
+                model.unlink()
+                mesh_path.unlink()
             if not (model_dir / "scan.obj").is_file():
                 raise ValueError("Textured model bundle must contain scan.obj")
             assets.mkdir()
             c = settings.rgb_camera
-            scene = {"version": 1, "session_id": report.get("session_id"),
+            scene = {"version": 1, "session_id": report.get("session_id"), "disk_reserve_bytes": _DISK_RESERVE,
                      "camera": {"width": c.width, "height": c.height, "fx": c.fx, "fy": c.fy, "cx": c.cx, "cy": c.cy},
                      "settings": settings.to_dict(), "snapshot_stride": stride,
                      "snapshot_surface": surface,
@@ -300,12 +315,13 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
                      "unregistered_indices": sorted(set(range(len(frames))) - indices),
                      "snapshots": [], "images": assets.name, "model": str(model_dir / "scan.obj")}
             for number, (index, pose) in enumerate(poses, 1):
+                _require_disk_space(output.parent)
                 notify(f"Preparing snapshot {number}/{len(poses)}…")
                 rgb, depth = frames[index]
                 rgb, vertices, faces, uv, observed, extrinsic = _snapshot(rgb, depth, settings, stride, surface)
                 Image.fromarray(rgb).save(assets / f"{number:06d}.png")
                 geometry = work / f"{number:06d}.npz"
-                np.savez(geometry, vertices=vertices.astype(np.float32), faces=faces,
+                np.savez_compressed(geometry, vertices=vertices.astype(np.float32), faces=faces,
                          uv=uv.astype(np.float32), observed=observed)
                 scene["snapshots"].append({"index": index, "animation_frame": number + 1,
                     "camera_to_world": pose.tolist(), "rgb_to_world": (pose @ np.linalg.inv(extrinsic)).tolist(),
@@ -314,6 +330,7 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
                     "metadata": manifest["frames"][index].get("metadata", {})})
             configuration = work / "scene.json"
             configuration.write_text(json.dumps(scene, allow_nan=False), encoding="utf-8")
+            _require_disk_space(output.parent)
             notify("Creating Blender scene and animation…")
             staged = work / output.name
             command = [executable, "--background", "--factory-startup", "--threads", "2",
@@ -330,6 +347,7 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
                 log.seek(max(0, log.tell() - 12000))
                 detail = log.read().decode("utf-8", errors="replace")
             if result.returncode or not staged.is_file() or staged.stat().st_size < 12:
+                _require_disk_space(output.parent)
                 raise RuntimeError(f"Blender could not create the scene:\n{detail.strip()}")
             staged.replace(output)
             committed = True
