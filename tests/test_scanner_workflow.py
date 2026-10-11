@@ -20,6 +20,57 @@ from tests.test_auto_capture import NoCamera, NoTasks
 
 
 class ScannerWorkflowTests(unittest.TestCase):
+    def test_packaged_client_compact_project_check_runs_without_server(self):
+        from kinect_scanner.startup_check import check_compact_project
+
+        original = self.window._project_path
+        with tempfile.TemporaryDirectory() as directory:
+            check_compact_project(self.window, directory)
+        self.assertEqual(original, self.window._project_path)
+        self.assertIsNone(self.window._export_pending)
+
+    def test_compact_project_review_saves_new_copy_without_changing_full_save_target(self):
+        self.window._has_mesh = True
+        self.window._scanning = False
+        self.window._server_stored = 3
+        self.window._session_id = "scan"
+        self.window._project_path = "full-project.zip"
+        self.window.server_client._compact_project_supported = True
+        self.window._refresh_controls()
+        self.assertTrue(self.window.btn_compact_project.isEnabled())
+        self.assertTrue(self.window._save_compact_project())
+        self.assertEqual(ServerTaskType.COMPACT_PROJECT_INFO, self.window.task_worker.tasks[-1].task_type)
+        info = {"available": True, "session_id": "scan", "stored_count": 3, "retained_count": 2,
+                "excluded_count": 1, "revision": "reviewed"}
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "compact.zip")
+            with patch.object(main_window.QMessageBox, "information", return_value=main_window.QMessageBox.StandardButton.Save) as review, \
+                    patch.object(main_window.QFileDialog, "getSaveFileName", return_value=(path, "")):
+                self.window._on_compact_project_info(info)
+            self.assertIn("Keep 2 of 3", review.call_args.args[2])
+            task = self.window.task_worker.tasks[-1]
+            self.assertEqual(ServerTaskType.EXPORT_SESSION, task.task_type)
+            self.assertEqual("reviewed", task.kwargs["options"]["compact_revision"])
+            self.assertTrue(task.kwargs["options"]["compact"])
+            self.window._on_export_done(True, path)
+        self.assertEqual("full-project.zip", self.window._project_path)
+        self.assertEqual(3, self.window._server_stored)
+
+    def test_compact_review_failure_and_changed_session_leave_controls_usable(self):
+        self.window._has_mesh = True
+        self.window._scanning = False
+        self.window._session_id = "scan"
+        self.window.server_client._compact_project_supported = True
+        self.window._refresh_controls()
+        self.window._save_compact_project()
+        self.window._on_task_failed("COMPACT_PROJECT_INFO", "Review failed")
+        self.assertIsNone(self.window._export_pending)
+        self.assertTrue(self.window.btn_compact_project.isEnabled())
+        self.window._save_compact_project()
+        self.window._on_compact_project_info({"available": True, "session_id": "other"})
+        self.assertIsNone(self.window._export_pending)
+        self.assertEqual(ServerTaskType.COMPACT_PROJECT_INFO, self.window.task_worker.tasks[-1].task_type)
+
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])

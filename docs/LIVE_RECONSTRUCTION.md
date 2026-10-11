@@ -476,6 +476,49 @@ and map their server indices into recordings. Older servers without individual
 acknowledgements preserve captures but cannot establish partial-batch mappings.
 Datasets, captures, exports, and detailed replay artifacts remain ignored by Git.
 
+### Save Compact Project
+
+After a successful Finish Scan, choose **Save Compact Project…** in the output
+controls or File menu. The app reviews the total shot count, the count used by
+the current finished model and the count the new copy will omit. Save to a new
+path; opening that copy reduces the project's shot count. Regular **Save
+Project** continues to preserve the complete current session.
+
+Compaction keeps every native depth/RGB capture in the final accepted pose set,
+their calibration, orientation, camera poses and the saved mesh. It omits
+captures outside that set and optional rotated display-image copies. Reindexing
+preserves the original capture order, so the default texture export selects the
+same original photographs with the same poses. PNG stays lossless; the existing
+JPEG checkbox still controls the RGB encoding. Matching opened-project images,
+including JPEGs, are copied without another encoding generation.
+
+The archive records `project_compaction` with the original source index of each
+retained capture. Active diagnostics and poses use the new contiguous indices;
+historical graphs and diagnostics are kept separately in
+`provenance/source-reconstruction.json` with their original indices. Independent
+sensor streams and the motion journal remain available, but excluded selected
+RGB-D images are omitted. Loading restores the retained poses by fresh fusion,
+loads the saved mesh, and preserves those final poses on an unchanged Finish.
+New captures invalidate the final state as usual. A normal resave retains the
+compaction provenance and source history.
+Repeated compaction keeps older histories under `provenance/previous/`, with
+their own source index spaces and descriptors; native capture metadata also
+retains the originating session/index identity.
+
+The current server scan is not modified. The review is bound to the session,
+captures, saved poses and settings; a changed scan requires a fresh review
+before export. The client disables local capture-index reuse for this remapped
+copy and preserves existing files if download or sensor augmentation fails.
+Server health advertises `project_export.compact=1`; older servers disable the
+action. The API exposes `GET /api/scan/project/compact` for review and accepts
+`compact=true` plus the returned `compact_revision` on session export.
+
+This is a final-product copy. Disconnected/rejected views can contain missing
+surfaces worth recovering, so keep a full project for later reconstruction.
+Contributing registered depth views are not pruned merely because their photos
+are not selected for texture: repeated depths can improve averaging. More
+aggressive pruning requires the matched reconstruction and texture checks below.
+
 ### Project contribution audit
 
 For a finished project, use the offline contribution audit before deciding to

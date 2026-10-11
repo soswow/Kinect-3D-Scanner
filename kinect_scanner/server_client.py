@@ -35,6 +35,7 @@ class ServerClient(QObject):
     final_preview_done = pyqtSignal(str)
     export_done = pyqtSignal(bool, str)
     project_opened = pyqtSignal(dict, str)
+    compact_project_info = pyqtSignal(dict)
     transfer_progress = pyqtSignal(str, float, float)
     save_mesh_done = pyqtSignal(bool, str)
     status_updated = pyqtSignal(dict)
@@ -64,6 +65,7 @@ class ServerClient(QObject):
         self._visual_tracks_supported = False
         self._feature_history_supported = False
         self._project_export_supported = False
+        self._compact_project_supported = False
 
     @property
     def is_connected(self) -> bool:
@@ -95,6 +97,7 @@ class ServerClient(QObject):
             self._visual_tracks_supported = health.get("capture_protocol", {}).get("visual_tracks") == 1
             self._feature_history_supported = health.get("capture_protocol", {}).get("feature_history") == 1
             self._project_export_supported = health.get("project_export", {}).get("version") == 1
+            self._compact_project_supported = health.get("project_export", {}).get("compact") == 1
             if health.get("status") != "ok":
                 raise RuntimeError(f"Server not ok: {health}")
             status = self.get_status()
@@ -368,15 +371,27 @@ class ServerClient(QObject):
             if not complete:
                 os.unlink(path)
 
+    def request_compact_project_info(self):
+        if not self._compact_project_supported:
+            raise RuntimeError("Update and restart the reconstruction server to save compact projects")
+        response = self._http.get("/api/scan/project/compact", timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+
     def request_export(self, fmt: str, save_path: str, options=None, *, local_captures=None) -> bool:
         """Download and atomically replace the destination only after success."""
         options = dict(options or {})
+        compact = fmt == "session" and options.get("compact", False)
+        if compact and not self._compact_project_supported:
+            raise RuntimeError("Update and restart the reconstruction server to save compact projects")
         if fmt == "session" and options.get("rgb_format", "png") != "png" and not self._project_export_supported:
             raise RuntimeError("Update and restart the reconstruction server to save JPEG projects")
         session_id = self.session_id
-        reuse = local_captures if fmt == "session" and self._project_export_supported else None
+        reuse = local_captures if fmt == "session" and self._project_export_supported and not compact else None
         request = {"params": options}
         method = "GET"
+        if compact:
+            method, request = "POST", {"json": options}
         if reuse:
             method = "POST"
             request = {"json": {**options, "reuse": {"session_id": session_id, "captures": [
@@ -420,7 +435,7 @@ class ServerClient(QObject):
                 self.task_started.emit("Adding selected captures from local recording…")
                 count = complete_local_captures(temporary, reuse, session_id)
                 logger.info("Project save reused %d local capture pairs", count, extra={"ui_event": True})
-                with open(temporary, "rb") as completed:
+                with open(temporary, "rb+") as completed:
                     os.fsync(completed.fileno())
             os.replace(temporary, destination)
             logger.info("Export %s: disk completion %.2f s, total %.2f s: %s", fmt,

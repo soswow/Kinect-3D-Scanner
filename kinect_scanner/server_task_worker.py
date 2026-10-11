@@ -38,6 +38,7 @@ class ServerTaskType(Enum):
     EXPORT_OBJ = auto()
     EXPORT_TEXTURE = auto()
     EXPORT_SESSION = auto()
+    COMPACT_PROJECT_INFO = auto()
     EXPORT_BLENDER = auto()
     OPEN_PROJECT = auto()
     SAVE_MESH = auto()
@@ -282,6 +283,11 @@ class ServerTaskWorker(QThread):
             self._client.last_status = dict(result)
             self._client.status_updated.emit(result)
 
+        elif tt == ServerTaskType.COMPACT_PROJECT_INFO:
+            self._require_uploaded_captures()
+            self._client.task_started.emit("Reviewing project contributions…")
+            self._client.compact_project_info.emit(self._client.request_compact_project_info())
+
         elif tt == ServerTaskType.FINAL_PREVIEW:
             self._client.task_started.emit("Downloading final mesh preview...")
             path = self._client.request_final_preview()
@@ -397,7 +403,8 @@ class ServerTaskWorker(QThread):
             path = task.kwargs["path"]
             fmt = task.kwargs.get("format", "session")
             download_options = {"options": task.kwargs.get("options")}
-            if tt == ServerTaskType.EXPORT_SESSION:
+            compact = bool((task.kwargs.get("options") or {}).get("compact"))
+            if tt == ServerTaskType.EXPORT_SESSION and not compact:
                 local = self._local_export_captures()
                 if local:
                     download_options["local_captures"] = local
@@ -420,7 +427,10 @@ class ServerTaskWorker(QThread):
                     if success:
                         self._client.task_started.emit("Adding sensor recording…")
                         started = time.monotonic()
-                        augment_session_archive(temporary, snapshot)
+                        if compact:
+                            augment_session_archive(temporary, snapshot, portrait=False)
+                        else:
+                            augment_session_archive(temporary, snapshot)
                         logging.getLogger(__name__).info("Sensor archive merge: %.2f s", time.monotonic() - started)
                         Path(temporary).replace(path)
                         if not snapshot["complete"]:

@@ -130,6 +130,123 @@ class ProjectTests(unittest.TestCase):
                 for key in ("rgb", "depth"):
                     self.assertEqual(source.read(frame[key]), target.read(frame[key]))
 
+    def finished_with_skips(self):
+        rgb, depth = self.source.raw_frames[1]
+        rgb = rgb.copy()
+        rgb[:, :, 0] = 180
+        self.source.store_frame(rgb, depth, {"frame_id": "capture-2", "timestamp_s": 2,
+                                             "orientation": {"rotation_cw_degrees": 90}})
+        moved = np.eye(4)
+        moved[0, 3] = .02
+        self.source.poses = [(0, np.eye(4)), (2, moved)]
+        self.source.diagnostics = [{"index": i, "success": i != 1, "metadata": self.source.frame_metadata[i]}
+                                   for i in range(3)]
+        self.source.frame_count, self.source._processed_count = 2, 3
+        self.source.original_poses = [(0, np.eye(4)), (2, moved.copy())]
+        self.source.tracking_edges = [{"source_index": 2, "target_index": 0}, {"source_index": 1, "target_index": 0}]
+        self.source.mesh = o3d.geometry.TriangleMesh.create_box(.1, .2, .3)
+        self.source.mesh.paint_uniform_color([.1, .4, .7])
+
+    def test_integrated_compaction_remaps_only_final_views_and_preserves_texture(self):
+        from scanner_server.session import compact_project_info
+        from scanner_server.texturing import _views
+
+        self.finished_with_skips()
+        plan = compact_project_info(self.source)
+        self.assertTrue(plan["available"])
+        self.assertEqual([0, 2], plan["retained_indices"])
+        self.assertEqual(1, plan["excluded_count"])
+        expected_views = [i for i, _ in _views(self.source, 64)]
+        export_session(self.source, self.path, compact=True, compact_revision=plan["revision"])
+        candidate = self.candidate()
+        manifest = load_session(candidate, self.path)
+        self.assertEqual(2, candidate.stored_count)
+        self.assertEqual([0, 1], [i for i, _ in candidate.poses])
+        self.assertEqual(plan["retained_indices"], manifest["project_compaction"]["retained_source_indices"])
+        self.assertEqual(2, candidate.frame_metadata[1]["source_server_index"])
+        self.assertEqual(1, candidate.frame_metadata[1]["server_index"])
+        self.assertEqual(expected_views, [plan["retained_indices"][i] for i, _ in _views(candidate, 64)])
+        for (old, original_pose), (new, restored_pose) in zip(self.source.poses, candidate.poses):
+            np.testing.assert_array_equal(original_pose, restored_pose)
+            for a, b in zip(self.source.raw_frames[old], candidate.raw_frames[new]):
+                np.testing.assert_array_equal(a, b)
+        np.testing.assert_allclose(self.source.mesh.vertices, candidate.mesh.vertices)
+        self.assertEqual(3, self.source.stored_count)
+        self.assertEqual([], candidate.tracking_edges)
+        self.assertFalse(candidate.fragment_reconnection["applied"])
+        self.assertEqual(2, candidate._preserved_project_pose_count)
+        self.assertIsNone(candidate._reconnection_count)
+        with zipfile.ZipFile(self.path) as archive:
+            self.assertFalse(any(name.startswith("display/") for name in archive.namelist()))
+            history = json.loads(archive.read("provenance/source-reconstruction.json"))
+            self.assertEqual([0, 2], [p["index"] for p in history["poses"]])
+            self.assertEqual(self.source.tracking_edges, history["tracking_edges"])
+        candidate._project_archive_path = str(self.path)
+        saved = self.path.with_name("resaved.zip")
+        export_session(candidate, saved)
+        with zipfile.ZipFile(saved) as archive:
+            self.assertEqual(manifest["project_compaction"], json.loads(archive.read("manifest.json"))["project_compaction"])
+            self.assertEqual(history, json.loads(archive.read("provenance/source-reconstruction.json")))
+        twice = self.path.with_name("compact-twice.zip")
+        second_plan = compact_project_info(candidate)
+        export_session(candidate, twice, compact=True, compact_revision=second_plan["revision"])
+        with zipfile.ZipFile(twice) as archive:
+            self.assertEqual(history, json.loads(archive.read("provenance/previous/source-reconstruction.json")))
+            self.assertEqual(manifest["project_compaction"], json.loads(archive.read("provenance/previous/compaction.json")))
+
+    def test_compact_review_requires_finished_scan_and_rejects_stale_save(self):
+        from scanner_server.session import compact_project_info
+
+        self.assertFalse(compact_project_info(self.source)["available"])
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "unavailable or stale"):
+            export_session(self.source, self.path, compact=True, compact_revision="unreviewed")
+        self.assertEqual(before, self.path.read_bytes())
+        self.finished_with_skips()
+        plan = compact_project_info(self.source)
+        self.source.poses[-1][1][0, 3] += .01
+        with self.assertRaisesRegex(ValueError, "unavailable or stale"):
+            export_session(self.source, self.path, compact=True, compact_revision=plan["revision"])
+        self.assertEqual(before, self.path.read_bytes())
+
+    def test_compact_depth_project_preserves_saved_poses_until_a_new_capture(self):
+        from dataclasses import replace
+        from unittest.mock import patch
+        from scanner_server.session import compact_project_info
+
+        self.finished_with_skips()
+        self.source.settings = replace(self.source.settings, offline_registration="depth")
+        plan = compact_project_info(self.source)
+        export_session(self.source, self.path, compact=True, compact_revision=plan["revision"])
+        candidate = self.candidate()
+        load_session(candidate, self.path)
+        with patch("scanner_server.depth_graph.propose_depth_poses", side_effect=AssertionError("Saved poses must stay fixed")):
+            self.assertTrue(candidate._reconnect_volume())
+        self.assertFalse(candidate.fragment_reconnection["applied"])
+        self.assertIsNone(candidate._reconnection_count)
+        rgb, depth = candidate.raw_frames[-1]
+        self.assertTrue(candidate.store_frame(rgb, depth, {"frame_id": "new-capture"})["success"])
+        self.assertIsNone(candidate._preserved_project_pose_count)
+        with patch("scanner_server.depth_graph.propose_depth_poses", return_value=(None, {"applied": False, "reason": "test"})) as register:
+            self.assertTrue(candidate._reconnect_volume())
+        register.assert_called_once()
+
+    def test_compact_opened_project_copies_original_members_by_source_index(self):
+        from scanner_server.session import compact_project_info
+
+        self.finished_with_skips()
+        export_session(self.source, self.path, rgb_format="jpeg")
+        candidate = self.candidate()
+        load_session(candidate, self.path)
+        candidate._project_archive_path = str(self.path)
+        compact = self.path.with_name("compact-jpeg.zip")
+        plan = compact_project_info(candidate)
+        export_session(candidate, compact, rgb_format="jpeg", compact=True, compact_revision=plan["revision"])
+        with zipfile.ZipFile(self.path) as original, zipfile.ZipFile(compact) as saved:
+            self.assertEqual(original.read("rgb/000002.jpg"), saved.read("rgb/000001.jpg"))
+            self.assertEqual(original.read("depth/000002.png"), saved.read("depth/000001.png"))
+            self.assertFalse(any(n.startswith("display/") for n in saved.namelist()))
+
     def test_invalid_poses_and_member_paths_are_rejected(self):
         for field in ("pose", "path"):
             with self.subTest(field=field):

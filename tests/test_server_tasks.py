@@ -1,7 +1,9 @@
 """Queue responsiveness and dispatch regressions with mocked transports."""
 
 import threading
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import Qt
@@ -15,6 +17,48 @@ from kinect_scanner.server_task_worker import (
 
 
 class ServerTaskTests(unittest.TestCase):
+    def test_compact_project_review_dispatches_and_export_skips_local_index_reuse(self):
+        client = ServerClient()
+        client.request_compact_project_info = Mock(return_value={"retained_count": 2})
+        client.request_export = Mock(return_value=True)
+        updates = []
+        client.compact_project_info.connect(updates.append)
+        worker = ServerTaskWorker(client)
+        worker._dispatch(ServerTask(ServerTaskType.COMPACT_PROJECT_INFO))
+        self.assertEqual([{"retained_count": 2}], updates)
+        options = {"compact": True, "compact_revision": "review"}
+        with patch.object(worker, "_local_export_captures") as reuse:
+            worker._dispatch(ServerTask(ServerTaskType.EXPORT_SESSION, {"path": "/unused/compact.zip", "options": options}))
+            reuse.assert_not_called()
+        client.request_export.assert_called_once_with("session", "/unused/compact.zip", options=options)
+
+    def test_compact_sensor_merge_omits_display_copies_and_preserves_destination_on_failure(self):
+        client = ServerClient()
+        worker = ServerTaskWorker(client)
+        snapshot = {"complete": True}
+        recorder = Mock()
+        recorder.flush_sensor_recording.return_value = snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "compact.zip"
+            path.write_bytes(b"existing project")
+
+            def download(fmt, destination, **kwargs):
+                Path(destination).write_bytes(b"compact project")
+                return True
+
+            client.request_export = Mock(side_effect=download)
+            task = ServerTask(ServerTaskType.EXPORT_SESSION, {"path": str(path), "options": {"compact": True},
+                                                            "sensor_recorder": recorder})
+            with patch("kinect_scanner.server_task_worker.augment_session_archive", side_effect=OSError("merge failed")) as augment:
+                with self.assertRaisesRegex(OSError, "merge failed"):
+                    worker._dispatch(task)
+                augment.assert_called_once_with(client.request_export.call_args.args[1], snapshot, portrait=False)
+            self.assertEqual(b"existing project", path.read_bytes())
+            with patch("kinect_scanner.server_task_worker.augment_session_archive") as augment:
+                worker._dispatch(task)
+                self.assertFalse(augment.call_args.kwargs["portrait"])
+            self.assertEqual(b"compact project", path.read_bytes())
+
     def test_full_upload_queue_reports_failure_once_until_capacity_returns(self):
         worker = ServerTaskWorker(ServerClient())
         task = ServerTask(ServerTaskType.SEND_FRAME)

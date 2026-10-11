@@ -121,6 +121,7 @@ class ScanEngine:
         self.original_poses = None
         self._refined_count = None
         self._reconnection_count = None
+        self._preserved_project_pose_count = None
         self._pose_seeds_only = False
         self._project_processing_paused = False
         self.fragment_reconnection = {"applied": False, "reason": "Not requested"}
@@ -1273,6 +1274,7 @@ class ScanEngine:
         self.point_cloud = None
         self._refined_count = None
         self._reconnection_count = None
+        self._preserved_project_pose_count = None
         self.fragment_reconnection = {"applied": False, "reason": "Awaiting final build"}
         self.refinement = {"applied": False, "reason": "Awaiting final build"}
         self.bundle_adjustment = {"applied": False, "reason": "Awaiting final build"}
@@ -1571,12 +1573,17 @@ class ScanEngine:
         if combined != self.motion_journal:
             self.motion_journal = combined
             self._reconnection_count = None
+            self._preserved_project_pose_count = None
             self._final_vbg = None
         return {"success": True, "reads": sum(len(s["samples"]) for s in combined["segments"]),
                 "complete": bool(combined["segments"]) and all(s["status"].get("complete",False) for s in combined["segments"])}
 
     def _reconnect_volume(self, progress_cb=None):
         """Commit connected raw fragments only after a complete fresh fusion."""
+        if self._preserved_project_pose_count == self.stored_count:
+            # A compact final project restored every saved pose by fresh fusion.
+            # Retaining that asset is separate from proving a registration graph.
+            return True
         if self._reconnection_count == self.stored_count:
             from .depth_graph import ALGORITHM_VERSION
             if self.settings.offline_registration != "depth" or self.fragment_reconnection.get("algorithm") == ALGORITHM_VERSION:

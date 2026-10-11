@@ -161,6 +161,7 @@ class MainWindow(QMainWindow):
         self.server_client.task_failed.connect(self._on_task_failed)
         self.server_client.websocket_status.connect(self._on_websocket_status)
         self.server_client.export_done.connect(self._on_export_done)
+        self.server_client.compact_project_info.connect(self._on_compact_project_info)
         self.server_client.project_opened.connect(self._on_project_opened)
         self.server_client.transfer_progress.connect(self._on_transfer_progress)
         self.server_client.save_mesh_done.connect(self._on_save_mesh_done)
@@ -439,6 +440,7 @@ class MainWindow(QMainWindow):
         self.save_project_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_project_as_action = menu.addAction("Save Project As…", self._export_session)
         self.save_project_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.save_compact_project_action = menu.addAction("Save Compact Project…", self._save_compact_project)
         toolbar = QToolBar("Views")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
@@ -562,6 +564,10 @@ class MainWindow(QMainWindow):
         self.project_jpeg_cb = QCheckBox("Smaller projects (JPEG photos)", container)
         self.project_jpeg_cb.setToolTip("Save RGB photos as JPEG at quality 95, with some loss of color detail. Depth and separate local capture copies stay lossless. Capture and current reconstruction use the original images.")
         layout.addWidget(self.project_jpeg_cb)
+        self.btn_compact_project = QPushButton("Save Compact Project…", container)
+        self.btn_compact_project.setToolTip("Save a smaller copy with only shots used by the finished model, preserving its mesh and texture source photos.")
+        self.btn_compact_project.clicked.connect(self._save_compact_project)
+        layout.addWidget(self.btn_compact_project)
         self.progress_status_label = QLabel()
         self.progress_status_label.setWordWrap(True)
         self.progress_status_label.hide()
@@ -919,6 +925,14 @@ class MainWindow(QMainWindow):
         self.btn_preview_scan.setEnabled(connected and (frames or self._has_mesh) and not busy)
         self.btn_export.setEnabled(connected and self._has_mesh and not busy)
         self.btn_export_session.setEnabled(connected and (frames or bool(self._sensor_counts_seen)) and not busy)
+        compact_enabled = (connected and self._has_mesh and not active and not busy
+                           and getattr(self.server_client, "_compact_project_supported", False))
+        self.btn_compact_project.setEnabled(compact_enabled)
+        self.save_compact_project_action.setEnabled(compact_enabled)
+        self.btn_compact_project.setToolTip(
+            "Save a smaller copy with only shots used by the finished model."
+            if getattr(self.server_client, "_compact_project_supported", False)
+            else "Update and restart the reconstruction server to enable compact projects.")
         self.btn_open_project.setEnabled(connected and not busy)
         if hasattr(self, "open_project_action"):
             self.open_project_action.setEnabled(self.btn_open_project.isEnabled())
@@ -1893,6 +1907,45 @@ class MainWindow(QMainWindow):
     def _save_project(self, checked=False):
         return self._export_session(path=self._project_path)
 
+    def _save_compact_project(self, checked=False):
+        if not self.btn_compact_project.isEnabled():
+            return False
+        return self._begin_export("compact-review", "", ServerTask(ServerTaskType.COMPACT_PROJECT_INFO))
+
+    def _on_compact_project_info(self, info):
+        pending = self._export_pending
+        if not pending or pending["kind"] != "compact-review":
+            return
+        self._export_pending = None
+        self._scanning, self._paused = pending["restore_capture"]
+        self._set_progress_visible(False)
+        self._refresh_controls()
+        if info.get("session_id") != self._session_id or not info.get("available"):
+            self._show_message(info.get("reason", "The scan changed; finish it before saving a compact project."), 10000)
+            return
+        text = (f"Keep {info['retained_count']} of {info['stored_count']} shots used by the finished model.\n\n"
+                f"The copy omits {info['excluded_count']} shots outside this model and redundant display images. "
+                "It preserves the finished mesh, camera poses, and texture source photos.\n\n"
+                "Omitted shots may contain disconnected surfaces you could recover later. "
+                "Your current session and full project remain available. Open the compact copy to work with fewer shots.")
+        if QMessageBox.information(self, "Save Compact Project", text,
+                                   QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel,
+                                   QMessageBox.StandardButton.Save) != QMessageBox.StandardButton.Save:
+            return
+        filename = f"scan-compact_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.zip"
+        path, _ = QFileDialog.getSaveFileName(self, "Save Compact Project", os.path.join(self._ensure_export_dir(), filename),
+                                             "Scanner projects (*.zip)")
+        if not path:
+            return
+        if os.path.exists(path):
+            self._show_message("Choose a new file for the compact copy so existing projects are preserved.", 10000)
+            return
+        options = {"path": path, "options": {"rgb_format": "jpeg" if self.project_jpeg_cb.isChecked() else "png",
+                                                "compact": True, "compact_revision": info["revision"]}}
+        if self._sensor_recording_path and hasattr(self.worker, "flush_sensor_recording"):
+            options.update(sensor_recorder=self.worker, sensor_path=self._sensor_recording_path)
+        return self._begin_export("compact", path, ServerTask(ServerTaskType.EXPORT_SESSION, options))
+
     def _export_session(self, checked=False, path=None):
         if self._export_pending or not self.server_client.is_connected:
             return False
@@ -2409,7 +2462,7 @@ class MainWindow(QMainWindow):
             self._resume_capture()
         elif task_type == "FINAL_PREVIEW":
             self._final_preview_pending = False
-        elif task_type == "OPEN_PROJECT":
+        elif task_type in ("OPEN_PROJECT", "COMPACT_PROJECT_INFO"):
             pending, self._export_pending = self._export_pending, None
             if pending:
                 self._scanning, self._paused = pending["restore_capture"]
