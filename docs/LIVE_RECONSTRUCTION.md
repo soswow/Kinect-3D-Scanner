@@ -534,6 +534,15 @@ Server health advertises `project_export.compact=1`; older servers disable the
 action. The API exposes `GET /api/scan/project/compact` for review and accepts
 `compact=true` plus the returned `compact_revision` on session export.
 
+An offline round trip at source `b2ab105` kept 218 of 438 captures in one saved
+project. PNG compaction produced 605,052,058 bytes, compared with the original
+2,088,845,471-byte archive including display copies (71% smaller). The production
+loader restored it by fresh CPU fusion on Windows with native kernels disabled.
+All 436 retained image members and 218 pose matrices matched, as did the saved
+mesh's 1,483,031 vertices and 2,903,507 triangles; the default 64 texture source
+photos were unchanged. This verifies archive preservation for that input, not
+new reconstruction accuracy, a texture rebake, or a universal size reduction.
+
 This is a final-product copy. Disconnected/rejected views can contain missing
 surfaces worth recovering, so keep a full project for later reconstruction.
 Contributing registered depth views are not pruned merely because their photos
