@@ -71,6 +71,17 @@ report receive, decode and storage time. These distinguish transfer throughput
 from server ingestion costs on the next real scan. Optional local PNG recording
 uses explicit fast lossless compression.
 
+**Also keep selected captures locally** keeps an acknowledged lossless PNG
+recording separate from the temporary upload spool. Save Project reuses matching
+local capture pairs, downloading only the server's reconstruction/mesh, retained
+server-only observations and any images unavailable locally. Matching uses the
+current session, acknowledged server indices and native pixel hashes. The
+[project save guide](LIVE_RECONSTRUCTION.md#full-session-preservation) describes
+compression, optional JPEG photos and failure handling. This requires updating
+and restarting the reconstruction server; an older server sends the full PNG
+project. Confirmed upload-spool files are removed as before and are not a cache
+for project saving.
+
 Verification includes 120 captures buffered while transport is blocked, Finish
 ordering, partial/failed acknowledgements, disk exhaustion, both sensor
 resolutions, unsigned depth extremes, lossless protocol round-trips, real

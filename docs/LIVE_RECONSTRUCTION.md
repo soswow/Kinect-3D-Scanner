@@ -409,8 +409,8 @@ capacity. Mac packaged-client verification remains a separate installed-app chec
 
 ## Full session preservation
 
-**Save full RGB-D session**, or `/api/scan/export/session`, returns a ZIP with
-lossless RGB PNGs, uint16 depth PNGs, `manifest.json`, and
+**Save Project**, or `/api/scan/export/session`, returns a ZIP with
+RGB photos, lossless uint16 depth PNGs, `manifest.json`, and
 `reconstruction.json`. The report stores settings/calibration, backend, accepted
 camera-to-world poses in metres, original poses when refinement applied,
 per-frame tracking diagnostics, timings, and refinement outcome. It deliberately
@@ -418,6 +418,37 @@ keeps estimated poses separate from evaluation reference poses.
 Native Kinect projects retain raw disparity and its complete sensor calibration;
 metric dataset projects retain millimetre depth. Use `manifest.depth_unit` and
 the saved calibration rather than assuming every uint16 PNG is millimetres.
+
+Projects use lossless RGB PNGs by default. Enable **Smaller projects (JPEG
+photos)** beside Save Project to save RGB as JPEG at quality 95. This choice is
+remembered and affects project saves, including saves offered before resetting
+or closing. JPEG loses some color detail; current reconstruction and separate
+local capture recordings retain their original pixels. Reopening a JPEG project
+uses its saved JPEG photos, and resaving it as JPEG preserves those existing
+files without another lossy encoding. Depth, calibration, poses and mesh are
+preserved. The manifest records `rgb_format` and, for JPEG, `jpeg_quality`.
+The API accepts `rgb_format=png|jpeg`. Mesh and JSON/JSONL members use lossless
+ZIP DEFLATE compression by default; already compressed photos/depth PNGs are
+stored directly. JSON is compact, including after local sensor augmentation.
+JPEG projects use version 4 so older servers refuse them rather than resaving
+JPEG payloads under PNG filenames. PNG projects retain version 3; the updated
+reader also opens versions 1–3.
+
+When **Also keep selected captures locally** was enabled for this session,
+project saves reuse the acknowledged local RGB/depth pairs. The client sends
+their server indices and pixel hashes in a POST to the same export endpoint;
+the server verifies the session and both native image hashes before omitting
+a pair from the transfer. Missing, unreadable or mismatched pairs are sent by
+the server. The client assembles a complete standalone project before replacing
+the destination, and checks the local pixels again during assembly. Failed
+transfers or changed local files preserve the previous project. Local backup
+images remain lossless PNGs even when the saved project uses JPEG.
+Local recordings are recovered after reconnecting or restarting the client when
+their saved session identity matches; older recordings can use the identity in
+their reconstruction sidecar. Older servers
+still support full PNG downloads; JPEG and local reuse require an updated,
+restarted reconstruction server. A partial transfer cannot be opened as a
+project before its local captures have been assembled.
 
 Unzip and replay using:
 

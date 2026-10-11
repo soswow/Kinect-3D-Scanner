@@ -276,6 +276,7 @@ async def health():
     return {
         "status": "ok",
         "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1},
+        "project_export": {"version": 1, "rgb_formats": ["png", "jpeg"], "local_captures": 1},
         "backend": engine.backend,
         "session_id": engine.session_id,
         "stored_count": engine.stored_count,
@@ -677,14 +678,37 @@ async def export_obj():
 
 
 @app.get("/api/scan/export/session")
-async def export_recording():
+async def export_recording(rgb_format: str = "png"):
+    return await _export_recording(rgb_format)
+
+
+@app.post("/api/scan/export/session")
+async def export_recording_with_local_captures(request: Request):
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > 2 * 1024**2:
+            raise HTTPException(413, "Project reuse request exceeds 2 MiB")
+    try:
+        options = json.loads(data)
+        if not isinstance(options, dict) or set(options) - {"rgb_format", "reuse"}:
+            raise ValueError("Invalid project export options")
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return await _export_recording(options.get("rgb_format", "png"), options.get("reuse"))
+
+
+async def _export_recording(rgb_format, reuse=None):
     from .session import export_session
 
     fd, path = tempfile.mkstemp(suffix=".zip")
     os.close(fd)
     try:
         async with _exclusive_operation("save"):
-            await _engine_call(export_session, engine, path)
+            try:
+                await _engine_call(export_session, engine, path, rgb_format=rgb_format, reuse=reuse)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
         response = FileResponse(
             path,
             media_type="application/octet-stream",
@@ -702,7 +726,7 @@ async def export_recording():
 async def open_project(request: Request):
     """Stage and fully validate a project before replacing the active scan."""
     global engine, _latest_live, _pending_live
-    from .session import load_session, PROJECT_ARCHIVE_LIMIT_BYTES
+    from .session import PROJECT_ARCHIVE_LIMIT_BYTES, load_session
 
     fd, path = tempfile.mkstemp(suffix=".zip")
     candidate = None

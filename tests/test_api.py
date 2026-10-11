@@ -5,10 +5,10 @@ import os
 os.environ.setdefault("KINECT_BLOCK_COUNT", "5000")
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 import asyncio
-import threading
 import tempfile
-from pathlib import Path
+import threading
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -37,6 +37,26 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         for capability in ("motion_history", "motion_journal", "visual_tracks", "feature_history"):
             self.assertEqual(1, result[capability])
         self.assertEqual(MAX_METADATA_BYTES, result["metadata_max_bytes"])
+
+    async def test_project_export_options_and_local_reuse_reach_exporter(self):
+        def save(engine, path, **options):
+            Path(path).write_bytes(b"project archive")
+
+        health = (await self.http.get("/api/health")).json()["project_export"]
+        self.assertEqual(["png", "jpeg"], health["rgb_formats"])
+        with patch("scanner_server.session.export_session", side_effect=save) as export:
+            response = await self.http.get("/api/scan/export/session", params={"rgb_format": "jpeg"})
+            self.assertEqual(200, response.status_code)
+            self.assertEqual({"rgb_format": "jpeg", "reuse": None}, export.call_args.kwargs)
+            reuse = {"session_id": server.engine.session_id, "captures": []}
+            response = await self.http.post("/api/scan/export/session", json={"rgb_format": "png", "reuse": reuse})
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(reuse, export.call_args.kwargs["reuse"])
+        for body in ([], {"unexpected": True}):
+            self.assertEqual(422, (await self.http.post("/api/scan/export/session", json=body)).status_code)
+        self.assertEqual(413, (await self.http.post("/api/scan/export/session", content=b" " * (2 * 1024**2 + 1))).status_code)
+        self.assertEqual(422, (await self.http.get("/api/scan/export/session", params={"rgb_format": "invalid"})).status_code)
+        self.assertEqual(422, (await self.http.post("/api/scan/export/session", json={"reuse": {"session_id": "stale", "captures": []}})).status_code)
 
     async def test_empty_reset_uses_complete_measured_kinect_default(self):
         response = await self.http.post("/api/scan/reset", json={})
@@ -124,12 +144,13 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(server._exclusive_kind)
 
     async def test_project_open_and_save_roundtrip(self):
-        from scanner_server.engine import ScanEngine
-        from scanner_server.session import export_session
-        from shared.settings import ScanSettings
         import io
         import json
         import zipfile
+
+        from scanner_server.engine import ScanEngine
+        from scanner_server.session import export_session
+        from shared.settings import ScanSettings
 
         source = ScanEngine(device="cpu")
         self.addCleanup(source.shutdown)

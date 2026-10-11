@@ -63,6 +63,7 @@ class ServerClient(QObject):
         self._motion_journal_supported = False
         self._visual_tracks_supported = False
         self._feature_history_supported = False
+        self._project_export_supported = False
 
     @property
     def is_connected(self) -> bool:
@@ -93,6 +94,7 @@ class ServerClient(QObject):
             self._motion_journal_supported = health.get("capture_protocol", {}).get("motion_journal") == 1
             self._visual_tracks_supported = health.get("capture_protocol", {}).get("visual_tracks") == 1
             self._feature_history_supported = health.get("capture_protocol", {}).get("feature_history") == 1
+            self._project_export_supported = health.get("project_export", {}).get("version") == 1
             if health.get("status") != "ok":
                 raise RuntimeError(f"Server not ok: {health}")
             status = self.get_status()
@@ -366,8 +368,21 @@ class ServerClient(QObject):
             if not complete:
                 os.unlink(path)
 
-    def request_export(self, fmt: str, save_path: str, options=None) -> bool:
+    def request_export(self, fmt: str, save_path: str, options=None, *, local_captures=None) -> bool:
         """Download and atomically replace the destination only after success."""
+        options = dict(options or {})
+        if fmt == "session" and options.get("rgb_format", "png") != "png" and not self._project_export_supported:
+            raise RuntimeError("Update and restart the reconstruction server to save JPEG projects")
+        session_id = self.session_id
+        reuse = local_captures if fmt == "session" and self._project_export_supported else None
+        request = {"params": options}
+        method = "GET"
+        if reuse:
+            method = "POST"
+            request = {"json": {**options, "reuse": {"session_id": session_id, "captures": [
+                {"index": index, "rgb_sha256": pair["rgb_sha256"], "depth_sha256": pair["depth_sha256"]}
+                for index, pair in sorted(reuse.items())
+            ]}}}
         destination = os.path.abspath(save_path)
         fd, temporary = tempfile.mkstemp(
             prefix=".scanner-export-", dir=os.path.dirname(destination)
@@ -375,8 +390,8 @@ class ServerClient(QObject):
         started = time.monotonic()
         try:
             with os.fdopen(fd, "wb") as output:
-                with self._http.stream("GET", f"/api/scan/export/{fmt}",
-                                       params=options or {}, timeout=600.0) as resp:
+                with self._http.stream(method, f"/api/scan/export/{fmt}",
+                                       **request, timeout=600.0) as resp:
                     resp.raise_for_status()
                     if "octet-stream" not in resp.headers.get("content-type", ""):
                         return False
@@ -400,6 +415,13 @@ class ServerClient(QObject):
                 finishing = time.monotonic()
                 output.flush()
                 os.fsync(output.fileno())
+            if reuse:
+                from shared.project_archive import complete_local_captures
+                self.task_started.emit("Adding selected captures from local recording…")
+                count = complete_local_captures(temporary, reuse, session_id)
+                logger.info("Project save reused %d local capture pairs", count, extra={"ui_event": True})
+                with open(temporary, "rb") as completed:
+                    os.fsync(completed.fileno())
             os.replace(temporary, destination)
             logger.info("Export %s: disk completion %.2f s, total %.2f s: %s", fmt,
                         time.monotonic() - finishing, time.monotonic() - started, destination)

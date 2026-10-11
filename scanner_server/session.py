@@ -3,16 +3,22 @@
 import io
 import json
 import logging
-import shutil
 import tempfile
 import time
 import zipfile
-from pathlib import Path, PurePosixPath
 from contextlib import ExitStack
+from pathlib import Path, PurePosixPath
 
 import numpy as np
 from PIL import Image
 
+from shared.project_archive import (
+    JPEG_QUALITY,
+    copy_member,
+    encode_image,
+    pixel_digest,
+    write_member,
+)
 from shared.settings import ScanSettings
 
 logger = logging.getLogger(__name__)
@@ -29,50 +35,85 @@ def _member(archive, name, limit):
     return archive.read(info)
 
 
-def export_session(engine, path):
+def _reuse_proofs(engine, reuse):
+    if reuse is None:
+        return {}
+    if not isinstance(reuse, dict) or reuse.get("session_id") != engine.session_id:
+        raise ValueError("Local capture reuse requires the current server session")
+    rows = reuse.get("captures")
+    if not isinstance(rows, list) or len(rows) > engine.MAX_FRAMES:
+        raise ValueError("Invalid local capture reuse list")
+    proofs = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid local capture proof")
+        index = row.get("index")
+        if type(index) is not int or index < 0 or index in proofs:
+            raise ValueError("Invalid local capture index")
+        for key in ("rgb_sha256", "depth_sha256"):
+            value = row.get(key)
+            if not isinstance(value, str) or len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+                raise ValueError("Invalid local capture pixel hash")
+        proofs[index] = row
+    return proofs
+
+
+def export_session(engine, path, rgb_format="png", reuse=None):
     started = time.monotonic()
+    if rgb_format not in ("png", "jpeg"):
+        raise ValueError("Project RGB format must be png or jpeg")
+    proofs = _reuse_proofs(engine, reuse)
+    reused = []
     manifest = {
-        "version": 3,
+        "version": 4 if rgb_format == "jpeg" else 3,
         "kind": "kinect-scanner-project",
         "depth_unit": "raw_11bit_disparity" if engine.settings.sensor_calibration else "millimetres",
         "depth_encoding": engine.settings.depth_encoding,
         "settings": engine.settings.to_dict(),
         "frames": [],
         "reconstruction": "reconstruction.json",
+        "rgb_format": rgb_format,
     }
+    if rgb_format == "jpeg":
+        manifest["jpeg_quality"] = JPEG_QUALITY
     source_path = getattr(engine, "_project_archive_path", None)
     if source_path and Path(path).resolve() == Path(source_path).resolve():
         raise ValueError("Save to a temporary path before replacing the opened project")
     with ExitStack() as stack:
         source = stack.enter_context(zipfile.ZipFile(source_path)) if source_path else None
         previous = json.loads(_member(source, "manifest.json", PROJECT_JSON_LIMIT_BYTES)) if source else {}
-        archive = stack.enter_context(zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED))
+        archive = stack.enter_context(zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6))
         for index, ((rgb, depth), metadata) in enumerate(zip(engine.raw_frames, engine.frame_metadata)):
-            paths = {"rgb": f"rgb/{index:06d}.png", "depth": f"depth/{index:06d}.png"}
+            extension = "jpg" if rgb_format == "jpeg" else "png"
+            paths = {"rgb": f"rgb/{index:06d}.{extension}", "depth": f"depth/{index:06d}.png"}
             rotation = metadata.get("orientation", {}).get("rotation_cw_degrees", 0)
+            proof = proofs.get(index)
+            use_local = proof is not None and all(pixel_digest(array) == proof[name + "_sha256"]
+                                                  for name, array in (("rgb", rgb), ("depth", depth)))
+            if use_local:
+                reused.append(proof)
             for name, array in (("rgb", rgb), ("depth", depth)):
-                if source and index < len(previous["frames"]):
+                if use_local:
+                    if rotation in (90, 180, 270):
+                        paths["display_" + name] = "display/" + paths[name]
+                    continue
+                if (source and index < len(previous["frames"])
+                        and (name == "depth" or previous.get("rgb_format", "png") == rgb_format)):
                     # Raw observations form an immutable prefix after opening.
-                    # Reuse their lossless PNGs instead of encoding them again.
+                    # Preserve matching encodings, including JPEGs, without generational loss.
                     original = previous["frames"][index]
                     for key in (name, "display_" + name):
                         if key not in original:
                             continue
                         destination = paths[name] if key == name else "display/" + paths[name]
                         paths[key] = destination
-                        with source.open(original[key]) as data, archive.open(destination, "w", force_zip64=True) as output:
-                            shutil.copyfileobj(data, output, length=1024 * 1024)
+                        copy_member(source, archive, original[key], destination)
                     continue
-                buffer = io.BytesIO()
-                Image.fromarray(array).save(buffer, format="PNG")
-                archive.writestr(paths[name], buffer.getvalue())
+                image_format = rgb_format if name == "rgb" else "png"
+                write_member(archive, paths[name], encode_image(array, image_format))
                 if rotation in (90, 180, 270):
-                    transpose = {90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180,
-                                 270: Image.Transpose.ROTATE_90}[rotation]
-                    display = io.BytesIO()
-                    Image.fromarray(array).transpose(transpose).save(display, format="PNG")
                     paths["display_" + name] = "display/" + paths[name]
-                    archive.writestr(paths["display_" + name], display.getvalue())
+                    write_member(archive, paths["display_" + name], encode_image(np.rot90(array, k=-(rotation // 90)), image_format))
             manifest["frames"].append({**paths, "timestamp_s": metadata.get("timestamp_s", index),
                                        "metadata": {**metadata, "server_index": index}})
         # Retain independent sensor observations when an opened project is saved again.
@@ -81,8 +122,7 @@ def export_session(engine, path):
                 manifest["sensor_archive"] = previous["sensor_archive"]
             for item in source.infolist():
                 if item.filename.startswith("sensors/"):
-                    with source.open(item) as data, archive.open(item, "w", force_zip64=True) as output:
-                        shutil.copyfileobj(data, output, length=1024 * 1024)
+                    copy_member(source, archive, item)
         if getattr(engine, "mesh", None) is not None:
             import open3d as o3d
 
@@ -95,9 +135,11 @@ def export_session(engine, path):
         journal = getattr(engine,"motion_journal",{})
         if journal.get("segments"):
             manifest["motion_journal"] = "motion.json"
-            archive.writestr("motion.json",json.dumps(journal,allow_nan=False,separators=(",",":")))
-        archive.writestr("manifest.json", json.dumps(manifest, separators=(",", ":"), allow_nan=False))
-        archive.writestr("reconstruction.json", json.dumps(engine.reconstruction_report(), indent=2, allow_nan=False))
+            write_member(archive, "motion.json",json.dumps(journal,allow_nan=False,separators=(",",":")))
+        if reused:
+            manifest["local_captures"] = {"session_id": engine.session_id, "captures": reused}
+        write_member(archive, "manifest.json", json.dumps(manifest, separators=(",", ":"), allow_nan=False))
+        write_member(archive, "reconstruction.json", json.dumps(engine.reconstruction_report(), separators=(",", ":"), allow_nan=False))
     logger.info("Project encoding: %d captures, %.1f MiB, %.2f s", len(manifest["frames"]),
                 Path(path).stat().st_size / 1024**2, time.monotonic() - started)
 
@@ -116,8 +158,10 @@ def load_session(engine, path):
         manifest = json.loads(_member(archive, "manifest.json", PROJECT_JSON_LIMIT_BYTES))
         if not isinstance(manifest, dict):
             raise ValueError("Project manifest must be an object")
-        if manifest.get("version") not in (1, 2, 3):
+        if manifest.get("version") not in (1, 2, 3, 4):
             raise ValueError("Unsupported project version")
+        if "local_captures" in manifest:
+            raise ValueError("Incomplete project transfer; local captures have not been assembled")
         settings = ScanSettings.from_dict(manifest["settings"])
         captures = manifest["frames"]
         if not isinstance(captures, list) or len(captures) > engine.MAX_FRAMES:

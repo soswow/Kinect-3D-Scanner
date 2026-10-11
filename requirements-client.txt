@@ -1,4 +1,5 @@
 numpy
+Pillow
 opencv-python>=4.8
 PyQt6
 httpx

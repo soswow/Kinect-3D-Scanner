@@ -260,8 +260,12 @@ view reports tracks kept/added/retired and their lifetimes.
 editing fields. **Export…** selects textured GLB, textured OBJ ZIP, colored PLY,
 or plain OBJ; texture choices appear in that dialog. **Inspect Scan** previews the current scan.
 **Open Project…** reopens a saved ZIP, including older session ZIPs, without a Kinect connected.
-**Save Project** (Cmd/Ctrl+S) keeps lossless captures, calibration, settings, poses, diagnostics,
+**Save Project** (Cmd/Ctrl+S) keeps captures, calibration, settings, poses, diagnostics,
 sensor observations and the finished mesh. **File → Save Project As…** saves another copy.
+RGB photos default to lossless PNG. **Smaller projects (JPEG photos)** beside
+Save Project opts into JPEG quality 95; depth remains lossless. Mesh and metadata
+are compressed by default. Matching locally recorded captures are reused rather
+than downloaded again; see [project saving](docs/LIVE_RECONSTRUCTION.md#full-session-preservation).
 Projects use the same ZIP format as sessions; the finished mesh is an additional optional member.
 New Scan, Open Project, Cancel Scan, Reset Scan and close offer Save project / Discard / Cancel, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
@@ -800,7 +804,8 @@ is a separate research tool for measured CUDA recipes, not the normal server ent
 | `GET` | `/api/scan/export/obj` | Download mesh as vertex-colored OBJ |
 | `GET` | `/api/scan/export/glb` | Download UV-textured GLB |
 | `GET` | `/api/scan/export/obj.zip` | Download OBJ/MTL/PNG texture bundle |
-| `GET` | `/api/scan/export/session` | Download project ZIP with lossless RGB-D captures and optional final mesh |
+| `GET` | `/api/scan/export/session` | Download compressed project ZIP; `rgb_format=png\|jpeg`, lossless depth, optional final mesh |
+| `POST` | `/api/scan/export/session` | Export with session-bound local capture pixel proofs; client completes omitted images before saving |
 | `POST` | `/api/scan/project` | Upload and open a project/session ZIP; invalid archives retain the active scan |
 | `WebSocket` | `/ws/progress` | Build/preview progress and bounded live geometry |
 
@@ -919,7 +924,7 @@ session-bound acceleration journal up to 32 MiB. Project uploads support up to
 | **OBJ** | Triangle mesh with a vertex-color extension | Geometry export; color support varies |
 | **GLB** | UV mesh, embedded texture and material | Portable colored 3D asset |
 | **Textured OBJ ZIP** | OBJ, MTL, PNG, texture report | Applications supporting OBJ materials |
-| **Session ZIP** | Lossless RGB/depth, settings, estimated poses, diagnostics | Offline reconstruction and comparison |
+| **Session ZIP** | PNG or optional JPEG RGB, lossless depth, settings, estimated poses, diagnostics | Reopenable project and offline reconstruction |
 
 ---
 

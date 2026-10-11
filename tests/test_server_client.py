@@ -1,17 +1,23 @@
 """Transport and file-integrity regressions without a running server."""
 
+import io
+import json
 import os
 import sys
 import tempfile
 import threading
 import unittest
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import numpy as np
+from PIL import Image
 from PyQt6.QtCore import Qt
 
 from kinect_scanner.server_client import ServerClient
+from shared.project_archive import pixel_digest
 
 
 def response(data=None, content=b"ply\nfinal mesh", content_type="application/octet-stream"):
@@ -315,6 +321,58 @@ class ServerClientTests(unittest.TestCase):
                     client.request_export("session", str(path))
                 self.assertEqual(b"original", path.read_bytes())
                 self.assertEqual([path], list(Path(directory).iterdir()))
+
+    def test_reused_project_download_is_assembled_before_atomic_replace(self):
+        rgb = np.full((3, 4, 3), [50, 100, 150], np.uint8)
+        depth = np.arange(12, dtype=np.uint16).reshape(3, 4)
+        proof = {"index": 0, "rgb_sha256": pixel_digest(rgb), "depth_sha256": pixel_digest(depth)}
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                local = {"rgb": root / "rgb.png", "depth": root / "depth.png",
+                         "rgb_sha256": proof["rgb_sha256"], "depth_sha256": proof["depth_sha256"]}
+                Image.fromarray(np.zeros_like(rgb) if changed else rgb).save(local["rgb"])
+                Image.fromarray(depth).save(local["depth"])
+                manifest = {"rgb_format": "jpeg", "frames": [{"rgb": "rgb/000000.jpg", "depth": "depth/000000.png"}],
+                            "local_captures": {"session_id": "same", "captures": [proof]}}
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w") as archive:
+                    archive.writestr("manifest.json", json.dumps(manifest))
+                client = ServerClient()
+                client.session_id = "same"
+                client._project_export_supported = True
+                client._http = Mock()
+                client._http.stream.return_value.__enter__ = Mock(return_value=response(content=buffer.getvalue()))
+                client._http.stream.return_value.__exit__ = Mock(return_value=False)
+                destination = root / "project.zip"
+                destination.write_bytes(b"previous complete project")
+                if changed:
+                    with self.assertRaisesRegex(ValueError, "changed during save"):
+                        client.request_export("session", str(destination), {"rgb_format": "jpeg"}, local_captures={0: local})
+                    self.assertEqual(b"previous complete project", destination.read_bytes())
+                else:
+                    self.assertTrue(client.request_export("session", str(destination), {"rgb_format": "jpeg"}, local_captures={0: local}))
+                    with zipfile.ZipFile(destination) as archive:
+                        self.assertNotIn("local_captures", json.loads(archive.read("manifest.json")))
+                        np.testing.assert_array_equal(depth, np.array(Image.open(io.BytesIO(archive.read("depth/000000.png")))))
+                        self.assertEqual("JPEG", Image.open(io.BytesIO(archive.read("rgb/000000.jpg"))).format)
+                call = client._http.stream.call_args
+                self.assertEqual("POST", call.args[0])
+                self.assertEqual([proof], call.kwargs["json"]["reuse"]["captures"])
+                self.assertEqual({"rgb.png", "depth.png", "project.zip"}, {p.name for p in root.iterdir()})
+
+    def test_older_server_uses_full_png_transfer_and_rejects_unsupported_jpeg(self):
+        client = ServerClient()
+        client._http = Mock()
+        client._http.stream.return_value.__enter__ = Mock(return_value=response())
+        client._http.stream.return_value.__exit__ = Mock(return_value=False)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "project.zip"
+            with self.assertRaisesRegex(RuntimeError, "restart"):
+                client.request_export("session", str(path), {"rgb_format": "jpeg"})
+            client._http.stream.assert_not_called()
+            self.assertTrue(client.request_export("session", str(path), local_captures={0: {}}))
+            self.assertEqual("GET", client._http.stream.call_args.args[0])
 
 
 if __name__ == "__main__":

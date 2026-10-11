@@ -32,6 +32,7 @@ def check_offline_capture(window, temporary):
     import numpy as np
 
     from shared.protocol import pack_frames, unpack_frames
+
     from .capture_spool import CaptureSpool
     from .server_client import ServerClient
     from .server_task_worker import ServerTaskType, ServerTaskWorker
@@ -128,6 +129,7 @@ def run_check():
         finally:
             main_window.KinectWorker = original
         window.show()
+        check_project_save(window, temporary)
         check_texture_export_dialog(window)
         check_live_view(window)
         errors = []
@@ -263,10 +265,53 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "offline_capture": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
+              "offline_capture": "ok", "project_save": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0
+
+
+def check_project_save(window, temporary):
+    """Verify installed JPEG controls, codecs and local project completion."""
+    import io
+    import zipfile
+
+    import numpy as np
+    from PIL import Image
+
+    from shared.project_archive import (
+        complete_local_captures,
+        recording_captures,
+        write_member,
+    )
+    from shared.recording import RecordingWriter
+
+    window.project_jpeg_cb.setChecked(True)
+    if not window.preferences.read("export/project_jpeg", False):
+        raise RuntimeError("Project JPEG choice was not remembered")
+    window.project_jpeg_cb.setChecked(False)
+    rgb = np.full((3, 4, 3), [40, 100, 160], np.uint8)
+    depth = np.arange(12, dtype=np.uint16).reshape(3, 4) * 5000
+    recording = RecordingWriter(Path(temporary) / "project-captures", {})
+    recording.append(rgb, depth, {"server_index": 0})
+    captures = recording_captures(recording)
+    row = captures[0]
+    manifest = {"version": 4, "rgb_format": "jpeg", "frames": [{"rgb": "rgb/000000.jpg", "depth": "depth/000000.png"}],
+                "local_captures": {"session_id": "check", "captures": [{"index": 0,
+                    "rgb_sha256": row["rgb_sha256"], "depth_sha256": row["depth_sha256"]}]}}
+    path = Path(temporary) / "project.zip"
+    with zipfile.ZipFile(path, "w") as archive:
+        write_member(archive, "manifest.json", json.dumps(manifest))
+    if complete_local_captures(path, captures, "check") != 1:
+        raise RuntimeError("Project save did not reuse the local capture")
+    with zipfile.ZipFile(path) as archive:
+        if "local_captures" in json.loads(archive.read("manifest.json")):
+            raise RuntimeError("Saved project is an incomplete transfer")
+        if Image.open(io.BytesIO(archive.read("rgb/000000.jpg"))).format != "JPEG":
+            raise RuntimeError("Project photo is not JPEG")
+        np.testing.assert_array_equal(depth, np.array(Image.open(io.BytesIO(archive.read("depth/000000.png")))))
+        if archive.getinfo("manifest.json").compress_type != zipfile.ZIP_DEFLATED:
+            raise RuntimeError("Project metadata is not compressed")
 
 
 def check_live_view(window):
