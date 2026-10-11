@@ -136,6 +136,28 @@ class BlenderPreparationTests(unittest.TestCase):
         self.assertTrue(observed.any())
         self.assertGreater(len(faces), 100)
 
+    def test_low_space_stops_before_preparation_or_blender_and_preserves_outputs(self):
+        from types import SimpleNamespace
+        for low_at in (0, 1, 3, 4):
+            with self.subTest(low_at=low_at), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                session, model, _ = fixture(root)
+                destination = root / "scan.blend"
+                destination.write_bytes(b"previous scene")
+                fake = root / "blender.exe"
+                fake.write_bytes(b"test")
+                available = [SimpleNamespace(free=10 * 1024**3)] * low_at + [SimpleNamespace(free=249 * 1024**2)]
+                with patch("kinect_scanner.blender_export.shutil.disk_usage", side_effect=available), patch(
+                        "kinect_scanner.blender_export.subprocess.run", return_value=subprocess.CompletedProcess([], 1)) as run:
+                    with self.assertRaisesRegex(RuntimeError, "Not enough disk space.*249 MiB"):
+                        convert_session(session, destination, blender=str(fake), textured_model=model, stride=8)
+                    self.assertEqual(1 if low_at == 4 else 0, run.call_count)
+                self.assertEqual(b"previous scene", destination.read_bytes())
+                self.assertEqual([], list(root.glob("scan.images-*")))
+                self.assertEqual([], list(root.glob(".scanner-blend-*")))
+                self.assertTrue(session.is_file())
+                self.assertTrue(model.is_file())
+
     def test_failed_blender_preserves_destination_and_removes_new_sequence(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -179,7 +201,22 @@ class BlenderRoundTripTests(unittest.TestCase):
             root = Path(temporary)
             session, model, _ = fixture(root, fx=519, fy=531)
             output = root / "scan.blend"
-            convert_session(session, output, textured_model=model, stride=8, surface="measured")
+            run = subprocess.run
+            def create(command, **kwargs):
+                configuration = Path(command[-3])
+                geometries = [Path(row["geometry"]) for row in json.loads(configuration.read_text())["snapshots"]]
+                for path in geometries:
+                    with zipfile.ZipFile(path) as archive:
+                        self.assertTrue(all(info.compress_type == zipfile.ZIP_DEFLATED for info in archive.infolist()))
+                self.assertFalse((configuration.parent / "textured-model.zip").exists())
+                result = run(command, **kwargs)
+                self.assertTrue(all(not path.exists() for path in geometries))
+                return result
+            original_model = model.read_bytes()
+            with patch("kinect_scanner.blender_export.subprocess.run", side_effect=create):
+                convert_session(session, output, textured_model=model, stride=8, surface="measured")
+            self.assertEqual(original_model, model.read_bytes())
+            self.assertNotEqual(b"BLENDER", output.read_bytes()[:7])  # Compressed scene; reopened below.
             check = root / "verify.py"
             check.write_text('''import bpy, json
 from mathutils import Matrix, Vector

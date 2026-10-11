@@ -5,6 +5,7 @@ sequence. Standard keyframes work after reopening without Python handlers.
 """
 
 import json
+import shutil
 from pathlib import Path
 import sys
 
@@ -127,6 +128,9 @@ def write_scene(configuration, staged, final):
             uv = mesh.uv_layers.new(name="RGB")
             uv.data.foreach_set("uv", geometry["uv"][faces].reshape(-1))
             observed = geometry["observed"]
+        # These are private handoff files, already copied into Blender's mesh.
+        # Release each before saving rather than keeping two copies of every view.
+        Path(snapshot["geometry"]).unlink()
         obj = bpy.data.objects.new(mesh.name, mesh)
         snapshots.objects.link(obj)
         obj.parent = root
@@ -182,7 +186,11 @@ def write_scene(configuration, staged, final):
                 area.spaces.active.shading.type = "MATERIAL"
                 area.spaces.active.region_3d.view_perspective = "CAMERA"
     bpy.context.preferences.filepaths.save_version = 0
-    bpy.ops.wm.save_as_mainfile(filepath=str(staged), check_existing=False, relative_remap=False)
+    free = shutil.disk_usage(Path(staged).parent).free
+    if free < config.get("disk_reserve_bytes", 0):
+        raise RuntimeError(f"Not enough disk space to save Blender scene: {free / 1024**2:.0f} MiB free. "
+                           "Choose a drive with more space or coarser depth sampling.")
+    bpy.ops.wm.save_as_mainfile(filepath=str(staged), check_existing=False, relative_remap=False, compress=True)
 
 
 if __name__ == "__main__":

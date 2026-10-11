@@ -326,6 +326,14 @@ animation; manually hiding it stays effective while scrubbing. Pose and
 visibility switches use constant keyframes, with no Python frame handlers or
 automatic script execution required when reopening the file.
 
+The exporter compresses geometry handoff files and the final `.blend`, and
+removes each handoff after Blender imports it to reduce peak disk usage. It
+checks for a minimum 1 GiB of free working space during preparation and before
+launching Blender. This reserve is not a total size estimate: large scans still
+need space for the input archives, RGB sequence and saved scene. Use a drive with
+more space or coarser depth sampling if needed. Failed exports preserve the
+previous scene and remove their new temporary files and image directory.
+
 Keep the sibling `scan.images-<id>/` directory beside `scan.blend`. It contains
 the lossless, undistorted RGB sequence used by the camera's single background
 slot; Blender image sequences are external dependencies. Ordinary material
