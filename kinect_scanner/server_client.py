@@ -73,7 +73,7 @@ class ServerClient(QObject):
 
     # ── Connection ─────────────────────────────────────────────────────
 
-    def connect_to_server(self, host: str, port: int) -> bool:
+    def connect_to_server(self, host: str, port: int, *, notify=True) -> bool:
         """Connect synchronously; the GUI invokes this through ServerTaskWorker."""
         self.disconnect(notify=False)
         self._base_url = f"http://{host}:{port}"
@@ -118,8 +118,9 @@ class ServerClient(QObject):
             daemon=True, name="ws-listener",
         )
         self._ws_thread.start()
-        self.connected.emit()
-        self.status_updated.emit(status)
+        if notify:
+            self.connected.emit()
+            self.status_updated.emit(status)
         return True
 
     def disconnect(self, notify=True):
@@ -236,6 +237,7 @@ class ServerClient(QObject):
     def send_frame(self, rgb, depth, metadata=None) -> dict:
         """Pack and upload a frame. Returns the server response dict."""
         started = time.monotonic()
+        headers = self._capture_headers()
         self._check_motion_protocol(metadata)
         data = pack_frame(rgb, depth, metadata, compression_level=self._compression_level,
                           spatial_prediction=self._spatial_prediction)
@@ -243,7 +245,7 @@ class ServerClient(QObject):
         resp = self._http.post(
             "/api/scan/frame",
             content=data,
-            headers={"Content-Type": "application/octet-stream"},
+            headers=headers,
         )
         resp.raise_for_status()
         self._log_upload_timing(1, len(data), started, packed)
@@ -260,6 +262,7 @@ class ServerClient(QObject):
     def send_frames_batch(self, frames: list[tuple]) -> dict:
         """Pack and upload multiple frames as a single batch."""
         started = time.monotonic()
+        headers = self._capture_headers()
         for frame in frames:
             self._check_motion_protocol(frame[2] if len(frame) > 2 else None)
         data = pack_frames(frames, compression_level=self._compression_level,
@@ -268,7 +271,7 @@ class ServerClient(QObject):
         resp = self._http.post(
             "/api/scan/frames",
             content=data,
-            headers={"Content-Type": "application/octet-stream"},
+            headers=headers,
             timeout=120.0,
         )
         if resp.status_code == 404:
@@ -276,6 +279,8 @@ class ServerClient(QObject):
             if not self._batch_unavailable:
                 logger.warning("Server lacks batch endpoint, sending individually", extra={"ui_state_key": "batch-upload"})
                 self._batch_unavailable = True
+            if headers != self._capture_headers():
+                raise RuntimeError("Scan session changed during upload; captures remain in the upload buffer. Reconnect before continuing.")
             results = [self.send_frame(*frame) for frame in frames]
             return {
                 **results[-1],
@@ -288,6 +293,14 @@ class ServerClient(QObject):
             logger.info("Batch capture upload available again", extra={"ui_event": True, "ui_state_key": "batch-upload"})
             self._batch_unavailable = False
         return resp.json()
+
+    def _capture_headers(self):
+        # Freeze before packing; never relabel a packet after a reconnect/reset.
+        # Older servers ignore the optional header and retain their old behavior.
+        headers = {"Content-Type": "application/octet-stream"}
+        if self.session_id:
+            headers["X-Scan-Session"] = self.session_id
+        return headers
 
     def _check_motion_protocol(self, metadata):
         if metadata and "motion_history" in metadata and not self._motion_history_supported:
@@ -435,7 +448,8 @@ class ServerClient(QObject):
                 self.task_started.emit("Adding selected captures from local recording…")
                 count = complete_local_captures(temporary, reuse, session_id)
                 logger.info("Project save reused %d local capture pairs", count, extra={"ui_event": True})
-                with open(temporary, "rb+") as completed:
+                # Windows requires a writable descriptor for fsync/_commit.
+                with open(temporary, "r+b") as completed:
                     os.fsync(completed.fileno())
             os.replace(temporary, destination)
             logger.info("Export %s: disk completion %.2f s, total %.2f s: %s", fmt,

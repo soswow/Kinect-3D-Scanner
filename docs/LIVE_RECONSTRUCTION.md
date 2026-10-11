@@ -73,6 +73,12 @@ export share that lock. Build waits for an active live frame instead of reportin
 that a build is already running. Cancellation waits for native processing to
 finish before releasing the lock. Client frame batching preserves command
 barriers and uses batches of at most eight in live mode.
+Repeated request cancellation also waits for the native worker to finish; a
+queued reset cannot run concurrently with a cancelled build or preview. Status
+reports active and queued reset/open/save operations until they settle. Reset
+prepares the new volume and optional backends before replacing the active scan;
+preparation failure retains the previous settings, captures, geometry and opened
+project archive for saving or retrying.
 
 WebSocket `live` messages contain at most 30,000 sampled fused points with colors,
 camera-to-world pose, camera calibration, session ID, counts, backend, and the latest tracking result.
@@ -463,6 +469,21 @@ their reconstruction sidecar. Older servers
 still support full PNG downloads; JPEG and local reuse require an updated,
 restarted reconstruction server. A partial transfer cannot be opened as a
 project before its local captures have been assembled.
+
+Project publication replaces the destination only after local assembly and a
+successful disk flush, including on Windows. Failed assembly or flushing leaves
+an existing destination intact. A reconnect to a different session clears the
+old project's save path; reconnecting the same session keeps it.
+
+Reattaching a sensor checkpoint replaces its named archive members once,
+preserving other generations and native observations. Repeated saves remain
+reopenable without accumulating duplicate ZIP members. A failed sensor-journal
+configuration is marked incomplete and its remaining raw bytes are retained in
+the project; it does not prevent saving valid selected captures. An empty failed
+initialization can accompany Finish as explicitly incomplete motion evidence.
+Recorded acceleration with unreadable configuration still blocks Finish rather
+than assigning guessed calibration or generation; Save Project preserves it for
+diagnosis. These recovery checks do not establish physical sensor accuracy.
 
 Unzip and replay using:
 

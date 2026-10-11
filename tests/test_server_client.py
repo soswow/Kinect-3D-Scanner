@@ -46,6 +46,40 @@ class ServerClientTests(unittest.TestCase):
             self.assertEqual("POST", client._http.stream.call_args.args[0])
             self.assertEqual(options, client._http.stream.call_args.kwargs["json"])
 
+    def test_capture_session_header_is_frozen_before_packing(self):
+        for batch in (False, True):
+            with self.subTest(batch=batch):
+                client = ServerClient()
+                client.session_id = "captured-session"
+                client._http = Mock()
+                client._http.post.return_value = response({"success": True})
+
+                def pack(*args, **kwargs):
+                    client.session_id = "replacement"
+                    return b"packet"
+
+                with patch("kinect_scanner.server_client." + ("pack_frames" if batch else "pack_frame"), side_effect=pack):
+                    if batch:
+                        client.send_frames_batch([(None, None)])
+                    else:
+                        client.send_frame(None, None)
+                self.assertEqual("captured-session", client._http.post.call_args.kwargs["headers"]["X-Scan-Session"])
+
+    def test_connection_can_defer_ready_signals_until_worker_resources_are_bound(self):
+        client = ServerClient()
+        connected, statuses = [], []
+        client.connected.connect(lambda: connected.append(True), Qt.ConnectionType.DirectConnection)
+        client.status_updated.connect(statuses.append, Qt.ConnectionType.DirectConnection)
+        http = Mock()
+        http.get.side_effect = [response({"status": "ok"}), response({"session_id": "scan"})]
+        with patch("kinect_scanner.server_client.httpx.Client", return_value=http), patch("kinect_scanner.server_client.threading.Thread"):
+            self.assertTrue(client.connect_to_server("localhost", 8000, notify=False))
+            self.assertTrue(client.is_connected)
+            self.assertEqual("scan", client.session_id)
+            self.assertEqual([], connected)
+            self.assertEqual([], statuses)
+        client.disconnect()
+
     def test_motion_requires_advertised_capability_and_keeps_uploads_unsent_on_old_servers(self):
         client = ServerClient()
         client._http = Mock()
@@ -376,6 +410,38 @@ class ServerClientTests(unittest.TestCase):
                 self.assertEqual("POST", call.args[0])
                 self.assertEqual([proof], call.kwargs["json"]["reuse"]["captures"])
                 self.assertEqual({"rgb.png", "depth.png", "project.zip"}, {p.name for p in root.iterdir()})
+
+    def test_reused_project_sync_failure_preserves_previous_destination(self):
+        client = ServerClient()
+        client.session_id = "same"
+        client._project_export_supported = True
+        client._http = Mock()
+        client._http.stream.return_value.__enter__ = Mock(return_value=response())
+        client._http.stream.return_value.__exit__ = Mock(return_value=False)
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "project.zip"
+            destination.write_bytes(b"previous complete project")
+            local = {0: {"rgb_sha256": "a" * 64, "depth_sha256": "b" * 64}}
+            native_replace = os.replace
+
+            def assemble(path, captures, session_id):
+                # Model assembly publishing a new temporary archive inode.
+                replacement = Path(path).with_suffix(".assembled")
+                replacement.write_bytes(b"assembled project")
+                native_replace(replacement, path)
+                return 1
+
+            with (
+                patch("shared.project_archive.complete_local_captures", side_effect=assemble),
+                patch("kinect_scanner.server_client.os.fsync", side_effect=[None, OSError("sync failed")]) as sync,
+                patch("kinect_scanner.server_client.os.replace") as replace,
+                self.assertRaisesRegex(OSError, "sync failed"),
+            ):
+                client.request_export("session", str(destination), local_captures=local)
+            self.assertEqual(2, sync.call_count)
+            replace.assert_not_called()
+            self.assertEqual(b"previous complete project", destination.read_bytes())
+            self.assertEqual([destination], list(Path(directory).iterdir()))
 
     def test_older_server_uses_full_png_transfer_and_rejects_unsupported_jpeg(self):
         client = ServerClient()

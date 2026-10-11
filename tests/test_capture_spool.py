@@ -86,6 +86,7 @@ class CaptureSpoolTests(unittest.TestCase):
     def test_failed_upload_retains_file_and_blocks_incomplete_build_and_save(self):
         with tempfile.TemporaryDirectory() as directory:
             client = ServerClient()
+            client.session_id = "scan"
             client.send_frame = Mock(side_effect=OSError("network lost"))
             client.request_build = Mock()
             client.request_export = Mock()
@@ -106,6 +107,7 @@ class CaptureSpoolTests(unittest.TestCase):
     def test_partial_rejection_only_deletes_confirmed_frames(self):
         with tempfile.TemporaryDirectory() as directory:
             client = ServerClient()
+            client.session_id = "scan"
             client.send_frames_batch = Mock(return_value={"success": True, "results": [
                 {"success": True, "index": 0}, {"success": False}]})
             worker = ServerTaskWorker(client)

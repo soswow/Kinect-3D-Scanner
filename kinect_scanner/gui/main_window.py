@@ -1773,7 +1773,7 @@ class MainWindow(QMainWindow):
         self._reset_auto_capture_cadence()
 
     def _stop_and_build(self):
-        if self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or not self.server_client.is_connected:
+        if self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or self._build_pending or self._preview_pending or self._export_pending or self._final_preview_pending or not self.server_client.is_connected:
             return
         if not self._server_stored and not self._pending_upload_count():
             return
@@ -1813,6 +1813,8 @@ class MainWindow(QMainWindow):
         self._refresh_controls()
 
     def _preview_scan(self):
+        if self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation:
+            return
         if self._has_mesh:
             if self._last_preview_path:
                 self._preview_3d()
@@ -1947,7 +1949,7 @@ class MainWindow(QMainWindow):
         return self._begin_export("compact", path, ServerTask(ServerTaskType.EXPORT_SESSION, options))
 
     def _export_session(self, checked=False, path=None):
-        if self._export_pending or not self.server_client.is_connected:
+        if self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or self._export_pending or not self.server_client.is_connected:
             return False
         if path is None:
             filename = f"scan-session_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.zip"
@@ -2005,6 +2007,8 @@ class MainWindow(QMainWindow):
         self._show_message(detail)
 
     def _begin_export(self, kind, path, task):
+        if self._closing or self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or self._export_pending or not self.server_client.is_connected:
+            return False
         restore_capture = (self._scanning, self._paused)
         self._paused = True
         self._export_pending = {
@@ -2048,6 +2052,8 @@ class MainWindow(QMainWindow):
         return False
 
     def _save_mesh(self):
+        if self._closing or self._restore_on_status or self._reset_pending or self._connect_pending or self._server_operation or not self.server_client.is_connected:
+            return
         os.makedirs(MESH_DIR, exist_ok=True)
         filename = f"scan_{datetime.now(timezone.utc).astimezone().strftime('%Y%m%d_%H%M%S')}.ply"
         path = os.path.join(MESH_DIR, filename)
@@ -2064,7 +2070,10 @@ class MainWindow(QMainWindow):
         if "settings" in status:
             self._status_pending = False
         if self._restore_on_status and "settings" in status:
-            self._restore_on_status = False
+            # Replacement requests can time out after committing. Keep the
+            # capture barrier until the server reports a settled session.
+            self._restore_on_status = bool(status.get("operation"))
+            self._reconcile_on_status = False
             self._restore_server_session(status)
         elif self._reconcile_on_status and "settings" in status:
             self._status_pending = False
@@ -2109,6 +2118,10 @@ class MainWindow(QMainWindow):
         self._capture_selector.clear()
         self._capture_pacer.observe(status, time.monotonic())
         if not same_session:
+            self._project_path = None
+            self._sensor_recording_path = None
+            self._sensor_counts_seen = {}
+            self._last_motion_capture_at = None
             self._capture_revision = self._server_stored
             self._saved_revision = 0
             self._session_dirty = self._server_stored > 0
@@ -2448,11 +2461,12 @@ class MainWindow(QMainWindow):
             self.connection_section.toggle.setChecked(True)
         elif task_type == "RESET":
             self._reset_pending = False
-            if self._cancel_pending:
-                self._cancel_pending = False
-                self._operation_error = "Could not confirm reset · checking server scan" if self._reset_to_setup_pending else "Could not confirm cancellation · checking server scan"
-                self._restore_on_status = True
-                self._poll_server_status()
+            self._cancel_pending = False
+            self._paused = True
+            self.auto_capture_cb.setChecked(False)
+            self._operation_error = "Could not confirm reset · checking server scan"
+            self._restore_on_status = True
+            self._poll_server_status()
         elif task_type == "BUILD_MESH":
             self._build_pending = False
             self._build_failed = True
@@ -2462,11 +2476,21 @@ class MainWindow(QMainWindow):
             self._resume_capture()
         elif task_type == "FINAL_PREVIEW":
             self._final_preview_pending = False
-        elif task_type in ("OPEN_PROJECT", "COMPACT_PROJECT_INFO"):
+        elif task_type == "COMPACT_PROJECT_INFO":
             pending, self._export_pending = self._export_pending, None
             if pending:
                 self._scanning, self._paused = pending["restore_capture"]
             self._configure_sensor_recording()
+        elif task_type == "OPEN_PROJECT":
+            self._export_pending = None
+            self._pending_action = None
+            self._project_to_open = None
+            self._paused = True
+            self.auto_capture_cb.setChecked(False)
+            self._operation_error = "Could not confirm project open · checking server scan"
+            self._restore_on_status = True
+            self._configure_sensor_recording()
+            self._poll_server_status()
         elif task_type in ("EXPORT_PLY", "EXPORT_OBJ", "EXPORT_TEXTURE", "EXPORT_SESSION", "EXPORT_BLENDER"):
             if self._export_pending:
                 self._on_export_done(False, self._export_pending["path"])

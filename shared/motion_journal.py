@@ -7,6 +7,7 @@ from pathlib import Path
 from .inertial import calibration_profile
 
 MAX_JOURNAL_BYTES = 32 * 1024**2
+UNAVAILABLE_CONFIGURATION = "__unavailable_configuration__"
 
 
 def acceleration_journal(snapshot):
@@ -26,8 +27,29 @@ def acceleration_journal(snapshot):
                 data = handle.read(length)
         if len(data) != length or data and not data.endswith(b"\n"):
             raise ValueError("Incomplete acceleration journal checkpoint")
-        configuration = json.loads((directory / "configuration.json").read_text())
         status = segment["status"]
+        try:
+            configuration = json.loads((directory / "configuration.json").read_text())
+            if (not isinstance(configuration, dict)
+                    or not isinstance(configuration.get("capture_generation"), str)
+                    or not 0 < len(configuration["capture_generation"]) <= 128
+                    or configuration["capture_generation"] == UNAVAILABLE_CONFIGURATION
+                    or not isinstance(configuration.get("settings"), dict)):
+                raise ValueError("Missing or invalid capture identity/settings")
+            calibration_profile(configuration["settings"].get("accelerometer_calibration"))
+            if status.get("configuration_error"):
+                raise ValueError(status["configuration_error"])
+        except (OSError, ValueError, TypeError) as exc:
+            error = f"Sensor configuration unavailable for segment {segment['generation']}: {exc}"
+            acceleration_path = directory / "accelerometer.jsonl"
+            if length or acceleration_path.exists() and acceleration_path.stat().st_size:
+                raise ValueError(error + "; restore configuration before Finish; recorded acceleration was retained") from exc
+            segments.append({"recording_segment": segment["generation"],
+                             "capture_generation": UNAVAILABLE_CONFIGURATION, "calibration": None,
+                             "status": {"closed": bool(status.get("closed")), "complete": False,
+                                        "dropped_reads": status.get("dropped", {}).get("accelerometer", 0),
+                                        "error": error}, "samples": []})
+            continue
         segments.append({"recording_segment": segment["generation"],
             "capture_generation": configuration["capture_generation"],
             "calibration": configuration["settings"].get("accelerometer_calibration"),
@@ -54,7 +76,6 @@ def validate_journal(payload, default_calibration=None):
         if segment["recording_segment"] in identities:
             raise ValueError("Duplicate acceleration recording segment")
         identities.add(segment["recording_segment"])
-        segment["calibration"] = calibration_profile(segment.get("calibration") or default_calibration)
         if not isinstance(segment.get("samples"), list) or not isinstance(segment.get("status"), dict):
             raise ValueError("Invalid acceleration recording contents")
         status = segment["status"]
@@ -64,6 +85,12 @@ def validate_journal(payload, default_calibration=None):
             raise ValueError("Invalid acceleration recording status")
         if status["complete"] and (not status["closed"] or status["dropped_reads"] or status.get("error")):
             raise ValueError("Acceleration recording incorrectly marked complete")
+        if segment["capture_generation"] == UNAVAILABLE_CONFIGURATION:
+            if segment["samples"] or segment.get("calibration") is not None or status["complete"] or not status.get("error"):
+                raise ValueError("Unavailable sensor configuration must retain only incomplete empty evidence")
+            segment["calibration"] = None
+        else:
+            segment["calibration"] = calibration_profile(segment.get("calibration") or default_calibration)
         previous = -1
         previous_time = -math.inf
         for sample in segment["samples"]:

@@ -291,6 +291,10 @@ Update and restart the server as well as the client to enable this action.
 New Scan, Open Project, Cancel Scan, Reset Scan and close offer Save project / Discard / Cancel, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
 paused; a failed build offers retry or resumed capture without resetting frames.
+If a reset or project-open response is lost, capture stays paused while the client
+checks which server scan is active. A failed reset allocation retains the previous
+scan and its project data. Connecting to a different session clears the previous
+project's save destination, so **Save Project** asks where to save the new scan.
 
 To check the pipeline without connecting or using a Kinect:
 

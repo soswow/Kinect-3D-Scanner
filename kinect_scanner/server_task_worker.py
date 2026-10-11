@@ -68,6 +68,7 @@ class ServerTaskWorker(QThread):
         self._live = False
         self._queue_full = False
         self._spool = None
+        self._resource_session_id = None
         self._inflight_captures = 0
         self._failed_uploads = False
         self.capture_error = ""
@@ -75,6 +76,9 @@ class ServerTaskWorker(QThread):
     def submit(self, task: ServerTask):
         if self._stop_flag:
             return False
+        if task.task_type == ServerTaskType.SEND_FRAME:
+            origin = self._spool.session_id if self._spool is not None else self._resource_session_id or self._client.session_id
+            task = ServerTask(task.task_type, {**task.kwargs, "capture_session_id": origin})
         if task.task_type == ServerTaskType.SEND_FRAME and self._spool is not None:
             try:
                 path = self._spool.append(task.kwargs["rgb"], task.kwargs["depth"],
@@ -83,7 +87,9 @@ class ServerTaskWorker(QThread):
                 self.capture_error = f"Capture paused: {exc}"
                 logger.error("%s", self.capture_error)
                 return False
-            task = ServerTask(ServerTaskType.SEND_FRAME, {"spool_path": path, "spool": self._spool})
+            task = ServerTask(ServerTaskType.SEND_FRAME, {
+                "spool_path": path, "spool": self._spool, "capture_session_id": origin,
+            })
             self.capture_error = ""
         elif task.task_type == ServerTaskType.SEND_FRAME and self._queue.qsize() >= 100:
             if not self._queue_full:
@@ -111,13 +117,40 @@ class ServerTaskWorker(QThread):
         return self._queue.qsize() + self._inflight_captures
 
     def _configure_spool(self, settings, session_id):
-        if self._spool is not None and self._spool.session_id == session_id:
+        if self._spool is not None and self._spool.session_id == session_id and not self._live:
+            return
+        if self._spool is None and self._live and self._resource_session_id == session_id:
             return
         if self._spool is not None:
             self._spool.cleanup()
         self._spool = (CaptureSpool(data_root() / "capture-queue", session_id, settings)
                        if session_id and not self._live else None)
+        self._resource_session_id = session_id
         self._failed_uploads = False
+
+    def _restore_session_resources(self, status):
+        """Rebind local resources after authoritative connection/status checks.
+
+        Replacing a spool retains its unconfirmed files; only empty spools are
+        cleaned. Same-session checks preserve upload failures and recordings.
+        """
+        if "settings" not in status:
+            return
+        session_id = status.get("session_id")
+        self._live = bool(status["settings"].get("live_reconstruction"))
+        self._configure_spool(status["settings"], session_id)
+        if session_id != self._recording_session_id or self._recording is None:
+            self._recording = None
+            self._recording_session_id = None
+            if session_id and self._client._project_export_supported:
+                try:
+                    self._recording = RecordingWriter.for_session(data_root() / "recordings", session_id)
+                except Exception as exc:  # Optional local recovery must not hide authoritative status.
+                    self._client.task_error.emit(f"Local recording unavailable: {exc}")
+                if self._recording is not None:
+                    self._recording_session_id = session_id
+                    logger.info("Recovered local capture recording for session=%s path=%s",
+                                session_id, self._recording.path)
 
     def _require_uploaded_captures(self):
         if self._failed_uploads or (self._spool is not None and self._spool.pending_count):
@@ -177,6 +210,11 @@ class ServerTaskWorker(QThread):
                 task.kwargs.get("metadata", {}),
             )
 
+        def origin(task):
+            return task.kwargs.get("capture_session_id", task.kwargs["spool"].session_id
+                                   if "spool" in task.kwargs else self._client.session_id)
+
+        capture_session_id = origin(first_task)
         tasks = [first_task]
         while len(tasks) < self._MAX_BATCH:
             try:
@@ -186,7 +224,7 @@ class ServerTaskWorker(QThread):
             if task is None:
                 self._stop_flag = True
                 break
-            if task.task_type != ServerTaskType.SEND_FRAME:
+            if task.task_type != ServerTaskType.SEND_FRAME or origin(task) != capture_session_id:
                 self._pending = task
                 break
             tasks.append(task)
@@ -194,19 +232,24 @@ class ServerTaskWorker(QThread):
         frames = []
         try:
             frames = [frame(task) for task in tasks]
+            if capture_session_id != self._client.session_id:
+                raise RuntimeError("Capture belongs to a different server session; upload stopped and local spool retained")
             logger.info("Uploading captures session=%s count=%s frame_ids=%s", self._client.session_id,
                         len(frames), [metadata.get("frame_id") for _, _, metadata in frames])
             if len(frames) == 1:
                 result = self._client.send_frame(*frames[0])
             else:
                 result = self._client.send_frames_batch(frames)
+            if result.get("session_id") and result["session_id"] != capture_session_id:
+                raise RuntimeError("Upload acknowledged a different server session; reconnect before continuing. Local spool retained")
         except Exception as exc:
-            self._failed_uploads = True
+            if capture_session_id == self._client.session_id:
+                self._failed_uploads = True
             # Release precisely these captures on a failed transport, before
             # the task failure pauses scanning. A later retry must not wedge.
             self._client.frame_stored.emit({
                 "success": False, "message": str(exc),
-                "session_id": self._client.session_id,
+                "session_id": capture_session_id,
                 "capture_acknowledgements": [
                     {"frame_id": metadata.get("frame_id"), "success": False}
                     for _, _, metadata in frames
@@ -258,21 +301,13 @@ class ServerTaskWorker(QThread):
 
         if tt == ServerTaskType.CONNECT:
             self._client.task_started.emit("Connecting to server...")
-            if not self._client.connect_to_server(task.kwargs["host"], task.kwargs["port"]):
+            if not self._client.connect_to_server(task.kwargs["host"], task.kwargs["port"], notify=False):
                 self._client.task_failed.emit(tt.name, "Could not connect to server")
             else:
                 status = self._client.last_status
-                self._live = bool(status.get("settings", {}).get("live_reconstruction"))
-                self._configure_spool(status.get("settings", {}), status.get("session_id"))
-                if status.get("session_id") != self._recording_session_id or self._recording is None:
-                    self._recording = None
-                    self._recording_session_id = None
-                    if self._client._project_export_supported:
-                        self._recording = RecordingWriter.for_session(data_root() / "recordings", status.get("session_id"))
-                        if self._recording is not None:
-                            self._recording_session_id = status["session_id"]
-                            logger.info("Recovered local capture recording for session=%s path=%s",
-                                        self._recording_session_id, self._recording.path)
+                self._restore_session_resources(status)
+                self._client.connected.emit()
+                self._client.status_updated.emit(status)
 
         elif tt == ServerTaskType.DISCONNECT:
             self._client.disconnect()
@@ -281,6 +316,7 @@ class ServerTaskWorker(QThread):
             result = self._client.get_status()
             self._client.session_id = result.get("session_id")
             self._client.last_status = dict(result)
+            self._restore_session_resources(result)
             self._client.status_updated.emit(result)
 
         elif tt == ServerTaskType.COMPACT_PROJECT_INFO:

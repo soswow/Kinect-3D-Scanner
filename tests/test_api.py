@@ -15,7 +15,7 @@ import httpx
 import numpy as np
 
 from scanner_server import app as server
-from shared.protocol import pack_frame
+from shared.protocol import pack_frame, pack_frames
 
 
 class ApiTests(unittest.IsolatedAsyncioTestCase):
@@ -37,6 +37,109 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         for capability in ("motion_history", "motion_journal", "visual_tracks", "feature_history"):
             self.assertEqual(1, result[capability])
         self.assertEqual(MAX_METADATA_BYTES, result["metadata_max_bytes"])
+        self.assertEqual(1, result["session_guard"])
+
+    async def test_stale_single_and_batch_uploads_preserve_replacement_scan(self):
+        from scanner_server.engine import ScanEngine
+        from shared.settings import ScanSettings
+        server.engine = ScanEngine(device="cpu")
+        self.addCleanup(server.engine.shutdown)
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        depth = np.full((480, 640), 1000, np.uint16)
+        frame = (rgb, depth, {"frame_id": "stale"})
+        stale = server.engine.session_id
+        server.engine.reset(settings=ScanSettings())
+        current = server.engine.session_id
+        for endpoint, body in (("frame", pack_frame(*frame)), ("frames", pack_frames([frame, frame]))):
+            with self.subTest(endpoint=endpoint):
+                response = await self.http.post("/api/scan/" + endpoint, content=body,
+                                                headers={"X-Scan-Session": stale})
+                self.assertEqual(409, response.status_code)
+                self.assertEqual(0, server.engine.stored_count)
+                self.assertEqual(current, server.engine.session_id)
+        # Updated and legacy clients can still upload to the current session.
+        for index, headers in enumerate(({"X-Scan-Session": current}, {})):
+            response = await self.http.post("/api/scan/frame", headers=headers,
+                content=pack_frame(rgb, depth, {"frame_id": str(index)}))
+            self.assertTrue(response.json()["success"])
+        response = await self.http.post("/api/scan/frames", headers={"X-Scan-Session": current},
+            content=pack_frames([(rgb, depth, {"frame_id": "batch"})]))
+        self.assertEqual(1, response.json()["batch_size"])
+
+    async def test_session_guard_is_checked_after_waiting_for_engine_lock(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        rgb = np.zeros((480, 640, 3), np.uint8)
+        depth = np.zeros((480, 640), np.uint16)
+        for endpoint, body in (("frame", pack_frame(rgb, depth)), ("frames", pack_frames([(rgb, depth)]))):
+            fake = SimpleNamespace(session_id="old", store_frame=Mock())
+            server.engine = fake
+            await server._build_lock.acquire()
+            upload = asyncio.create_task(self.http.post("/api/scan/" + endpoint,
+                content=body, headers={"X-Scan-Session": "old"}))
+            try:
+                await asyncio.sleep(0.05)
+                self.assertFalse(upload.done())
+                fake.session_id = "replacement"
+            finally:
+                server._build_lock.release()
+            self.assertEqual(409, (await upload).status_code)
+            fake.store_frame.assert_not_called()
+
+    async def test_reset_reports_busy_until_replacement_is_ready(self):
+        entered, release = threading.Event(), threading.Event()
+        original_reset = server.engine.reset
+
+        def reset(**kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError("test release missing")
+            original_reset(**kwargs)
+
+        old_session = server.engine.session_id
+        with patch.object(server.engine, "reset", side_effect=reset):
+            task = asyncio.create_task(self.http.post("/api/scan/reset", json={}))
+            try:
+                for _ in range(100):
+                    if entered.is_set():
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertTrue(entered.is_set())
+                status = (await self.http.get("/api/scan/status")).json()
+                self.assertEqual("reset", status["operation"])
+                self.assertEqual(old_session, status["session_id"])
+            finally:
+                release.set()
+            self.assertTrue((await task).json()["success"])
+        status = (await self.http.get("/api/scan/status")).json()
+        self.assertIsNone(status["operation"])
+        self.assertNotEqual(old_session, status["session_id"])
+
+    async def test_queued_exclusive_operation_remains_visible_after_first_finishes(self):
+        first_ready, finish_first = asyncio.Event(), asyncio.Event()
+        second_ready, finish_second = asyncio.Event(), asyncio.Event()
+
+        async def operation(kind, ready, finish):
+            async with server._exclusive_operation(kind):
+                ready.set()
+                await finish.wait()
+
+        first = asyncio.create_task(operation("save", first_ready, finish_first))
+        second = None
+        try:
+            await first_ready.wait()
+            second = asyncio.create_task(operation("reset", second_ready, finish_second))
+            await asyncio.sleep(0)
+            self.assertEqual("save", (await server.scan_status())["operation"])
+            finish_first.set()
+            await second_ready.wait()
+            self.assertEqual("reset", (await server.scan_status())["operation"])
+            self.assertTrue(server._exclusive)
+        finally:
+            finish_first.set()
+            finish_second.set()
+            await asyncio.gather(first, *([second] if second else []))
+        self.assertIsNone((await server.scan_status())["operation"])
 
     async def test_project_export_options_and_local_reuse_reach_exporter(self):
         def save(engine, path, **options):
@@ -339,6 +442,95 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         server._ws_clients.update([Socket(), Socket()])
         await server._broadcast({"type": "progress"})
         self.assertFalse(server._ws_clients)
+
+    async def test_repeated_cancellation_keeps_native_work_serialized(self):
+        for processing in (False, True):
+            for worker_fails in (False, True):
+                with self.subTest(processing=processing, worker_fails=worker_fails):
+                    entered, release = threading.Event(), threading.Event()
+                    events = []
+
+                    def work():
+                        events.append("native-start")
+                        entered.set()
+                        if not release.wait(5):
+                            raise TimeoutError("test release missing")
+                        events.append("native-end")
+                        if worker_fails:
+                            raise RuntimeError("deliberate native failure")
+
+                    async def drain_progress():
+                        pass
+
+                    async def operation():
+                        async with server._build_lock:
+                            if processing:
+                                native = asyncio.create_task(asyncio.to_thread(work))
+                                await server._wait_for_processing(native, drain_progress)
+                            else:
+                                await server._engine_call(work)
+
+                    async def queued_reset():
+                        async with server._build_lock:
+                            events.append("reset")
+
+                    task = asyncio.create_task(operation())
+                    reset = None
+                    try:
+                        for _ in range(100):
+                            if entered.is_set():
+                                break
+                            await asyncio.sleep(0.01)
+                        self.assertTrue(entered.is_set())
+                        reset = asyncio.create_task(queued_reset())
+                        for _ in range(3):
+                            task.cancel()
+                            await asyncio.sleep(0.01)
+                            self.assertTrue(server._build_lock.locked())
+                            self.assertFalse(task.done())
+                            self.assertFalse(reset.done())
+                            self.assertEqual(["native-start"], events)
+                    finally:
+                        release.set()
+                        await asyncio.gather(task, *([reset] if reset else []), return_exceptions=True)
+                    self.assertTrue(task.cancelled())
+                    self.assertEqual(["native-start", "native-end", "reset"], events)
+                    self.assertFalse(server._build_lock.locked())
+
+    async def test_progress_failure_waits_for_native_completion(self):
+        entered, release = threading.Event(), threading.Event()
+        finished = threading.Event()
+
+        def work():
+            entered.set()
+            release.wait(5)
+            finished.set()
+
+        async def broken_progress():
+            raise RuntimeError("progress failed")
+
+        async def operation():
+            async with server._build_lock:
+                native = asyncio.create_task(asyncio.to_thread(work))
+                await server._wait_for_processing(native, broken_progress)
+
+        task = asyncio.create_task(operation())
+        try:
+            for _ in range(100):
+                if entered.is_set():
+                    break
+                await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)
+            self.assertTrue(server._build_lock.locked())
+            self.assertFalse(task.done())
+            task.cancel()
+            await asyncio.sleep(0.01)
+            self.assertTrue(server._build_lock.locked())
+        finally:
+            release.set()
+        with self.assertRaisesRegex(RuntimeError, "progress failed"):
+            await task
+        self.assertTrue(finished.is_set())
 
 
 if __name__ == "__main__":

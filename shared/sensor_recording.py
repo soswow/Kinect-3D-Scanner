@@ -6,6 +6,7 @@ only the images selected for fusion. A bounded writer reports every overflow.
 
 import json
 import logging
+import math
 import queue
 import threading
 import time
@@ -34,7 +35,8 @@ class SensorJournal:
         self.error = None
         self.closed = False
         self.last_checkpoint = {**self.status(), "index_bytes": {}}
-        (self.path / "configuration.json").write_text(json.dumps({
+        configuration_path = self.path / "configuration.json.tmp"
+        configuration_path.write_text(json.dumps({
             "version": 1, "capture_generation": self.generation, "recording_segment": generation, "settings": settings,
             "started_timestamp_s": time.time(), "started_monotonic_s": time.monotonic(),
             "started_monotonic_ns": time.monotonic_ns(),
@@ -45,6 +47,7 @@ class SensorJournal:
                         "accelerometer": {"units": "m/s^2", "raw_units": "driver_counts", "encoding": "JSONL"},
                         "events": {"encoding": "JSONL", "scope": "orientation and recording controls"}},
         }, indent=2, allow_nan=False) + "\n")
+        configuration_path.replace(self.path / "configuration.json")
         self.thread = threading.Thread(target=self._write, name="Sensor recording", daemon=True)
         self.thread.start()
         logging.getLogger(__name__).info("Sensor journal started path=%s full_images=%s", self.path, self.record_images)
@@ -166,17 +169,31 @@ def journal_snapshot(root, active=None):
     segments = []
     root = Path(root)
     for path in sorted(root.iterdir()) if root.exists() else []:
-        if not path.is_dir() or not (path / "configuration.json").exists():
+        if not path.is_dir():
             continue
         try:
             status = json.loads((path / "status.json").read_text())
+            if not isinstance(status, dict):
+                raise ValueError("Invalid sensor checkpoint")
         except (OSError, ValueError):
             status = {"complete": False, "error": "No sensor checkpoint", "index_bytes": {}}
         if active and active.get("path") == str(path):
             status = active["status"]
         elif not status.get("closed"):
             status = {**status, "complete": False, "error": status.get("error") or "Capture stopped before recording checkpoint"}
-        configuration = json.loads((path / "configuration.json").read_text())
+        try:
+            configuration = json.loads((path / "configuration.json").read_text())
+            if not isinstance(configuration, dict):
+                raise ValueError("Sensor configuration must be an object")
+            for key in ("started_timestamp_s", "started_monotonic_ns"):
+                value = configuration.get(key, 0)
+                if type(value) not in (int, float) or not math.isfinite(value):
+                    raise ValueError("Invalid sensor configuration clock")
+        except (OSError, ValueError, OverflowError) as exc:
+            configuration = {}
+            error = "Invalid sensor configuration: " + str(exc)
+            status = {**status, "complete": False, "configuration_error": error,
+                      "error": "; ".join(filter(None, (status.get("error"), error)))}
         segments.append({"generation": path.name, "status": status,
                          "started_timestamp_s": configuration.get("started_timestamp_s", 0),
                          "started_monotonic_ns": configuration.get("started_monotonic_ns", 0)})
@@ -200,15 +217,20 @@ def augment_session_archive(path, snapshot, portrait=True):
     try:
         with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as target:
             manifest = json.loads(source.read("manifest.json"))
-            for item in source.infolist():
-                if item.filename != "manifest.json":
-                    copy_member(source, target, item)
+            written = {"manifest.json"}
             for segment in snapshot["segments"]:
                 generation = segment["generation"]
                 directory = (root / generation).resolve()
                 if not directory.is_relative_to(root.resolve()):
                     raise ValueError("Invalid sensor segment path")
-                target.write(directory / "configuration.json", f"sensors/{generation}/configuration.json")
+                for name in ("configuration.json", "configuration.json.tmp"):
+                    configuration = directory / name
+                    if configuration.exists():
+                        relative = f"sensors/{generation}/{name}"
+                        target.write(configuration, relative)
+                        written.add(relative)
+                    elif name == "configuration.json" and not segment["status"].get("configuration_error"):
+                        raise FileNotFoundError(configuration)
                 for stream, length in segment["status"].get("index_bytes", {}).items():
                     if stream not in STREAMS or type(length) is not int or length < 0:
                         raise ValueError("Invalid sensor index")
@@ -216,7 +238,9 @@ def augment_session_archive(path, snapshot, portrait=True):
                         data = handle.read(length)
                     if len(data) != length or (data and not data.endswith(b"\n")):
                         raise ValueError("Incomplete sensor index checkpoint")
-                    write_member(target, f"sensors/{generation}/{stream}.jsonl", data)
+                    relative = f"sensors/{generation}/{stream}.jsonl"
+                    write_member(target, relative, data)
+                    written.add(relative)
                     for line in data.splitlines():
                         row = json.loads(line)
                         if "image" in row:
@@ -225,8 +249,18 @@ def augment_session_archive(path, snapshot, portrait=True):
                                 raise ValueError("Invalid recorded image path")
                             relative = f"sensors/{generation}/{row['image']}"
                             # Full-stream NPY/PNG observations retain their original bytes.
-                            target.write(image_path, relative, compress_type=member_compression(relative))
-                write_member(target, f"sensors/{generation}/status.json", json.dumps(segment["status"], allow_nan=False))
+                            if relative not in written:
+                                target.write(image_path, relative, compress_type=member_compression(relative))
+                                written.add(relative)
+                relative = f"sensors/{generation}/status.json"
+                write_member(target, relative, json.dumps(segment["status"], allow_nan=False))
+                written.add(relative)
+            # Keep unrelated generations and raw evidence outside the new checkpoint.
+            # Resolve historical duplicates using ZipFile's last-member policy.
+            retained = {item.filename: item for item in source.infolist()}
+            for name, item in retained.items():
+                if name not in written:
+                    copy_member(source, target, item)
             from shared.inertial import rotate_display
             if portrait:
                 for frame in manifest["frames"]:
