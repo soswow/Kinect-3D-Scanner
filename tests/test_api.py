@@ -161,6 +161,31 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(422, (await self.http.get("/api/scan/export/session", params={"rgb_format": "invalid"})).status_code)
         self.assertEqual(422, (await self.http.post("/api/scan/export/session", json={"reuse": {"session_id": "stale", "captures": []}})).status_code)
 
+    async def test_compact_review_and_stale_export_are_bound_to_final_session(self):
+        from scanner_server.engine import ScanEngine
+        import open3d as o3d
+
+        candidate = ScanEngine(device="cpu")
+        self.addCleanup(candidate.shutdown)
+        server.engine = candidate
+        candidate.store_frame(np.full((480, 640, 3), 80, np.uint8), np.full((480, 640), 1000, np.uint16), {})
+        candidate.poses = [(0, np.eye(4))]
+        candidate.diagnostics = [{"index": 0, "success": True}]
+        candidate._processed_count = candidate.frame_count = 1
+        candidate.mesh = o3d.geometry.TriangleMesh.create_box(.1, .2, .3)
+        review = (await self.http.get("/api/scan/project/compact")).json()
+        self.assertTrue(review["available"])
+        response = await self.http.post("/api/scan/export/session", json={"compact": True, "compact_revision": review["revision"]})
+        self.assertEqual(200, response.status_code)
+        import io, zipfile, json
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            manifest = json.loads(archive.read("manifest.json"))
+            self.assertEqual([0], manifest["project_compaction"]["retained_source_indices"])
+        for options in ({"compact": True, "compact_revision": "stale"}, {"compact": "false"}):
+            self.assertEqual(422, (await self.http.post("/api/scan/export/session", json=options)).status_code)
+        self.assertIs(candidate, server.engine)
+        self.assertEqual(1, candidate.stored_count)
+
     async def test_empty_reset_uses_complete_measured_kinect_default(self):
         response = await self.http.post("/api/scan/reset", json={})
         self.assertEqual(200, response.status_code)

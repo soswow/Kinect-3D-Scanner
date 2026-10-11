@@ -179,6 +179,7 @@ def run_check():
             main_window.KinectWorker = original
         window.show()
         check_project_save(window, temporary)
+        check_compact_project(window, temporary)
         check_texture_export_dialog(window)
         check_live_view(window)
         errors = []
@@ -315,7 +316,7 @@ def run_check():
         if result.returncode != 0 or "mesh helper ok" not in result.stdout:
             raise RuntimeError(f"Mesh helper failed: {result.stdout}\n{result.stderr}")
     report = {"status": "ok", "synthetic_frames": frames, "camera_shutdown": "ok", "mesh_helper": "ok", "log_changes": "ok", "scan_reset": "ok", "camera_motion_layout": "ok", "auto_portrait": "ok",
-              "offline_capture": "ok", "offline_capture_interval": "ok", "project_save": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
+              "offline_capture": "ok", "offline_capture_interval": "ok", "project_save": "ok", "compact_project": "ok", "reconstruction_progress": "ok", "texture_export_dialog": "ok", "live_view": "ok",
               "data": str(data_root()), "exports": str(export_root())}
     print(json.dumps(report), flush=True)
     return 0
@@ -362,6 +363,49 @@ def check_project_save(window, temporary):
         np.testing.assert_array_equal(depth, np.array(Image.open(io.BytesIO(archive.read("depth/000000.png")))))
         if archive.getinfo("manifest.json").compress_type != zipfile.ZIP_DEFLATED:
             raise RuntimeError("Project metadata is not compressed")
+
+
+def check_compact_project(window, temporary):
+    """Exercise installed copy-review controls and request wiring without a server."""
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from .server_task_worker import ServerTaskType
+
+    fields = ("_has_mesh", "_scanning", "_paused", "_session_id", "_server_stored", "_project_path", "_export_pending")
+    previous = {key: getattr(window, key) for key in fields}
+    connected = window.server_client._connected
+    capability = window.server_client._compact_project_supported
+    submit = window.task_worker.submit
+    information, save_dialog = QMessageBox.information, QFileDialog.getSaveFileName
+    tasks = []
+    path = str(Path(temporary) / "compact-project.zip")
+    try:
+        window._has_mesh, window._scanning, window._paused = True, False, True
+        window._session_id, window._server_stored, window._project_path = "bundle-compact", 3, "full-project.zip"
+        window.server_client._connected = window.server_client._compact_project_supported = True
+        window.task_worker.submit = lambda task: tasks.append(task) or True
+        QMessageBox.information = lambda *args: QMessageBox.StandardButton.Save
+        QFileDialog.getSaveFileName = lambda *args: (path, "")
+        window._refresh_controls()
+        if not window.btn_compact_project.isEnabled() or not window.save_compact_project_action.isEnabled():
+            raise RuntimeError("Compact project controls are unavailable for a finished scan")
+        window._save_compact_project()
+        window._on_compact_project_info({"available": True, "session_id": "bundle-compact", "stored_count": 3,
+                                        "retained_count": 2, "excluded_count": 1, "revision": "bundle-review"})
+        if ([task.task_type for task in tasks] != [ServerTaskType.COMPACT_PROJECT_INFO, ServerTaskType.EXPORT_SESSION]
+                or tasks[-1].kwargs["options"].get("compact_revision") != "bundle-review"
+                or not tasks[-1].kwargs["options"].get("compact")):
+            raise RuntimeError("Compact project review did not reach the export task")
+        window._on_export_done(True, path)
+        if window._project_path != "full-project.zip" or window._server_stored != 3:
+            raise RuntimeError("Saving a compact copy changed the full project/session")
+    finally:
+        QMessageBox.information, QFileDialog.getSaveFileName = information, save_dialog
+        window.task_worker.submit = submit
+        for key, value in previous.items():
+            setattr(window, key, value)
+        window.server_client._connected, window.server_client._compact_project_supported = connected, capability
+        window._set_progress_visible(False)
+        window._refresh_controls()
 
 
 def check_live_view(window):

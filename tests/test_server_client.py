@@ -30,6 +30,22 @@ def response(data=None, content=b"ply\nfinal mesh", content_type="application/oc
 
 
 class ServerClientTests(unittest.TestCase):
+    def test_compact_export_requires_capability_and_does_not_reuse_old_indices(self):
+        client = ServerClient()
+        client._http = Mock()
+        options = {"compact": True, "compact_revision": "review"}
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "compact.zip")
+            with self.assertRaisesRegex(RuntimeError, "restart"):
+                client.request_export("session", path, options)
+            client._compact_project_supported = client._project_export_supported = True
+            reply = response()
+            client._http.stream.return_value.__enter__ = Mock(return_value=reply)
+            client._http.stream.return_value.__exit__ = Mock(return_value=False)
+            self.assertTrue(client.request_export("session", path, options, local_captures={2: {"rgb": "unused"}}))
+            self.assertEqual("POST", client._http.stream.call_args.args[0])
+            self.assertEqual(options, client._http.stream.call_args.kwargs["json"])
+
     def test_capture_session_header_is_frozen_before_packing(self):
         for batch in (False, True):
             with self.subTest(batch=batch):

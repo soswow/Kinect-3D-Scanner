@@ -281,6 +281,13 @@ Save Project opts into JPEG quality 95; depth remains lossless. Mesh and metadat
 are compressed by default. Matching locally recorded captures are reused rather
 than downloaded again; see [project saving](docs/LIVE_RECONSTRUCTION.md#full-session-preservation).
 Projects use the same ZIP format as sessions; the finished mesh is an additional optional member.
+After a successful Finish Scan, **Save Compact Project…** reviews how many shots
+belong to the finished model and saves a new ZIP containing those shots and the
+model. It omits disconnected/rejected shots and generated display copies while
+preserving contributing depth views, texture photos, calibration and poses.
+Your current session keeps all shots; use **Open Project…** to work with the
+compact copy. Keep a full project if you want to recover excluded surfaces later.
+Update and restart the server as well as the client to enable this action.
 New Scan, Open Project, Cancel Scan, Reset Scan and close offer Save project / Discard / Cancel, and continue only
 after a requested save succeeds. Reconnecting restores an existing server scan
 paused; a failed build offers retry or resumed capture without resetting frames.

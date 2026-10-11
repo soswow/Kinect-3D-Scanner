@@ -1,5 +1,7 @@
 """Portable projects, backward compatible with captured session ZIPs."""
 
+import copy
+import hashlib
 import io
 import json
 import logging
@@ -58,10 +60,74 @@ def _reuse_proofs(engine, reuse):
     return proofs
 
 
-def export_session(engine, path, rgb_format="png", reuse=None):
+def compact_project_info(engine):
+    """Describe a final-product copy without altering captures or reconstruction."""
+    indices = sorted(i for i, _ in engine.poses)
+    available = (engine.mesh is not None and bool(indices) and not engine.unprocessed_count
+                 and not engine.fusion_failure and not engine.input_failure
+                 and len(engine.diagnostics) == engine.stored_count
+                 and set(indices) == {d["index"] for d in engine.diagnostics if d["success"]}
+                 and len(indices) == len(set(indices))
+                 and all(type(i) is int and 0 <= i < engine.stored_count for i in indices))
+    descriptor = {
+        "session_id": engine.session_id, "stored_count": engine.stored_count,
+        "poses": [{"index": i, "pose": p.tolist()} for i, p in engine.poses],
+        "settings": engine.settings.to_dict(),
+        "mesh_vertices": len(engine.mesh.vertices) if engine.mesh is not None else 0,
+        "mesh_triangles": len(engine.mesh.triangles) if engine.mesh is not None else 0,
+    }
+    revision = hashlib.sha256(json.dumps(descriptor, sort_keys=True, allow_nan=False,
+                                         separators=(",", ":")).encode()).hexdigest()
+    display_copies = 2 * sum(m.get("orientation", {}).get("rotation_cw_degrees", 0) in (90, 180, 270)
+                             for m in engine.frame_metadata)
+    return {"available": available, "session_id": engine.session_id, "revision": revision,
+            "stored_count": engine.stored_count, "retained_count": len(indices),
+            "excluded_count": engine.stored_count - len(indices),
+            "retained_indices": indices, "display_copies_omitted": display_copies,
+            "reason": "Ready" if available else "Finish the scan successfully before saving a compact project"}
+
+
+def _compact_report(report, indices):
+    """Preserve the final poses, with current indices separate from source history."""
+    mapping = {old: new for new, old in enumerate(indices)}
+    result = {key: copy.deepcopy(report[key]) for key in (
+        "version", "session_id", "pose_convention", "length_unit", "settings", "backend",
+        "fusion_failure", "input_failure", "stage_totals_ms", "final_reconstruction",
+    ) if key in report}
+    result["poses"] = [{**p, "index": mapping[p["index"]]} for p in report["poses"] if p["index"] in mapping]
+    result["original_poses"] = None if report.get("original_poses") is None else [
+        {**p, "index": mapping[p["index"]]} for p in report["original_poses"] if p["index"] in mapping]
+    by_index = {d["index"]: d for d in report["frames"]}
+    result["frames"] = [{"index": new, "source_index": old, "success": True,
+                         "pose": next(p["camera_to_world"] for p in result["poses"] if p["index"] == new),
+                         "method": "saved_pose", "message": "Preserved final-model pose",
+                         "metadata": {**by_index[old].get("metadata", {}), "server_index": new},
+                         "frame_count": new + 1, "last_tracked_index": new, "fusion_paused": False}
+                        for new, old in enumerate(indices)]
+    # Historical graph endpoints belong to the source index space. Retain them
+    # in the explicit source report, never as active graph/refinement inputs.
+    for key in ("refinement", "bundle_adjustment"):
+        result[key] = {"applied": False, "reason": "Final poses preserved; source history is in provenance/source-reconstruction.json"}
+    result["fragment_reconnection"] = {"applied": False, "algorithm": "preserved_final_poses",
+                                       "reason": "Selected final poses retained without registration",
+                                       "source_report": "provenance/source-reconstruction.json"}
+    result["tracking_edges"] = []
+    result["tracking"] = {"state": "tracking", "last_tracked_index": len(indices) - 1, "lost_at_index": None}
+    return result
+
+
+def export_session(engine, path, rgb_format="png", reuse=None, compact=False, compact_revision=None):
     started = time.monotonic()
     if rgb_format not in ("png", "jpeg"):
         raise ValueError("Project RGB format must be png or jpeg")
+    if type(compact) is not bool:
+        raise ValueError("Compact project option must be boolean")
+    plan = compact_project_info(engine) if compact else None
+    if compact and (not plan["available"] or compact_revision != plan["revision"]):
+        raise ValueError("Compact project review is unavailable or stale; review the finished scan again")
+    if compact and reuse is not None:
+        raise ValueError("Compact projects require complete server captures")
+    indices = plan["retained_indices"] if compact else list(range(len(engine.raw_frames)))
     proofs = _reuse_proofs(engine, reuse)
     reused = []
     manifest = {
@@ -76,6 +142,12 @@ def export_session(engine, path, rgb_format="png", reuse=None):
     }
     if rgb_format == "jpeg":
         manifest["jpeg_quality"] = JPEG_QUALITY
+    if compact:
+        manifest["project_compaction"] = {"version": 1, "source_session_id": engine.session_id,
+                                           "source_capture_count": engine.stored_count,
+                                           "retained_source_indices": indices,
+                                           "source_report": "provenance/source-reconstruction.json",
+                                           "policy": "final_model_poses", "display_copies": False}
     source_path = getattr(engine, "_project_archive_path", None)
     if source_path and Path(path).resolve() == Path(source_path).resolve():
         raise ValueError("Save to a temporary path before replacing the opened project")
@@ -83,10 +155,12 @@ def export_session(engine, path, rgb_format="png", reuse=None):
         source = stack.enter_context(zipfile.ZipFile(source_path)) if source_path else None
         previous = json.loads(_member(source, "manifest.json", PROJECT_JSON_LIMIT_BYTES)) if source else {}
         archive = stack.enter_context(zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6))
-        for index, ((rgb, depth), metadata) in enumerate(zip(engine.raw_frames, engine.frame_metadata)):
+        for index, source_index in enumerate(indices):
+            rgb, depth = engine.raw_frames[source_index]
+            metadata = engine.frame_metadata[source_index]
             extension = "jpg" if rgb_format == "jpeg" else "png"
             paths = {"rgb": f"rgb/{index:06d}.{extension}", "depth": f"depth/{index:06d}.png"}
-            rotation = metadata.get("orientation", {}).get("rotation_cw_degrees", 0)
+            rotation = 0 if compact else metadata.get("orientation", {}).get("rotation_cw_degrees", 0)
             proof = proofs.get(index)
             use_local = proof is not None and all(pixel_digest(array) == proof[name + "_sha256"]
                                                   for name, array in (("rgb", rgb), ("depth", depth)))
@@ -97,12 +171,12 @@ def export_session(engine, path, rgb_format="png", reuse=None):
                     if rotation in (90, 180, 270):
                         paths["display_" + name] = "display/" + paths[name]
                     continue
-                if (source and index < len(previous["frames"])
+                if (source and source_index < len(previous["frames"])
                         and (name == "depth" or previous.get("rgb_format", "png") == rgb_format)):
                     # Raw observations form an immutable prefix after opening.
                     # Preserve matching encodings, including JPEGs, without generational loss.
-                    original = previous["frames"][index]
-                    for key in (name, "display_" + name):
+                    original = previous["frames"][source_index]
+                    for key in ((name,) if compact else (name, "display_" + name)):
                         if key not in original:
                             continue
                         destination = paths[name] if key == name else "display/" + paths[name]
@@ -114,8 +188,12 @@ def export_session(engine, path, rgb_format="png", reuse=None):
                 if rotation in (90, 180, 270):
                     paths["display_" + name] = "display/" + paths[name]
                     write_member(archive, paths["display_" + name], encode_image(np.rot90(array, k=-(rotation // 90)), image_format))
-            manifest["frames"].append({**paths, "timestamp_s": metadata.get("timestamp_s", index),
-                                       "metadata": {**metadata, "server_index": index}})
+            saved_metadata = {**metadata, "server_index": index}
+            if compact:
+                saved_metadata.setdefault("source_server_index", source_index)
+                saved_metadata.setdefault("source_capture", {"session_id": engine.session_id, "index": source_index})
+            manifest["frames"].append({**paths, "timestamp_s": metadata.get("timestamp_s", source_index),
+                                       "metadata": saved_metadata})
         # Retain independent sensor observations when an opened project is saved again.
         if source:
             if "sensor_archive" in previous:
@@ -123,6 +201,15 @@ def export_session(engine, path, rgb_format="png", reuse=None):
             for item in source.infolist():
                 if item.filename.startswith("sensors/"):
                     copy_member(source, archive, item)
+                elif item.filename.startswith("provenance/"):
+                    destination = item.filename.replace("provenance/", "provenance/previous/", 1) if compact else item.filename
+                    copy_member(source, archive, item, destination)
+            if not compact and "project_compaction" in previous:
+                manifest["project_compaction"] = previous["project_compaction"]
+            elif compact and "project_compaction" in previous:
+                manifest["project_compaction"]["previous_provenance_prefix"] = "provenance/previous/"
+                write_member(archive, "provenance/previous/compaction.json",
+                             json.dumps(previous["project_compaction"], separators=(",", ":"), allow_nan=False))
         if getattr(engine, "mesh", None) is not None:
             import open3d as o3d
 
@@ -139,7 +226,11 @@ def export_session(engine, path, rgb_format="png", reuse=None):
         if reused:
             manifest["local_captures"] = {"session_id": engine.session_id, "captures": reused}
         write_member(archive, "manifest.json", json.dumps(manifest, separators=(",", ":"), allow_nan=False))
-        write_member(archive, "reconstruction.json", json.dumps(engine.reconstruction_report(), separators=(",", ":"), allow_nan=False))
+        report = engine.reconstruction_report()
+        if compact:
+            write_member(archive, "provenance/source-reconstruction.json", json.dumps(report, separators=(",", ":"), allow_nan=False))
+            report = _compact_report(report, indices)
+        write_member(archive, "reconstruction.json", json.dumps(report, separators=(",", ":"), allow_nan=False))
     logger.info("Project encoding: %d captures, %.1f MiB, %.2f s", len(manifest["frames"]),
                 Path(path).stat().st_size / 1024**2, time.monotonic() - started)
 
@@ -166,6 +257,16 @@ def load_session(engine, path):
         captures = manifest["frames"]
         if not isinstance(captures, list) or len(captures) > engine.MAX_FRAMES:
             raise ValueError(f"Project must contain at most {engine.MAX_FRAMES} captures")
+        compaction = manifest.get("project_compaction")
+        if compaction is not None:
+            retained = compaction.get("retained_source_indices") if isinstance(compaction, dict) else None
+            source_count = compaction.get("source_capture_count") if isinstance(compaction, dict) else None
+            if (not isinstance(retained, list) or len(retained) > len(captures)
+                    or type(source_count) is not int or source_count < len(retained)
+                    or any(type(i) is not int or not 0 <= i < source_count for i in retained)
+                    or retained != sorted(set(retained)) or compaction.get("version") != 1
+                    or compaction.get("policy") != "final_model_poses"):
+                raise ValueError("Invalid compact project provenance")
         engine.reset(settings=settings)
         if manifest.get("motion_journal"):
             from shared.motion_journal import MAX_JOURNAL_BYTES
@@ -259,4 +360,11 @@ def load_session(engine, path):
                 raise ValueError("Invalid saved project mesh")
             mesh.compute_vertex_normals()
             engine.mesh = mesh
+        if compaction is not None and len(compaction["retained_source_indices"]) == len(captures):
+            if len(poses) != len(captures) or engine.mesh is None:
+                raise ValueError("Compact final project requires a saved mesh and all retained poses")
+            # This is a loaded final product, not a new registration proof. Its
+            # validated saved poses were just restored by fresh fusion. Repeat
+            # Finish preserves them; new captures invalidate these counts normally.
+            engine._preserved_project_pose_count = engine._refined_count = engine._bundle_count = len(captures)
     return manifest

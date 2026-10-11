@@ -306,7 +306,7 @@ async def health():
     return {
         "status": "ok",
         "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1, "session_guard": 1},
-        "project_export": {"version": 1, "rgb_formats": ["png", "jpeg"], "local_captures": 1},
+        "project_export": {"version": 1, "rgb_formats": ["png", "jpeg"], "local_captures": 1, "compact": 1},
         "backend": engine.backend,
         "session_id": engine.session_id,
         "stored_count": engine.stored_count,
@@ -515,6 +515,7 @@ async def scan_build(request: Request):
             if settings != engine.settings:
                 if settings.offline_registration != engine.settings.offline_registration:
                     engine._reconnection_count = None
+                    engine._preserved_project_pose_count = None
                     engine._refined_count = None
                     engine._bundle_count = None
                 engine.settings = settings
@@ -723,8 +724,15 @@ async def export_obj():
 
 
 @app.get("/api/scan/export/session")
-async def export_recording(rgb_format: str = "png"):
-    return await _export_recording(rgb_format)
+async def export_recording(rgb_format: str = "png", compact: bool = False, compact_revision: str | None = None):
+    return await _export_recording(rgb_format, compact=compact, compact_revision=compact_revision)
+
+
+@app.get("/api/scan/project/compact")
+async def review_compact_project():
+    from .session import compact_project_info
+    async with _build_lock:
+        return await _engine_call(compact_project_info, engine)
 
 
 @app.post("/api/scan/export/session")
@@ -736,14 +744,17 @@ async def export_recording_with_local_captures(request: Request):
             raise HTTPException(413, "Project reuse request exceeds 2 MiB")
     try:
         options = json.loads(data)
-        if not isinstance(options, dict) or set(options) - {"rgb_format", "reuse"}:
+        if not isinstance(options, dict) or set(options) - {"rgb_format", "reuse", "compact", "compact_revision"}:
             raise ValueError("Invalid project export options")
+        if "compact" in options and type(options["compact"]) is not bool:
+            raise ValueError("Compact project option must be boolean")
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    return await _export_recording(options.get("rgb_format", "png"), options.get("reuse"))
+    return await _export_recording(options.get("rgb_format", "png"), options.get("reuse"),
+                                   options.get("compact", False), options.get("compact_revision"))
 
 
-async def _export_recording(rgb_format, reuse=None):
+async def _export_recording(rgb_format, reuse=None, compact=False, compact_revision=None):
     from .session import export_session
 
     fd, path = tempfile.mkstemp(suffix=".zip")
@@ -751,7 +762,10 @@ async def _export_recording(rgb_format, reuse=None):
     try:
         async with _exclusive_operation("save"):
             try:
-                await _engine_call(export_session, engine, path, rgb_format=rgb_format, reuse=reuse)
+                kwargs = {"rgb_format": rgb_format, "reuse": reuse}
+                if compact or compact_revision is not None:
+                    kwargs.update(compact=compact, compact_revision=compact_revision)
+                await _engine_call(export_session, engine, path, **kwargs)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc
         response = FileResponse(
