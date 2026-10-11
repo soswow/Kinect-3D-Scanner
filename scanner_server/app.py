@@ -305,7 +305,7 @@ async def health():
     from shared.protocol import MAX_METADATA_BYTES
     return {
         "status": "ok",
-        "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1, "session_guard": 1},
+        "capture_protocol": {"metadata_max_bytes": MAX_METADATA_BYTES, "motion_history": 1, "motion_journal": 1, "visual_tracks": 1, "feature_history": 1, "session_guard": 1, "capture_receipts": 1},
         "project_export": {"version": 1, "rgb_formats": ["png", "jpeg"], "local_captures": 1, "compact": 1},
         "backend": engine.backend,
         "session_id": engine.session_id,
@@ -321,6 +321,7 @@ async def health():
 @app.get("/api/scan/status")
 async def scan_status():
     return {
+        "project_recovery": getattr(engine, "project_recovery", None),
         "stored_count": engine.stored_count,
         "frame_count": engine.frame_count,
         "unprocessed_count": engine.unprocessed_count,
@@ -394,7 +395,9 @@ async def scan_frame(request: Request):
         async with _build_lock:
             locked = time.monotonic()
             _check_capture_session(request)
-            result = await _engine_call(engine.store_frame, rgb, depth, metadata)
+            retry_safe = _capture_receipt_mode(request)
+            result = await _engine_call(engine.store_frame, rgb, depth, metadata,
+                                        **({"retry_safe": True} if retry_safe else {}))
     except (ValueError, TypeError) as exc:
         raise HTTPException(422, str(exc)) from exc
     if result.get("success"):
@@ -414,6 +417,18 @@ def _check_capture_session(request):
     expected = request.headers.get("X-Scan-Session")
     if expected is not None and expected != engine.session_id:
         raise HTTPException(409, "Scan session changed; reconnect before uploading retained captures")
+
+
+def _capture_receipt_mode(request):
+    """Receipt authority requires explicit negotiation and a locked session guard."""
+    mode = request.headers.get("X-Capture-Receipt")
+    if mode is None:
+        return False
+    if mode != "1":
+        raise HTTPException(422, "X-Capture-Receipt must be 1")
+    if not request.headers.get("X-Scan-Session"):
+        raise HTTPException(422, "Capture receipts require X-Scan-Session")
+    return True
 
 
 @app.post("/api/scan/motion")
@@ -452,7 +467,8 @@ async def scan_frames_batch(request: Request):
         results = []
         for rgb, depth, metadata in frames:
             try:
-                result = engine.store_frame(rgb, depth, metadata)
+                result = engine.store_frame(rgb, depth, metadata,
+                                            **({"retry_safe": True} if retry_safe else {}))
             except (ValueError, TypeError) as exc:
                 result = {
                     "success": False,
@@ -471,6 +487,7 @@ async def scan_frames_batch(request: Request):
         async with _build_lock:
             locked = time.monotonic()
             _check_capture_session(request)
+            retry_safe = _capture_receipt_mode(request)
             count, total, submitted, results = await _engine_call(
                 _unpack_and_store, body
             )

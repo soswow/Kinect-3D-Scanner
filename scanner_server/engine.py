@@ -196,6 +196,8 @@ class ScanEngine:
         self.frame_metadata = []
         self.motion_journal = {"version": 1, "segments": []}
         self._frame_ids = set()
+        self._capture_receipts = {}
+        self.project_recovery = None
         self._stored_monotonic = []
         self._appearance_cache = {}
         self._visual_cache = {}
@@ -270,6 +272,7 @@ class ScanEngine:
             "version": 1,
             "session_id": self.session_id,
             "pose_convention": "camera_to_world",
+            "project_recovery": copy.deepcopy(self.project_recovery),
             "length_unit": "metres",
             "settings": self.settings.to_dict(),
             "backend": self.backend,
@@ -1236,7 +1239,7 @@ class ScanEngine:
         return "Unverified tracking transition after a gap or large movement; return to the last good view"
 
     # ── public API: capture (fast) ─────────────────────────────────────
-    def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None) -> dict:
+    def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None, *, retry_safe=False) -> dict:
         """Store a raw frame for later processing. Very fast — no ICP/TSDF."""
         c = self.settings.rgb_camera
         if rgb.shape != (c.height, c.width, 3) or rgb.dtype != np.uint8:
@@ -1244,6 +1247,20 @@ class ScanEngine:
         if depth.shape != (480, 640) or depth.dtype != np.uint16:
             raise ValueError("Depth must be uint16 480x640")
         metadata = dict(metadata or {})
+        proof = None
+        if retry_safe:
+            from shared.capture_receipts import receipt_for
+            proof = receipt_for(rgb, depth, metadata)
+            key = (proof["stream_id"], proof["sequence"])
+            previous = self._capture_receipts.get(key)
+            if previous is not None:
+                if previous != proof:
+                    raise ValueError("Capture retry differs from its original upload")
+                return {"success": True, "index": proof["expected_index"],
+                        "stored_count": self.stored_count, "session_id": self.session_id,
+                        "capture_receipt": dict(previous), "message": "Capture already stored"}
+            if proof["expected_index"] != self.stored_count:
+                raise ValueError("Capture expected_index does not match the next stored index")
         if metadata.get("depth_encoding", self.settings.depth_encoding) != self.settings.depth_encoding:
             raise ValueError("Frame depth encoding does not match the session calibration")
         if self.settings.sensor_calibration and np.any(depth > 2047):
@@ -1255,7 +1272,7 @@ class ScanEngine:
             raise ValueError("timestamp_s must be a finite number")
         frame_id = metadata.get("frame_id")
         if frame_id is not None:
-            if not isinstance(frame_id, (str, int)):
+            if type(frame_id) not in (str, int):
                 raise ValueError("frame_id must be a string or integer")
             if frame_id in self._frame_ids:
                 return {
@@ -1295,12 +1312,15 @@ class ScanEngine:
         self.frame_metadata.append(metadata)
         if frame_id is not None:
             self._frame_ids.add(frame_id)
+        if proof is not None:
+            self._capture_receipts[key] = dict(proof)
         return {
             "success": True,
             "stored_count": idx + 1,
             "index": idx,
             "session_id": self.session_id,
             "message": f"Frame {idx + 1} stored",
+            **({"capture_receipt": dict(proof)} if proof is not None else {}),
         }
 
     @property

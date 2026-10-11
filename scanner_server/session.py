@@ -28,6 +28,23 @@ PROJECT_ARCHIVE_LIMIT_BYTES = 64 * 1024**3
 PROJECT_JSON_LIMIT_BYTES = 256 * 1024**2
 
 
+def _recovery_provenance(value):
+    if (not isinstance(value, dict) or type(value.get("version")) is not int
+            or value["version"] != 1 or value.get("partial") is not True
+            or value.get("scope") != "pending captures only"
+            or type(value.get("capture_count")) is not int or value["capture_count"] < 0):
+        raise ValueError("Invalid partial recovery project provenance")
+    for key in ("source_session_id", "source_stream_id"):
+        if key not in value:
+            raise ValueError("Missing partial recovery source identity")
+        identity = value[key]
+        if identity is not None and (not isinstance(identity, str) or not identity
+                                     or len(identity.encode("utf-8")) > 128):
+            raise ValueError("Invalid partial recovery source identity")
+    json.dumps(value, allow_nan=False)
+    return copy.deepcopy(value)
+
+
 def _member(archive, name, limit):
     if not isinstance(name, str) or PurePosixPath(name).is_absolute() or ".." in PurePosixPath(name).parts:
         raise ValueError("Invalid project member path")
@@ -92,7 +109,7 @@ def _compact_report(report, indices):
     mapping = {old: new for new, old in enumerate(indices)}
     result = {key: copy.deepcopy(report[key]) for key in (
         "version", "session_id", "pose_convention", "length_unit", "settings", "backend",
-        "fusion_failure", "input_failure", "stage_totals_ms", "final_reconstruction",
+        "fusion_failure", "input_failure", "stage_totals_ms", "final_reconstruction", "project_recovery",
     ) if key in report}
     result["poses"] = [{**p, "index": mapping[p["index"]]} for p in report["poses"] if p["index"] in mapping]
     result["original_poses"] = None if report.get("original_poses") is None else [
@@ -142,6 +159,8 @@ def export_session(engine, path, rgb_format="png", reuse=None, compact=False, co
     }
     if rgb_format == "jpeg":
         manifest["jpeg_quality"] = JPEG_QUALITY
+    if getattr(engine, "project_recovery", None) is not None:
+        manifest["recovery"] = _recovery_provenance(engine.project_recovery)
     if compact:
         manifest["project_compaction"] = {"version": 1, "source_session_id": engine.session_id,
                                            "source_capture_count": engine.stored_count,
@@ -267,7 +286,9 @@ def load_session(engine, path):
                     or retained != sorted(set(retained)) or compaction.get("version") != 1
                     or compaction.get("policy") != "final_model_poses"):
                 raise ValueError("Invalid compact project provenance")
+        recovery = _recovery_provenance(manifest["recovery"]) if "recovery" in manifest else None
         engine.reset(settings=settings)
+        engine.project_recovery = recovery
         if manifest.get("motion_journal"):
             from shared.motion_journal import MAX_JOURNAL_BYTES
             engine.store_motion_journal(json.loads(_member(archive,manifest["motion_journal"],MAX_JOURNAL_BYTES)))
