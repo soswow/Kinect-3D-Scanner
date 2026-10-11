@@ -174,6 +174,17 @@ def make_textured_asset(
     labels, selection = (None, {"method": "no_source_images"})
     if prepared:
         labels, selection = _whole_mesh_sources(engine, mesh, prepared)
+    color_field = None
+    seam_report = {"applied": False, "scope": "whole_export", "reason": "Sharp boundaries requested"}
+    if blend_mode == "blend" and len(prepared) > 1:
+        from .surface_color import estimate_color_field
+
+        color_field, seam_report = estimate_color_field(
+            mesh, prepared, engine.settings, gains=exposure[0],
+        )
+        seam_report.update(scope="whole_export")
+    elif blend_mode == "blend":
+        seam_report["reason"] = "Fewer than two source photos"
     pages, reports = [], []
     for page, ids in enumerate(groups):
         local = SimpleNamespace(mesh=_submesh(mesh, ids), settings=engine.settings)
@@ -192,6 +203,8 @@ def make_textured_asset(
             _selected_views=[views[i] for i in active],
             _exposure=(exposure[0][active], exposure[1]),
             _face_sources=local_labels,
+            _color_field=color_field.subset(ids, active) if color_field is not None else None,
+            _seam_report=seam_report,
         )
         name = "scan_material" if len(groups) == 1 else f"scan_material_{page:03d}"
         textured.visual.material.name = name
@@ -232,6 +245,10 @@ def make_textured_asset(
         page_budget_limited=bool(max(r["surface_area_m2"] for r in reports) > area_budget),
         pages=reports,
         source_selection=selection,
+        seam_leveling=dict(seam_report,
+                          corrected_texels=sum(r["seam_leveling"]["corrected_texels"] for r in reports),
+                          clipped_texels=sum(r["seam_leveling"]["clipped_texels"] for r in reports),
+                          corrected_fallback_texels=sum(r["seam_leveling"]["corrected_fallback_texels"] for r in reports)),
         views=[i for i, _ in views],
     )
     result.metadata["texture_report"] = report
