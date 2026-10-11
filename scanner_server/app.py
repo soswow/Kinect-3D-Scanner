@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 
 from shared.live import encode_live_message
-from shared.protocol import unpack_frame_with_metadata, unpack_frames
+from shared.protocol import MAX_BATCH_BYTES, MAX_FRAME_BYTES, unpack_frame_with_metadata, unpack_frames
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
@@ -60,6 +60,7 @@ app = FastAPI(title="Kinect 3D Scanner Server", lifespan=lifespan)
 engine = ScanEngine()
 engine.reset(settings=ScanSettings(sensor_calibration=load_calibration()))
 _build_lock = asyncio.Lock()
+_capture_ingress_lock = asyncio.Lock()
 _broadcast_lock = asyncio.Lock()
 _live_task = None
 _feedback_task = None
@@ -380,13 +381,35 @@ async def scan_reset(request: Request):
 @app.post("/api/scan/frame")
 async def scan_frame(request: Request):
     """Accept a compressed frame (binary body from pack_frame)."""
+    async with _capture_ingress_lock:
+        return await _ingest_frame(request)
+
+
+async def _read_capture_body(request, limit):
+    """Bound actual streamed bytes even when Content-Length is absent or wrong."""
+    declared = request.headers.get("content-length")
+    try:
+        declared = int(declared) if declared is not None else None
+    except ValueError:
+        declared = None
+    if declared is not None and declared > limit:
+        raise HTTPException(413, "Capture upload exceeds its protocol byte limit")
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > limit:
+            raise HTTPException(413, "Capture upload exceeds its protocol byte limit")
+        body.extend(chunk)
+    return bytes(body)
+
+
+async def _ingest_frame(request):
     started = time.monotonic()
-    body = await request.body()
+    body = await _read_capture_body(request, MAX_FRAME_BYTES)
     received = time.monotonic()
     if not body:
         return {"success": False, "message": "Empty body"}
     try:
-        rgb, depth, metadata = await asyncio.to_thread(unpack_frame_with_metadata, body)
+        rgb, depth, metadata = await _engine_call(unpack_frame_with_metadata, body)
     except Exception as e:  # noqa: BLE001 — report malformed protocol input at the HTTP boundary.
         return {"success": False, "message": f"Unpack error: {e}"}
     decoded = time.monotonic()
@@ -454,8 +477,13 @@ async def scan_motion(request: Request):
 @app.post("/api/scan/frames")
 async def scan_frames_batch(request: Request):
     """Accept a batch of compressed frames (binary body from pack_frames)."""
+    async with _capture_ingress_lock:
+        return await _ingest_frames_batch(request)
+
+
+async def _ingest_frames_batch(request):
     started = time.monotonic()
-    body = await request.body()
+    body = await _read_capture_body(request, MAX_BATCH_BYTES)
     received = time.monotonic()
     if not body:
         return {"success": False, "message": "Empty body"}

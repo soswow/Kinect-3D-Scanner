@@ -18,7 +18,8 @@ _V3_MAGIC = b"RGB3"
 _V4_MAGIC = b"RGB4"
 PREDICTED_FRAME_ENCODING = "rgbd-sub-zlib-v1"
 _MAX_BATCH = 100
-_MAX_FRAME_BYTES = 6_000_000
+MAX_FRAME_BYTES = 6_000_000
+MAX_BATCH_BYTES = 8 + 4 * _MAX_BATCH + _MAX_BATCH * MAX_FRAME_BYTES
 MAX_METADATA_BYTES = 1024 * 1024
 
 
@@ -71,7 +72,7 @@ def _decompress(data, size):
 
 
 def unpack_frame_with_metadata(data):
-    if not 8 <= len(data) <= _MAX_FRAME_BYTES:
+    if not 8 <= len(data) <= MAX_FRAME_BYTES:
         raise ValueError("Invalid frame length")
     metadata = {}
     shape = (480, 640, 3)
@@ -135,7 +136,7 @@ def unpack_frames(data, with_metadata=False):
     offset = 8 + 4 * n
     lengths = [_HEADER.unpack_from(data, 8 + 4 * i)[0] for i in range(n)]
     if any(
-        length > _MAX_FRAME_BYTES or length < 8 for length in lengths
+        length > MAX_FRAME_BYTES or length < 8 for length in lengths
     ) or offset + sum(lengths) != len(data):
         raise ValueError("Invalid batch lengths")
     frames = []
