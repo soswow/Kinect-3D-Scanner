@@ -263,8 +263,11 @@ runs in a separate background process; it does not modify an open Blender scene.
 The server supplies the finished session and the textured fused OBJ bundle.
 The normal texture options and triangle budget apply to the fused mesh.
 
-The `.blend` contains three top-level collections: **Fused mesh**, **Depth
-snapshots**, and **Camera**. The fused mesh retains its texture material slots.
+The `.blend` parents every exported object to one **Scan root** Empty at the
+world origin. Move, rotate or scale it to reposition the entire scan, including
+the animated camera. The Empty, **Fused mesh** and **Snapshot camera** live
+directly in **Scene Collection**; only the individual meshes live in the
+**Depth snapshots** collection. The fused mesh retains its texture material slots.
 There is exactly one camera and one background-image slot. Frame 1 keeps that
 camera visible, hides every depth snapshot and makes the background transparent.
 Frames 2 onward step through accepted final camera poses, their background
@@ -289,9 +292,28 @@ larger than `max(30 mm, 2% of depth)`. RGB projection uses the measured separate
 camera transform; the Blender camera also includes that fixed offset, calibrated
 focal lengths and principal point. Images are undistorted with the matching K.
 These meshes are partial measured surfaces, not watertight reconstructions.
-Depth sampling defaults to every two pixels; choose every pixel for full depth
-resolution, or wider sampling to reduce scene memory. Wider cells can omit thin
-features. All accepted frames remain included. Unregistered captures have no
+For Kinect's 640 × 480 depth, the export dialog shows the sampled grid:
+every pixel is **640 × 480**, every two is **320 × 240** (the default), every four
+is **160 × 120**, and every eight is **80 × 60**. Choose **Every pixel** for the
+finest measured depth mesh. This controls individual snapshots independently
+of fusion voxel size and the fused mesh's export triangle budget. A single
+missing pixel or rejected depth edge omits a whole sampled cell, so coarse
+sampling enlarges square holes and can omit thin features. Full sampling
+reduces that enlargement but cannot recover unmeasured surfaces; it can use
+roughly four times the geometry of every two pixels, or sixteen times every
+four, before hole rejection. The saved `scanner_export` metadata records
+`snapshot_stride` and `snapshot_grid`.
+
+Rectification removes lens distortion, not the different camera fields of view
+or their physical offset. In the measured high-resolution Kinect calibration,
+the rectified depth grid covers about **57° × 44°**, versus **63° × 52°** for
+RGB, with about **26 mm** between camera centres. Depth therefore occupies
+less of the RGB camera view; the offset also introduces depth-dependent
+parallax and occlusion. Near/far clipping, crop, invalid depth and rectification
+borders can reduce its visible coverage further. These angles describe this
+calibration and mode, not every Kinect or an undistortion crop guarantee.
+
+All accepted frames remain included. Unregistered captures have no
 shared-world pose and are omitted, with their indices retained in the scene's
 `scanner_export` property. Object metadata and timeline markers retain source
 frame IDs, capture times and animation frame mapping. Large scans can require

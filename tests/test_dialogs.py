@@ -46,12 +46,17 @@ class DialogTests(unittest.TestCase):
     def test_blender_has_its_own_executable_and_snapshot_sampling_choices(self):
         dialog = ExportDialog()
         self.assertTrue(dialog.blender_path_edit.isHidden())
+        self.assertTrue(dialog.snapshot_description.isHidden())
         dialog.format_combo.setCurrentIndex(dialog.format_combo.findData("blend"))
         self.assertFalse(dialog.blender_path_edit.isHidden())
+        self.assertFalse(dialog.snapshot_description.isHidden())
         dialog.blender_path_edit.setText(" /Applications/Blender.app ")
         dialog.snapshot_combo.setCurrentIndex(dialog.snapshot_combo.findData(1))
         self.assertEqual({"blender": "/Applications/Blender.app", "stride": 1}, dialog.blender_options)
         self.assertTrue(dialog.triangle_budget_spin.isEnabled())
+        self.assertEqual([1, 2, 4, 8], [dialog.snapshot_combo.itemData(i) for i in range(4)])
+        self.assertEqual(["640 × 480", "320 × 240", "160 × 120", "80 × 60"],
+                         [dialog.snapshot_combo.itemText(i).split(" — ")[1].split(" (")[0] for i in range(4)])
         dialog.close()
 
     def test_triangle_budget_accepts_full_supported_range(self):

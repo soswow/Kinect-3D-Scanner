@@ -22,6 +22,7 @@ class ExportDialog(QDialog):
         ("GLB — textured", "glb", "A textured model in one self-contained file."),
         ("Blender — animated RGB-D scene", "blend",
          "One animated camera, a textured fused mesh, and a collection of depth snapshots. "
+         "All objects share an Empty so you can move the scan together. "
          "Requires Blender 4.2 or newer. Keep the exported image folder beside the .blend file."),
         (
             "OBJ bundle — textured ZIP",
@@ -92,13 +93,23 @@ class ExportDialog(QDialog):
         layout.addLayout(blender_row)
         self.snapshot_label = QLabel("Depth snapshot sampling")
         self.snapshot_combo = QComboBox()
-        for stride, label in ((1, "Every pixel — full depth resolution"), (2, "Every 2 pixels"),
-                              (4, "Every 4 pixels"), (8, "Every 8 pixels")):
+        for stride, label in ((1, "Every pixel — 640 × 480 (full resolution)"), (2, "Every 2 pixels — 320 × 240"),
+                              (4, "Every 4 pixels — 160 × 120"), (8, "Every 8 pixels — 80 × 60")):
             self.snapshot_combo.addItem(label, stride)
         self.snapshot_combo.setCurrentIndex(1)
-        self.snapshot_combo.setToolTip("All accepted snapshots are included. Wider sampling uses fewer triangles and less Blender memory.")
+        self.snapshot_combo.setToolTip(
+            "Grid sizes are for 640 × 480 depth. Every pixel preserves the finest measured detail. "
+            "All accepted snapshots are included; finer sampling increases Blender memory. "
+            "Fusion voxel size and the triangle budget affect the fused mesh, not depth snapshots."
+        )
         layout.addWidget(self.snapshot_label)
         layout.addWidget(self.snapshot_combo)
+        self.snapshot_description = QLabel(
+            "Choose Every pixel for the finest depth mesh. Missing readings and sharp depth jumps "
+            "leave holes; wider sampling makes those holes larger. Finer sampling uses more Blender memory."
+        )
+        self.snapshot_description.setWordWrap(True)
+        layout.addWidget(self.snapshot_description)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.export_button = self.buttons.addButton(
             "Export", QDialogButtonBox.ButtonRole.AcceptRole
@@ -151,7 +162,7 @@ class ExportDialog(QDialog):
         self.triangle_budget_label.setEnabled(textured)
         self.texture_description.setVisible(textured)
         for widget in (self.blender_label, self.blender_path_edit, self.blender_browse,
-                       self.snapshot_label, self.snapshot_combo):
+                       self.snapshot_label, self.snapshot_combo, self.snapshot_description):
             widget.setVisible(self.selected_format == "blend")
 
 

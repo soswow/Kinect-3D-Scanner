@@ -57,6 +57,19 @@ def fixture(root):
 
 
 class BlenderPreparationTests(unittest.TestCase):
+    def test_snapshot_grid_uses_depth_pixels_independently_of_fusion_voxels(self):
+        depth = np.full((480, 640), 1000, np.uint16)
+        fine = ScanSettings(filter_depth=False, final_voxel_m=.002)
+        coarse = ScanSettings(filter_depth=False, voxel_m=.01, final_voxel_m=.01)
+        for stride in (1, 2, 4, 8):
+            vertices, faces = snapshot_geometry(depth, fine, stride=stride)
+            height, width = 480 // stride, 640 // stride
+            self.assertEqual(height * width, len(vertices))
+            self.assertEqual(2 * (height - 1) * (width - 1), len(faces))
+            other_vertices, other_faces = snapshot_geometry(depth, coarse, stride=stride)
+            np.testing.assert_array_equal(vertices, other_vertices)
+            np.testing.assert_array_equal(faces, other_faces)
+
     def test_sampling_does_not_bridge_missing_pixels_or_depth_discontinuities(self):
         settings = ScanSettings(filter_depth=False)
         depth = np.zeros((480, 640), np.uint16)
@@ -156,14 +169,20 @@ assert len([o for o in s.objects if o.type == 'CAMERA']) == 1
 assert len(c.data.background_images) == 1
 b = c.data.background_images[0]
 assert b.image.source == 'SEQUENCE'
-assert len(s.collection.children) == 3
-assert {v.name for v in s.collection.children} == {'Fused mesh', 'Depth snapshots', 'Camera'}
+assert {v.name for v in s.collection.children} == {'Depth snapshots'}
+root = bpy.data.objects['Scan root']
+assert root.type == 'EMPTY' and root.parent is None
+assert root.matrix_world == Matrix.Identity(4)
 fused = bpy.data.objects['Fused mesh']
+assert set(s.collection.objects) == {root, fused, c}
+assert all(o.parent == root for o in s.objects if o != root)
+assert json.loads(s['scanner_export'])['snapshot_grid'] == {'width': 320, 'height': 240}
 assert fused.animation_data is None
 assert len(fused.data.polygons) == 1
 assert all(n.image.packed_file for m in fused.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE')
 meshes = list(bpy.data.collections['Depth snapshots'].objects)
 assert len(meshes) == 2
+assert all(list(o.users_collection) == [bpy.data.collections['Depth snapshots']] for o in meshes)
 assert len(bpy.app.handlers.frame_change_post) == 0
 assert not any(t.use_module for t in bpy.data.texts)
 world = Matrix(((1,0,0,0),(0,0,1,0),(0,-1,0,0),(0,0,0,1)))
@@ -182,6 +201,8 @@ for frame in (1, 2, 3, 1, 3, 2):
         assert o['animation_frame'] == frame
         expected = world @ Matrix(observation['rgb_to_world']) @ optical
         assert max(abs(c.matrix_world[i][j]-expected[i][j]) for i in range(4) for j in range(4)) < 1e-6
+        expected_depth = world @ Matrix(observation['camera_to_world'])
+        assert max(abs(o.matrix_world[i][j]-expected_depth[i][j]) for i in range(4) for j in range(4)) < 1e-6
         calibration = json.loads(s['scanner_export'])['camera']
         # Pixel-center projection must agree with the exported calibrated camera.
         local = Vector((.05, -.03, 1))
@@ -200,6 +221,27 @@ s.frame_set(2)
 pose = c.matrix_world.copy()
 s.frame_set(2, subframe=.5)
 assert c.matrix_world == pose
+# Repositioning the root must move every snapshot and the animated camera,
+# preserving calibrated projection and alignment throughout the timeline.
+fused.hide_viewport = False
+root.location = (1.2, -2.3, .7)
+root.rotation_euler = (.2, -.3, .4)
+root.scale = (1.5, 1.5, 1.5)
+for frame in (2, 3, 1, 3, 2):
+    s.frame_set(frame)
+    assert max(abs(fused.matrix_world[i][j]-(root.matrix_world @ world)[i][j]) for i in range(4) for j in range(4)) < 1e-6
+    for o in meshes:
+        observation = json.loads(o['observation'])
+        expected_local = world @ Matrix(observation['camera_to_world'])
+        assert max(abs(o.matrix_basis[i][j]-expected_local[i][j]) for i in range(4) for j in range(4)) < 1e-6
+        if frame == o['animation_frame']:
+            expected = root.matrix_world @ expected_local
+            assert max(abs(o.matrix_world[i][j]-expected[i][j]) for i in range(4) for j in range(4)) < 1e-6
+            expected = root.matrix_world @ world @ Matrix(observation['rgb_to_world']) @ optical
+            assert max(abs(c.matrix_world[i][j]-expected[i][j]) for i in range(4) for j in range(4)) < 1e-6
+            point = root.matrix_world @ world @ Matrix(observation['rgb_to_world']) @ local
+            projected = world_to_camera_view(s, c, point)
+            assert abs(projected.x-u) < 1e-5 and abs(projected.y-v) < 1e-5
 print('REOPENED_BLENDER_SCENE_OK')
 ''', encoding="utf-8")
             process = subprocess.run([find_blender(), "--background", "--factory-startup", str(output),

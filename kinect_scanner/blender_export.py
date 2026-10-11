@@ -247,6 +247,8 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
             scene = {"version": 1, "session_id": report.get("session_id"),
                      "camera": {"width": c.width, "height": c.height, "fx": c.fx, "fy": c.fy, "cx": c.cx, "cy": c.cy},
                      "settings": settings.to_dict(), "snapshot_stride": stride,
+                     "snapshot_grid": {"width": len(range(0, settings.camera.width, stride)),
+                                       "height": len(range(0, settings.camera.height, stride))},
                      "unregistered_indices": sorted(set(range(len(frames))) - indices),
                      "snapshots": [], "images": assets.name, "model": str(model_dir / "scan.obj")}
             for number, (index, pose) in enumerate(poses, 1):

@@ -50,26 +50,28 @@ def write_scene(configuration, staged, final):
     # Scanner axes: right, down, forward. Blender world: right, forward, up.
     world = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)))
     optical = Matrix.Diagonal((1, -1, -1, 1))  # Blender camera looks along -Z.
-    fused_collection = bpy.data.collections.new("Fused mesh")
-    scene.collection.children.link(fused_collection)
+    root = bpy.data.objects.new("Scan root", None)
+    root.empty_display_type = "PLAIN_AXES"
+    root.empty_display_size = 0.25
+    scene.collection.objects.link(root)
     bpy.ops.wm.obj_import(filepath=config["model"], forward_axis="Y", up_axis="Z")
     fused = [obj for obj in scene.objects if obj.type == "MESH"]
     if len(fused) != 1 or not fused[0].data.materials:
         raise RuntimeError("Expected one textured fused mesh")
     fused = fused[0]
     fused.name = "Fused mesh"
+    fused.parent = root
     fused.matrix_world = world
     for collection in list(fused.users_collection):
         collection.objects.unlink(fused)
-    fused_collection.objects.link(fused)
+    scene.collection.objects.link(fused)
     fused.hide_viewport = fused.hide_render = False
     snapshots = bpy.data.collections.new("Depth snapshots")
     scene.collection.children.link(snapshots)
-    cameras = bpy.data.collections.new("Camera")
-    scene.collection.children.link(cameras)
     data = bpy.data.cameras.new("Snapshot camera")
     camera = bpy.data.objects.new("Snapshot camera", data)
-    cameras.objects.link(camera)
+    scene.collection.objects.link(camera)
+    camera.parent = root
     camera.rotation_mode = "QUATERNION"
     scene.camera = camera
     c = config["camera"]
@@ -122,6 +124,7 @@ def write_scene(configuration, staged, final):
             observed = geometry["observed"]
         obj = bpy.data.objects.new(mesh.name, mesh)
         snapshots.objects.link(obj)
+        obj.parent = root
         obj.matrix_world = world @ Matrix(snapshot["camera_to_world"])
         obj["snapshot_index"], obj["animation_frame"] = snapshot["index"], frame
         obj["observation"] = json.dumps({k: v for k, v in snapshot.items() if k not in ("geometry", "image")})
@@ -143,11 +146,16 @@ def write_scene(configuration, staged, final):
     scene["scanner_export"] = json.dumps({k: v for k, v in config.items() if k not in ("model", "snapshots")})
     text = bpy.data.texts.new("Scanner export notes")
     text.write("Frame 1: camera visible; fused mesh only; no photo background.\n"
+               "Move, rotate or scale Scan root to transform the entire scan, including the animated camera.\n"
                "Frames 2 onward: one camera pose, one sequence background and one depth snapshot.\n"
                "Fused mesh visibility is not animated. Background opacity is 0.5.\n"
                "Depth meshes use only their own prepared depth and RGB observation.\n"
                "Keep the relative .images folder beside this .blend; background sequences cannot be packed.\n"
                "Only accepted final poses are placed in the shared scene. See scanner_export for skipped indices.\n")
+    grid = config["snapshot_grid"]
+    text.write(f"Depth sampling: every {config['snapshot_stride']} pixel(s), {grid['width']} x {grid['height']} grid.\n"
+               "Sampling controls depth mesh detail; fusion voxel size and the fused triangle budget do not.\n"
+               "Missing depth or sharp depth jumps omit whole sampled cells. Finer sampling makes these holes smaller.\n")
     # Pack ordinary material images; retain just one relative external sequence.
     for image in bpy.data.images:
         if image.source == "FILE" and image.filepath:
