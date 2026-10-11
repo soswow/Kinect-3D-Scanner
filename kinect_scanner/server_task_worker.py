@@ -253,9 +253,15 @@ class ServerTaskWorker(QThread):
                 status = self._client.last_status
                 self._live = bool(status.get("settings", {}).get("live_reconstruction"))
                 self._configure_spool(status.get("settings", {}), status.get("session_id"))
-                if status.get("session_id") != self._recording_session_id:
+                if status.get("session_id") != self._recording_session_id or self._recording is None:
                     self._recording = None
                     self._recording_session_id = None
+                    if self._client._project_export_supported:
+                        self._recording = RecordingWriter.for_session(data_root() / "recordings", status.get("session_id"))
+                        if self._recording is not None:
+                            self._recording_session_id = status["session_id"]
+                            logger.info("Recovered local capture recording for session=%s path=%s",
+                                        self._recording_session_id, self._recording.path)
 
         elif tt == ServerTaskType.DISCONNECT:
             self._client.disconnect()
@@ -291,7 +297,7 @@ class ServerTaskWorker(QThread):
                 root = data_root() / "recordings"
                 path = root / datetime.now(timezone.utc).astimezone().strftime("scan-%Y%m%d-%H%M%S-%f")
                 try:
-                    self._recording = RecordingWriter(path, result["settings"])
+                    self._recording = RecordingWriter(path, result["settings"], session_id=result.get("session_id"))
                     self._recording_session_id = result.get("session_id")
                     logger.info("Local capture recording started session=%s path=%s", self._recording_session_id, path)
                 except Exception as exc:  # noqa: BLE001 — optional recording must not undo a committed reset.
@@ -373,6 +379,15 @@ class ServerTaskWorker(QThread):
             self._require_uploaded_captures()
             path = task.kwargs["path"]
             fmt = task.kwargs.get("format", "session")
+            download_options = {"options": task.kwargs.get("options")}
+            if (tt == ServerTaskType.EXPORT_SESSION and self._recording is not None
+                    and self._recording_session_id == self._client.session_id
+                    and self._client._project_export_supported):
+                from shared.project_archive import recording_captures
+                self._client.task_started.emit("Checking selected captures in local recording…")
+                local = recording_captures(self._recording)
+                if local:
+                    download_options["local_captures"] = local
             self._client.task_started.emit(f"Exporting {fmt} to {path}...")
             snapshot = None
             recorder = task.kwargs.get("sensor_recorder")
@@ -381,14 +396,14 @@ class ServerTaskWorker(QThread):
                 snapshot = recorder.flush_sensor_recording(task.kwargs.get("sensor_path"), stop=True)
             self._client.task_started.emit("Preparing project on server…" if tt == ServerTaskType.EXPORT_SESSION else "Preparing textured model…")
             if snapshot is None:
-                success = self._client.request_export(fmt, path, options=task.kwargs.get("options"))
+                success = self._client.request_export(fmt, path, **download_options)
             else:
                 # Keep an existing complete session intact if downloading or
                 # merging the local observations fails.
                 fd, temporary = tempfile.mkstemp(prefix=".sensor-session-", suffix=".zip", dir=Path(path).resolve().parent)
                 os.close(fd)
                 try:
-                    success = self._client.request_export(fmt, temporary, options=task.kwargs.get("options"))
+                    success = self._client.request_export(fmt, temporary, **download_options)
                     if success:
                         self._client.task_started.emit("Adding sensor recording…")
                         started = time.monotonic()

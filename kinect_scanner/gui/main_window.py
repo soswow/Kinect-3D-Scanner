@@ -39,21 +39,21 @@ from PyQt6.QtWidgets import (
 from shared.calibration import raw_depth_to_mm
 from shared.capture import RGB_GAIN_CHOICES, RGB_MODE_FPS
 from shared.inertial import OrientationTracker, calibration_profile, rotate_display
+from shared.motion_history import capture_interval
 from shared.sensor_calibration import load_calibration
 from shared.settings import ScanSettings
 
 from ..capture_pacing import CapturePacer
 from ..capture_selection import CaptureSelector, MotionCapturePolicy
-from shared.motion_history import capture_interval
 from ..config import MODE_DEPTH, MODE_RGB, MODE_SCANNER
 from ..runtime import data_root, export_root
 from ..server_client import ServerClient
 from ..server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
 from ..viewer import launch_viewer_subprocess
 from ..worker import KinectWorker
-from .components import CameraPreview, CollapsibleSection
-from .apriltags import AprilTagDictionaries
 from .apriltag_preview import paint_apriltags
+from .apriltags import AprilTagDictionaries
+from .components import CameraPreview, CollapsibleSection
 from .dialogs import ExportDialog, SessionProtectionDialog
 from .feedback import CaptureSound
 from .live_view import LiveView
@@ -208,6 +208,7 @@ class MainWindow(QMainWindow):
                 (self.crop_cb, "scan/crop_enabled"),
                 (self.crop_spin, "scan/crop_percent"),
                 (self.record_cb, "scan/record"),
+                (self.project_jpeg_cb, "export/project_jpeg"),
                 (self.full_camera_recording_cb, "scan/record_full_camera_streams"),
                 (self.orientation_combo, "camera/orientation"),
                 (self.gravity_tracking_cb, "scan/gravity_assistance"),
@@ -559,6 +560,9 @@ class MainWindow(QMainWindow):
         output_row.addWidget(self.btn_export_session)
         layout.addWidget(self.btn_open_project)
         layout.addLayout(output_row)
+        self.project_jpeg_cb = QCheckBox("Smaller projects (JPEG photos)", container)
+        self.project_jpeg_cb.setToolTip("Save RGB photos as JPEG at quality 95, with some loss of color detail. Depth and separate local capture copies stay lossless. Capture and current reconstruction use the original images.")
+        layout.addWidget(self.project_jpeg_cb)
         self.progress_status_label = QLabel()
         self.progress_status_label.setWordWrap(True)
         self.progress_status_label.hide()
@@ -617,7 +621,7 @@ class MainWindow(QMainWindow):
         vg.addWidget(self.crop_cb)
         vg.addWidget(self.crop_spin)
         self.record_cb = QCheckBox("Also keep selected captures locally")
-        self.record_cb.setToolTip("Save Session keeps selected reconstruction images and the accelerometer log. This also keeps a separate local copy of the selected images.")
+        self.record_cb.setToolTip("Keep a separate lossless copy of selected images. Project saves reuse matching local captures to avoid downloading them again.")
         vg.addWidget(self.record_cb)
         self.full_camera_recording_cb = QCheckBox("Record all camera frames (large files)")
         self.full_camera_recording_cb.setToolTip("Optional research recording of every RGB/depth frame: about 3.5 GB/min at high resolution, or 2.8 GB/min at VGA. Leave off for selected images plus the small accelerometer log.")
@@ -925,6 +929,7 @@ class MainWindow(QMainWindow):
                        self.btn_export_texture_obj, self.btn_save_mesh):
             button.setEnabled(connected and self._has_mesh and not busy)
         self.settings_group.setEnabled(not active and not busy)
+        self.project_jpeg_cb.setEnabled(not busy)
         self.capture_mode_combo.setEnabled(not busy)
         self.auto_capture_spin.setEnabled(not busy)
         self.auto_capture_cb.setEnabled(connected and active and not busy)
@@ -1903,7 +1908,7 @@ class MainWindow(QMainWindow):
             )
         if not path:
             return False
-        options = {"path": path}
+        options = {"path": path, "options": {"rgb_format": "jpeg" if self.project_jpeg_cb.isChecked() else "png"}}
         if self._sensor_recording_path and hasattr(self.worker, "flush_sensor_recording"):
             options.update(sensor_recorder=self.worker, sensor_path=self._sensor_recording_path)
         return self._begin_export("session", path, ServerTask(ServerTaskType.EXPORT_SESSION, options))

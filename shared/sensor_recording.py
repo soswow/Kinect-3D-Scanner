@@ -7,7 +7,6 @@ only the images selected for fusion. A bounded writer reports every overflow.
 import json
 import logging
 import queue
-import shutil
 import threading
 import time
 import zipfile
@@ -188,16 +187,22 @@ def journal_snapshot(root, active=None):
 
 def augment_session_archive(path, snapshot, portrait=True):
     """Add full streams and portrait derivatives without rewriting native geometry."""
+    from .project_archive import (
+        copy_member,
+        encode_image,
+        member_compression,
+        write_member,
+    )
+
     path = Path(path)
     temporary = path.with_name(path.name + ".sensors.tmp")
     root = Path(snapshot["root"])
     try:
-        with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as target:
+        with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as target:
             manifest = json.loads(source.read("manifest.json"))
             for item in source.infolist():
                 if item.filename != "manifest.json":
-                    with source.open(item) as data, target.open(item, "w", force_zip64=True) as output:
-                        shutil.copyfileobj(data, output, length=1024 * 1024)
+                    copy_member(source, target, item)
             for segment in snapshot["segments"]:
                 generation = segment["generation"]
                 directory = (root / generation).resolve()
@@ -211,15 +216,17 @@ def augment_session_archive(path, snapshot, portrait=True):
                         data = handle.read(length)
                     if len(data) != length or (data and not data.endswith(b"\n")):
                         raise ValueError("Incomplete sensor index checkpoint")
-                    target.writestr(f"sensors/{generation}/{stream}.jsonl", data)
+                    write_member(target, f"sensors/{generation}/{stream}.jsonl", data)
                     for line in data.splitlines():
                         row = json.loads(line)
                         if "image" in row:
                             image_path = (directory / row["image"]).resolve()
                             if not image_path.is_relative_to(directory):
                                 raise ValueError("Invalid recorded image path")
-                            target.write(image_path, f"sensors/{generation}/{row['image']}")
-                target.writestr(f"sensors/{generation}/status.json", json.dumps(segment["status"], allow_nan=False))
+                            relative = f"sensors/{generation}/{row['image']}"
+                            # Full-stream NPY/PNG observations retain their original bytes.
+                            target.write(image_path, relative, compress_type=member_compression(relative))
+                write_member(target, f"sensors/{generation}/status.json", json.dumps(segment["status"], allow_nan=False))
             from shared.inertial import rotate_display
             if portrait:
                 for frame in manifest["frames"]:
@@ -230,11 +237,16 @@ def augment_session_archive(path, snapshot, portrait=True):
                         if "display_" + stream in frame:
                             continue
                         raw = cv2.imdecode(np.frombuffer(source.read(frame[stream]), np.uint8), cv2.IMREAD_UNCHANGED)
-                        success, encoded = cv2.imencode(".png", rotate_display(raw, rotation), [cv2.IMWRITE_PNG_COMPRESSION, 1])
-                        if not success:
-                            raise OSError("Could not encode portrait image")
+                        shown = rotate_display(raw, rotation)
+                        if stream == "rgb" and manifest.get("rgb_format") == "jpeg":
+                            encoded = encode_image(cv2.cvtColor(shown, cv2.COLOR_BGR2RGB), "jpeg")
+                        else:
+                            success, png = cv2.imencode(".png", shown, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+                            if not success:
+                                raise OSError("Could not encode portrait image")
+                            encoded = png.tobytes()
                         relative = f"display/{frame[stream]}"
-                        target.writestr(relative, encoded.tobytes())
+                        write_member(target, relative, encoded)
                         frame["display_" + stream] = relative
             previous = manifest.get("sensor_archive", {})
             segments = {s["generation"]: s for s in previous.get("segments", [])}
@@ -244,7 +256,7 @@ def augment_session_archive(path, snapshot, portrait=True):
                 "complete": snapshot["complete"] and previous.get("complete", True), "scope": "All accelerometer read attempts and orientation events; full RGB/depth streams only in explicitly enabled recording segments",
                 "control_error": snapshot.get("control_error"),
             })
-            target.writestr("manifest.json", json.dumps(manifest, indent=2, allow_nan=False))
+            write_member(target, "manifest.json", json.dumps(manifest, separators=(",", ":"), allow_nan=False))
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)

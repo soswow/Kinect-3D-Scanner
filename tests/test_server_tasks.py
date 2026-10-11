@@ -160,6 +160,33 @@ class ServerTaskTests(unittest.TestCase):
         self.assertIs(worker._recording, recording.return_value)
         self.assertEqual(worker._recording_session_id, "recorded")
 
+    def test_project_save_reuses_only_recordings_for_current_session(self):
+        client = ServerClient()
+        client.session_id = "recorded"
+        client._project_export_supported = True
+        client.request_export = Mock(return_value=True)
+        worker = ServerTaskWorker(client)
+        worker._recording = Mock()
+        worker._recording_session_id = "recorded"
+        task = ServerTask(ServerTaskType.EXPORT_SESSION, {"path": "/unused/project.zip", "options": {"rgb_format": "jpeg"}})
+        with patch("shared.project_archive.recording_captures", return_value={0: {"rgb": "local"}}):
+            worker._dispatch(task)
+        client.request_export.assert_called_once_with("session", "/unused/project.zip", options={"rgb_format": "jpeg"}, local_captures={0: {"rgb": "local"}})
+        worker._recording_session_id = "old"
+        worker._dispatch(task)
+        self.assertNotIn("local_captures", client.request_export.call_args.kwargs)
+
+    def test_connection_recovers_matching_local_recording_after_restart(self):
+        client = ServerClient()
+        client._project_export_supported = True
+        client.connect_to_server = Mock(return_value=True)
+        client.last_status = {"session_id": "existing", "settings": {"live_reconstruction": True}}
+        worker = ServerTaskWorker(client)
+        with patch("kinect_scanner.server_task_worker.RecordingWriter.for_session", return_value=Mock()) as recover:
+            worker._dispatch(ServerTask(ServerTaskType.CONNECT, {"host": "server", "port": 8000}))
+        self.assertIs(worker._recording, recover.return_value)
+        self.assertEqual("existing", worker._recording_session_id)
+
     def test_exception_identifies_failed_task_and_worker_continues(self):
         client = ServerClient()
         client.request_final_preview = Mock(side_effect=RuntimeError("lost transport"))

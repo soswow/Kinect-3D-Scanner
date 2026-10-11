@@ -1,7 +1,7 @@
 """Full stream retention, checkpoint boundaries, replay, and transactional saves."""
 
-import json
 import io
+import json
 import tempfile
 import threading
 import time
@@ -11,15 +11,22 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import cv2
 import numpy as np
 from PIL import Image
 
 from kinect_scanner.server_client import ServerClient
-from kinect_scanner.server_task_worker import ServerTask, ServerTaskType, ServerTaskWorker
+from kinect_scanner.server_task_worker import (
+    ServerTask,
+    ServerTaskType,
+    ServerTaskWorker,
+)
 from scanner_server.session import export_session
 from shared.inertial import G, rotate_display
-from shared.sensor_recording import SensorJournal, augment_session_archive, journal_snapshot
+from shared.sensor_recording import (
+    SensorJournal,
+    augment_session_archive,
+    journal_snapshot,
+)
 from shared.sensor_replay import load_sensor_observations
 from shared.settings import ScanSettings
 
@@ -84,6 +91,9 @@ class SensorRecordingTests(unittest.TestCase):
             self.assertFalse(any(name.endswith(".npy") for name in archive.namelist()))
             self.assertIn("rgb/000000.png", archive.namelist())
             self.assertIn("depth/000000.png", archive.namelist())
+            for name in ("manifest.json", "reconstruction.json", "sensors/segment/accelerometer.jsonl"):
+                self.assertEqual(zipfile.ZIP_DEFLATED, archive.getinfo(name).compress_type)
+            self.assertEqual(zipfile.ZIP_STORED, archive.getinfo("rgb/000000.png").compress_type)
             archive.extractall(self.root / "normal")
         from scripts.replay_scan import load_dataset
         _, frames = load_dataset("recording", self.root / "normal")

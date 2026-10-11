@@ -10,7 +10,7 @@ _PNG_OPTIONS = [cv2.IMWRITE_PNG_COMPRESSION, 1]
 
 
 class RecordingWriter:
-    def __init__(self, path, settings):
+    def __init__(self, path, settings, session_id=None):
         self.path = Path(path)
         self.path.mkdir(parents=True, exist_ok=False)
         (self.path / "rgb").mkdir()
@@ -26,7 +26,40 @@ class RecordingWriter:
             "settings": settings,
             "frames": [],
         }
+        if session_id:
+            self.manifest["session_id"] = session_id
         self._save_manifest()
+
+    @classmethod
+    def for_session(cls, root, session_id):
+        """Recover a matching acknowledged recording after a client restart.
+
+        Older recordings identify their session in the reconstruction sidecar.
+        This performs no server calls and does not modify a candidate recording.
+        """
+        if not session_id:
+            return None
+        paths = sorted(Path(root).glob("scan-*/manifest.json"), reverse=True)
+        for path in paths:
+            try:
+                if path.stat().st_size > 256 * 1024**2:
+                    continue
+                manifest = json.loads(path.read_text())
+                identity = manifest.get("session_id")
+                if identity is None and manifest.get("reconstruction"):
+                    report = (path.parent / manifest["reconstruction"]).resolve()
+                    if not report.is_relative_to(path.parent.resolve()) or report.stat().st_size > 256 * 1024**2:
+                        continue
+                    identity = json.loads(report.read_text()).get("session_id")
+                if identity != session_id or not isinstance(manifest.get("frames"), list):
+                    continue
+                recording = cls.__new__(cls)
+                recording.path = path.parent
+                recording.manifest = manifest
+                return recording
+            except (OSError, ValueError, AttributeError, TypeError):
+                continue
+        return None
 
     def _save_manifest(self):
         temporary = self.path / "manifest.json.tmp"

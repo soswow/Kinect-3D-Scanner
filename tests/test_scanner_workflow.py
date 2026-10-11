@@ -226,6 +226,16 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertEqual(ServerTaskType.OPEN_PROJECT, self.window.task_worker.tasks[-1].task_type)
         self.assertEqual("/tmp/next-project.zip", self.window.task_worker.tasks[-1].kwargs["path"])
 
+    def test_project_photo_option_is_remembered_and_applies_to_save(self):
+        self.assertFalse(self.window.project_jpeg_cb.isChecked())
+        self.retain_scan()
+        self.window._refresh_controls()
+        self.assertTrue(self.window.project_jpeg_cb.isEnabled())
+        self.window.project_jpeg_cb.setChecked(True)
+        self.assertTrue(self.window.preferences.read("export/project_jpeg", False))
+        self.assertTrue(self.window._export_session(path="/tmp/compact.zip"))
+        self.assertEqual({"rgb_format": "jpeg"}, self.window.task_worker.tasks[-1].kwargs["options"])
+
     def test_open_failure_retains_counts_and_success_restores_paused_project(self):
         self.retain_scan()
         self.window._session_dirty = False
