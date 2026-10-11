@@ -24,8 +24,8 @@ def png(array):
     return output.getvalue()
 
 
-def fixture(root):
-    settings = ScanSettings(camera=CameraCalibration(fx=531, fy=519, cx=303.2, cy=231.7), filter_depth=False)
+def fixture(root, *, fx=531, fy=519):
+    settings = ScanSettings(camera=CameraCalibration(fx=fx, fy=fy, cx=303.2, cy=231.7), filter_depth=False)
     rgb = np.zeros((480, 640, 3), np.uint8)
     rgb[:, :320, 0], rgb[:, 320:, 2] = 255, 255
     depth = np.zeros((480, 640), np.uint16)
@@ -136,6 +136,36 @@ class BlenderPreparationTests(unittest.TestCase):
 
 
 class BlenderRoundTripTests(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get("BLENDER_EXECUTABLE"), "Set BLENDER_EXECUTABLE for the saved-scene regression")
+    def test_camera_projection_preserves_focal_ratio_when_fy_exceeds_fx(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, model, _ = fixture(root, fx=519, fy=531)
+            output = root / "scan.blend"
+            convert_session(session, output, textured_model=model, stride=8)
+            check = root / "verify.py"
+            check.write_text('''import bpy, json
+from mathutils import Matrix, Vector
+from bpy_extras.object_utils import world_to_camera_view
+s = bpy.context.scene
+c = json.loads(s['scanner_export'])['camera']
+assert abs(s.render.pixel_aspect_y/s.render.pixel_aspect_x-c['fx']/c['fy']) < 1e-6
+world = Matrix(((1,0,0,0),(0,0,1,0),(0,-1,0,0),(0,0,0,1)))
+for o in bpy.data.collections['Depth snapshots'].objects:
+    s.frame_set(o['animation_frame'])
+    observation = json.loads(o['observation'])
+    point = world @ Matrix(observation['rgb_to_world']) @ Vector((.05, -.03, 1))
+    p = world_to_camera_view(s, s.camera, point)
+    assert abs(p.x-(.05*c['fx']+c['cx']+.5)/c['width']) < 1e-5
+    assert abs(p.y-(1-(-.03*c['fy']+c['cy']+.5)/c['height'])) < 1e-5
+print('FOCAL_RATIO_OK')
+''', encoding="utf-8")
+            process = subprocess.run([find_blender(), "--background", "--factory-startup", str(output),
+                                      "--threads", "2", "--python-exit-code", "1", "--python", str(check)],
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
+            self.assertEqual(0, process.returncode, process.stdout)
+            self.assertIn("FOCAL_RATIO_OK", process.stdout)
+
     @unittest.skipUnless(os.environ.get("BLENDER_EXECUTABLE"), "Set BLENDER_EXECUTABLE for the saved-scene regression")
     def test_standalone_converter_bakes_saved_mesh_without_a_server_or_refusion(self):
         with tempfile.TemporaryDirectory() as temporary:

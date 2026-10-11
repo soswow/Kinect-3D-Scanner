@@ -291,6 +291,8 @@ leaves holes and rejects sampled cells with invalid pixels or a depth jump
 larger than `max(30 mm, 2% of depth)`. RGB projection uses the measured separate
 camera transform; the Blender camera also includes that fixed offset, calibrated
 focal lengths and principal point. Images are undistorted with the matching K.
+The camera's pixel aspect ratio preserves unequal horizontal/vertical focal
+lengths, including calibrations where `fy > fx`.
 These meshes are partial measured surfaces, not watertight reconstructions.
 For Kinect's 640 × 480 depth, the export dialog shows the sampled grid:
 every pixel is **640 × 480**, every two is **320 × 240** (the default), every four

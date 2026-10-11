@@ -77,12 +77,15 @@ def write_scene(configuration, staged, final):
     c = config["camera"]
     scene.render.resolution_x, scene.render.resolution_y = c["width"], c["height"]
     scene.render.resolution_percentage = 100
-    scene.render.pixel_aspect_x = 1
-    scene.render.pixel_aspect_y = c["fx"] / c["fy"]
+    # Blender clamps both pixel aspect components to >= 1. Express the ratio
+    # on the other axis when fy > fx, rather than silently losing calibration.
+    aspect = c["fx"] / c["fy"]
+    scene.render.pixel_aspect_x = max(1, 1 / aspect)
+    scene.render.pixel_aspect_y = max(1, aspect)
     data.sensor_fit, data.sensor_width = "HORIZONTAL", 36
     data.lens = c["fx"] * data.sensor_width / c["width"]
     data.shift_x = ((c["width"] - 1) / 2 - c["cx"]) / c["width"]
-    data.shift_y = (c["cy"] - (c["height"] - 1) / 2) * scene.render.pixel_aspect_y / c["width"]
+    data.shift_y = (c["cy"] - (c["height"] - 1) / 2) * aspect / c["width"]
     data.clip_start, data.clip_end = 0.01, 1000
     data.show_background_images = True
     background = data.background_images.new()
