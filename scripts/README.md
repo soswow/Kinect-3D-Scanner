@@ -33,6 +33,7 @@ never executed. See [documentation](../docs/README.md) for current behavior.
 | [calibrate_camera.py](calibrate_camera.py) | Fit intrinsics or inspect saved registered RGB-D target evidence; explicit output path |
 | [calibrate_accelerometer.py](calibrate_accelerometer.py) | Guided physical sensor measurements or offline fitting; see [sensor reference](../docs/KINECT_ACCELEROMETER.md) |
 | [build_macos_client.py](build_macos_client.py), [build_macos_icon.py](build_macos_icon.py) | macOS/Xcode packaging environment; build/check `dist/` bundle or regenerate icon assets |
+| [install_macos_client.py](install_macos_client.py) | Explicit `--source` app bundle and optional `--destination` (default `~/Applications/Kinect 3D Scanner.app`); macOS `ditto`/`ps`; refuses running clients/helpers, stages and checks the whole bundle, retains the previous app and restores it on installation/check failure; no server or camera access |
 
 The CUDA preview recipe and supported environment are in the
 [project README](../README.md); measured tradeoffs and limits are in

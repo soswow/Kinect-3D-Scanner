@@ -1,6 +1,7 @@
 """Regression tests for driver stalls, retries and shared-buffer ownership."""
 
 import signal
+import os
 import threading
 import time
 import unittest
@@ -27,6 +28,14 @@ def stalled_capture(connection, stop_event, rgb_buffer, depth_buffer):
 def silent_capture(connection, stop_event, rgb_buffer, depth_buffer):
     while True:
         time.sleep(0.1)
+
+
+def exited_capture(connection, stop_event, rgb_buffer, depth_buffer):
+    os._exit(7)
+
+
+def signalled_capture(connection, stop_event, rgb_buffer, depth_buffer):
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 def sensor_only_capture(connection, stop_event, rgb_buffer, depth_buffer):
@@ -58,6 +67,20 @@ def wait_for(predicate, timeout=5):
 
 
 class CaptureWorkerTests(unittest.TestCase):
+    def test_unexpected_child_exit_reports_exit_code_or_signal(self):
+        for target, detail in ((exited_capture, "exit code 7"), (signalled_capture, "signal SIGTERM")):
+            with self.subTest(target=target):
+                errors = []
+                worker = KinectWorker(capture_target=target, retry_delay=10)
+                self.addCleanup(self.stop_worker, worker)
+                worker.error_occurred.connect(errors.append, Qt.ConnectionType.DirectConnection)
+                with self.assertLogs("kinect_scanner.worker", level="WARNING") as logs:
+                    worker.start()
+                    self.assertTrue(wait_for(lambda: bool(errors)))
+                    self.stop_worker(worker)
+                self.assertIn(detail, errors[0])
+                self.assertTrue(any(detail in entry for entry in logs.output))
+
     def test_finish_checkpoints_recording_before_stop_without_delivering_more_images(self):
         worker = KinectWorker()
         worker.coalesce_frames = True

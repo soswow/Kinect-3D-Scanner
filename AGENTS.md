@@ -83,6 +83,11 @@ its validated changes are committed, integrated, pushed, and installed:
    Install the entire resulting `Kinect 3D Scanner.app` bundle into
    `~/Applications/Kinect 3D Scanner.app`, replacing the previous installed
    build. A build left only in a worktree's `dist` folder is unfinished work.
+   Use `scripts/install_macos_client.py --source <built-bundle>`, which refuses
+   to replace a running client or viewer. Never move, rename or overwrite an
+   installed bundle while any of its processes are running: frozen imports
+   reopen the executable by its original path. If a scan prevents a safe quit,
+   leave the installed bundle intact and report installation as blocked.
 5. Run the installed app's `--check` from outside the checkout and verify that
    the installed executable matches the checked build. If the old app is
    running, restart it with the installed build when it is idle. Preserve active

@@ -3,6 +3,7 @@
 import logging
 import multiprocessing
 import queue
+import signal
 import threading
 import time
 import uuid
@@ -341,7 +342,7 @@ class KinectWorker(QThread):
                         self._deliver_frame(rgb, depth, metadata)
                         deadline = time.monotonic() + self._frame_timeout
                     elif not process.is_alive():
-                        raise RuntimeError("Kinect camera process stopped unexpectedly")
+                        raise EOFError
                     elif time.monotonic() > deadline:
                         raise RuntimeError(
                             "Kinect stopped delivering RGB/depth frames. "
@@ -353,6 +354,16 @@ class KinectWorker(QThread):
                     self.stop()  # Never retry USB after Finish, including a failed checkpoint.
                 if not self._stop_event.is_set():
                     message = str(exc) or "Kinect camera process disconnected"
+                    if isinstance(exc, EOFError):
+                        process.join(timeout=0.1)
+                        code = process.exitcode
+                        detail = f"exit code {code}"
+                        if code is not None and code < 0:
+                            try:
+                                detail = f"signal {signal.Signals(-code).name}"
+                            except ValueError:
+                                detail = f"signal {-code}"
+                        message = f"Kinect camera process stopped unexpectedly ({detail})"
                     if message != last_camera_error:
                         logger.warning("Camera acquisition failed: %s", message, extra={"ui_log": False})
                         last_camera_error = message

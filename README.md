@@ -38,12 +38,21 @@ full Xcode 26+ installation selected by `xcode-select` (including Icon Composer)
 ```bash
 python -m pip install -r requirements-packaging.txt
 python scripts/build_macos_client.py
+python scripts/install_macos_client.py --source "dist/Kinect 3D Scanner.app"
 ```
 
 The build creates `dist/Kinect 3D Scanner.app` and runs a hardware-free startup
 check that exercises the real Qt window, synthetic capture in a spawned process,
 calibration/sound resources, preferences, shutdown, and the mesh helper process.
-Copy the entire `.app` to Applications. Rebuild after changing the source code.
+Quit the client and its viewers before installing. The installer checks the
+entire staged bundle, runs the installed app's check from outside the checkout,
+verifies the executable hash and retains the previous bundle for rollback.
+It refuses replacement while the client or any helper is running. Save unsaved
+scans first and keep the app closed until installation finishes. Replacing or
+renaming a running PyInstaller bundle can break later module imports with
+`Error -3 while decompressing data: incorrect header check`; it can also break
+helper launches. This error concerns the app's embedded Python archive, rather
+than captured image compression. Rebuild after changing the source code.
 The icon source is `assets/icons/kinect-scanner-client.icon`, editable in Icon
 Composer. The build compiles it into `Assets.car` for native Tahoe rendering and
 generates a flattened PNG, all standard/Retina PNG sizes (16–1024 pixels), and an
@@ -125,6 +134,11 @@ cannot prevent the window from closing. RGB/depth pairing uses the Kinect v1's
 Acquisition retains a short depth history and pairs each RGB frame with the
 nearest unused depth timestamp, including RGB callbacks delivered late. These
 driver timestamps mark packet completion, rather than measured exposure times.
+Unexpected camera-process exits report their exit code or terminating signal in
+the client logs. A disconnected camera does not prevent already selected,
+spooled captures from uploading; rising stored counts after a pause can be
+acknowledgements from that backlog. Earlier generic process-stop messages do
+not distinguish a driver crash from a terminated helper.
 
 With the scanner closed, check your connected camera and window shutdown:
 
