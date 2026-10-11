@@ -1857,13 +1857,14 @@ class MainWindow(QMainWindow):
             return
         self.preferences.write("export/blender_path", blender)
         self.preferences.write("export/snapshot_stride", options["stride"])
+        self.preferences.write("export/snapshot_surface", options.get("surface", "smooth"))
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Blender scene", os.path.join(self._ensure_export_dir(), "scan.blend"),
             "Blender scenes (*.blend)",
         )
         if path:
             self._begin_export("blender", path, ServerTask(ServerTaskType.EXPORT_BLENDER, {
-                "path": path, "blender": blender, "stride": options["stride"],
+                "path": path, "blender": blender, "stride": options["stride"], "surface": options.get("surface", "smooth"),
                 "options": {"max_triangles": self._texture_max_triangles,
                             "exposure_correction": self.texture_exposure_cb.isChecked(),
                             "blend_mode": "best" if self.texture_best_cb.isChecked() else "blend"},

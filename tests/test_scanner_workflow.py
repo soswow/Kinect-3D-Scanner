@@ -574,10 +574,11 @@ class ScannerWorkflowTests(unittest.TestCase):
         path = os.path.join(self.preferences_dir.name, "scan.blend")
         with patch("kinect_scanner.blender_export.find_blender", return_value="/Applications/Blender.app/Contents/MacOS/Blender"), \
              patch.object(main_window.QFileDialog, "getSaveFileName", return_value=(path, "")):
-            self.window._export_blender({"blender": None, "stride": 4})
+            self.window._export_blender({"blender": None, "stride": 4, "surface": "measured"})
         task = self.window.task_worker.tasks[-1]
         self.assertEqual(ServerTaskType.EXPORT_BLENDER, task.task_type)
         self.assertEqual(4, task.kwargs["stride"])
+        self.assertEqual("measured", task.kwargs["surface"])
         self.assertEqual(200000, task.kwargs["options"]["max_triangles"])
         self.assertTrue(self.window._paused)
         self.window._on_export_done(True, path)
@@ -585,6 +586,7 @@ class ScannerWorkflowTests(unittest.TestCase):
         self.assertFalse(self.window._paused)
         self.assertIsNone(self.window._project_path)
         self.assertEqual(4, self.window.preferences.read("export/snapshot_stride", None))
+        self.assertEqual("measured", self.window.preferences.read("export/snapshot_surface", None))
 
     def test_blender_failure_restores_capture_and_reports_its_actual_cause(self):
         self.retain_scan()

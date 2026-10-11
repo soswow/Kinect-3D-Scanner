@@ -12,12 +12,15 @@ def main():
     parser.add_argument("--blender", help="Blender 4.2+ executable or macOS .app; otherwise auto-detected")
     parser.add_argument("--textured-model", type=Path, help="Optional existing textured OBJ ZIP; otherwise bake saved mesh offline")
     parser.add_argument("--snapshot-stride", type=int, choices=(1, 2, 4, 8), default=2, help="Sample every N depth pixels (default: 2)")
+    parser.add_argument("--snapshot-surface", choices=("smooth", "measured"), default="smooth",
+                        help="Local plane fits or prepared measured samples (default: smooth; export only)")
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from kinect_scanner.blender_export import convert_session
 
     convert_session(args.session, args.output, blender=args.blender, textured_model=args.textured_model,
-                    stride=args.snapshot_stride, progress=lambda message: print(message, flush=True))
+                    stride=args.snapshot_stride, surface=args.snapshot_surface,
+                    progress=lambda message: print(message, flush=True))
 
 
 if __name__ == "__main__":

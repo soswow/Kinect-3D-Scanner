@@ -122,6 +122,8 @@ def write_scene(configuration, staged, final):
             mesh = bpy.data.meshes.new(f"Depth {snapshot['index']:06d}")
             mesh.from_pydata(vertices.tolist(), [], faces.tolist())
             mesh.update()
+            if config.get("snapshot_surface", "measured") == "smooth":
+                mesh.polygons.foreach_set("use_smooth", np.ones(len(faces), bool))
             uv = mesh.uv_layers.new(name="RGB")
             uv.data.foreach_set("uv", geometry["uv"][faces].reshape(-1))
             observed = geometry["observed"]
@@ -159,6 +161,12 @@ def write_scene(configuration, staged, final):
     text.write(f"Depth sampling: every {config['snapshot_stride']} pixel(s), {grid['width']} x {grid['height']} grid.\n"
                "Sampling controls depth mesh detail; fusion voxel size and the fused triangle budget do not.\n"
                "Missing depth or sharp depth jumps omit whole sampled cells. Finer sampling makes these holes smaller.\n")
+    text.write(f"Depth surface: {config.get('snapshot_surface', 'measured')}.\n"
+               "Smooth mode fits local inverse-depth planes (up to 9 x 9 pixels), with smooth shading.\n"
+               "Fits preserve measured holes and sharp depth jumps; movements are bounded to max(1 cm, 1% of range).\n"
+               "Measured mode keeps prepared sample positions and flat shading for inspecting sensor artifacts.\n"
+               "Surface fitting affects these snapshots only, not recorded depth, tracking or TSDF fusion.\n"
+               "It reduces terraces/stripe ridges but does not calibrate systematic sensor bias.\n")
     # Pack ordinary material images; retain just one relative external sequence.
     for image in bpy.data.images:
         if image.source == "FILE" and image.filepath:

@@ -365,6 +365,7 @@ class ServerTaskWorker(QThread):
                         raise RuntimeError(f"Could not download {fmt} for the Blender export")
                 result = convert_session(session, path, blender=task.kwargs["blender"],
                                          textured_model=model, stride=task.kwargs["stride"],
+                                         surface=task.kwargs.get("surface", "smooth"),
                                          progress=self._client.task_started.emit)
                 logger.info("Blender export: %s", result, extra={"ui_event": True})
             self._client.export_done.emit(True, path)

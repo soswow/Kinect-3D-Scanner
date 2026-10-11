@@ -472,7 +472,11 @@ class GuiPreferencesTests(unittest.TestCase):
         self.store.write("export/snapshot_stride", 4)
         dialog = dialogs.ExportDialog(preferences=self.new_store())
         self.assertEqual("blend", dialog.selected_format)
-        self.assertEqual({"blender": "/Applications/Blender.app", "stride": 4}, dialog.blender_options)
+        self.assertEqual({"blender": "/Applications/Blender.app", "stride": 4, "surface": "smooth"}, dialog.blender_options)
+        self.store.write("export/snapshot_surface", "measured")
+        restored = dialogs.ExportDialog(preferences=self.new_store())
+        self.assertEqual("measured", restored.blender_options["surface"])
+        restored.close()
         dialog.close()
 
     def test_accepted_export_choices_are_remembered(self):

@@ -337,7 +337,26 @@ camera transform; the Blender camera also includes that fixed offset, calibrated
 focal lengths and principal point. Images are undistorted with the matching K.
 The camera's pixel aspect ratio preserves unequal horizontal/vertical focal
 lengths, including calibrations where `fy > fx`.
-These meshes are partial measured surfaces, not watertight reconstructions.
+These meshes are partial surfaces, not watertight reconstructions.
+**Depth snapshot surface** defaults to **Smooth — local plane fits**. It fits
+the center of a small inverse-depth plane (9 × 9 pixels, with 5 × 5 and 3 × 3
+fallbacks near missing support) and uses smooth shading. Inverse depth is affine
+on a perspective plane, so this reduces quantized terraces without flattening
+the scene into assumed global walls. Fits require complete observed support,
+avoid sharp depth jumps, and move samples by at most `max(10 mm, 1% of range)`.
+Cell rejection still uses the measured depths: smoothing never fills a hole or
+adds a bridge. Small details and continuous corners can soften within the local
+window. **Measured — original depth steps** keeps the prepared sample positions
+and flat shading for inspecting sensor output. Both modes recompute RGB UVs from
+their actual geometry.
+
+This option affects Blender snapshots only. Tracking and TSDF fusion consume
+prepared depth images, not these meshes; confidence fusion already fits local
+planes for normals while retaining measured depth. Kinect disparity
+quantization and repeating vertical depth offsets are visible in individual
+observations. Local fits reduce their ridges but do not establish or correct
+per-pixel sensor bias. Applying a correction to reconstruction requires separate
+device calibration or a controlled fusion-quality evaluation.
 For Kinect's 640 × 480 depth, the export dialog shows the sampled grid:
 every pixel is **640 × 480**, every two is **320 × 240** (the default), every four
 is **160 × 120**, and every eight is **80 × 60**. Choose **Every pixel** for the
@@ -348,7 +367,7 @@ sampling enlarges square holes and can omit thin features. Full sampling
 reduces that enlargement but cannot recover unmeasured surfaces; it can use
 roughly four times the geometry of every two pixels, or sixteen times every
 four, before hole rejection. The saved `scanner_export` metadata records
-`snapshot_stride` and `snapshot_grid`.
+`snapshot_stride`, `snapshot_grid` and `snapshot_surface`.
 
 Rectification removes lens distortion, not the different camera fields of view
 or their physical offset. In the measured high-resolution Kinect calibration,
@@ -375,6 +394,7 @@ python scripts/export_blender_session.py --session recordings/session.zip \
 The standalone tool textures the saved fused mesh without rerunning registration
 or fusion. Supply `--textured-model export/scan.obj.zip` to reuse an existing
 textured OBJ bundle, and `--snapshot-stride 1|2|4|8` to choose depth sampling.
+Use `--snapshot-surface smooth|measured` to choose fitted or measured geometry.
 Without `--output`, artifacts go to ignored `benchmark-output/blender-export/`.
 Help loads no optional numerical packages. Failed conversions preserve an
 existing `.blend` and remove the new sequence directory.

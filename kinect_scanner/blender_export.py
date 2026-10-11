@@ -96,17 +96,62 @@ class SessionFrames:
         return tuple(arrays)
 
 
-def snapshot_geometry(depth, settings, stride=2):
-    """Triangulate one measured depth grid; never connect across holes or jumps."""
+def _surface_depth(metric):
+    """Fit small inverse-depth planes for export, keeping holes and depth edges.
+
+    On a complete symmetric patch the least-squares plane's center is the
+    mean inverse depth. Unlike smoothing Z, this preserves a perspective plane.
+    Smaller patches supply fits near missing support; unsupported pixels keep
+    their measured depth. This is an approximation, never sensor calibration.
+    """
+    import cv2
+    import numpy as np
+
+    valid = metric > 0
+    inverse = np.zeros_like(metric)
+    np.divide(1, metric, out=inverse, where=valid)
+    edge = np.zeros(metric.shape, bool)
+    for axis in (0, 1):
+        a, b = (metric[:-1], metric[1:]) if axis == 0 else (metric[:, :-1], metric[:, 1:])
+        crossing = ((a > 0) & (b > 0)
+                    & (np.abs(a - b) > np.maximum(0.03, 0.02 * np.minimum(a, b))))
+        if axis == 0:
+            edge[:-1] |= crossing
+            edge[1:] |= crossing
+        else:
+            edge[:, :-1] |= crossing
+            edge[:, 1:] |= crossing
+    result = metric.copy()
+    fitted = np.zeros(metric.shape, bool)
+    for size in (9, 5, 3):
+        kernel = np.ones((size, size), np.uint8)
+        complete = cv2.erode(valid.astype(np.uint8), kernel,
+                             borderType=cv2.BORDER_CONSTANT, borderValue=0).astype(bool)
+        crossing = cv2.dilate(edge.astype(np.uint8), kernel).astype(bool)
+        estimate = np.zeros_like(metric)
+        mean = cv2.blur(inverse, (size, size))
+        np.divide(1, mean, out=estimate, where=mean > 0)
+        # A bounded fit cannot move a sample by more than 1% of range (or 1 cm).
+        use = (complete & ~crossing & ~fitted
+               & (np.abs(estimate - metric) <= np.maximum(0.01, 0.01 * metric)))
+        result[use] = estimate[use]
+        fitted |= use
+    return result
+
+
+def snapshot_geometry(depth, settings, stride=2, surface="smooth"):
+    """Triangulate a depth grid; topology always follows measured holes/jumps."""
     import cv2
     import numpy as np
     from shared.calibration import pinhole_rays, prepare_metric_depth
 
     if stride not in (1, 2, 4, 8):
         raise ValueError("Snapshot sampling must be 1, 2, 4, or 8 pixels")
+    if surface not in ("smooth", "measured"):
+        raise ValueError("Snapshot surface must be smooth or measured")
     metric = prepare_metric_depth(depth, settings).astype(np.float64) / 1000
     c = settings.camera
-    sampled = metric[::stride, ::stride]
+    sampled = (_surface_depth(metric) if surface == "smooth" else metric)[::stride, ::stride]
     points = (pinhole_rays(c)[::stride, ::stride] * sampled[..., None]).reshape(-1, 3)
     h, w = sampled.shape
     grid = np.arange(h * w).reshape(h, w)
@@ -122,12 +167,12 @@ def snapshot_geometry(depth, settings, stride=2):
     return points[used], remap.reshape(-1, 3).astype(np.int32)
 
 
-def _snapshot(rgb, depth, settings, stride):
+def _snapshot(rgb, depth, settings, stride, surface="smooth"):
     import cv2
     import numpy as np
     from shared.calibration import camera_matrix, rectification_maps
 
-    vertices, faces = snapshot_geometry(depth, settings, stride)
+    vertices, faces = snapshot_geometry(depth, settings, stride, surface)
     camera = settings.rgb_camera
     calibration = settings.sensor_calibration
     extrinsic = np.eye(4)
@@ -159,7 +204,7 @@ def _scene_script():
 
 
 def convert_session(session, output, *, blender=None, textured_model=None, stride=2,
-                    texture_options=None, progress=None):
+                    surface="smooth", texture_options=None, progress=None):
     """Write .blend plus its relative RGB sequence, preserving prior outputs on failure.
 
     Runs only a fresh, background Blender process. Does not touch an open scene,
@@ -180,6 +225,8 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
         raise ValueError("The output must not replace an input archive")
     if stride not in (1, 2, 4, 8):
         raise ValueError("Snapshot sampling must be 1, 2, 4, or 8 pixels")
+    if surface not in ("smooth", "measured"):
+        raise ValueError("Snapshot surface must be smooth or measured")
     output.parent.mkdir(parents=True, exist_ok=True)
     # A distinct relative directory keeps a previously exported scene and its
     # sequence usable until the replacement .blend is completely written.
@@ -247,6 +294,7 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
             scene = {"version": 1, "session_id": report.get("session_id"),
                      "camera": {"width": c.width, "height": c.height, "fx": c.fx, "fy": c.fy, "cx": c.cx, "cy": c.cy},
                      "settings": settings.to_dict(), "snapshot_stride": stride,
+                     "snapshot_surface": surface,
                      "snapshot_grid": {"width": len(range(0, settings.camera.width, stride)),
                                        "height": len(range(0, settings.camera.height, stride))},
                      "unregistered_indices": sorted(set(range(len(frames))) - indices),
@@ -254,7 +302,7 @@ def convert_session(session, output, *, blender=None, textured_model=None, strid
             for number, (index, pose) in enumerate(poses, 1):
                 notify(f"Preparing snapshot {number}/{len(poses)}…")
                 rgb, depth = frames[index]
-                rgb, vertices, faces, uv, observed, extrinsic = _snapshot(rgb, depth, settings, stride)
+                rgb, vertices, faces, uv, observed, extrinsic = _snapshot(rgb, depth, settings, stride, surface)
                 Image.fromarray(rgb).save(assets / f"{number:06d}.png")
                 geometry = work / f"{number:06d}.npz"
                 np.savez(geometry, vertices=vertices.astype(np.float32), faces=faces,

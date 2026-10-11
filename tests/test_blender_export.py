@@ -13,7 +13,7 @@ import zipfile
 import numpy as np
 from PIL import Image
 
-from kinect_scanner.blender_export import convert_session, find_blender, snapshot_geometry, _snapshot
+from kinect_scanner.blender_export import convert_session, find_blender, snapshot_geometry, _snapshot, _surface_depth
 from shared.sensor_calibration import load_calibration
 from shared.settings import CameraCalibration, ScanSettings
 
@@ -57,6 +57,42 @@ def fixture(root, *, fx=531, fy=519):
 
 
 class BlenderPreparationTests(unittest.TestCase):
+    def test_surface_fit_preserves_a_perspective_plane_and_reduces_quantization(self):
+        from shared.calibration import raw_depth_lut, pinhole_rays
+        settings = ScanSettings(sensor_calibration=load_calibration(), filter_depth=False)
+        rays = pinhole_rays(settings.camera)
+        plane = 1 / (.45 + .12 * rays[..., 0] - .07 * rays[..., 1])
+        fitted = _surface_depth(plane)
+        np.testing.assert_allclose(fitted[5:-5, 5:-5], plane[5:-5, 5:-5], atol=1e-11)
+        calibration = settings.sensor_calibration
+        codes = np.rint((calibration.scale / plane - calibration.b) / calibration.a_per_code).astype(int)
+        quantized = np.rint(raw_depth_lut(calibration)[codes]) / 1000
+        fitted = _surface_depth(quantized)
+        interior = np.s_[10:-10, 10:-10]
+        self.assertLess(np.mean((fitted[interior] - plane[interior]) ** 2),
+                        .4 * np.mean((quantized[interior] - plane[interior]) ** 2))
+
+    def test_surface_modes_preserve_measured_topology_holes_edges_and_inputs(self):
+        from shared.calibration import prepare_metric_depth
+        settings = ScanSettings(filter_depth=False)
+        depth = np.full((480, 640), 1800, np.uint16)
+        depth[:, 320:] = 2400
+        depth[40:50, 40:50] = 0
+        original = depth.copy()
+        metric = prepare_metric_depth(depth, settings).astype(float) / 1000
+        fitted = _surface_depth(metric)
+        np.testing.assert_array_equal(fitted[metric == 0], 0)
+        np.testing.assert_array_equal(fitted[:, 319:321], metric[:, 319:321])
+        self.assertTrue(np.all(np.abs(fitted - metric) <= np.maximum(.01, .01 * metric)))
+        for stride in (1, 4, 8):
+            raw_vertices, raw_faces = snapshot_geometry(depth, settings, stride, "measured")
+            vertices, faces = snapshot_geometry(depth, settings, stride, "smooth")
+            np.testing.assert_array_equal(faces, raw_faces)
+            np.testing.assert_allclose(vertices, raw_vertices)
+        np.testing.assert_array_equal(depth, original)
+        with self.assertRaisesRegex(ValueError, "surface"):
+            snapshot_geometry(depth, settings, surface="unknown")
+
     def test_snapshot_grid_uses_depth_pixels_independently_of_fusion_voxels(self):
         depth = np.full((480, 640), 1000, np.uint16)
         fine = ScanSettings(filter_depth=False, final_voxel_m=.002)
@@ -133,6 +169,7 @@ class BlenderPreparationTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("--snapshot-stride", result.stdout)
+        self.assertIn("--snapshot-surface", result.stdout)
 
 
 class BlenderRoundTripTests(unittest.TestCase):
@@ -142,13 +179,15 @@ class BlenderRoundTripTests(unittest.TestCase):
             root = Path(temporary)
             session, model, _ = fixture(root, fx=519, fy=531)
             output = root / "scan.blend"
-            convert_session(session, output, textured_model=model, stride=8)
+            convert_session(session, output, textured_model=model, stride=8, surface="measured")
             check = root / "verify.py"
             check.write_text('''import bpy, json
 from mathutils import Matrix, Vector
 from bpy_extras.object_utils import world_to_camera_view
 s = bpy.context.scene
 c = json.loads(s['scanner_export'])['camera']
+assert json.loads(s['scanner_export'])['snapshot_surface'] == 'measured'
+assert not any(p.use_smooth for o in bpy.data.collections['Depth snapshots'].objects for p in o.data.polygons)
 assert abs(s.render.pixel_aspect_y/s.render.pixel_aspect_x-c['fx']/c['fy']) < 1e-6
 world = Matrix(((1,0,0,0),(0,0,1,0),(0,-1,0,0),(0,0,0,1)))
 for o in bpy.data.collections['Depth snapshots'].objects:
@@ -207,12 +246,14 @@ fused = bpy.data.objects['Fused mesh']
 assert set(s.collection.objects) == {root, fused, c}
 assert all(o.parent == root for o in s.objects if o != root)
 assert json.loads(s['scanner_export'])['snapshot_grid'] == {'width': 320, 'height': 240}
+assert json.loads(s['scanner_export'])['snapshot_surface'] == 'smooth'
 assert fused.animation_data is None
 assert len(fused.data.polygons) == 1
 assert all(n.image.packed_file for m in fused.data.materials for n in m.node_tree.nodes if n.type == 'TEX_IMAGE')
 meshes = list(bpy.data.collections['Depth snapshots'].objects)
 assert len(meshes) == 2
 assert all(list(o.users_collection) == [bpy.data.collections['Depth snapshots']] for o in meshes)
+assert all(p.use_smooth for o in meshes for p in o.data.polygons)
 assert len(bpy.app.handlers.frame_change_post) == 0
 assert not any(t.use_module for t in bpy.data.texts)
 world = Matrix(((1,0,0,0),(0,0,1,0),(0,-1,0,0),(0,0,0,1)))
@@ -297,11 +338,12 @@ class BlenderTaskTests(unittest.TestCase):
         client.export_done.connect(lambda *args: completed.append(args))
         with patch("kinect_scanner.blender_export.convert_session", return_value={"snapshots": 2}) as convert:
             worker._dispatch(ServerTask(ServerTaskType.EXPORT_BLENDER, {
-                "path": "scene.blend", "blender": "blender", "stride": 4, "options": {"max_triangles": 100},
+                "path": "scene.blend", "blender": "blender", "stride": 4, "surface": "measured", "options": {"max_triangles": 100},
             }))
             self.assertEqual(["session", "obj.zip"], [call[0] for call in downloads])
             self.assertEqual({"max_triangles": 100}, downloads[1][2])
             self.assertEqual(4, convert.call_args.kwargs["stride"])
+            self.assertEqual("measured", convert.call_args.kwargs["surface"])
             self.assertEqual([(True, "scene.blend")], completed)
         self.assertFalse(Path(downloads[0][1]).exists())
 

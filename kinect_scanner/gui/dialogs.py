@@ -110,6 +110,18 @@ class ExportDialog(QDialog):
         )
         self.snapshot_description.setWordWrap(True)
         layout.addWidget(self.snapshot_description)
+        self.surface_label = QLabel("Depth snapshot surface")
+        self.surface_combo = QComboBox()
+        self.surface_combo.addItem("Smooth — local plane fits", "smooth")
+        self.surface_combo.addItem("Measured — original depth steps", "measured")
+        self.surface_combo.setToolTip(
+            "Smooth reduces depth terraces with small local surface fits and smooth shading. "
+            "Holes and sharp depth jumps stay open. Small details may soften. "
+            "Measured keeps prepared depth positions and flat shading. "
+            "This affects Blender snapshots only; capture, tracking and fusion use the recorded depth."
+        )
+        layout.addWidget(self.surface_label)
+        layout.addWidget(self.surface_combo)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
         self.export_button = self.buttons.addButton(
             "Export", QDialogButtonBox.ButtonRole.AcceptRole
@@ -125,6 +137,7 @@ class ExportDialog(QDialog):
             preferences.restore(self.triangle_budget_spin, "export/max_triangles")
             preferences.restore(self.blender_path_edit, "export/blender_path")
             preferences.restore(self.snapshot_combo, "export/snapshot_stride")
+            preferences.restore(self.surface_combo, "export/snapshot_surface")
         self.format_combo.currentIndexChanged.connect(self._update_format)
         self._update_format()
 
@@ -143,7 +156,7 @@ class ExportDialog(QDialog):
     @property
     def blender_options(self):
         return {"blender": self.blender_path_edit.text().strip() or None,
-                "stride": self.snapshot_combo.currentData()}
+                "stride": self.snapshot_combo.currentData(), "surface": self.surface_combo.currentData()}
 
     def _browse_blender(self):
         path, _ = QFileDialog.getOpenFileName(self, "Choose Blender application or executable",
@@ -162,7 +175,8 @@ class ExportDialog(QDialog):
         self.triangle_budget_label.setEnabled(textured)
         self.texture_description.setVisible(textured)
         for widget in (self.blender_label, self.blender_path_edit, self.blender_browse,
-                       self.snapshot_label, self.snapshot_combo, self.snapshot_description):
+                       self.snapshot_label, self.snapshot_combo, self.snapshot_description,
+                       self.surface_label, self.surface_combo):
             widget.setVisible(self.selected_format == "blend")
 
 
