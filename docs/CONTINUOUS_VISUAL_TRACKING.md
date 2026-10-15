@@ -386,6 +386,56 @@ Two results worth keeping, both measured on the same 40 frames:
   tracking-method histogram and ICP call counts as the stable signals; neither a
   single timing run nor a surface hash is an equivalence test for a replay change.
 
+### Recovery and relocalization cost
+
+Attributing every ICP call to the engine method that requested it, on the same
+40 frames, shows where recovery effort actually goes (405 calls, 42.4 s):
+
+| Requesting method | ICP calls | Seconds | Average |
+|---|---|---|---|
+| `_recover_anchor` → `_match` | 153 | 27.76 s | 181 ms |
+| `_visual_register_primary` → `_icp` | 69 | 2.13 s | 31 ms |
+| `_color_recovery` → `verify` → `_icp` | 54 | 1.84 s | 34 ms |
+| `_relocalize` → `_match` | 48 | 6.27 s | 131 ms |
+| `_verify_tracking_transition` → `_match` | 45 | 2.67 s | 59 ms |
+| `_register` → `_icp` | 24 | 0.91 s | 38 ms |
+| `_relocalize` → `_icp` | 6 | 0.40 s | 67 ms |
+| `_fpfh_fallback` → `_icp` | 3 | 0.15 s | 50 ms |
+| `_recover_anchor` → `_icp` | 3 | 0.25 s | 83 ms |
+
+`_recover_anchor` is **65% of all ICP time**, and on this session it never
+succeeded once: no `anchor+icp` frame appears in the method histogram, so all 51
+forward matches failed `_trustworthy`. Cutting that cost is the largest remaining
+opportunity, but any change trades recovery recall, and this session cannot show
+what recall would be lost because nothing recovers here. It needs a capture where
+anchor recovery actually fires before it can be tuned.
+
+Two safe reductions were applied on top of that measurement:
+
+- `_relocalize` now skips the reverse match when the forward match is already
+  untrustworthy, on the same conjunction argument used for transition
+  verification. That removed 36 ICP calls and 3.1 s of the 82.7 s live replay,
+  with an identical accepted set and method histogram.
+- Recovery prepares each accepted anchor's registration cloud once instead of on
+  every lost frame. The raw frame behind an accepted index never changes, so this
+  is pure memoization; it is worth a further 1.1 s and about 15 MB.
+
+Together those took the same replay from 82.65 s to 78.40 s (median of three
+runs each, disjoint ranges) and from 441 to 405 ICP calls.
+
+Two measured decisions, both "do not change this":
+
+- **`KINECT_KEYFRAME_CACHE=on` is not a speedup here.** Enabling it left the ICP
+  count identical at 405, moved the live median from 79.53 s to 80.83 s, widened
+  the three-run spread from 0.39 s to 3.47 s, and raised peak RSS from about
+  2060 MB to as much as 2308 MB. The default `off` is correct.
+- **A cheaper first RGB-D odometry pass is not worth it.** `_color_recovery`
+  succeeds about 10 times per 18 attempts. Trying a reduced `[16,8,4]` pyramid
+  before the full `[40,20,10]` one breaks even at roughly a 29% cheap-pass
+  success rate, and a cheap pass that converges but disagrees with ICP still pays
+  a second ICP verification. Against the measured success rate the expected saving
+  is around 1.4% of live time, for a real chance of losing a recovery. Not taken.
+
 ## Combined final replay result
 
 The combined tracking and fragment-boundary fixes rebuild the archive with

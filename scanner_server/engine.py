@@ -201,6 +201,7 @@ class ScanEngine:
         self._stored_monotonic = []
         self._appearance_cache = {}
         self._visual_cache = {}
+        self._anchor_cloud_cache = {}
         from shared.apriltag import AprilTagDetector
         self._apriltag_detector = AprilTagDetector(p.apriltag_dictionaries) if p.apriltag_tracking else None
         self._apriltag_observations = {}
@@ -703,11 +704,16 @@ class ScanEngine:
             rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
             target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
             forward = _match(source, target, initial)
+            # The candidate is discarded unless the forward match is itself
+            # trustworthy, so an untrustworthy forward match already decides it.
+            # The reverse match costs as much as the forward one; skip it rather
+            # than computing evidence that cannot change this verdict.
+            if not _trustworthy(forward, target):
+                continue
             reverse = _match(target, source, np.linalg.inv(forward.transformation))
             translation, angle = motion(reverse.transformation @ forward.transformation)
             if not (
-                _trustworthy(forward, target)
-                and _trustworthy(reverse, source)
+                _trustworthy(reverse, source)
                 and translation < 0.01
                 and angle < 2
             ):
@@ -1171,6 +1177,20 @@ class ScanEngine:
             logger.debug("Appearance relocalization failed", exc_info=True)
         return None, error
 
+    def _anchor_cloud(self, index):
+        """Registration cloud for an accepted anchor view, prepared once.
+
+        Recovery revisits the same accepted views on every lost frame, and the
+        raw frame behind an accepted index never changes, so converting and
+        downsampling it once is enough.
+        """
+        cloud = self._anchor_cloud_cache.get(index)
+        if cloud is None:
+            rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
+            cloud = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+            self._anchor_cloud_cache[index] = cloud
+        return cloud
+
     def _recover_anchor(self, source):
         """Require nearby, reciprocal overlap with up to five accepted raw views."""
         from .refinement import _match, _trustworthy, motion
@@ -1179,15 +1199,24 @@ class ScanEngine:
             return None
         if self._last_reg_pcd is None:
             self._last_reg_pcd = self._make_reg_pcd(self._last_rgbd)
-        for index, anchor_pose in reversed(self.poses[-5:]):
+        anchors = self.poses[-5:]
+        window = {index for index, _ in anchors}
+        if len(self._anchor_cloud_cache) > len(window):
+            self._anchor_cloud_cache = {
+                index: cloud for index, cloud in self._anchor_cloud_cache.items()
+                if index in window
+            }
+        for index, anchor_pose in reversed(anchors):
             if index == self.poses[-1][0]:
                 target = self._last_reg_pcd
             else:
+                # The bank stores (features, None) until a keyframe cloud is
+                # actually prepared, so an absent entry and an unprepared cloud
+                # both have to fall through to preparation.
                 cached = self._visual_cache.get(index)
                 target = cached[1] if cached is not None else None
                 if target is None:
-                    rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
-                    target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+                    target = self._anchor_cloud(index)
             self._ensure_raw_normals(target)
             forward = _match(source, target, np.eye(4))
             if not _trustworthy(forward, target):

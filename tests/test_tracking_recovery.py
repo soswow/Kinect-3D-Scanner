@@ -21,6 +21,23 @@ from tests.test_quality import scene_frames
 
 
 class RecoveryEngineTests(unittest.TestCase):
+    def test_recovery_prepares_each_anchor_cloud_only_once(self):
+        """Recovery revisits the same accepted views; a stored frame never changes."""
+        engine = ScanEngine(device="cpu")
+        frames = scene_frames(6)
+        for index, (rgb, depth, _) in enumerate(frames):
+            engine.store_frame(rgb, depth, {"timestamp_s": float(index)})
+        engine.process_frames()
+        self.assertGreaterEqual(len(engine.poses), 3, engine.diagnostics)
+
+        anchor = engine.poses[0][0]
+        with patch.object(engine, "_make_reg_pcd", wraps=engine._make_reg_pcd) as prepare:
+            first = engine._anchor_cloud(anchor)
+            second = engine._anchor_cloud(anchor)
+        self.assertIs(first, second)
+        self.assertEqual(1, prepare.call_count,
+                         "an accepted anchor cloud must be reused, not rebuilt per lost frame")
+
     def test_a_confident_model_match_after_a_gap_cannot_bypass_raw_view_verification(self):
         engine = ScanEngine(device="cpu")
         rgb, depth, _ = scene_frames(1)[0]

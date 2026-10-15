@@ -58,6 +58,41 @@ class AppearanceTests(unittest.TestCase):
         engine.frame_metadata[-1]["rgb_depth_delta_ms"] = 30
         self.assertIsNone(engine._relocalize(cloud, rgbd))
 
+    def test_untrustworthy_relocalization_candidate_skips_the_reverse_match(self):
+        """A candidate needs a trustworthy forward match; never pay for the reverse one."""
+        from dataclasses import replace
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from scanner_server.engine import ScanEngine
+        from shared.calibration import prepare_rgbd
+        from tests.test_quality import scene_frames
+
+        engine = ScanEngine()
+        engine.reset(settings=replace(engine.settings, relocalize=True))
+        frames = scene_frames(3)
+        for rgb, depth, _ in frames:
+            engine.store_frame(rgb, depth)
+        engine.process_frames()
+        rgb, depth, _ = frames[0]
+        engine.store_frame(rgb, depth, {"rgb_depth_delta_ms": 0})
+        rgb, depth = prepare_rgbd(rgb, depth, engine.settings)
+        rgbd = engine._make_rgbd(rgb, depth)
+        engine._tracking_lost_frames = 2
+
+        untrustworthy = SimpleNamespace(
+            transformation=np.eye(4), fitness=0.0, inlier_rmse=1.0,
+            correspondence_set=np.empty((0, 2), int),
+        )
+        with patch("scanner_server.refinement._match", return_value=untrustworthy) as match:
+            result = engine._relocalize(engine._make_reg_pcd(rgbd), rgbd)
+        self.assertIsNone(result)
+        # _relocalize ranks at most three candidates and each now spends one
+        # forward match; a reverse match would push this to six.
+        self.assertGreater(match.call_count, 0, "no candidate was actually matched")
+        self.assertLessEqual(match.call_count, 3,
+                             "an untrustworthy forward match must not run the reverse match")
+
     def test_refinement_finds_loop_outside_old_pose_radius(self):
         from scanner_server.engine import ScanEngine
         from scanner_server.refinement import propose_poses
