@@ -24,6 +24,9 @@ flowchart LR
 
 The camera thread follows up to 500 image corners with persistent identities and pyramidal optical flow,
 checks forward/backward agreement, and requires measured depth at both ends.
+The reverse flow pass is the costlier half of that check, and every later test
+only removes points from the forward set, so a reference that already lost most
+of its forward tracks stops there instead of running the reverse pass.
 PnP proposes motion, paired 3D points constrain metric motion, and a small joint
 pixel/depth refinement retains the feature identities. This is a short-baseline
 motion estimate, not a trusted world map. Unknown depth is never filled. It
@@ -344,6 +347,44 @@ Final replay outputs and complete raw-evidence reports are preserved outside Git
 in `/Users/sasha/hobby/xbox360/chest-3-session-analysis/continuous-tracking/`.
 The original archive is unchanged. A new physical capture with the running
 client/server changes, and CUDA execution, remain unverified.
+
+### Where live tracking time goes
+
+A CPU profile of `export/chest-3-scan-session_20261006_215208.zip` (first 40
+frames, `OMP_NUM_THREADS=4`, legacy tracking backend) puts the live tracking
+budget in point-to-plane ICP: `registration_icp` took 50.1 s of 82.9 s accounted
+self time across 444 calls, about 11 per frame. Descriptor matching is far
+smaller — about 3.2 ms per keyframe pair, so roughly 127 ms per frame for a full
+40-view bank. It is not the bottleneck.
+
+Most of those calls are verification rather than tracking. `refinement._match`
+supplied 285 of the 444 calls (64%), because `_recover_anchor`, `_relocalize` and
+`_verify_tracking_transition` each run a forward and a reverse match.
+`_verify_tracking_transition` now skips the reverse match when the forward match
+is already untrustworthy: its acceptance test is a conjunction, so the reverse
+result cannot change an already-failed verdict. On those 40 frames this removes
+exactly one `_match` (three ICP calls). The saving is deterministic and provably
+outcome-identical, but small — do not expect a visible throughput change from it.
+
+The visual keyframe overlap checks in `_visual_register_primary` use
+`reg_voxel * 3` instead of a hard-coded 0.0225 m radius. At the default preset
+`reg_voxel` is 0.0075, so the value is bit-identical and nothing changes; for a
+coarser preset the literal was narrower than the corridor ICP converges in, which
+scored feature and reverse-overlap evidence against the wrong distance.
+
+Two results worth keeping, both measured on the same 40 frames:
+
+- **Loosening ICP convergence makes tracking worse.** Open3D defaults to
+  `relative_fitness` and `relative_rmse` of 1e-6, so a level rarely converges
+  before its iteration budget runs out, which looks like waste. Setting both to
+  1e-5 in `engine._icp` and `refinement._match` dropped accepted frames from 28/40
+  to 15/40 and raised live time from 84.7 s to 106.8 s. These solves genuinely use
+  their iterations, and the shorter budget only sends frames into recovery.
+- **Live replay is not bit-reproducible on this machine.** Two runs of identical
+  code produced 29 784 and 29 767 surface vertices, different surface hashes, and
+  live times differing by about 2%. Treat the accepted index set, the
+  tracking-method histogram and ICP call counts as the stable signals; neither a
+  single timing run nor a surface hash is an equivalence test for a replay change.
 
 ## Combined final replay result
 
