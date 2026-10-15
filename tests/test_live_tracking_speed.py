@@ -6,8 +6,14 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+from shared.calibration import prepare_rgbd
 from shared.settings import ScanSettings
 from shared.visual_tracking import VisualTracker, measured_rigid_motion, sampled_points
+
+# shared.visual_tracking imports the same cv2 module object, so patching it there
+# also replaces cv2.calcOpticalFlowPyrLK for this file. Bind the real entry point
+# before any patch so instrumented flows can still call through.
+REAL_FLOW = cv2.calcOpticalFlowPyrLK
 
 
 def frames(shift=0, holes=0.18):
@@ -35,6 +41,12 @@ def legacy_correspondences(gray_a, gray_b, depth_a, depth_b, corners, camera):
             (np.linalg.norm(a - back.reshape(-1, 2), axis=1) < 0.8) &
             source_measured & target_measured)
     return source[good], target[good], b[good]
+
+
+def tracker_inputs(settings, rgb, raw_depth):
+    """The gray/depth pair _match_reference expects, built the way update() does."""
+    prepared_rgb, depth = prepare_rgbd(rgb, raw_depth, settings)
+    return cv2.cvtColor(prepared_rgb, cv2.COLOR_RGB2GRAY), depth
 
 
 class LiveTrackingSpeedTests(unittest.TestCase):
@@ -96,6 +108,39 @@ class LiveTrackingSpeedTests(unittest.TestCase):
         self.assertFalse(failed["valid"])
         self.assertEqual(first["segment"], failed["segment"])
         self.assertEqual(0, failed["steps"])
+
+    def test_insufficient_forward_tracks_skip_the_reverse_flow_pass(self):
+        """The reverse LK pass can only shrink the forward set, so never pay for it."""
+        settings = ScanSettings(filter_depth=False)
+        tracker = VisualTracker(settings)
+        tracker.update(*frames(), {"timestamp_s": 0})
+        reference = tracker.history[0]
+        self.assertGreaterEqual(len(reference[2]), 40)
+        gray, depth = tracker_inputs(settings, *frames())
+        kept = 39  # one short of the minimum a match can be built from
+
+        def single_pass(previous, current, points, *args, **kwargs):
+            new, _, _ = REAL_FLOW(previous, current, points, *args, **kwargs)
+            status = np.zeros((1, len(new)), np.uint8)
+            status[0, :kept] = 1
+            return new, status, None
+
+        with patch("shared.visual_tracking.cv2.calcOpticalFlowPyrLK",
+                   side_effect=single_pass) as flow:
+            pose, report = tracker._match_reference(reference, gray, depth, 0.1)
+        self.assertIsNone(pose)
+        self.assertEqual({}, report)
+        self.assertEqual(1, flow.call_count, "reverse flow must be skipped")
+
+    def test_enough_forward_tracks_still_run_the_reverse_flow_pass(self):
+        settings = ScanSettings(filter_depth=False)
+        tracker = VisualTracker(settings)
+        tracker.update(*frames(), {"timestamp_s": 0})
+        with patch("shared.visual_tracking.cv2.calcOpticalFlowPyrLK",
+                   side_effect=REAL_FLOW) as flow:
+            report = tracker.update(*frames(), {"timestamp_s": 0.1})
+        self.assertTrue(report["valid"], report)
+        self.assertEqual(2, flow.call_count)
 
 
 if __name__ == "__main__":

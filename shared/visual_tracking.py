@@ -373,14 +373,29 @@ class VisualTracker:
             flags=cv2.OPTFLOW_LK_GET_MIN_EIGENVALS)
         if new is None or forward is None:
             return None, {}
+        # The reverse pass is the costlier half of the flow check, and every
+        # later test (reverse status, round-trip length, measured depth) can only
+        # shrink the forward set. A reference that already lost enough points
+        # forward cannot reach the 40-point minimum used below, so skip that work.
+        a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
+        tracked = forward.ravel() > 0
+        if int(np.count_nonzero(tracked)) < 40:
+            if self.debug_enabled:
+                self._match_debug = {
+                    "source": a, "target": b,
+                    "status": np.full(len(a), self.FLOW_LOST, np.uint8),
+                    "source_ids": reference.ids,
+                    "reference_age_ms": (stamp - old_stamp) * 1000,
+                    "reason": "Insufficient forward tracks",
+                }
+            return None, {}
         back, reverse, _ = cv2.calcOpticalFlowPyrLK(
             gray, old_gray, new, None,
             winSize=(self.WINDOW_SIZE, self.WINDOW_SIZE), maxLevel=self.PYRAMID_LEVEL,
             flags=cv2.OPTFLOW_LK_GET_MIN_EIGENVALS)
         if back is None or reverse is None:
             return None, {}
-        a, b = old_corners.reshape(-1, 2), new.reshape(-1, 2)
-        supported = (forward.ravel() > 0) & (reverse.ravel() > 0)
+        supported = tracked & (reverse.ravel() > 0)
         if self.debug_enabled:
             status = np.full(len(a), self.FLOW_LOST, np.uint8)
             status[supported] = self.ROUNDTRIP_REJECTED
