@@ -423,7 +423,59 @@ Two safe reductions were applied on top of that measurement:
 Together those took the same replay from 82.65 s to 78.40 s (median of three
 runs each, disjoint ranges) and from 441 to 405 ICP calls.
 
-Two measured decisions, both "do not change this":
+Anchor verification can only succeed while the camera is still near an accepted
+view, so it is now **probed through the start of a loss episode and sampled
+after that** instead of being repeated on every frame of a long outage
+(`ANCHOR_PROBE_FRAMES = 3`, `ANCHOR_PROBE_INTERVAL = 4`). The tail of an outage
+is where this matters most:
+
+| Session | Frames | Live time before | Live time after | Accepted |
+|---|---|---|---|---|
+| chest-3 | 40 | 78.40 s | **73.63 s** | 28 → 28 |
+| chest-8 | 80 | 84.24 s | **34.14 s** | 6 → 6 |
+
+chest-3 also drops from 405 to 375 ICP calls. Both sessions kept an identical
+accepted index set and tracking-method histogram, so the outage tail is sampled
+rather than dropped.
+
+### Chest 8 loses tracking at frame 6 and never recovers
+
+`export/chest-8-scan-20261009-145-captures.zip` captures roughly **3.95 s apart**,
+so the camera moves far more between frames than in chest-3. Current tracking
+accepts **6 of the first 80 frames**, and the whole loss follows from one
+decision:
+
+```
+[  5] accepted, fitness 0.699, RMSE 13.6 mm
+[  6] verify gap=3.95s (limit 12.14) trans=0.299m ang=19.0deg -> REJECT
+      _match forward fit=0.650 rmse=9.9mm trustworthy
+      _match reverse fit=0.691 rmse=9.2mm trustworthy
+```
+
+Both reciprocal matches are individually trustworthy. The rejection comes from the
+**cycle-consistency gate** (`reverse @ forward` within 1 cm and 2°), which a
+~19° inter-frame rotation does not satisfy here. Frames 1 and 2, at 11.0° and
+14.6°, passed the same gate.
+
+After that, `_recover_anchor` runs on every subsequent frame, never succeeds — no
+`anchor+icp` frame is ever produced, and appearance relocalization finds no
+candidates — so 74 frames are spent failing. Two changes were measured against
+this and one was reverted:
+
+- **Anchor probing (kept).** Sampling the outage tail cut this session from
+  84.24 s to 34.14 s with identical results.
+- **Seeding older anchors from tracked motion instead of identity (reverted).**
+  Using `inv(anchor_pose) @ last_accepted_pose` as the ICP seed is more
+  informed, and reduces to identity for the newest anchor, but it recovered
+  nothing: 6 accepted either way, 33.62 s against 34.14 s. No measured benefit on
+  a safety-critical path, so it was not kept.
+
+Loosening the cycle gate itself would likely recover these frames, but that is a
+drift-safety decision, not a performance one, and this project does not loosen
+proof guards on inference. It needs an explicit decision and a session with
+ground truth.
+
+Measured decisions, all "do not change this":
 
 - **`KINECT_KEYFRAME_CACHE=on` is not a speedup here.** Enabling it left the ICP
   count identical at 405, moved the live median from 79.53 s to 80.83 s, widened
@@ -435,6 +487,13 @@ Two measured decisions, both "do not change this":
   success rate, and a cheap pass that converges but disagrees with ICP still pays
   a second ICP verification. Against the measured success rate the expected saving
   is around 1.4% of live time, for a real chance of losing a recovery. Not taken.
+- **No existing backend knob beats the defaults.** Measured on chest-3 at 40
+  frames against the 78.40 s / 405-call baseline: `KINECT_MODEL_REFRESH=lazy`
+  was neutral (78.43 s, same accepted set and methods, tracking slightly worse);
+  `KINECT_VISUAL_REFINEMENT=measured-fine` was slower (80.32 s) with no gain;
+  `KINECT_LIVE_RECOVERY=deferred` accepted 1 frame instead of 28, because it is a
+  mode change that hands recovery to Finish rather than an optimisation. The
+  remaining cost is not sitting behind a configuration flag.
 
 ## Combined final replay result
 

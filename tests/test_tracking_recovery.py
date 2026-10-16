@@ -21,6 +21,34 @@ from tests.test_quality import scene_frames
 
 
 class RecoveryEngineTests(unittest.TestCase):
+    def test_anchor_verification_is_probed_then_sampled_during_a_long_outage(self):
+        """A long unrecoverable outage must stop repeating its most expensive check."""
+        engine = ScanEngine(device="cpu")
+        rgb, depth, _ = scene_frames(1)[0]
+        engine.store_frame(rgb, depth, {"timestamp_s": 0})
+        engine.process_frames()
+        source = engine._make_reg_pcd(engine._make_rgbd(
+            *engine._prepare_input(rgb, depth, engine.settings)))
+
+        probed = []
+        with patch.object(engine, "_visual_register", return_value=None), \
+             patch.object(engine, "_relocalize", return_value=None), \
+             patch.object(engine, "_recover_anchor", return_value=None) as anchor:
+            anchor.side_effect = lambda *_: probed.append(engine._tracking_lost_frames)
+            for lost in range(1, 13):
+                engine._tracking_lost_frames = lost
+                result, message = engine._register(source)
+        self.assertIsNone(result)
+        self.assertIn("Tracking lost", message)
+        engine._tracking_lost_frames = 0
+
+        frames = engine.ANCHOR_PROBE_FRAMES
+        interval = engine.ANCHOR_PROBE_INTERVAL
+        expected = [lost for lost in range(1, 13)
+                    if lost <= frames or lost % interval == 0]
+        self.assertEqual(expected, probed)
+        self.assertLess(len(probed), 12, "anchors must be sampled, not re-tried every frame")
+
     def test_recovery_prepares_each_anchor_cloud_only_once(self):
         """Recovery revisits the same accepted views; a stored frame never changes."""
         engine = ScanEngine(device="cpu")

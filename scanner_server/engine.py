@@ -46,6 +46,12 @@ logger = logging.getLogger("scanner_server")
 
 class ScanEngine:
     MODEL_REFRESH_INTERVAL = 3  # re-extract model_pcd every N integrations
+    # Anchor verification is attempted on every lost frame for the first
+    # ANCHOR_PROBE_FRAMES of an outage, then on every ANCHOR_PROBE_INTERVAL-th
+    # lost frame, so a long unrecoverable outage stops repeating its most
+    # expensive check on every frame.
+    ANCHOR_PROBE_FRAMES = 3
+    ANCHOR_PROBE_INTERVAL = 4
     MAX_FRAMES = int(os.environ.get("KINECT_MAX_FRAMES", "500"))
     BLOCK_COUNT = int(os.environ.get("KINECT_BLOCK_COUNT", "50000"))
 
@@ -1110,9 +1116,18 @@ class ScanEngine:
             # ICP against a large accumulated model can snap onto another side
             # of a box. Resume only after verification against the last actual
             # camera observations, or verified appearance relocalization.
-            recovered = self._recover_anchor(source_pcd)
-            if recovered is not None:
-                return recovered, "anchor+icp"
+            #
+            # Anchor verification is by far the most expensive thing live
+            # tracking does, and it can only succeed while the camera is still
+            # near an accepted view. Probe it through the start of a loss
+            # episode and then sample the tail, instead of paying for it on
+            # every frame of a long outage where it has already failed.
+            probe = (self._tracking_lost_frames <= self.ANCHOR_PROBE_FRAMES
+                     or self._tracking_lost_frames % self.ANCHOR_PROBE_INTERVAL == 0)
+            if probe:
+                recovered = self._recover_anchor(source_pcd)
+                if recovered is not None:
+                    return recovered, "anchor+icp"
             try:
                 recovered = self._relocalize(source_pcd, rgbd)
                 if recovered is not None:
