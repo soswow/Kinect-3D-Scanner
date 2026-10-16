@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QApplication
 
 from kinect_scanner.gui.live_view import LiveView
 from kinect_scanner.gui.tracking_overview import TrackingOverview
+from scanner_server import refinement
 from scanner_server.engine import ScanEngine
 from tests import test_scanner_workflow as workflow
 from tests.test_quality import scene_frames
@@ -137,6 +138,64 @@ class RecoveryEngineTests(unittest.TestCase):
         self.assertIn("last good view", message)
         icp.assert_not_called()
         global_match.assert_not_called()
+
+    def _verified_transition(self, *, step, correction, cycle):
+        """Drive the transition verifier with chosen reciprocal evidence.
+
+        Returns the verdict for a step of `step` metres whose forward match
+        corrects the tracked pose by `correction` metres and whose reverse match
+        closes the reciprocal loop after `cycle` metres. Both directions are
+        declared trustworthy, so the verdict is decided purely by the cycle and
+        agreement bounds.
+        """
+        engine = ScanEngine(device="cpu")
+        rgb, depth, _ = scene_frames(1)[0]
+        engine.store_frame(rgb, depth, {"timestamp_s": 0})
+        engine.process_frames()
+
+        def translate(metres):
+            transform = np.eye(4)
+            transform[0, 3] = metres
+            return transform
+
+        _, last = engine.poses[-1]
+        relative = translate(step)
+        forward = relative @ translate(correction)
+        reverse = np.linalg.inv(forward) @ translate(cycle)
+        results = [SimpleNamespace(transformation=forward),
+                   SimpleNamespace(transformation=reverse)]
+
+        # A fresh frame makes the timestamp gap alone require verification.
+        engine._processed_count = 1
+        engine.frame_metadata.append({"timestamp_s": 12})
+        source = engine._make_reg_pcd(engine._make_rgbd(
+            *engine._prepare_input(rgb, depth, engine.settings)))
+        with patch.object(refinement, "_match", side_effect=lambda *_: results.pop(0)), \
+             patch.object(refinement, "_trustworthy", return_value=True):
+            return engine._verify_tracking_transition(
+                source, SimpleNamespace(transformation=last @ relative))
+
+    def test_a_large_correction_after_a_large_step_is_still_unverified(self):
+        """Chest 8 frame 6: 43 mm of correction on a 30 cm step is drift.
+
+        Widening the agreement bound to 20% of the step accepted this and the
+        twelve frames behind it, but Finish then excluded every one of them and
+        produced a bit-identical reconstruction, so the bound stays flat.
+        """
+        self.assertIsNotNone(
+            self._verified_transition(step=0.30, correction=0.043, cycle=0.005))
+
+    def test_reciprocal_closure_must_stay_inside_its_ten_millimetre_corridor(self):
+        """13 mm of cycle disagreement means the two directions disagree.
+
+        Widening this to the 3 cm ICP corridor accepted the same unverifiable
+        chest 8 chain, so the 10 mm bound stays.
+        """
+        self.assertIsNotNone(
+            self._verified_transition(step=0.30, correction=0.005, cycle=0.013))
+        # The reciprocal evidence chest 8 does satisfy is still accepted.
+        self.assertIsNone(
+            self._verified_transition(step=0.30, correction=0.005, cycle=0.003))
 
     def test_planar_anchor_cannot_authorize_recovery(self):
         engine = ScanEngine(device="cpu")

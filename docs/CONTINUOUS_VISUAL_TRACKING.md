@@ -448,14 +448,22 @@ decision:
 ```
 [  5] accepted, fitness 0.699, RMSE 13.6 mm
 [  6] verify gap=3.95s (limit 12.14) trans=0.299m ang=19.0deg -> REJECT
-      _match forward fit=0.650 rmse=9.9mm trustworthy
-      _match reverse fit=0.691 rmse=9.2mm trustworthy
+      forward/target  fit=0.650 rmse=9.9mm corr=14239  trustworthy
+      reverse/source  fit=0.691 rmse=9.2mm corr=12917  trustworthy
+      cycle     13.3mm 0.61deg (limit 10mm 2deg) -> FAIL
+      agreement 43.0mm 2.38deg (limit 30mm 3deg) -> FAIL
 ```
 
-Both reciprocal matches are individually trustworthy. The rejection comes from the
-**cycle-consistency gate** (`reverse @ forward` within 1 cm and 2°), which a
-~19° inter-frame rotation does not satisfy here. Frames 1 and 2, at 11.0° and
-14.6°, passed the same gate.
+Both reciprocal matches are individually trustworthy, so the rejection comes from
+the two numeric bounds — and **both of them bind**. Frames 1 and 2, at 11.0° and
+14.6°, closed at 1.6 mm and 3.2 mm and agreed within 10.3 mm and 10.5 mm, so they
+passed the same gates.
+
+Earlier notes here blamed the cycle-consistency gate alone. That was wrong: the
+probe that produced those numbers checked the reverse match against `target`
+instead of `source`, so the reciprocal closure it computed was not the engine's.
+The corrected probe above shows the 43 mm agreement correction is the larger
+violation.
 
 After that, `_recover_anchor` runs on every subsequent frame, never succeeds — no
 `anchor+icp` frame is ever produced, and appearance relocalization finds no
@@ -470,10 +478,46 @@ this and one was reverted:
   nothing: 6 accepted either way, 33.62 s against 34.14 s. No measured benefit on
   a safety-critical path, so it was not kept.
 
-Loosening the cycle gate itself would likely recover these frames, but that is a
-drift-safety decision, not a performance one, and this project does not loosen
-proof guards on inference. It needs an explicit decision and a session with
-ground truth.
+#### The two transition bounds were widened, measured, and left alone
+
+The bounds were promoted to named class constants so an A/B could move them
+together, and the widened configuration scaled agreement with the step being
+verified (`max(0.03, 0.2 * translation)`) and widened cycle closure to 0.03 m /
+3° — the corridor `_match` already searches, which a 19° rotation can plausibly
+resolve. Across all eight archived sessions:
+
+| Configuration | chest-3 | chest-4 | chest-5 | chest-6 | chest-8 | scan-912b6d41 | full-room | with-markers |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Current bounds | 28 | 34 | 5 | 33 | 6 | 3 | 13 | 40 |
+| Widened bounds | 28 | 34 | 5 | 33 | **18** | 3 | 13 | 40 |
+
+Only chest-8 changes. Widening either bound on its own is a no-op there — the
+agreement-scaled run and the cycle-widened run both stay at 6 accepted, because
+the other bound still binds — so the two had to move together to change
+anything.
+
+**It does not deliver.** With `--finish`, chest-8 ends at the *same* six accepted
+indices `[0, 1, 2, 3, 4, 5]` either way, with the same three verified bridges,
+the same seven fragments, the same five corrected poses and the same one
+connected fragment. Finish reports
+`Reconnected 0 views; 5 poses corrected, 12 excluded`: every one of the twelve
+newly tracked views is dropped again as a view whose position could not be
+verified, and the mesh grows by 0.17% (60,816 → 60,921 vertices). The reconnection
+was not budget-limited (`budget_limited: false`, 256 pairs, 32 fragments, 0
+ambiguous pairs), so this is genuine absence of corroboration rather than a
+truncated search.
+
+Two further signals point the same way. The twelve new views include frames 9
+and 12, accepted at overlap 0.572 and 0.516 — below the 0.6 floor the same module
+applies in `_match_failure` and `_recover_anchor`. And live time rises from
+18.92 s to 32.30 s, because twelve more frames are tracked instead of failing
+fast. `tests/test_tracking_recovery.py` pins both bounds at their current values
+with the measured rationale, so revisiting this takes a deliberate change rather
+than a silent one.
+
+chest-5 (5 of 27) and scan-912b6d41 (3 of 40) are **not** explained by either
+bound: widening them changed nothing in those sessions either, and the condition
+that rejects them remains undiagnosed.
 
 Measured decisions, all "do not change this":
 
