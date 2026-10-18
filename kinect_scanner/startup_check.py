@@ -38,9 +38,11 @@ def check_offline_capture(window, temporary):
     from .server_task_worker import ServerTaskType, ServerTaskWorker
 
     client = ServerClient()
+    # Uploads refuse a spool whose session differs from the connected server.
+    client.session_id = "bundle-offline"
     worker = ServerTaskWorker(client)
     worker._spool = CaptureSpool(Path(temporary) / "capture-queue", "bundle-offline", {})
-    uploaded, cues, checks = [], [], []
+    uploaded, cues, checks, finish_order = [], [], [], []
 
     def send(frames):
         # Check the installed new wire format, including exact sensor pixels.
@@ -51,12 +53,14 @@ def check_offline_capture(window, temporary):
         results = []
         for _, _, metadata in frames:
             uploaded.append(metadata["frame_id"])
-            results.append({"success": True, "index": len(uploaded) - 1})
-        return {"success": True, "stored_count": len(uploaded), "results": results}
+            results.append({"success": True, "index": len(uploaded) - 1, "session_id": client.session_id})
+        return {"success": True, "session_id": client.session_id, "stored_count": len(uploaded), "results": results}
 
     client.send_frame = lambda *frame: send([frame])
     client.send_frames_batch = send
-    client.request_build = lambda *args, **kwargs: {"success": uploaded == list(range(8))}
+    client._motion_journal_supported = True
+    client.send_motion_journal = lambda journal: finish_order.append("motion") or {"success": True}
+    client.request_build = lambda *args, **kwargs: finish_order.append("build") or {"success": uploaded == list(range(8))}
     worker._save_reconstruction = lambda: None
     original_worker, original_sound = window.task_worker, window.capture_sound.play
     window.task_worker = worker
@@ -84,6 +88,8 @@ def check_offline_capture(window, temporary):
             if task.task_type == ServerTaskType.BUILD_MESH:
                 checks.append(uploaded == list(range(8)) and worker.pending_capture_count == 0)
             worker._dispatch(task)
+            if task.task_type == ServerTaskType.BUILD_MESH:
+                checks.append(finish_order == ["motion", "build"])
         checks.append(len(cues) == 8)
     finally:
         window.task_worker = original_worker
@@ -92,7 +98,7 @@ def check_offline_capture(window, temporary):
         window._session_dirty = False
         window._session_id = None
         worker._spool.cleanup()
-    if len(checks) != 13 or not all(checks):
+    if len(checks) != 14 or not all(checks):
         raise RuntimeError(f"Offline capture/upload check failed: {checks}")
 
 
