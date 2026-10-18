@@ -46,6 +46,12 @@ logger = logging.getLogger("scanner_server")
 
 class ScanEngine:
     MODEL_REFRESH_INTERVAL = 3  # re-extract model_pcd every N integrations
+    # Anchor verification is attempted on every lost frame for the first
+    # ANCHOR_PROBE_FRAMES of an outage, then on every ANCHOR_PROBE_INTERVAL-th
+    # lost frame, so a long unrecoverable outage stops repeating its most
+    # expensive check on every frame.
+    ANCHOR_PROBE_FRAMES = 3
+    ANCHOR_PROBE_INTERVAL = 4
     MAX_FRAMES = int(os.environ.get("KINECT_MAX_FRAMES", "500"))
     BLOCK_COUNT = int(os.environ.get("KINECT_BLOCK_COUNT", "50000"))
 
@@ -201,6 +207,7 @@ class ScanEngine:
         self._stored_monotonic = []
         self._appearance_cache = {}
         self._visual_cache = {}
+        self._anchor_cloud_cache = {}
         from shared.apriltag import AprilTagDetector
         self._apriltag_detector = AprilTagDetector(p.apriltag_dictionaries) if p.apriltag_tracking else None
         self._apriltag_observations = {}
@@ -703,11 +710,16 @@ class ScanEngine:
             rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
             target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
             forward = _match(source, target, initial)
+            # The candidate is discarded unless the forward match is itself
+            # trustworthy, so an untrustworthy forward match already decides it.
+            # The reverse match costs as much as the forward one; skip it rather
+            # than computing evidence that cannot change this verdict.
+            if not _trustworthy(forward, target):
+                continue
             reverse = _match(target, source, np.linalg.inv(forward.transformation))
             translation, angle = motion(reverse.transformation @ forward.transformation)
             if not (
-                _trustworthy(forward, target)
-                and _trustworthy(reverse, source)
+                _trustworthy(reverse, source)
                 and translation < 0.01
                 and angle < 2
             ):
@@ -877,6 +889,11 @@ class ScanEngine:
         from .appearance import correspondences, extract_features, propose_transform
         from .refinement import motion
 
+        # The overlap checks below must measure the same corridor ICP actually
+        # converges in at its finest level, otherwise a preset whose registration
+        # resolution differs from the default scores feature evidence against the
+        # wrong distance.
+        overlap = self.reg_voxel * 3
         if not self.settings.color_recovery or rgbd is None or not self.poses:
             return None
         index = self._processed_count
@@ -955,7 +972,7 @@ class ScanEngine:
                     self.backend["visual_refinement_statistics"]["icp_fallbacks"] += 1
                 native = (self._icp(source, target, relative, fine_only=True)
                           if relative is not None and self.backend["visual_refinement"] == "measured-fine"
-                          else _REG.evaluate_registration(source, target, 0.0225, relative)
+                          else _REG.evaluate_registration(source, target, overlap, relative)
                           if relative is not None else self._icp(source, target, proposal))
             elif self.backend["projective_odometry"] != "off":
                 self.backend["projective_statistics"]["visual_attempts"] += 1
@@ -967,7 +984,7 @@ class ScanEngine:
                 fast_pose_applied = relative is not None
                 if not fast_pose_applied:
                     self.backend["projective_statistics"]["visual_icp_fallbacks"] += 1
-                native = (_REG.evaluate_registration(source, target, 0.0225, relative)
+                native = (_REG.evaluate_registration(source, target, overlap, relative)
                           if relative is not None else self._icp(source, target, proposal))
             else:
                 native = self._icp(source, target, proposal)
@@ -988,13 +1005,13 @@ class ScanEngine:
                                                target_features.pixels[b], native.transformation, self.settings.camera)
             if not good or correction > 0.03 or correction_angle > 3:
                 # Retain the observed proposal if geometry independently agrees.
-                native = _REG.evaluate_registration(source, target, 0.0225, proposal)
+                native = _REG.evaluate_registration(source, target, overlap, proposal)
                 good, stats = feature_agreement(features.points[a], target_features.points[b],
                                                target_features.pixels[b], proposal, self.settings.camera)
             if not good or native.fitness < 0.6 or native.inlier_rmse > 0.015:
                 continue
             moved = copy.deepcopy(source).transform(native.transformation)
-            reverse = _REG.evaluate_registration(target, moved, 0.0225, np.eye(4))
+            reverse = _REG.evaluate_registration(target, moved, overlap, np.eye(4))
             if reverse.fitness < 0.45 or reverse.inlier_rmse > 0.015:
                 continue
             self._visual_evidence = {"target_index": target_index, "feature_support": stats,
@@ -1099,9 +1116,18 @@ class ScanEngine:
             # ICP against a large accumulated model can snap onto another side
             # of a box. Resume only after verification against the last actual
             # camera observations, or verified appearance relocalization.
-            recovered = self._recover_anchor(source_pcd)
-            if recovered is not None:
-                return recovered, "anchor+icp"
+            #
+            # Anchor verification is by far the most expensive thing live
+            # tracking does, and it can only succeed while the camera is still
+            # near an accepted view. Probe it through the start of a loss
+            # episode and then sample the tail, instead of paying for it on
+            # every frame of a long outage where it has already failed.
+            probe = (self._tracking_lost_frames <= self.ANCHOR_PROBE_FRAMES
+                     or self._tracking_lost_frames % self.ANCHOR_PROBE_INTERVAL == 0)
+            if probe:
+                recovered = self._recover_anchor(source_pcd)
+                if recovered is not None:
+                    return recovered, "anchor+icp"
             try:
                 recovered = self._relocalize(source_pcd, rgbd)
                 if recovered is not None:
@@ -1166,6 +1192,20 @@ class ScanEngine:
             logger.debug("Appearance relocalization failed", exc_info=True)
         return None, error
 
+    def _anchor_cloud(self, index):
+        """Registration cloud for an accepted anchor view, prepared once.
+
+        Recovery revisits the same accepted views on every lost frame, and the
+        raw frame behind an accepted index never changes, so converting and
+        downsampling it once is enough.
+        """
+        cloud = self._anchor_cloud_cache.get(index)
+        if cloud is None:
+            rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
+            cloud = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+            self._anchor_cloud_cache[index] = cloud
+        return cloud
+
     def _recover_anchor(self, source):
         """Require nearby, reciprocal overlap with up to five accepted raw views."""
         from .refinement import _match, _trustworthy, motion
@@ -1174,15 +1214,24 @@ class ScanEngine:
             return None
         if self._last_reg_pcd is None:
             self._last_reg_pcd = self._make_reg_pcd(self._last_rgbd)
-        for index, anchor_pose in reversed(self.poses[-5:]):
+        anchors = self.poses[-5:]
+        window = {index for index, _ in anchors}
+        if len(self._anchor_cloud_cache) > len(window):
+            self._anchor_cloud_cache = {
+                index: cloud for index, cloud in self._anchor_cloud_cache.items()
+                if index in window
+            }
+        for index, anchor_pose in reversed(anchors):
             if index == self.poses[-1][0]:
                 target = self._last_reg_pcd
             else:
+                # The bank stores (features, None) until a keyframe cloud is
+                # actually prepared, so an absent entry and an unprepared cloud
+                # both have to fall through to preparation.
                 cached = self._visual_cache.get(index)
                 target = cached[1] if cached is not None else None
                 if target is None:
-                    rgb, depth = self._prepare_input(*self.raw_frames[index], self.settings)
-                    target = self._make_reg_pcd(self._make_rgbd(rgb, depth))
+                    target = self._anchor_cloud(index)
             self._ensure_raw_normals(target)
             forward = _match(source, target, np.eye(4))
             if not _trustworthy(forward, target):
@@ -1212,6 +1261,8 @@ class ScanEngine:
         from .fragments import capture_gap_limit
         from .refinement import _match, _trustworthy, motion
 
+        unverified = ("Unverified tracking transition after a gap or large movement;"
+                      " return to the last good view")
         if self._last_rgbd is None or not self.poses:
             return None
         index, last = self.poses[-1]
@@ -1229,14 +1280,20 @@ class ScanEngine:
         self._ensure_raw_normals(source)
         self._ensure_raw_normals(target)
         forward = _match(source, target, relative)
+        # A transition is only accepted when both directions are trustworthy, so a
+        # forward match that already fails decides it. The reverse match costs as
+        # much as the forward one, so skip it instead of computing evidence whose
+        # result cannot change this verdict.
+        if not _trustworthy(forward, target):
+            return unverified
         reverse = _match(target, source, np.linalg.inv(forward.transformation))
         cycle_m, cycle_deg = motion(reverse.transformation @ forward.transformation)
         difference_m, difference_deg = motion(np.linalg.inv(relative) @ forward.transformation)
-        if (_trustworthy(forward, target) and _trustworthy(reverse, source)
+        if (_trustworthy(reverse, source)
                 and cycle_m < 0.01 and cycle_deg < 2
                 and difference_m <= 0.03 and difference_deg <= 3):
             return None
-        return "Unverified tracking transition after a gap or large movement; return to the last good view"
+        return unverified
 
     # ── public API: capture (fast) ─────────────────────────────────────
     def store_frame(self, rgb: np.ndarray, depth: np.ndarray, metadata=None, *, retry_safe=False) -> dict:

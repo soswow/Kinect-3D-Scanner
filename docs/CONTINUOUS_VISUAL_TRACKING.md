@@ -24,6 +24,9 @@ flowchart LR
 
 The camera thread follows up to 500 image corners with persistent identities and pyramidal optical flow,
 checks forward/backward agreement, and requires measured depth at both ends.
+The reverse flow pass is the costlier half of that check, and every later test
+only removes points from the forward set, so a reference that already lost most
+of its forward tracks stops there instead of running the reverse pass.
 PnP proposes motion, paired 3D points constrain metric motion, and a small joint
 pixel/depth refinement retains the feature identities. This is a short-baseline
 motion estimate, not a trusted world map. Unknown depth is never filled. It
@@ -344,6 +347,197 @@ Final replay outputs and complete raw-evidence reports are preserved outside Git
 in `/Users/sasha/hobby/xbox360/chest-3-session-analysis/continuous-tracking/`.
 The original archive is unchanged. A new physical capture with the running
 client/server changes, and CUDA execution, remain unverified.
+
+### Where live tracking time goes
+
+A CPU profile of `export/chest-3-scan-session_20261006_215208.zip` (first 40
+frames, `OMP_NUM_THREADS=4`, legacy tracking backend) puts the live tracking
+budget in point-to-plane ICP: `registration_icp` took 50.1 s of 82.9 s accounted
+self time across 444 calls, about 11 per frame. Descriptor matching is far
+smaller — about 3.2 ms per keyframe pair, so roughly 127 ms per frame for a full
+40-view bank. It is not the bottleneck.
+
+Most of those calls are verification rather than tracking. `refinement._match`
+supplied 285 of the 444 calls (64%), because `_recover_anchor`, `_relocalize` and
+`_verify_tracking_transition` each run a forward and a reverse match.
+`_verify_tracking_transition` now skips the reverse match when the forward match
+is already untrustworthy: its acceptance test is a conjunction, so the reverse
+result cannot change an already-failed verdict. On those 40 frames this removes
+exactly one `_match` (three ICP calls). The saving is deterministic and provably
+outcome-identical, but small — do not expect a visible throughput change from it.
+
+The visual keyframe overlap checks in `_visual_register_primary` use
+`reg_voxel * 3` instead of a hard-coded 0.0225 m radius. At the default preset
+`reg_voxel` is 0.0075, so the value is bit-identical and nothing changes; for a
+coarser preset the literal was narrower than the corridor ICP converges in, which
+scored feature and reverse-overlap evidence against the wrong distance.
+
+Two results worth keeping, both measured on the same 40 frames:
+
+- **Loosening ICP convergence makes tracking worse.** Open3D defaults to
+  `relative_fitness` and `relative_rmse` of 1e-6, so a level rarely converges
+  before its iteration budget runs out, which looks like waste. Setting both to
+  1e-5 in `engine._icp` and `refinement._match` dropped accepted frames from 28/40
+  to 15/40 and raised live time from 84.7 s to 106.8 s. These solves genuinely use
+  their iterations, and the shorter budget only sends frames into recovery.
+- **Live replay is not bit-reproducible on this machine.** Two runs of identical
+  code produced 29 784 and 29 767 surface vertices, different surface hashes, and
+  live times differing by about 2%. Treat the accepted index set, the
+  tracking-method histogram and ICP call counts as the stable signals; neither a
+  single timing run nor a surface hash is an equivalence test for a replay change.
+
+### Recovery and relocalization cost
+
+Attributing every ICP call to the engine method that requested it, on the same
+40 frames, shows where recovery effort actually goes (405 calls, 42.4 s):
+
+| Requesting method | ICP calls | Seconds | Average |
+|---|---|---|---|
+| `_recover_anchor` → `_match` | 153 | 27.76 s | 181 ms |
+| `_visual_register_primary` → `_icp` | 69 | 2.13 s | 31 ms |
+| `_color_recovery` → `verify` → `_icp` | 54 | 1.84 s | 34 ms |
+| `_relocalize` → `_match` | 48 | 6.27 s | 131 ms |
+| `_verify_tracking_transition` → `_match` | 45 | 2.67 s | 59 ms |
+| `_register` → `_icp` | 24 | 0.91 s | 38 ms |
+| `_relocalize` → `_icp` | 6 | 0.40 s | 67 ms |
+| `_fpfh_fallback` → `_icp` | 3 | 0.15 s | 50 ms |
+| `_recover_anchor` → `_icp` | 3 | 0.25 s | 83 ms |
+
+`_recover_anchor` is **65% of all ICP time**, and on this session it never
+succeeded once: no `anchor+icp` frame appears in the method histogram, so all 51
+forward matches failed `_trustworthy`. Cutting that cost is the largest remaining
+opportunity, but any change trades recovery recall, and this session cannot show
+what recall would be lost because nothing recovers here. It needs a capture where
+anchor recovery actually fires before it can be tuned.
+
+Two safe reductions were applied on top of that measurement:
+
+- `_relocalize` now skips the reverse match when the forward match is already
+  untrustworthy, on the same conjunction argument used for transition
+  verification. That removed 36 ICP calls and 3.1 s of the 82.7 s live replay,
+  with an identical accepted set and method histogram.
+- Recovery prepares each accepted anchor's registration cloud once instead of on
+  every lost frame. The raw frame behind an accepted index never changes, so this
+  is pure memoization; it is worth a further 1.1 s and about 15 MB.
+
+Together those took the same replay from 82.65 s to 78.40 s (median of three
+runs each, disjoint ranges) and from 441 to 405 ICP calls.
+
+Anchor verification can only succeed while the camera is still near an accepted
+view, so it is now **probed through the start of a loss episode and sampled
+after that** instead of being repeated on every frame of a long outage
+(`ANCHOR_PROBE_FRAMES = 3`, `ANCHOR_PROBE_INTERVAL = 4`). The tail of an outage
+is where this matters most:
+
+| Session | Frames | Live time before | Live time after | Accepted |
+|---|---|---|---|---|
+| chest-3 | 40 | 78.40 s | **73.63 s** | 28 → 28 |
+| chest-8 | 80 | 84.24 s | **34.14 s** | 6 → 6 |
+
+chest-3 also drops from 405 to 375 ICP calls. Both sessions kept an identical
+accepted index set and tracking-method histogram, so the outage tail is sampled
+rather than dropped.
+
+### Chest 8 loses tracking at frame 6 and never recovers
+
+`export/chest-8-scan-20261009-145-captures.zip` captures roughly **3.95 s apart**,
+so the camera moves far more between frames than in chest-3. Current tracking
+accepts **6 of the first 80 frames**, and the whole loss follows from one
+decision:
+
+```
+[  5] accepted, fitness 0.699, RMSE 13.6 mm
+[  6] verify gap=3.95s (limit 12.14) trans=0.299m ang=19.0deg -> REJECT
+      forward/target  fit=0.650 rmse=9.9mm corr=14239  trustworthy
+      reverse/source  fit=0.691 rmse=9.2mm corr=12917  trustworthy
+      cycle     13.3mm 0.61deg (limit 10mm 2deg) -> FAIL
+      agreement 43.0mm 2.38deg (limit 30mm 3deg) -> FAIL
+```
+
+Both reciprocal matches are individually trustworthy, so the rejection comes from
+the two numeric bounds — and **both of them bind**. Frames 1 and 2, at 11.0° and
+14.6°, closed at 1.6 mm and 3.2 mm and agreed within 10.3 mm and 10.5 mm, so they
+passed the same gates.
+
+Earlier notes here blamed the cycle-consistency gate alone. That was wrong: the
+probe that produced those numbers checked the reverse match against `target`
+instead of `source`, so the reciprocal closure it computed was not the engine's.
+The corrected probe above shows the 43 mm agreement correction is the larger
+violation.
+
+After that, `_recover_anchor` runs on every subsequent frame, never succeeds — no
+`anchor+icp` frame is ever produced, and appearance relocalization finds no
+candidates — so 74 frames are spent failing. Two changes were measured against
+this and one was reverted:
+
+- **Anchor probing (kept).** Sampling the outage tail cut this session from
+  84.24 s to 34.14 s with identical results.
+- **Seeding older anchors from tracked motion instead of identity (reverted).**
+  Using `inv(anchor_pose) @ last_accepted_pose` as the ICP seed is more
+  informed, and reduces to identity for the newest anchor, but it recovered
+  nothing: 6 accepted either way, 33.62 s against 34.14 s. No measured benefit on
+  a safety-critical path, so it was not kept.
+
+#### The two transition bounds were widened, measured, and left alone
+
+The bounds were promoted to named class constants so an A/B could move them
+together, and the widened configuration scaled agreement with the step being
+verified (`max(0.03, 0.2 * translation)`) and widened cycle closure to 0.03 m /
+3° — the corridor `_match` already searches, which a 19° rotation can plausibly
+resolve. Across all eight archived sessions:
+
+| Configuration | chest-3 | chest-4 | chest-5 | chest-6 | chest-8 | scan-912b6d41 | full-room | with-markers |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Current bounds | 28 | 34 | 5 | 33 | 6 | 3 | 13 | 40 |
+| Widened bounds | 28 | 34 | 5 | 33 | **18** | 3 | 13 | 40 |
+
+Only chest-8 changes. Widening either bound on its own is a no-op there — the
+agreement-scaled run and the cycle-widened run both stay at 6 accepted, because
+the other bound still binds — so the two had to move together to change
+anything.
+
+**It does not deliver.** With `--finish`, chest-8 ends at the *same* six accepted
+indices `[0, 1, 2, 3, 4, 5]` either way, with the same three verified bridges,
+the same seven fragments, the same five corrected poses and the same one
+connected fragment. Finish reports
+`Reconnected 0 views; 5 poses corrected, 12 excluded`: every one of the twelve
+newly tracked views is dropped again as a view whose position could not be
+verified, and the mesh grows by 0.17% (60,816 → 60,921 vertices). The reconnection
+was not budget-limited (`budget_limited: false`, 256 pairs, 32 fragments, 0
+ambiguous pairs), so this is genuine absence of corroboration rather than a
+truncated search.
+
+Two further signals point the same way. The twelve new views include frames 9
+and 12, accepted at overlap 0.572 and 0.516 — below the 0.6 floor the same module
+applies in `_match_failure` and `_recover_anchor`. And live time rises from
+18.92 s to 32.30 s, because twelve more frames are tracked instead of failing
+fast. `tests/test_tracking_recovery.py` pins both bounds at their current values
+with the measured rationale, so revisiting this takes a deliberate change rather
+than a silent one.
+
+chest-5 (5 of 27) and scan-912b6d41 (3 of 40) are **not** explained by either
+bound: widening them changed nothing in those sessions either, and the condition
+that rejects them remains undiagnosed.
+
+Measured decisions, all "do not change this":
+
+- **`KINECT_KEYFRAME_CACHE=on` is not a speedup here.** Enabling it left the ICP
+  count identical at 405, moved the live median from 79.53 s to 80.83 s, widened
+  the three-run spread from 0.39 s to 3.47 s, and raised peak RSS from about
+  2060 MB to as much as 2308 MB. The default `off` is correct.
+- **A cheaper first RGB-D odometry pass is not worth it.** `_color_recovery`
+  succeeds about 10 times per 18 attempts. Trying a reduced `[16,8,4]` pyramid
+  before the full `[40,20,10]` one breaks even at roughly a 29% cheap-pass
+  success rate, and a cheap pass that converges but disagrees with ICP still pays
+  a second ICP verification. Against the measured success rate the expected saving
+  is around 1.4% of live time, for a real chance of losing a recovery. Not taken.
+- **No existing backend knob beats the defaults.** Measured on chest-3 at 40
+  frames against the 78.40 s / 405-call baseline: `KINECT_MODEL_REFRESH=lazy`
+  was neutral (78.43 s, same accepted set and methods, tracking slightly worse);
+  `KINECT_VISUAL_REFINEMENT=measured-fine` was slower (80.32 s) with no gain;
+  `KINECT_LIVE_RECOVERY=deferred` accepted 1 frame instead of 28, because it is a
+  mode change that hands recovery to Finish rather than an optimisation. The
+  remaining cost is not sitting behind a configuration flag.
 
 ## Combined final replay result
 
